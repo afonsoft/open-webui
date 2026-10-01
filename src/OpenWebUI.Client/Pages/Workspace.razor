@@ -2,6 +2,7 @@
 @page "/workspace/prompts"
 @page "/workspace/models"
 @page "/workspace/files"
+@page "/workspace/knowledge"
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -17,6 +18,8 @@
                 @onclick='() => Nav.NavigateTo("/workspace/models")'>Modelos</button>
         <button class="modal-tab @(Section == "files" ? "active" : "")"
                 @onclick='() => Nav.NavigateTo("/workspace/files")'>Arquivos</button>
+        <button class="modal-tab @(Section == "knowledge" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>Knowledge</button>
     </div>
 
     @if (Section == "models")
@@ -68,6 +71,49 @@
             }
         </div>
     }
+    else if (Section == "knowledge")
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <button class="auth-submit" @onclick="NewKnowledgeAsync">+ Nova coleção</button>
+            </div>
+            @foreach (var item in _knowledge)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title"># @item.Name</div>
+                        <div class="card-sub">@item.FileCount arquivo(s) — @(item.Description ?? "sem descrição")</div>
+                        @if (_knowledgeDetail?.Id == item.Id)
+                        {
+                            <div class="card-sub">
+                                @foreach (var kf in _knowledgeDetail.Files)
+                                {
+                                    <div>📄 @kf.Filename
+                                        <button class="msg-action danger" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
+                                    </div>
+                                }
+                                @if (_knowledgeDetail.Files.Count == 0)
+                                {
+                                    <div>Nenhum arquivo ainda.</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="() => ToggleKnowledgeDetailAsync(item)">
+                            @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
+                        </button>
+                        <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">+ arquivo</button>
+                        <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_knowledge.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhuma coleção. Use #nome no chat para injetar contexto.</div>
+            }
+        </div>
+    }
     else
     {
         <div class="card-list">
@@ -99,17 +145,82 @@
     private string Section =>
         Nav.Uri.Contains("/workspace/models") ? "models"
         : Nav.Uri.Contains("/workspace/files") ? "files"
+        : Nav.Uri.Contains("/workspace/knowledge") ? "knowledge"
         : "prompts";
 
     private List<PromptResponse> _prompts = [];
     private List<ModelEntryResponse> _models = [];
     private List<FileResponse> _files = [];
+    private List<KnowledgeResponse> _knowledge = [];
+    private KnowledgeDetailResponse? _knowledgeDetail;
 
     protected override async Task OnInitializedAsync()
     {
         _prompts = await Api.GetPromptsAsync();
         _models = await Api.GetCustomModelsAsync();
         _files = await Api.GetFilesAsync();
+        _knowledge = await Api.GetKnowledgeAsync();
+    }
+
+    private async Task NewKnowledgeAsync()
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da coleção:", "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+        var created = await Api.CreateKnowledgeAsync(name.Trim());
+        if (created is not null)
+        {
+            _knowledge.Add(created);
+        }
+    }
+
+    private async Task ToggleKnowledgeDetailAsync(KnowledgeResponse item)
+    {
+        _knowledgeDetail = _knowledgeDetail?.Id == item.Id
+            ? null
+            : await Api.GetKnowledgeDetailAsync(item.Id);
+    }
+
+    private async Task AddKnowledgeFileAsync(KnowledgeResponse item)
+    {
+        var names = string.Join("\n", _files.Select(f => $"- {f.Filename}"));
+        var filename = await JS.InvokeAsync<string?>("openwebui.prompt",
+            $"Nome do arquivo a adicionar:\n{names}", "");
+        var file = _files.FirstOrDefault(f =>
+            f.Filename.Equals(filename?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (file is null)
+        {
+            return;
+        }
+        if (await Api.AddKnowledgeFileAsync(item.Id, file.Id))
+        {
+            _knowledgeDetail = await Api.GetKnowledgeDetailAsync(item.Id);
+            _knowledge = await Api.GetKnowledgeAsync();
+        }
+    }
+
+    private async Task RemoveKnowledgeFileAsync(KnowledgeFileResponse kf)
+    {
+        if (_knowledgeDetail is not null &&
+            await Api.RemoveKnowledgeFileAsync(_knowledgeDetail.Id, kf.FileId))
+        {
+            _knowledgeDetail = await Api.GetKnowledgeDetailAsync(_knowledgeDetail.Id);
+            _knowledge = await Api.GetKnowledgeAsync();
+        }
+    }
+
+    private async Task DeleteKnowledgeAsync(KnowledgeResponse item)
+    {
+        if (await Api.DeleteKnowledgeAsync(item.Id))
+        {
+            _knowledge.Remove(item);
+            if (_knowledgeDetail?.Id == item.Id)
+            {
+                _knowledgeDetail = null;
+            }
+        }
     }
 
     private async Task NewPrompt()

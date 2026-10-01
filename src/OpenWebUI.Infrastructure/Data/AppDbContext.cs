@@ -48,6 +48,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Contas OAuth/OIDC vinculadas a usuários.</summary>
     public DbSet<OAuthAccount> OAuthAccounts => Set<OAuthAccount>();
 
+    /// <summary>Coleções de knowledge (RAG).</summary>
+    public DbSet<KnowledgeCollection> KnowledgeCollections => Set<KnowledgeCollection>();
+
+    /// <summary>Arquivos vinculados a coleções.</summary>
+    public DbSet<KnowledgeFile> KnowledgeFiles => Set<KnowledgeFile>();
+
+    /// <summary>Chunks vetoriais para retrieval.</summary>
+    public DbSet<EmbeddingChunk> EmbeddingChunks => Set<EmbeddingChunk>();
+
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
@@ -162,6 +171,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(a => a.Id);
             entity.HasIndex(a => new { a.Provider, a.ProviderAccountId }).IsUnique();
             entity.HasIndex(a => a.UserId);
+        });
+
+        modelBuilder.Entity<KnowledgeCollection>(entity =>
+        {
+            entity.HasKey(k => k.Id);
+            entity.HasIndex(k => new { k.UserId, k.Name }).IsUnique();
+            entity.HasOne(k => k.User)
+                .WithMany()
+                .HasForeignKey(k => k.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(k => k.Files)
+                .WithOne(f => f.Collection!)
+                .HasForeignKey(f => f.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnowledgeFile>(entity =>
+        {
+            entity.HasKey(f => f.Id);
+            entity.HasIndex(f => new { f.CollectionId, f.FileId }).IsUnique();
+        });
+
+        modelBuilder.Entity<EmbeddingChunk>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.HasIndex(c => new { c.UserId, c.FileId });
         });
     }
 }

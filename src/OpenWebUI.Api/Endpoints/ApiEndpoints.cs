@@ -89,6 +89,7 @@ public static class ApiEndpoints
         AppDbContext db,
         ConfigService config,
         ProviderService providers,
+        RagService rag,
         CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
@@ -102,7 +103,7 @@ public static class ApiEndpoints
             return;
         }
 
-        var effective = await EnrichRequestAsync(request, user, db, config, ct);
+        var effective = await EnrichRequestAsync(request, user, db, config, rag, ct);
 
         await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
         try
@@ -142,6 +143,7 @@ public static class ApiEndpoints
         User user,
         AppDbContext db,
         ConfigService config,
+        RagService rag,
         CancellationToken ct)
     {
         var model = request.Model;
@@ -183,10 +185,20 @@ public static class ApiEndpoints
             }
         }
 
-        // 2. Contexto de arquivos anexados.
-        if (request.FileIds is { Count: > 0 })
+        // 2. Contexto de arquivos/referências: anexos + #arquivo/#coleção.
+        //    Com embeddings disponíveis injeta os top-K chunks por similaridade;
+        //    sem provider cai no fallback de texto integral atual.
+        var lastUserText = messages.LastOrDefault(m => m.Role == "user")?.Content ?? string.Empty;
+        var referenced = await ResolveReferenceFileIdsAsync(lastUserText, user.Id, db, ct);
+        var scopedFileIds = (request.FileIds ?? [])
+            .Concat(referenced).Distinct().ToList();
+        if (scopedFileIds.Count > 0)
         {
-            var fileContext = await FileEndpoints.BuildFileContextAsync(request.FileIds, user.Id, db, ct);
+            var fileContext = lastUserText.Length > 0
+                ? await rag.RetrieveAsync(user.Id, lastUserText, scopedFileIds, ct)
+                : null;
+            fileContext ??= await FileEndpoints.BuildFileContextAsync(
+                scopedFileIds, user.Id, db, ct);
             if (!string.IsNullOrEmpty(fileContext))
             {
                 systemParts.Add(fileContext);
@@ -230,6 +242,48 @@ public static class ApiEndpoints
             Params = parameters,
             FileIds = null,
         };
+    }
+
+    /// <summary>Resolve referências #nome (arquivo ou coleção) para ids de arquivo.</summary>
+    private static async Task<List<string>> ResolveReferenceFileIdsAsync(
+        string text, string userId, AppDbContext db, CancellationToken ct)
+    {
+        var fileIds = new List<string>();
+        if (!text.Contains('#'))
+        {
+            return fileIds;
+        }
+
+        var tokens = System.Text.RegularExpressions.Regex
+            .Matches(text, @"#([\w.\-]+)")
+            .Select(m => m.Groups[1].Value)
+            .Distinct()
+            .ToList();
+        if (tokens.Count == 0)
+        {
+            return fileIds;
+        }
+
+        // #coleção → todos os arquivos vinculados.
+        var collections = await db.KnowledgeCollections.AsNoTracking()
+            .Where(k => k.UserId == userId && tokens.Contains(k.Name))
+            .Select(k => k.Id)
+            .ToListAsync(ct);
+        if (collections.Count > 0)
+        {
+            fileIds.AddRange(await db.KnowledgeFiles.AsNoTracking()
+                .Where(f => collections.Contains(f.CollectionId))
+                .Select(f => f.FileId)
+                .ToListAsync(ct));
+        }
+
+        // #arquivo → arquivo do usuário com esse nome.
+        fileIds.AddRange(await db.Files.AsNoTracking()
+            .Where(f => f.UserId == userId && tokens.Contains(f.Filename))
+            .Select(f => f.Id)
+            .ToListAsync(ct));
+
+        return fileIds;
     }
 
     private static async Task<IResult> GetConnectionsAsync(

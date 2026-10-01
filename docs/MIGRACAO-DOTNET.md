@@ -57,7 +57,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `/api/config` + `/health`              | ✅ Migrado  | Feature flags públicas                                    |
 | Exportar/importar config               | ✅ Migrado  | `/api/v1/configs/export                                   | import` |
 | Tema claro/escuro                      | ✅ Migrado  | Persistido em localStorage                                |
-| RAG / Knowledge / vector store         | ⬜ Pendente | 9 vector DBs no original                                  |
+| RAG / Knowledge / vector store         | ✅ Migrado  | Store SQLite + cosseno; embeddings Ollama/OpenAI       |
 | Web search RAG                         | ⬜ Pendente | Stub de query generation existe                           |
 | Tools / Functions / Pipes / Filters    | ⬜ Pendente | Sistema de plugins Python                                 |
 | Channels (chat em grupo)               | ⬜ Pendente |                                                           |

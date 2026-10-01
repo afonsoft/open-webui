@@ -20,6 +20,8 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<EmbeddingService>();
+builder.Services.AddScoped<RagService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -124,6 +126,7 @@ app.MapTaskEndpoints();
 app.MapApiEndpoints();
 app.MapGroupEndpoints();
 app.MapOAuthEndpoints();
+app.MapKnowledgeEndpoints();
 
 app.MapFallbackToFile("index.html");
 

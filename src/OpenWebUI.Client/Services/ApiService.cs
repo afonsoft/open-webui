@@ -493,6 +493,34 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> RemoveGroupMemberAsync(string id, string userId) =>
         await SendStatusAsync(HttpMethod.Delete, $"/api/v1/groups/{id}/members/{userId}");
 
+    // ---------------- Knowledge (RAG) ----------------
+
+    /// <summary>Lista as coleções de knowledge do usuário.</summary>
+    public async Task<List<KnowledgeResponse>> GetKnowledgeAsync() =>
+        await SendAsync<List<KnowledgeResponse>>(HttpMethod.Get, "/api/v1/knowledge") ?? [];
+
+    /// <summary>Cria uma coleção de knowledge.</summary>
+    public Task<KnowledgeResponse?> CreateKnowledgeAsync(string name, string? description = null) =>
+        SendAsync<KnowledgeResponse>(HttpMethod.Post, "/api/v1/knowledge",
+            new CreateKnowledgeRequest(name, description));
+
+    /// <summary>Obtém uma coleção com seus arquivos.</summary>
+    public Task<KnowledgeDetailResponse?> GetKnowledgeDetailAsync(string id) =>
+        SendAsync<KnowledgeDetailResponse>(HttpMethod.Get, $"/api/v1/knowledge/{id}");
+
+    /// <summary>Exclui uma coleção de knowledge.</summary>
+    public async Task<bool> DeleteKnowledgeAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/knowledge/{id}");
+
+    /// <summary>Vincula um arquivo já enviado a uma coleção.</summary>
+    public Task<bool> AddKnowledgeFileAsync(string id, string fileId) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/knowledge/{id}/files",
+            new AddKnowledgeFileRequest(fileId));
+
+    /// <summary>Remove um arquivo de uma coleção.</summary>
+    public async Task<bool> RemoveKnowledgeFileAsync(string id, string fileId) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/knowledge/{id}/files/{fileId}");
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
 }
 
