@@ -55,7 +55,7 @@ public static class ApiEndpoints
                 EnableFolders: adminConfig.EnableFolders,
                 EnableMemories: adminConfig.EnableMemories,
                 EnableNotes: true,
-                EnableChannels: false,
+                EnableChannels: true,
                 EnableWebSearch: false,
                 EnableImageGeneration: false,
                 EnableCodeExecution: false,

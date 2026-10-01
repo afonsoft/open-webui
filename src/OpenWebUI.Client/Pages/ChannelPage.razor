@@ -1,0 +1,244 @@
+@page "/channels/{Id}"
+@implements IDisposable
+@inject ApiService Api
+@inject AuthService Auth
+@inject RealtimeService Realtime
+@inject MarkdownService Markdown
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>@(_channel?.Name ?? "Canal") — Open WebUI</PageTitle>
+
+<div class="flex flex-col flex-1 h-full w-full min-w-0">
+    <div class="sticky top-0 z-30 w-full">
+        <div class="flex items-center w-full pl-1.5 pr-1">
+            <div class="flex-1 mt-0.5 py-0.5 pl-1">
+                <div class="text-[0.9375rem] font-medium text-gray-800 dark:text-gray-200">
+                    # @(_channel?.Name ?? "…")
+                </div>
+            </div>
+            <div class="flex flex-none items-center gap-2 self-center">
+                @if (_online.Count > 0)
+                {
+                    <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span class="size-1.5 rounded-full bg-green-500"></span>@_online.Count online
+                    </span>
+                }
+                @if (_channel?.MyRole == "admin" || Auth.CurrentUser?.Role == "admin")
+                {
+                    <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                            title="Adicionar membro" @onclick="AddMemberAsync">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto scrollbar-hidden">
+        <div class="mx-auto w-full max-w-4xl px-4 pb-6">
+            @if (_channel is null && _loaded)
+            {
+                <div class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Canal não encontrado ou você não é membro.
+                </div>
+            }
+            else if (_messages.Count == 0 && _loaded)
+            {
+                <div class="py-16 text-center">
+                    <div class="text-lg text-gray-700 dark:text-gray-200"># @_channel?.Name</div>
+                    <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Comece a conversa — use @@modelo para invocar um modelo.
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="flex flex-col gap-5 py-4">
+                    @foreach (var msg in _messages)
+                    {
+                        <div class="flex w-full gap-3">
+                            <div class="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[0.65rem] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                @Initials(msg.AuthorName)
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                    @msg.AuthorName
+                                </div>
+                                <div class="markdown-body mt-0.5 text-sm text-gray-800 dark:text-gray-200">
+                                    @((MarkupString)Markdown.ToHtml(msg.Content))
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (_typing is not null)
+                    {
+                        <div class="text-xs italic text-gray-400 dark:text-gray-500">
+                            @_typing está digitando…
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="w-full px-4 pb-4">
+        <div class="mx-auto max-w-4xl">
+            <div class="flex items-end gap-2 rounded-3xl border border-gray-100 bg-white px-4 py-2.5 dark:border-gray-850 dark:bg-gray-900">
+                <textarea
+                    class="max-h-40 flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+                    rows="1" placeholder="Mensagem em #@(_channel?.Name ?? "canal") — @@modelo chama a IA"
+                    @bind="_draft" @bind:event="oninput" @onkeydown="OnKeyDown"
+                    disabled="@(_channel is null)"></textarea>
+                <button
+                    class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
+                    disabled="@(string.IsNullOrWhiteSpace(_draft) || _channel is null)"
+                    @onclick="SendAsync">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Id do canal na rota.</summary>
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private ChannelDetailResponse? _channel;
+    private List<ChannelMessageResponse> _messages = [];
+    private readonly HashSet<string> _seen = [];
+    private HashSet<string> _online = [];
+    private string? _typing;
+    private string _draft = string.Empty;
+    private bool _loaded;
+    private string? _lastId;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        Realtime.OnMessage += HandleMessage;
+        Realtime.OnTyping += HandleTyping;
+        Realtime.OnPresence += HandlePresence;
+        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_lastId == Id)
+        {
+            return;
+        }
+        _lastId = Id;
+        _loaded = false;
+        _messages = [];
+        _seen.Clear();
+        _online = [];
+        _typing = null;
+
+        _channel = await Api.GetChannelAsync(Id);
+        _messages = await Api.GetChannelMessagesAsync(Id);
+        foreach (var m in _messages)
+        {
+            _seen.Add(m.Id);
+        }
+        _loaded = true;
+    }
+
+    private void HandleMessage(ChannelMessageResponse message)
+    {
+        if (message.ChannelId == Id && _seen.Add(message.Id))
+        {
+            _messages.Add(message);
+            _typing = null;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleTyping(string channelId, string userId, string name)
+    {
+        if (channelId == Id && userId != Auth.CurrentUser?.Id)
+        {
+            _typing = name;
+            InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                await Task.Delay(2500);
+                if (_typing == name)
+                {
+                    _typing = null;
+                    await InvokeAsync(StateHasChanged);
+                }
+            });
+        }
+    }
+
+    private void HandlePresence(string channelId, string[] userIds)
+    {
+        if (channelId == Id)
+        {
+            _online = [..userIds];
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        var content = _draft.Trim();
+        if (content.Length == 0 || _channel is null)
+        {
+            return;
+        }
+        _draft = string.Empty;
+
+        var sent = await Api.PostChannelMessageAsync(Id, content);
+        if (sent is not null && _seen.Add(sent.Id))
+        {
+            _messages.Add(sent);
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendAsync();
+        }
+        else
+        {
+            _ = Realtime.SendTypingAsync(Id);
+        }
+    }
+
+    private async Task AddMemberAsync()
+    {
+        var email = await JS.InvokeAsync<string?>("prompt", "E-mail do usuário a adicionar:");
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+        var users = await Api.GetUsersAsync();
+        var user = users.FirstOrDefault(u =>
+            u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (user is not null)
+        {
+            await Api.AddChannelMemberAsync(Id, user.Id);
+            _channel = await Api.GetChannelAsync(Id);
+        }
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Realtime.OnMessage -= HandleMessage;
+        Realtime.OnTyping -= HandleTyping;
+        Realtime.OnPresence -= HandlePresence;
+    }
+}
