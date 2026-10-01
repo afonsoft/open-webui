@@ -149,6 +149,78 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         }
     }
 
+    /// <summary>
+    /// Executa uma completion não-streamed que pode retornar tool_calls
+    /// (loop de tools). Roteia Ollama/OpenAI e normaliza as chamadas.
+    /// </summary>
+    /// <param name="request">Requisição com Tools preenchidas.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<ProviderCompletion> CompleteWithToolsAsync(
+        ChatCompletionRequest request, CancellationToken ct = default)
+    {
+        var connections = await config.GetConnectionsAsync(ct);
+        var provider = await ResolveProviderAsync(request, connections, ct);
+        var payload = BuildPayload(request, stream: false);
+        JsonNode? json;
+        bool openAi = provider == "openai";
+
+        if (openAi)
+        {
+            var (index, baseUrl) = FirstOpenAiConnection(connections);
+            using var httpRequest = new HttpRequestMessage(
+                HttpMethod.Post, $"{TrimSlash(baseUrl)}/chat/completions")
+            {
+                Content = new StringContent(
+                    payload.ToJsonString(), Encoding.UTF8, "application/json"),
+            };
+            var apiKey = connections.OpenAiApiKeys.ElementAtOrDefault(index);
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                httpRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", apiKey);
+            }
+            using var response = await httpClientFactory.CreateClient()
+                .SendAsync(httpRequest, ct);
+            response.EnsureSuccessStatusCode();
+            json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        }
+        else
+        {
+            var baseUrl = FirstBaseUrl(connections)
+                ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
+            using var response = await httpClientFactory.CreateClient().PostAsync(
+                $"{TrimSlash(baseUrl)}/api/chat",
+                new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
+                ct);
+            response.EnsureSuccessStatusCode();
+            json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        }
+
+        var message = openAi ? json?["choices"]?[0]?["message"] : json?["message"];
+        var content = message?["content"]?.GetValue<string>() ?? string.Empty;
+        var calls = new List<ProviderToolCall>();
+        var callsNode = message?["tool_calls"]?.AsArray();
+        var callsJson = callsNode?.ToJsonString() ?? "[]";
+        if (callsNode is not null)
+        {
+            foreach (var call in callsNode)
+            {
+                var name = call?["function"]?["name"]?.GetValue<string>();
+                if (name is null)
+                {
+                    continue;
+                }
+                var args = call?["function"]?["arguments"];
+                var argsJson = args is JsonValue ? args.GetValue<string>() : args?.ToJsonString() ?? "{}";
+                calls.Add(new ProviderToolCall(
+                    call?["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                    name, argsJson));
+            }
+        }
+
+        return new ProviderCompletion(content, calls, callsJson);
+    }
+
     private async Task<string> ResolveProviderAsync(
         ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
     {
@@ -176,14 +248,33 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         {
             ["model"] = request.Model,
             ["messages"] = new JsonArray(request.Messages
-                .Select(m => (JsonNode)new JsonObject
+                .Select(m =>
                 {
-                    ["role"] = m.Role,
-                    ["content"] = m.Content,
+                    var node = new JsonObject
+                    {
+                        ["role"] = m.Role,
+                        ["content"] = m.Content,
+                    };
+                    if (m.ToolCallId is not null)
+                    {
+                        node["tool_call_id"] = m.ToolCallId;
+                    }
+                    if (m.ToolCallsJson is not null)
+                    {
+                        node["tool_calls"] = JsonNode.Parse(m.ToolCallsJson);
+                    }
+                    return (JsonNode)node;
                 })
                 .ToArray()),
             ["stream"] = stream,
         };
+
+        if (request.Tools is { Count: > 0 })
+        {
+            payload["tools"] = new JsonArray(request.Tools
+                .Select(t => JsonNode.Parse(t.GetRawText()))
+                .ToArray());
+        }
 
         if (request.Params is not null)
         {
@@ -403,3 +494,17 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
 
     private static string TrimSlash(string url) => url.TrimEnd('/');
 }
+
+/// <summary>Resultado de uma completion com suporte a tool_calls.</summary>
+/// <param name="Content">Texto final (pode ser vazio quando só há calls).</param>
+/// <param name="ToolCalls">Chamadas de função pedidas pelo modelo.</param>
+public sealed record ProviderCompletion(
+    string Content,
+    IReadOnlyList<ProviderToolCall> ToolCalls,
+    string ToolCallsJson);
+
+/// <summary>Chamada de função normalizada (Ollama/OpenAI).</summary>
+/// <param name="Id">Id da chamada (echo em tool_call_id).</param>
+/// <param name="Name">Nome da função.</param>
+/// <param name="ArgumentsJson">Argumentos em JSON.</param>
+public sealed record ProviderToolCall(string Id, string Name, string ArgumentsJson);

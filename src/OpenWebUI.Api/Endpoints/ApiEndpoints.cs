@@ -89,6 +89,7 @@ public static class ApiEndpoints
         AppDbContext db,
         ConfigService config,
         ProviderService providers,
+        ToolExecutor toolExecutor,
         CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
@@ -107,6 +108,33 @@ public static class ApiEndpoints
         await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
         try
         {
+            var tools = request.ToolIds is { Count: > 0 }
+                ? await toolExecutor.LoadEnabledAsync(user.Id, request.ToolIds, ct)
+                : null;
+            if (tools is { Count: > 0 })
+            {
+                effective = effective with
+                {
+                    Tools = tools
+                        .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
+                        .ToList(),
+                };
+                var finished = await RunToolLoopAsync(effective, tools, toolExecutor, providers, ct);
+                if (finished is not null)
+                {
+                    var chunk = JsonSerializer.Serialize(new
+                    {
+                        choices = new[] { new { index = 0, delta = new { content = finished } } },
+                    });
+                    await writer.WriteLineAsync($"data: {chunk}");
+                    await writer.WriteLineAsync();
+                    await writer.WriteLineAsync("data: [DONE]");
+                    await writer.WriteLineAsync();
+                    await writer.FlushAsync();
+                    return;
+                }
+            }
+
             await foreach (var line in providers.StreamCompletionAsync(effective, ct))
             {
                 await writer.WriteLineAsync(line);
@@ -134,6 +162,47 @@ public static class ApiEndpoints
             await writer.WriteLineAsync();
             await writer.FlushAsync();
         }
+    }
+
+    /// <summary>
+    /// Loop de tool calling: chama o modelo com tools até resposta final
+    /// (sem tool_calls) ou teto de 5 iterações. Retorna o conteúdo final
+    /// para ser emitido como SSE, ou null para seguir o stream normal.
+    /// </summary>
+    private static async Task<string?> RunToolLoopAsync(
+        ChatCompletionRequest effective,
+        IReadOnlyList<Tool> tools,
+        ToolExecutor toolExecutor,
+        ProviderService providers,
+        CancellationToken ct)
+    {
+        const int maxRounds = 5;
+        var messages = effective.Messages.ToList();
+
+        for (var round = 0; round < maxRounds; round++)
+        {
+            var step = await providers.CompleteWithToolsAsync(
+                effective with { Messages = messages }, ct);
+            if (step.ToolCalls.Count == 0)
+            {
+                return step.Content;
+            }
+
+            messages.Add(new ChatCompletionMessage(
+                "assistant", step.Content, ToolCallsJson: step.ToolCallsJson));
+            foreach (var call in step.ToolCalls)
+            {
+                var output = await toolExecutor.ExecuteAsync(
+                    tools, call.Name, call.ArgumentsJson, ct);
+                messages.Add(new ChatCompletionMessage(
+                    "tool", output, ToolCallId: call.Id));
+            }
+        }
+
+        // Teto de iterações atingido: resposta final sem tools.
+        var final = await providers.CompleteAsync(
+            effective with { Messages = messages, Tools = null }, ct);
+        return final;
     }
 
     /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>

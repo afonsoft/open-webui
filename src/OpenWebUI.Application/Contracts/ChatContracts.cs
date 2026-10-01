@@ -52,6 +52,7 @@ public sealed record ChatResponse(
     IReadOnlyList<string> Tags,
     string? FolderId,
     string? ShareId,
+    IReadOnlyList<string> ToolIds,
     long CreatedAt,
     long UpdatedAt);
 
@@ -59,10 +60,12 @@ public sealed record ChatResponse(
 /// <param name="Title">Título do chat.</param>
 /// <param name="Models">Modelos selecionados.</param>
 /// <param name="Messages">Histórico completo de mensagens.</param>
+/// <param name="ToolIds">Ids das tools habilitadas neste chat (opcional).</param>
 public sealed record ChatUpsertRequest(
     string Title,
     IReadOnlyList<string> Models,
-    IReadOnlyList<ChatMessageModel> Messages);
+    IReadOnlyList<ChatMessageModel> Messages,
+    IReadOnlyList<string>? ToolIds = null);
 
 /// <summary>Atualização parcial de metadados do chat (título/tags/pasta).</summary>
 /// <param name="Title">Novo título (opcional).</param>

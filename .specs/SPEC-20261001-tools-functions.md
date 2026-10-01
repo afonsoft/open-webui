@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-tools-functions` |
 | Ticket | `GAP-implementation-tools-functions — Issue a criar` |
-| Status | `Approved` |
+| Status | `In implementation` |
 
 ## 1. User Story
 

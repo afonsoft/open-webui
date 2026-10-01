@@ -129,6 +129,31 @@
 
                 <div class="flex justify-between mt-0.5 mb-2 mx-0.5 max-w-full" dir="ltr">
                     <div class="ml-1 self-end flex items-center flex-1 min-w-0">
+                        @if (_tools.Count > 0)
+                        {
+                            <div class="relative">
+                                <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
+                                               @(_toolIds.Count > 0 ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
+                                        title="Tools" disabled="@_loading"
+                                        @onclick="() => _showToolsMenu = !_showToolsMenu">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
+                                </button>
+                                @if (_showToolsMenu)
+                                {
+                                    <div class="absolute bottom-10 left-0 z-40 w-56 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden">
+                                        <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Tools nesta conversa</div>
+                                        @foreach (var tool in _tools)
+                                        {
+                                            <label class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
+                                                <input type="checkbox" checked="@_toolIds.Contains(tool.Id)"
+                                                       @onchange="() => ToggleToolAsync(tool.Id)" />
+                                                <span class="truncate">@tool.Name</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
                         <button class="size-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition cursor-pointer disabled:opacity-40"
                                 title="Anexar arquivo" disabled="@(_loading || _uploading)"
                                 @onclick="TriggerFilePicker">
@@ -173,6 +198,9 @@
     private List<PromptResponse> _prompts = [];
     private List<PromptResponse> _promptSuggestions = [];
     private List<string> _followUps = [];
+    private List<ToolResponse> _tools = [];
+    private HashSet<string> _toolIds = [];
+    private bool _showToolsMenu;
     private string? _loadedChatId;
     private string _chatTitle = "New Chat";
     private string? _model;
@@ -198,6 +226,7 @@
     protected override async Task OnInitializedAsync()
     {
         _prompts = await Api.GetPromptsAsync();
+        _tools = await Api.GetToolsAsync();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -215,6 +244,7 @@
             _loadedChatId = null;
             _chatTitle = "New Chat";
             _messages.Clear();
+            _toolIds.Clear();
             return;
         }
 
@@ -230,6 +260,7 @@
 
             _loadedChatId = chat.Id;
             _chatTitle = chat.Title;
+            _toolIds = chat.ToolIds.ToHashSet();
             _messages.Clear();
             _messages.AddRange(chat.Messages);
             if (chat.Models.Count > 0)
@@ -343,7 +374,8 @@
             }
 
             var created = await Api.CreateChatAsync(
-                new ChatUpsertRequest(title, [_model!], _messages));
+                new ChatUpsertRequest(title, [_model!], _messages,
+                    _toolIds.Count > 0 ? _toolIds.ToList() : []));
             if (created is null)
             {
                 _error = "Não foi possível criar o chat.";
@@ -463,7 +495,8 @@
                     .Select(m => new ChatCompletionMessage(m.Role, m.Content))
                     .ToList(),
                 Stream: true,
-                FileIds: fileIds.Count > 0 ? fileIds : null);
+                FileIds: fileIds.Count > 0 ? fileIds : null,
+                ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null);
 
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
             {
@@ -489,6 +522,15 @@
     }
 
     private void StopStreaming() => _cts?.Cancel();
+
+    private async Task ToggleToolAsync(string toolId)
+    {
+        if (!_toolIds.Remove(toolId))
+        {
+            _toolIds.Add(toolId);
+        }
+        await PersistAsync();
+    }
 
     private async Task GenerateTitleAsync()
     {
@@ -530,7 +572,8 @@
 
         var updated = await Api.UpdateChatAsync(
             _loadedChatId,
-            new ChatUpsertRequest(_chatTitle, _model is null ? [] : [_model], _messages));
+            new ChatUpsertRequest(_chatTitle, _model is null ? [] : [_model], _messages,
+                _toolIds.ToList()));
         if (updated is not null)
         {
             ChatList.NotifyChanged();
