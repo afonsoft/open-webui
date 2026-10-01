@@ -1,0 +1,251 @@
+@page "/workspace"
+@page "/workspace/prompts"
+@page "/workspace/models"
+@page "/workspace/files"
+@inject ApiService Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Workspace — Open WebUI</PageTitle>
+
+<div class="page">
+    <h1 class="page-title">Workspace</h1>
+    <div class="page-tabs">
+        <button class="modal-tab @(Section == "prompts" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/prompts")'>Prompts</button>
+        <button class="modal-tab @(Section == "models" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/models")'>Modelos</button>
+        <button class="modal-tab @(Section == "files" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/files")'>Arquivos</button>
+    </div>
+
+    @if (Section == "models")
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <button class="auth-submit" @onclick="NewModel">+ Novo modelo</button>
+            </div>
+            @foreach (var model in _models)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">@model.Name @(model.IsActive ? "" : "(inativo)")</div>
+                        <div class="card-sub">Base: @model.BaseModelId</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="() => EditModel(model)">✏️ Editar</button>
+                        <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
+                            @(model.IsActive ? "🙈 Ocultar" : "👁 Ativar")
+                        </button>
+                        <button class="msg-action danger" @onclick="() => DeleteModelAsync(model)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_models.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhum modelo personalizado.</div>
+            }
+        </div>
+    }
+    else if (Section == "files")
+    {
+        <div class="card-list">
+            @foreach (var file in _files)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">📎 @file.Filename</div>
+                        <div class="card-sub">@FormatSize(file.Size) · @FormatDate(file.CreatedAt)</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action danger" @onclick="() => DeleteFileAsync(file)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_files.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhum arquivo enviado. Anexe arquivos em uma conversa.</div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <button class="auth-submit" @onclick="NewPrompt">+ Novo prompt</button>
+            </div>
+            @foreach (var prompt in _prompts)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">/@prompt.Command — @prompt.Title</div>
+                        <div class="card-sub card-pre">@prompt.Content</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="() => EditPrompt(prompt)">✏️ Editar</button>
+                        <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_prompts.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhum prompt. Crie atalhos para instruções frequentes.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string Section =>
+        Nav.Uri.Contains("/workspace/models") ? "models"
+        : Nav.Uri.Contains("/workspace/files") ? "files"
+        : "prompts";
+
+    private List<PromptResponse> _prompts = [];
+    private List<ModelEntryResponse> _models = [];
+    private List<FileResponse> _files = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _prompts = await Api.GetPromptsAsync();
+        _models = await Api.GetCustomModelsAsync();
+        _files = await Api.GetFilesAsync();
+    }
+
+    private async Task NewPrompt()
+    {
+        var command = await JS.InvokeAsync<string?>("openwebui.prompt", "Comando (sem /):", "");
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            return;
+        }
+
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Título:", "");
+        var content = await JS.InvokeAsync<string?>("openwebui.prompt", "Conteúdo do prompt:", "");
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return;
+        }
+
+        var created = await Api.CreatePromptAsync(
+            new PromptUpsertRequest(command.Trim().TrimStart('/'), title ?? command, content));
+        if (created is not null)
+        {
+            _prompts.Add(created);
+        }
+    }
+
+    private async Task EditPrompt(PromptResponse prompt)
+    {
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Título:", prompt.Title);
+        var content = await JS.InvokeAsync<string?>("openwebui.prompt", "Conteúdo:", prompt.Content);
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return;
+        }
+
+        var updated = await Api.UpdatePromptAsync(prompt.Id,
+            new PromptUpsertRequest(prompt.Command, title ?? prompt.Title, content));
+        if (updated is not null)
+        {
+            var index = _prompts.FindIndex(p => p.Id == prompt.Id);
+            if (index >= 0)
+            {
+                _prompts[index] = updated;
+            }
+        }
+    }
+
+    private async Task DeletePromptAsync(PromptResponse prompt)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir prompt /{prompt.Command}?")
+            && await Api.DeletePromptAsync(prompt.Id))
+        {
+            _prompts.Remove(prompt);
+        }
+    }
+
+    private async Task NewModel()
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome do modelo:", "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var baseModel = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "Modelo base (ex.: llama3.2):", "");
+        if (string.IsNullOrWhiteSpace(baseModel))
+        {
+            return;
+        }
+
+        var systemPrompt = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "System prompt (opcional):", "");
+
+        var created = await Api.CreateCustomModelAsync(
+            new ModelEntryUpsertRequest(name.Trim(), baseModel.Trim(), systemPrompt, null, null));
+        if (created is not null)
+        {
+            _models.Add(created);
+        }
+    }
+
+    private async Task EditModel(ModelEntryResponse model)
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome:", model.Name);
+        var systemPrompt = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "System prompt:", model.SystemPrompt ?? "");
+
+        var updated = await Api.UpdateCustomModelAsync(model.Id,
+            new ModelEntryUpsertRequest(name ?? model.Name, model.BaseModelId,
+                systemPrompt, model.ParamsJson, model.ProfileImageUrl));
+        if (updated is not null)
+        {
+            var index = _models.FindIndex(m => m.Id == model.Id);
+            if (index >= 0)
+            {
+                _models[index] = updated;
+            }
+        }
+    }
+
+    private async Task ToggleModelAsync(ModelEntryResponse model)
+    {
+        var updated = await Api.ToggleCustomModelAsync(model.Id);
+        if (updated is not null)
+        {
+            var index = _models.FindIndex(m => m.Id == model.Id);
+            if (index >= 0)
+            {
+                _models[index] = updated;
+            }
+        }
+    }
+
+    private async Task DeleteModelAsync(ModelEntryResponse model)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir modelo \"{model.Name}\"?")
+            && await Api.DeleteCustomModelAsync(model.Id))
+        {
+            _models.Remove(model);
+        }
+    }
+
+    private async Task DeleteFileAsync(FileResponse file)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir \"{file.Filename}\"?")
+            && await Api.DeleteFileAsync(file.Id))
+        {
+            _files.Remove(file);
+        }
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes > 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:F1} MB"
+        : bytes > 1024 ? $"{bytes / 1024.0:F1} KB"
+        : $"{bytes} B";
+
+    private static string FormatDate(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+}

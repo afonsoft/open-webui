@@ -1,0 +1,46 @@
+# Open WebUI (.NET) + Ollama — equivalente ao docker-compose do projeto original.
+#
+#   docker compose up -d        # app + ollama
+#   docker compose up -d --build
+#
+# App:      http://localhost:3000
+# Sem Ollama? Rode só o app: `docker compose up -d --no-deps openwebui`
+# e configure as conexões em Configurações → Conexões (admin).
+
+services:
+  openwebui:
+    build: .
+    image: openwebui-dotnet
+    container_name: openwebui
+    ports:
+      - "3000:8080"
+    environment:
+      # Conexões semeadas na primeira execução (mesmos nomes do original).
+      OLLAMA_BASE_URL: http://ollama:11434
+      # OPENAI_API_BASE_URLS: https://api.openai.com/v1
+      # OPENAI_API_KEYS: sk-...
+      # ConnectionStrings__Default: Data Source=/app/data/openwebui.db
+    volumes:
+      - openwebui:/app/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+    # GPU NVIDIA: descomente (requer nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  openwebui:
+  ollama:

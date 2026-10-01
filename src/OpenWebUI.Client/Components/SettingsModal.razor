@@ -1,0 +1,369 @@
+@inject ApiService Api
+@inject AuthService Auth
+@inject ThemeService Theme
+@inject IJSRuntime JS
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span>Configurações</span>
+                <button class="icon-btn" @onclick="Close">×</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>Geral</button>
+                <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>Conta</button>
+                <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>Memórias</button>
+                @if (Auth.CurrentUser?.Role == "admin")
+                {
+                    <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>Conexões</button>
+                    <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>Admin</button>
+                }
+                <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>Sobre</button>
+            </div>
+
+            <div class="modal-body">
+                @if (_tab == "general")
+                {
+                    <div class="field">
+                        <label>Tema</label>
+                        <select class="input" value="@Theme.Current" @onchange="OnThemeChanged">
+                            <option value="dark">Escuro</option>
+                            <option value="light">Claro</option>
+                        </select>
+                    </div>
+                }
+                else if (_tab == "account")
+                {
+                    <div class="field">
+                        <label>Nome</label>
+                        <input class="input" @bind="_name" />
+                    </div>
+                    <div class="field">
+                        <label>URL da imagem de perfil</label>
+                        <input class="input" @bind="_profileImage" placeholder="https://…" />
+                    </div>
+                    <button class="auth-submit" @onclick="SaveProfileAsync">Salvar perfil</button>
+
+                    <hr class="modal-sep" />
+
+                    <div class="field">
+                        <label>Senha atual</label>
+                        <input class="input" type="password" @bind="_currentPassword" />
+                    </div>
+                    <div class="field">
+                        <label>Nova senha</label>
+                        <input class="input" type="password" @bind="_newPassword" />
+                    </div>
+                    <button class="auth-submit" @onclick="ChangePasswordAsync">Alterar senha</button>
+
+                    <hr class="modal-sep" />
+
+                    <div class="field">
+                        <label>Chave de API</label>
+                        @if (_apiKeyCreated is not null)
+                        {
+                            <input class="input" readonly value="@_apiKeyCreated" />
+                            <div class="field-note">Copie agora — a chave não será exibida novamente.</div>
+                        }
+                        else if (_apiKeyInfo is not null)
+                        {
+                            <div class="field-note">Chave ativa desde @FormatDate(_apiKeyInfo.CreatedAt)</div>
+                        }
+                        else
+                        {
+                            <div class="field-note">Nenhuma chave gerada.</div>
+                        }
+                        <div class="field-actions">
+                            <button class="msg-action" @onclick="CreateApiKeyAsync">Gerar nova chave</button>
+                            @if (_apiKeyInfo is not null || _apiKeyCreated is not null)
+                            {
+                                <button class="msg-action" @onclick="RevokeApiKeyAsync">Revogar</button>
+                            }
+                        </div>
+                    </div>
+
+                    @if (_accountMessage is not null)
+                    {
+                        <div class="field-note">@_accountMessage</div>
+                    }
+                }
+                else if (_tab == "memories")
+                {
+                    <div class="field">
+                        <label>Memórias lembradas entre conversas</label>
+                        @if (_memories.Count == 0)
+                        {
+                            <div class="field-note">Nenhuma memória.</div>
+                        }
+                        @foreach (var memory in _memories)
+                        {
+                            <div class="memory-row">
+                                <span class="memory-text">@memory.Content</span>
+                                <button class="icon-mini" @onclick="() => DeleteMemoryAsync(memory)">×</button>
+                            </div>
+                        }
+                    </div>
+                    <div class="field">
+                        <label>Adicionar memória</label>
+                        <input class="input" @bind="_newMemory" placeholder="Ex.: Prefiro respostas em português" />
+                    </div>
+                    <button class="auth-submit" disabled="@string.IsNullOrWhiteSpace(_newMemory)"
+                            @onclick="AddMemoryAsync">Adicionar</button>
+                }
+                else if (_tab == "connections")
+                {
+                    @if (_connections is null)
+                    {
+                        <div>Carregando…</div>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label>URLs do Ollama (uma por linha)</label>
+                            <textarea class="input" rows="2" @bind="_ollamaUrls"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>URLs OpenAI (uma por linha)</label>
+                            <textarea class="input" rows="2" @bind="_openAiUrls"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>Chaves de API OpenAI (uma por linha, na mesma ordem)</label>
+                            <textarea class="input" rows="2" @bind="_openAiKeys" placeholder="••• deixe vazio para manter"></textarea>
+                        </div>
+                        @if (_saveMessage is not null)
+                        {
+                            <div class="field-note">@_saveMessage</div>
+                        }
+                        <button class="auth-submit" @onclick="SaveConnectionsAsync">Salvar</button>
+                    }
+                }
+                else if (_tab == "admin")
+                {
+                    @if (!_adminLoaded)
+                    {
+                        <div>Carregando…</div>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label>Nome da instância</label>
+                            <input class="input" @bind="_adminWebUiName" />
+                        </div>
+                        <div class="field">
+                            <label>Papel padrão de novos usuários</label>
+                            <select class="input" @bind="_adminDefaultRole">
+                                <option value="pending">Pendente (requer aprovação)</option>
+                                <option value="user">Usuário</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableSignup" /> Permitir cadastro</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableLoginForm" /> Permitir login com senha</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableApiKeys" /> Permitir chaves de API</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableRating" /> Avaliação de mensagens</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableFolders" /> Pastas de conversas</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableMemories" /> Memórias do usuário</label>
+                        @if (_adminMessage is not null)
+                        {
+                            <div class="field-note">@_adminMessage</div>
+                        }
+                        <button class="auth-submit" @onclick="SaveAdminAsync">Salvar</button>
+                    }
+                }
+                else
+                {
+                    <div class="field">
+                        <label>Versão do backend</label>
+                        <div>@(_version ?? "…")</div>
+                    </div>
+                    <div class="field">
+                        <label>Stack</label>
+                        <div>.NET 10 · C# 14 · Blazor WebAssembly</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Controla a visibilidade do modal.</summary>
+    [Parameter] public bool IsOpen { get; set; }
+
+    /// <summary>Disparado quando o modal é fechado.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string _tab = "general";
+    private ConnectionsConfigResponse? _connections;
+    private string _ollamaUrls = string.Empty;
+    private string _openAiUrls = string.Empty;
+    private string _openAiKeys = string.Empty;
+    private string? _saveMessage;
+    private string? _version;
+
+    private string _name = string.Empty;
+    private string _profileImage = string.Empty;
+    private string _currentPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string? _apiKeyCreated;
+    private ApiKeyInfoResponse? _apiKeyInfo;
+    private string? _accountMessage;
+
+    private List<MemoryResponse> _memories = [];
+    private string _newMemory = string.Empty;
+
+    private bool _adminLoaded;
+    private string _adminWebUiName = "Open WebUI";
+    private string _adminDefaultRole = "pending";
+    private bool _adminEnableSignup = true;
+    private bool _adminEnableLoginForm = true;
+    private bool _adminEnableApiKeys = true;
+    private bool _adminEnableRating = true;
+    private bool _adminEnableFolders = true;
+    private bool _adminEnableMemories;
+    private string? _adminMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsOpen)
+        {
+            return;
+        }
+
+        _version = (await Api.GetVersionAsync())?.Version;
+        _name = Auth.CurrentUser?.Name ?? string.Empty;
+        _profileImage = Auth.CurrentUser?.ProfileImageUrl ?? string.Empty;
+        _apiKeyInfo = await Api.GetApiKeyAsync();
+        _memories = await Api.GetMemoriesAsync();
+
+        if (Auth.CurrentUser?.Role == "admin")
+        {
+            _connections = await Api.GetConnectionsAsync();
+            if (_connections is not null)
+            {
+                _ollamaUrls = string.Join('\n', _connections.OllamaBaseUrls);
+                _openAiUrls = string.Join('\n', _connections.OpenAiBaseUrls);
+                _openAiKeys = string.Empty;
+            }
+
+            var adminConfig = await Api.GetAdminConfigAsync();
+            if (adminConfig is not null)
+            {
+                _adminWebUiName = adminConfig.WebUiName;
+                _adminDefaultRole = adminConfig.DefaultUserRole;
+                _adminEnableSignup = adminConfig.EnableSignup;
+                _adminEnableLoginForm = adminConfig.EnableLoginForm;
+                _adminEnableApiKeys = adminConfig.EnableApiKeys;
+                _adminEnableRating = adminConfig.EnableMessageRating;
+                _adminEnableFolders = adminConfig.EnableFolders;
+                _adminEnableMemories = adminConfig.EnableMemories;
+                _adminLoaded = true;
+            }
+        }
+    }
+
+    private async Task OnThemeChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string theme)
+        {
+            await Theme.SetAsync(theme);
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        var user = await Api.UpdateProfileAsync(_name.Trim(), _profileImage.Trim());
+        if (user is not null)
+        {
+            await Auth.RefreshUserAsync();
+            _accountMessage = "Perfil atualizado.";
+        }
+        else
+        {
+            _accountMessage = "Falha ao atualizar o perfil.";
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        var ok = await Api.UpdatePasswordAsync(_currentPassword, _newPassword);
+        _accountMessage = ok ? "Senha alterada." : "Falha ao alterar a senha (verifique a senha atual).";
+        _currentPassword = string.Empty;
+        _newPassword = string.Empty;
+    }
+
+    private async Task CreateApiKeyAsync()
+    {
+        var created = await Api.CreateApiKeyAsync();
+        _apiKeyCreated = created?.ApiKey;
+    }
+
+    private async Task RevokeApiKeyAsync()
+    {
+        await Api.DeleteApiKeyAsync();
+        _apiKeyCreated = null;
+        _apiKeyInfo = null;
+    }
+
+    private async Task AddMemoryAsync()
+    {
+        var added = await Api.AddMemoryAsync(_newMemory.Trim());
+        if (added is not null)
+        {
+            _memories.Add(added);
+            _newMemory = string.Empty;
+        }
+    }
+
+    private async Task DeleteMemoryAsync(MemoryResponse memory)
+    {
+        if (await Api.DeleteMemoryAsync(memory.Id))
+        {
+            _memories.Remove(memory);
+        }
+    }
+
+    private async Task SaveConnectionsAsync()
+    {
+        var ollama = SplitLines(_ollamaUrls);
+        var openAi = SplitLines(_openAiUrls);
+        var keys = SplitLines(_openAiKeys);
+
+        // Chaves deixadas em branco são preservadas pelo servidor.
+        while (keys.Count < openAi.Count)
+        {
+            keys.Add(string.Empty);
+        }
+
+        var result = await Api.UpdateConnectionsAsync(
+            new ConnectionsConfig(ollama, openAi, keys));
+        _saveMessage = result is null ? "Falha ao salvar." : "Configurações salvas.";
+        _connections = result;
+    }
+
+    private async Task SaveAdminAsync()
+    {
+        var result = await Api.UpdateAdminConfigAsync(new AdminConfig(
+            _adminEnableSignup,
+            _adminEnableLoginForm,
+            _adminEnableApiKeys,
+            _adminDefaultRole,
+            _adminEnableRating,
+            _adminEnableFolders,
+            _adminEnableMemories,
+            _adminWebUiName.Trim()));
+        _adminMessage = result is null ? "Falha ao salvar." : "Configurações administrativas salvas.";
+    }
+
+    private static string FormatDate(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+
+    private static List<string> SplitLines(string text) =>
+        text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+    private Task Close() => OnClose.InvokeAsync();
+}

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenWebUI.Domain/OpenWebUI.Domain.csproj" />
+    <Project Path="src/OpenWebUI.Application/OpenWebUI.Application.csproj" />
+    <Project Path="src/OpenWebUI.Infrastructure/OpenWebUI.Infrastructure.csproj" />
+    <Project Path="src/OpenWebUI.Api/OpenWebUI.Api.csproj" />
+    <Project Path="src/OpenWebUI.Client/OpenWebUI.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenWebUI.Api.Tests/OpenWebUI.Api.Tests.csproj" />
+  </Folder>
+</Solution>

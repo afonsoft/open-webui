@@ -1,0 +1,13 @@
+@page "/"
+@page "/c/{ChatId}"
+
+<PageTitle>@(_title)</PageTitle>
+
+<ChatView ChatId="@ChatId" />
+
+@code {
+    /// <summary>Id do chat na rota /c/{id}; null na página inicial.</summary>
+    [Parameter] public string? ChatId { get; set; }
+
+    private string _title => ChatId is null ? "Open WebUI" : "Chat — Open WebUI";
+}

@@ -1,0 +1,78 @@
+@page "/s/{ShareId}"
+@layout EmptyLayout
+@inject ApiService Api
+@inject MarkdownService Markdown
+
+<PageTitle>@(_chat?.Title ?? "Chat compartilhado") — Open WebUI</PageTitle>
+
+<div class="shared-page">
+    <div class="shared-card">
+        @if (_loading)
+        {
+            <div class="sidebar-empty">Carregando…</div>
+        }
+        else if (_chat is null)
+        {
+            <div class="chat-empty">
+                <div class="chat-empty-logo">Open WebUI</div>
+                <div class="chat-empty-sub">Chat compartilhado não encontrado ou link removido.</div>
+                <a class="auth-submit shared-back" href="/">Voltar ao início</a>
+            </div>
+        }
+        else
+        {
+            <h1 class="shared-title">@_chat.Title</h1>
+            <div class="shared-meta">
+                Compartilhado por @(_chat.User?.Name ?? "usuário") ·
+                @FormatDate(_chat.UpdatedAt)
+            </div>
+            <div class="shared-messages">
+                @foreach (var message in _chat.Messages)
+                {
+                    <div class="message @message.Role">
+                        <div class="message-avatar">@(message.Role == "assistant" ? "◈" : "U")</div>
+                        <div class="message-body">
+                            <div class="message-meta">
+                                @(message.Role == "assistant" ? message.Model ?? "Assistente" : _chat.User?.Name ?? "Você")
+                            </div>
+                            <div class="message-content">
+                                @if (message.Role == "assistant")
+                                {
+                                    @((MarkupString)Markdown.ToHtml(message.Content))
+                                }
+                                else
+                                {
+                                    <span class="user-text">@message.Content</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Id público de compartilhamento.</summary>
+    [Parameter] public string ShareId { get; set; } = string.Empty;
+
+    private SharedChatResponse? _chat;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        try
+        {
+            _chat = await Api.GetSharedChatAsync(ShareId);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FormatDate(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+}

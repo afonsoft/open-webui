@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+.vs/
+
+# Dados em runtime
+**/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# Devin
+.devin-files/
