@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-pwa-offline` |
-| Ticket | `GAP-implementation-pwa-offline — Issue a criar` |
-| Status | `Approved` |
+| Ticket | `[pwa-offline] Issue #23` |
+| Status | `In implementation` |
 
 ## 1. User Story
 

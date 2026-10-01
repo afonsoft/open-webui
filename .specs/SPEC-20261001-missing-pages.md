@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-missing-pages` |
-| Ticket | `GAP-requirements-missing-pages — Issue a criar` |
-| Status | `Approved` |
+| Ticket | `[missing-pages] Issue #22` |
+| Status | `In implementation` |
 
 ## 1. User Story
 

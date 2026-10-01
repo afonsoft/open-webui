@@ -23,6 +23,7 @@ public static class ApiEndpoints
         app.MapGet("/api/changelog", () => Results.Ok(new { releases = Array.Empty<object>() }));
 
         app.MapGet("/api/config", GetAppConfigAsync);
+        app.MapPost("/api/config", UpdateAppConfigAsync).RequireAuthorization();
         app.MapGet("/api/models", ListAllModelsAsync).RequireAuthorization();
         app.MapGet("/api/v1/models/base", ListAllModelsAsync).RequireAuthorization();
         app.MapPost("/api/chat/completions", ChatCompletionsAsync).RequireAuthorization();
@@ -63,6 +64,19 @@ public static class ApiEndpoints
                 EnableCommunitySharing: true),
             DefaultPromptSuggestions: [],
             OAuthProviders: OAuthProviderCatalog.ConfiguredProviders()));
+    }
+
+    /// <summary>Persiste as feature flags administráveis (somente admin).</summary>
+    private static async Task<IResult> UpdateAppConfigAsync(
+        AdminConfig request, HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+
+        await config.SetAsync("admin.config", request, ct);
+        return Results.Ok(request);
     }
 
     private static async Task<IResult> ListAllModelsAsync(

@@ -95,6 +95,31 @@ if (app.Environment.IsDevelopment())
 // #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).
 app.MapStaticAssets();
 
+// Documento/rotas da SPA sempre revalidam (previne o loop de reload do PWA
+// conhecido no upstream); assets fingerprinted já saem immutable via MapStaticAssets.
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isDocument =
+            context.Request.Method == "GET" &&
+            !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+            !path.StartsWith("/ws", StringComparison.OrdinalIgnoreCase) &&
+            (path == "/" || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+             path.EndsWith("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
+             !path.Contains('.'));
+        if (isDocument)
+        {
+            context.Response.Headers.CacheControl = "no-cache";
+        }
+
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
+
 app.UseAuthentication();
 
 // Chaves de API (Bearer sk-...) autenticam como o usuário dono da chave.

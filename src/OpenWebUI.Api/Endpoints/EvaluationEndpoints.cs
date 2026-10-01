@@ -134,8 +134,13 @@ public static class EvaluationEndpoints
         var feedbacks = await db.Feedbacks.AsNoTracking()
             .OrderByDescending(f => f.UpdatedAt)
             .ToListAsync(ct);
+        var userNames = await db.Users.AsNoTracking()
+            .Where(u => feedbacks.Select(f => f.UserId).Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.Name, ct);
 
-        return Results.Ok(feedbacks.Select(ToResponse).ToList());
+        return Results.Ok(feedbacks.Select(f => new AdminFeedbackResponse(
+            f.Id, f.UserId, userNames.GetValueOrDefault(f.UserId, f.UserId),
+            f.ChatId, f.MessageId, f.ModelId, f.Rating, f.Reason, f.CreatedAt)).ToList());
     }
 
     private static async Task<IResult> ExportAllFeedbacksAsync(
