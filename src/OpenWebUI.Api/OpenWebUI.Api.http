@@ -1,0 +1,11 @@
+@OpenWebUI_Api_HostAddress = http://localhost:8080
+
+GET {{OpenWebUI_Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+GET {{OpenWebUI_Api_HostAddress}}/api/config
+Accept: application/json
+
+###
