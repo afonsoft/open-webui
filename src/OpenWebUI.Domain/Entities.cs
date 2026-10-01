@@ -587,3 +587,80 @@ public class ChannelMessage
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 }
+
+/// <summary>Automação: prompt executado em um agendamento recorrente.</summary>
+public class Automation
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da automação.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o dono.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Nome exibido na lista.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Prompt enviado ao modelo a cada execução.</summary>
+    public string Prompt { get; set; } = string.Empty;
+
+    /// <summary>Modelo usado na execução.</summary>
+    public string ModelId { get; set; } = string.Empty;
+
+    /// <summary>Tipo de agenda: interval, daily ou weekly.</summary>
+    public string ScheduleKind { get; set; } = "interval";
+
+    /// <summary>Intervalo em minutos quando ScheduleKind = interval (mín. 1).</summary>
+    public int IntervalMinutes { get; set; } = 60;
+
+    /// <summary>Hora do dia "HH:mm" (UTC) quando ScheduleKind = daily/weekly.</summary>
+    public string? TimeOfDay { get; set; }
+
+    /// <summary>Dia da semana 0-6 (domingo=0, UTC) quando ScheduleKind = weekly.</summary>
+    public int? Weekday { get; set; }
+
+    /// <summary>Indica se a automação está habilitada.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Próxima execução agendada (epoch seconds, UTC).</summary>
+    public long? NextRunAt { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+
+    /// <summary>Execuções registradas.</summary>
+    public List<AutomationRun> Runs { get; set; } = [];
+}
+
+/// <summary>Execução registrada de uma automação.</summary>
+public class AutomationRun
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Automação executada.</summary>
+    public string AutomationId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para a automação.</summary>
+    public Automation? Automation { get; set; }
+
+    /// <summary>Resultado: ok ou failed.</summary>
+    public string Status { get; set; } = "ok";
+
+    /// <summary>Mensagem de erro quando Status = failed.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Chat criado com o prompt e a resposta, quando a execução completa.</summary>
+    public string? ChatId { get; set; }
+
+    /// <summary>Início da execução (epoch seconds).</summary>
+    public long StartedAt { get; set; }
+
+    /// <summary>Fim da execução (epoch seconds).</summary>
+    public long FinishedAt { get; set; }
+}

@@ -1,0 +1,289 @@
+@page "/automations"
+@inject ApiService Api
+@inject IJSRuntime JS
+@inject LocalizationService L
+
+<PageTitle>@L["page.automations"] — Open WebUI</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">@L["page.automations"]</h1>
+        <button class="auth-submit page-new" @onclick="NewAutomation">@L["automations.new"]</button>
+    </div>
+
+    @if (_items is null)
+    {
+        <div class="sidebar-empty">@L["common.loading"]</div>
+    }
+    else
+    {
+        @if (_editing)
+        {
+            <div class="card-list mb-4">
+                <div class="card-row">
+                    <div class="card-main w-full">
+                        <div class="grid md:grid-cols-2 gap-3">
+                            <div class="field">
+                                <label>@L["common.name"]</label>
+                                <input class="input" @bind="_fName" />
+                            </div>
+                            <div class="field">
+                                <label>@L["automations.model"]</label>
+                                <select class="input" @bind="_fModel">
+                                    @foreach (var m in _models)
+                                    {
+                                        <option value="@m.Id">@m.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field md:col-span-2">
+                                <label>@L["automations.prompt"]</label>
+                                <textarea class="input" rows="3" @bind="_fPrompt"></textarea>
+                            </div>
+                            <div class="field">
+                                <label>@L["automations.schedule"]</label>
+                                <select class="input" @bind="_fKind">
+                                    <option value="interval">@L["automations.kind_interval"]</option>
+                                    <option value="daily">@L["automations.kind_daily"]</option>
+                                    <option value="weekly">@L["automations.kind_weekly"]</option>
+                                </select>
+                            </div>
+                            @if (_fKind == "interval")
+                            {
+                                <div class="field">
+                                    <label>@L["automations.every_minutes"]</label>
+                                    <input class="input" type="number" min="1" @bind="_fInterval" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="field">
+                                    <label>@L["automations.time_utc"]</label>
+                                    <input class="input" placeholder="HH:mm" @bind="_fTime" />
+                                </div>
+                                @if (_fKind == "weekly")
+                                {
+                                    <div class="field">
+                                        <label>@L["automations.weekday"]</label>
+                                        <select class="input" @bind="_fWeekday">
+                                            @for (var d = 0; d < 7; d++)
+                                            {
+                                                <option value="@d">@WeekdayName(d)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                            }
+                            <div class="field flex items-end">
+                                <label class="check"><input type="checkbox" @bind="_fEnabled" /> @L["automations.enabled"]</label>
+                            </div>
+                        </div>
+                        @if (_formError is not null)
+                        {
+                            <div class="text-sm text-red-500 mt-2">@_formError</div>
+                        }
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="SaveAsync">@L["common.save"]</button>
+                        <button class="msg-action" @onclick="CancelEdit">@L["common.cancel"]</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_items.Count == 0)
+        {
+            <div class="sidebar-empty">@L["automations.empty"]</div>
+        }
+        else
+        {
+            <div class="card-list">
+                @foreach (var a in _items)
+                {
+                    <div class="card-row">
+                        <div class="card-main">
+                            <div class="card-title">
+                                @a.Name
+                                @if (!a.Enabled)
+                                {
+                                    <span class="text-xs text-gray-500">(@L["automations.disabled"])</span>
+                                }
+                            </div>
+                            <div class="card-sub">
+                                @a.ModelId · @ScheduleLabel(a)
+                                @if (a.NextRunAt is not null)
+                                {
+                                    <span> · @L["automations.next_run"]: @FormatDate(a.NextRunAt.Value)</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="msg-action" @onclick="() => ToggleRunsAsync(a)">@L["automations.runs"]</button>
+                            <button class="msg-action" @onclick="() => RunNowAsync(a)">@L["automations.run_now"]</button>
+                            <button class="msg-action" @onclick="() => EditAutomation(a)">@L["common.edit"]</button>
+                            <button class="msg-action danger" @onclick="() => DeleteAutomationAsync(a)">🗑</button>
+                        </div>
+                    </div>
+                    @if (_expandedId == a.Id)
+                    {
+                        <div class="card-row">
+                            <div class="card-main w-full">
+                                @if (_runs is null || _runs.Count == 0)
+                                {
+                                    <div class="card-sub">@L["automations.no_runs"]</div>
+                                }
+                                else
+                                {
+                                    @foreach (var r in _runs.Take(20))
+                                    {
+                                        <div class="card-sub flex gap-2">
+                                            <span>@FormatDate(r.StartedAt)</span>
+                                            @if (r.Status == "ok")
+                                            {
+                                                <span class="text-green-500">✓</span>
+                                                @if (r.ChatId is not null)
+                                                {
+                                                    <a class="underline" href="/c/@r.ChatId">@L["automations.open_chat"]</a>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-red-500">✗ @r.Error</span>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<AutomationResponse>? _items;
+    private List<ModelInfo> _models = [];
+    private List<AutomationRunResponse>? _runs;
+    private string? _expandedId;
+
+    private bool _editing;
+    private string? _editingId;
+    private string _fName = "";
+    private string _fModel = "";
+    private string _fPrompt = "";
+    private string _fKind = "interval";
+    private int _fInterval = 60;
+    private string _fTime = "09:00";
+    private int _fWeekday = 1;
+    private bool _fEnabled = true;
+    private string? _formError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _models = await Api.GetModelsAsync();
+        _items = await Api.GetAutomationsAsync();
+        if (_models.Count > 0)
+        {
+            _fModel = _models[0].Id;
+        }
+    }
+
+    private void NewAutomation()
+    {
+        _editing = true;
+        _editingId = null;
+        _fName = "";
+        _fPrompt = "";
+        _fKind = "interval";
+        _fInterval = 60;
+        _fTime = "09:00";
+        _fWeekday = 1;
+        _fEnabled = true;
+        _formError = null;
+    }
+
+    private void EditAutomation(AutomationResponse a)
+    {
+        _editing = true;
+        _editingId = a.Id;
+        _fName = a.Name;
+        _fModel = a.ModelId;
+        _fPrompt = a.Prompt;
+        _fKind = a.ScheduleKind;
+        _fInterval = a.IntervalMinutes;
+        _fTime = a.TimeOfDay ?? "09:00";
+        _fWeekday = a.Weekday ?? 1;
+        _fEnabled = a.Enabled;
+        _formError = null;
+    }
+
+    private void CancelEdit() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        var request = new AutomationUpsertRequest(
+            _fName, _fPrompt, _fModel, _fKind,
+            _fInterval, _fKind == "interval" ? null : _fTime,
+            _fKind == "weekly" ? _fWeekday : null, _fEnabled);
+        var saved = _editingId is null
+            ? await Api.CreateAutomationAsync(request)
+            : await Api.UpdateAutomationAsync(_editingId, request);
+        if (saved is null)
+        {
+            _formError = L["automations.save_failed"];
+            return;
+        }
+
+        _items = await Api.GetAutomationsAsync();
+        _editing = false;
+    }
+
+    private async Task ToggleRunsAsync(AutomationResponse a)
+    {
+        if (_expandedId == a.Id)
+        {
+            _expandedId = null;
+            return;
+        }
+
+        _expandedId = a.Id;
+        _runs = await Api.GetAutomationRunsAsync(a.Id);
+    }
+
+    private async Task RunNowAsync(AutomationResponse a)
+    {
+        _expandedId = a.Id;
+        _runs = null;
+        await Api.RunAutomationNowAsync(a.Id);
+        _runs = await Api.GetAutomationRunsAsync(a.Id);
+        _items = await Api.GetAutomationsAsync();
+    }
+
+    private async Task DeleteAutomationAsync(AutomationResponse a)
+    {
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", a.Name))))
+        {
+            return;
+        }
+
+        if (await Api.DeleteAutomationAsync(a.Id))
+        {
+            _items?.RemoveAll(x => x.Id == a.Id);
+        }
+    }
+
+    private string ScheduleLabel(AutomationResponse a) => a.ScheduleKind switch
+    {
+        "interval" => L["automations.every_minutes"] + $" {a.IntervalMinutes}",
+        "daily" => $"{L["automations.kind_daily"]} {a.TimeOfDay} UTC",
+        "weekly" => $"{WeekdayName(a.Weekday ?? 0)} {a.TimeOfDay} UTC",
+        _ => a.ScheduleKind,
+    };
+
+    private string WeekdayName(int d) => L[$"calendar.d{d}"];
+
+    private static string FormatDate(long epoch) =>
+        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+}

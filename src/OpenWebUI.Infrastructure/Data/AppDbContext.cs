@@ -68,6 +68,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Mensagens de canais.</summary>
     public DbSet<ChannelMessage> ChannelMessages => Set<ChannelMessage>();
 
+    /// <summary>Automações de prompts agendados.</summary>
+    public DbSet<Automation> Automations => Set<Automation>();
+
+    /// <summary>Execuções registradas das automações.</summary>
+    public DbSet<AutomationRun> AutomationRuns => Set<AutomationRun>();
+
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
@@ -150,6 +156,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.HasKey(f => f.Id);
             entity.HasIndex(f => new { f.UserId, f.MessageId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Automation>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.HasIndex(a => new { a.UserId, a.UpdatedAt });
+            entity.HasIndex(a => new { a.Enabled, a.NextRunAt });
+            entity.HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(a => a.Runs)
+                .WithOne(r => r.Automation!)
+                .HasForeignKey(r => r.AutomationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AutomationRun>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.HasIndex(r => new { r.AutomationId, r.StartedAt });
         });
 
         modelBuilder.Entity<ConfigEntry>(entity =>

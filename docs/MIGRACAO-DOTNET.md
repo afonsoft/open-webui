@@ -88,7 +88,8 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Arquivadas (modal/menu)                                   | `/archived`                               | ✅     |
 | `/channels/*`                                            | `/channels/{id}`                          | ✅     |
 | `/playground`                                             | `/playground` (sem persistir chat)        | ✅     |
-| `/calendar`, `/automations`                               | —                                         | ⬜     |
+| `/automations`                                            | `/automations` + scheduler em background  | ✅     |
+| `/calendar`                                               | `/calendar` (visão mensal de runs)        | ✅     |
 
 ## Decisões de design
 

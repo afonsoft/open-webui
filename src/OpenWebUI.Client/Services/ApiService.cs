@@ -606,6 +606,36 @@ public class ApiService(HttpClient http, AuthService auth)
         SendStatusAsync(HttpMethod.Post, $"/api/v1/channels/{id}/members",
             new AddChannelMembersRequest([userId], null));
 
+    /// <summary>Lista automações do usuário.</summary>
+    public async Task<List<AutomationResponse>> GetAutomationsAsync() =>
+        await SendAsync<List<AutomationResponse>>(HttpMethod.Get, "/api/v1/automations") ?? [];
+
+    /// <summary>Cria automação.</summary>
+    public Task<AutomationResponse?> CreateAutomationAsync(AutomationUpsertRequest request) =>
+        SendAsync<AutomationResponse>(HttpMethod.Post, "/api/v1/automations", request);
+
+    /// <summary>Atualiza automação.</summary>
+    public Task<AutomationResponse?> UpdateAutomationAsync(string id, AutomationUpsertRequest request) =>
+        SendAsync<AutomationResponse>(HttpMethod.Put, $"/api/v1/automations/{id}", request);
+
+    /// <summary>Remove automação.</summary>
+    public Task<bool> DeleteAutomationAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/automations/{id}");
+
+    /// <summary>Lista runs de uma automação.</summary>
+    public async Task<List<AutomationRunResponse>> GetAutomationRunsAsync(string id) =>
+        await SendAsync<List<AutomationRunResponse>>(
+            HttpMethod.Get, $"/api/v1/automations/{id}/runs") ?? [];
+
+    /// <summary>Lista runs do usuário num intervalo epoch (calendário).</summary>
+    public async Task<List<AutomationRunResponse>> GetAutomationRunsInRangeAsync(long from, long to) =>
+        await SendAsync<List<AutomationRunResponse>>(
+            HttpMethod.Get, $"/api/v1/automations/runs?from={from}&to={to}") ?? [];
+
+    /// <summary>Dispara uma execução imediata.</summary>
+    public Task<AutomationRunResponse?> RunAutomationNowAsync(string id) =>
+        SendAsync<AutomationRunResponse>(HttpMethod.Post, $"/api/v1/automations/{id}/run-now");
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
 }
 
