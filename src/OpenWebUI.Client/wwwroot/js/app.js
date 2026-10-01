@@ -1,6 +1,10 @@
 window.openwebui = {
 	setTheme: function (theme) {
-		document.documentElement.dataset.theme = theme;
+		const isDark =
+			theme === 'dark' ||
+			(theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+		document.documentElement.classList.toggle('dark', isDark);
+		document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
 	},
 	scrollToEnd: function (element) {
 		if (element) {

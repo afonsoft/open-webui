@@ -2,7 +2,10 @@
 # Commands run from the repo root.
 # One-time setup (e.g., install system tools, global CLIs).
 initialize: |
-  true
+  # Tailwind CSS standalone CLI para regenerar src/OpenWebUI.Client/wwwroot/css/tailwind.css
+  mkdir -p "$HOME/.local/bin"
+  curl -sSL -o "$HOME/.local/bin/tailwindcss" https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+  chmod +x "$HOME/.local/bin/tailwindcss"
 # Install project dependencies (runs during builds, surfaced to agent at session start).
 maintenance: |
   # Restore dos pacotes NuGet da solução .NET na raiz
@@ -23,3 +26,7 @@ knowledge:
     contents: |
       # dotnet run --project src/OpenWebUI.Api -> http://localhost:8080
       # Primeiro usuário cadastrado vira admin; conexões Ollama/OpenAI em Configurações -> Conexões
+  - name: layout
+    contents: |
+      # UI usa Tailwind v4: edite classes nos .razor e regenere o CSS com
+      # tailwindcss -i src/OpenWebUI.Client/tailwind.input.css -o src/OpenWebUI.Client/wwwroot/css/tailwind.css --minify

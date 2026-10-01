@@ -5,50 +5,85 @@
 
 <PageTitle>Entrar — Open WebUI</PageTitle>
 
-<div class="auth-page">
-    <div class="auth-card">
-        <div class="auth-logo">Open WebUI <span class="auth-badge">.NET</span></div>
+<div class="w-full h-screen max-h-[100dvh] text-white relative">
+    <div class="w-full h-full absolute top-0 left-0 bg-white dark:bg-black"></div>
 
-        @if (!AuthService.IsAuthenticated)
-        {
-            <div class="auth-tabs">
-                <button class="auth-tab @(!_signUp ? "active" : "")" @onclick="() => SetMode(false)">Entrar</button>
-                <button class="auth-tab @(_signUp ? "active" : "")" @onclick="() => SetMode(true)">Cadastrar</button>
+    <div class="fixed bg-transparent min-h-screen w-full flex justify-center z-10 text-black dark:text-white font-primary">
+        <div class="w-full px-10 min-h-screen flex flex-col text-center">
+            <div class="my-auto flex flex-col justify-center items-center">
+                <div class="sm:max-w-md my-auto pb-10 w-full dark:text-gray-100">
+                    <div class="flex justify-center mb-6">
+                        <img src="assets/splash-dark.png" class="size-24 rounded-full" alt="Open WebUI" />
+                    </div>
+
+                    <div class="flex flex-col justify-center">
+                        @if (!AuthService.IsAuthenticated)
+                        {
+                            <div class="mb-1">
+                                <div class="text-2xl font-normal">
+                                    @(_signUp ? "Cadastre-se no" : "Entrar no") Open WebUI
+                                </div>
+                                <div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
+                                    @(_signUp
+                                        ? "Já tem uma conta? "
+                                        : "Não tem uma conta? ")
+                                    <button class="font-normal underline cursor-pointer" @onclick="() => SetMode(!_signUp)">
+                                        @(_signUp ? "Entrar" : "Cadastrar")
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col mt-4 text-left">
+                                @if (_signUp)
+                                {
+                                    <div class="mb-2">
+                                        <label class="text-sm font-normal mb-1 block">Nome</label>
+                                        <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                               type="text" placeholder="Seu nome" @bind="_name" />
+                                    </div>
+                                }
+                                <div class="mb-2">
+                                    <label class="text-sm font-normal mb-1 block">E-mail</label>
+                                    <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                           type="email" placeholder="voce@exemplo.com" @bind="_email" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="text-sm font-normal mb-1 block">Senha</label>
+                                    <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                           type="password" placeholder="••••••••" @bind="_password"
+                                           @onkeydown="OnKeyDown" />
+                                </div>
+                            </div>
+
+                            @if (_error is not null)
+                            {
+                                <div class="mt-3 text-sm text-red-500">@_error</div>
+                            }
+
+                            <div class="mt-5">
+                                <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 disabled:opacity-50 flex justify-center cursor-pointer"
+                                        disabled="@(_busy || !FormValid)" @onclick="SubmitAsync">
+                                    <span class="self-center">@(_busy ? "Aguarde…" : _signUp ? "Criar conta" : "Entrar")</span>
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-1">
+                                <div class="text-2xl font-normal">Open WebUI</div>
+                                <div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
+                                    Autenticado como <strong>@AuthService.CurrentUser?.Email</strong>
+                                </div>
+                            </div>
+                            <div class="mt-5">
+                                <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 flex justify-center cursor-pointer"
+                                        @onclick="GoToApp">Ir para o app</button>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
-
-            <div class="auth-form">
-                @if (_signUp)
-                {
-                    <input class="auth-input" type="text" placeholder="Nome" @bind="_name" />
-                }
-                <input class="auth-input" type="email" placeholder="E-mail" @bind="_email" />
-                <input class="auth-input" type="password" placeholder="Senha" @bind="_password"
-                       @onkeydown="OnKeyDown" />
-
-                @if (_error is not null)
-                {
-                    <div class="auth-error">@_error</div>
-                }
-
-                <button class="auth-submit" disabled="@(_busy || !FormValid)" @onclick="SubmitAsync">
-                    @if (_busy)
-                    {
-                        <span>Aguarde…</span>
-                    }
-                    else
-                    {
-                        <span>@(_signUp ? "Criar conta" : "Entrar")</span>
-                    }
-                </button>
-            </div>
-        }
-        else
-        {
-            <div class="auth-form">
-                <p>Você já está autenticado como <strong>@AuthService.CurrentUser?.Email</strong>.</p>
-                <button class="auth-submit" @onclick="GoToApp">Ir para o app</button>
-            </div>
-        }
+        </div>
     </div>
 </div>
 
