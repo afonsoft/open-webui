@@ -176,6 +176,34 @@
                         <label class="check"><input type="checkbox" @bind="_adminEnableRating" /> @L["settings.enable_rating"]</label>
                         <label class="check"><input type="checkbox" @bind="_adminEnableFolders" /> @L["settings.enable_folders"]</label>
                         <label class="check"><input type="checkbox" @bind="_adminEnableMemories" /> @L["settings.enable_memories"]</label>
+
+                        <div class="field"><strong>@L["settings.images_section"]</strong></div>
+                        <label class="check"><input type="checkbox" @bind="_imagesEnabled" /> @L["settings.images_enabled"]</label>
+                        @if (_imagesEnabled)
+                        {
+                            <div class="field">
+                                <label>@L["settings.images_base_url"]</label>
+                                <input class="input" @bind="_imagesBaseUrl" placeholder="https://api.openai.com/v1" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.images_api_key"]</label>
+                                <input class="input" type="password" @bind="_imagesApiKey" placeholder="@L["settings.keys_keep"]" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.images_model"]</label>
+                                <input class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.images_size"]</label>
+                                <select class="input" @bind="_imagesSize">
+                                    <option value="1024x1024">1024x1024</option>
+                                    <option value="1024x1792">1024x1792</option>
+                                    <option value="1792x1024">1792x1024</option>
+                                    <option value="512x512">512x512</option>
+                                    <option value="auto">auto</option>
+                                </select>
+                            </div>
+                        }
                         @if (_adminMessage is not null)
                         {
                             <div class="field-note">@_adminMessage</div>
@@ -234,6 +262,11 @@
     private bool _adminEnableRating = true;
     private bool _adminEnableFolders = true;
     private bool _adminEnableMemories;
+    private bool _imagesEnabled;
+    private string _imagesBaseUrl = "https://api.openai.com/v1";
+    private string _imagesApiKey = string.Empty;
+    private string _imagesModel = "gpt-image-1";
+    private string _imagesSize = "1024x1024";
     private string? _adminMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -270,6 +303,17 @@
                 _adminEnableRating = adminConfig.EnableMessageRating;
                 _adminEnableFolders = adminConfig.EnableFolders;
                 _adminEnableMemories = adminConfig.EnableMemories;
+
+                var images = await Api.GetImagesConfigAsync();
+                if (images is not null)
+                {
+                    _imagesEnabled = images.Enabled;
+                    _imagesBaseUrl = images.BaseUrl;
+                    _imagesApiKey = string.Empty;
+                    _imagesModel = images.Model;
+                    _imagesSize = images.Size;
+                }
+
                 _adminLoaded = true;
             }
         }
@@ -373,7 +417,17 @@
             _adminEnableFolders,
             _adminEnableMemories,
             _adminWebUiName.Trim()));
-        _adminMessage = result is null ? L["settings.save_failed"] : L["settings.admin_saved"];
+        var images = await Api.UpdateImagesConfigAsync(new ImagesConfig(
+            _imagesEnabled,
+            "openai",
+            _imagesBaseUrl.Trim(),
+            _imagesApiKey.Trim(),
+            _imagesModel.Trim(),
+            _imagesSize,
+            120));
+        _adminMessage = result is null || images is null
+            ? L["settings.save_failed"]
+            : L["settings.admin_saved"];
     }
 
     private static string FormatDate(long unixSeconds) =>

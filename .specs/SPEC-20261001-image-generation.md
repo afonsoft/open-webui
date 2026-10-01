@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-image-generation` |
-| Ticket | `GAP-implementation-image-generation — Issue a criar` |
-| Status | `Approved` |
+| Ticket | `[image-generation] Issue #21` |
+| Status | `In implementation` |
 
 ## 1. User Story
 

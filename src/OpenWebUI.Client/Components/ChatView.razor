@@ -67,7 +67,8 @@
                             Initials="@UserInitials"
                             OnRegenerate="() => RegenerateAtAsync(index)"
                             OnEdit="() => EditAt(index)"
-                            OnRate="rating => RateAsync(message, rating)" />
+                            OnRate="rating => RateAsync(message, rating)"
+                            OnGenerateImage="() => GenerateImageAtAsync(index)" />
                     }
                 </div>
             }
@@ -448,6 +449,41 @@
         await StreamAssistantAsync([]);
         await PersistAsync();
         _ = LoadFollowUpsAsync();
+    }
+
+    private async Task GenerateImageAtAsync(int index)
+    {
+        if (_streaming)
+        {
+            return;
+        }
+
+        var message = _messages[index];
+        List<GeneratedImage>? generated;
+        try
+        {
+            generated = await Api.GenerateImagesAsync(message.Content);
+        }
+        catch (HttpRequestException)
+        {
+            generated = null;
+        }
+
+        if (generated is { Count: > 0 })
+        {
+            var markdown = string.Concat(generated.Select(g => $"\n\n![imagem gerada]({g.Url})"));
+            _messages[index] = message with { Content = message.Content + markdown };
+        }
+        else
+        {
+            _messages[index] = message with
+            {
+                Content = $"{message.Content}\n\n> {L["chat.image_error"]}",
+            };
+        }
+
+        await PersistAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RateAsync(ChatMessageModel message, int rating)
