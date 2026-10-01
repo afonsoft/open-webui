@@ -20,6 +20,7 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<PermissionService>();
+builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -119,6 +120,7 @@ app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapFileEndpoints();
 app.MapModelEndpoints();
+app.MapToolEndpoints();
 app.MapEvaluationEndpoints();
 app.MapTaskEndpoints();
 app.MapApiEndpoints();

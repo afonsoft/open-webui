@@ -2,6 +2,7 @@
 @page "/workspace/prompts"
 @page "/workspace/models"
 @page "/workspace/files"
+@page "/workspace/tools"
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -17,6 +18,8 @@
                 @onclick='() => Nav.NavigateTo("/workspace/models")'>Modelos</button>
         <button class="modal-tab @(Section == "files" ? "active" : "")"
                 @onclick='() => Nav.NavigateTo("/workspace/files")'>Arquivos</button>
+        <button class="modal-tab @(Section == "tools" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/tools")'>Tools</button>
     </div>
 
     @if (Section == "models")
@@ -68,6 +71,33 @@
             }
         </div>
     }
+    else if (Section == "tools")
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <button class="auth-submit" @onclick="NewTool">+ Nova tool</button>
+            </div>
+            @foreach (var tool in _tools)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">@tool.Name @(tool.Enabled ? "" : "(desabilitada)")</div>
+                        <div class="card-sub">@tool.Description</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
+                            @(tool.Enabled ? "⏸ Desabilitar" : "▶ Habilitar")
+                        </button>
+                        <button class="msg-action danger" @onclick="() => DeleteToolAsync(tool)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_tools.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhuma tool. Tools são endpoints HTTP que o modelo invoca via function calling.</div>
+            }
+        </div>
+    }
     else
     {
         <div class="card-list">
@@ -99,17 +129,20 @@
     private string Section =>
         Nav.Uri.Contains("/workspace/models") ? "models"
         : Nav.Uri.Contains("/workspace/files") ? "files"
+        : Nav.Uri.Contains("/workspace/tools") ? "tools"
         : "prompts";
 
     private List<PromptResponse> _prompts = [];
     private List<ModelEntryResponse> _models = [];
     private List<FileResponse> _files = [];
+    private List<ToolResponse> _tools = [];
 
     protected override async Task OnInitializedAsync()
     {
         _prompts = await Api.GetPromptsAsync();
         _models = await Api.GetCustomModelsAsync();
         _files = await Api.GetFilesAsync();
+        _tools = await Api.GetToolsAsync();
     }
 
     private async Task NewPrompt()
@@ -238,6 +271,62 @@
             && await Api.DeleteFileAsync(file.Id))
         {
             _files.Remove(file);
+        }
+    }
+
+    private const string DefaultSpec =
+        "{\"type\":\"function\",\"function\":{\"name\":\"minha_tool\",\"description\":\"Descreva a tool\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}";
+
+    private async Task NewTool()
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da tool:", "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+        var url = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "URL de execução (HTTP POST):", "");
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+        var spec = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "Spec JSON da função (formato OpenAI):", DefaultSpec);
+        if (string.IsNullOrWhiteSpace(spec))
+        {
+            return;
+        }
+        var description = await JS.InvokeAsync<string?>(
+            "openwebui.prompt", "Descrição (opcional):", "");
+
+        var created = await Api.CreateToolAsync(
+            new ToolUpsertRequest(name.Trim(), description, spec, url.Trim()));
+        if (created is not null)
+        {
+            _tools.Add(created);
+        }
+    }
+
+    private async Task ToggleToolAsync(ToolResponse tool)
+    {
+        var updated = await Api.UpdateToolAsync(tool.Id,
+            new ToolUpsertRequest(tool.Name, tool.Description, tool.SpecJson, null, !tool.Enabled));
+        if (updated is not null)
+        {
+            var index = _tools.FindIndex(t => t.Id == tool.Id);
+            if (index >= 0)
+            {
+                _tools[index] = updated;
+            }
+        }
+    }
+
+    private async Task DeleteToolAsync(ToolResponse tool)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir tool \"{tool.Name}\"?")
+            && await Api.DeleteToolAsync(tool.Id))
+        {
+            _tools.Remove(tool);
         }
     }
 

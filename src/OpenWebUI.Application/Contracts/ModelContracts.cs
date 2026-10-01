@@ -14,7 +14,11 @@ public sealed record ModelListResponse(IReadOnlyList<ModelInfo> Data);
 /// <summary>Mensagem enviada ao endpoint de chat completion.</summary>
 /// <param name="Role">Papel: system, user ou assistant.</param>
 /// <param name="Content">Conteúdo textual.</param>
-public sealed record ChatCompletionMessage(string Role, string Content);
+public sealed record ChatCompletionMessage(
+    string Role,
+    string Content,
+    string? ToolCallId = null,
+    string? ToolCallsJson = null);
 
 /// <summary>Requisição de chat completion compatível com OpenAI.</summary>
 /// <param name="Model">Identificador do modelo.</param>
@@ -29,4 +33,6 @@ public sealed record ChatCompletionRequest(
     bool Stream = true,
     string? Connection = null,
     IReadOnlyList<string>? FileIds = null,
-    IReadOnlyDictionary<string, object>? Params = null);
+    IReadOnlyDictionary<string, object>? Params = null,
+    IReadOnlyList<string>? ToolIds = null,
+    IReadOnlyList<System.Text.Json.JsonElement>? Tools = null);

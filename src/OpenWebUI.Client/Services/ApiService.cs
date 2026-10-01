@@ -189,6 +189,24 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ModelEntryResponse?> ToggleCustomModelAsync(string id) =>
         SendAsync<ModelEntryResponse>(HttpMethod.Post, "/api/v1/models/model/toggle", new { id });
 
+    // ---------------- Tools ----------------
+
+    /// <summary>Lista tools do usuário.</summary>
+    public async Task<List<ToolResponse>> GetToolsAsync() =>
+        await SendAsync<List<ToolResponse>>(HttpMethod.Get, "/api/v1/tools/") ?? [];
+
+    /// <summary>Cria uma tool.</summary>
+    public Task<ToolResponse?> CreateToolAsync(ToolUpsertRequest request) =>
+        SendAsync<ToolResponse>(HttpMethod.Post, "/api/v1/tools/", request);
+
+    /// <summary>Atualiza uma tool.</summary>
+    public Task<ToolResponse?> UpdateToolAsync(string id, ToolUpsertRequest request) =>
+        SendAsync<ToolResponse>(HttpMethod.Put, $"/api/v1/tools/{id}", request);
+
+    /// <summary>Remove uma tool.</summary>
+    public async Task<bool> DeleteToolAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/tools/{id}");
+
     // ---------------- Prompts ----------------
 
     /// <summary>Lista prompts do usuário.</summary>
