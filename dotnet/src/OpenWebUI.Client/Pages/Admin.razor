@@ -1,0 +1,121 @@
+@page "/admin"
+@inject ApiService Api
+@inject AuthService Auth
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Administração — Open WebUI</PageTitle>
+
+<div class="page">
+    <h1 class="page-title">Administração — Usuários</h1>
+    @if (!IsAdmin)
+    {
+        <div class="chat-error">Acesso restrito a administradores.</div>
+    }
+    else if (_users is null)
+    {
+        <div class="sidebar-empty">Carregando…</div>
+    }
+    else
+    {
+        <div class="card-row">
+            <button class="auth-submit" @onclick="AddUserAsync">+ Novo usuário</button>
+        </div>
+        <div class="card-list">
+            @foreach (var user in _users)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">@user.Name <span class="role-badge role-@user.Role">@user.Role</span></div>
+                        <div class="card-sub">@user.Email · criado em @FormatDate(user.CreatedAt)</div>
+                    </div>
+                    <div class="card-actions">
+                        @if (user.Role == "pending")
+                        {
+                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>✅ Aprovar</button>
+                        }
+                        @if (user.Role == "user")
+                        {
+                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "admin")'>⬆ Tornar admin</button>
+                        }
+                        @if (user.Role == "admin" && user.Id != Auth.CurrentUser?.Id)
+                        {
+                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>⬇ Rebaixar</button>
+                        }
+                        @if (user.Id != Auth.CurrentUser?.Id)
+                        {
+                            <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
+                        }
+                    </div>
+                </div>
+            }
+            @if (_users.Count == 0)
+            {
+                <div class="sidebar-empty">Nenhum usuário.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<AdminUserResponse>? _users;
+
+    private bool IsAdmin => Auth.CurrentUser?.Role == "admin";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAdmin)
+        {
+            return;
+        }
+
+        _users = await Api.GetUsersAsync();
+    }
+
+    private async Task AddUserAsync()
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome:", "");
+        var email = await JS.InvokeAsync<string?>("openwebui.prompt", "E-mail:", "");
+        var password = await JS.InvokeAsync<string?>("openwebui.prompt", "Senha:", "");
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            return;
+        }
+
+        var role = await JS.InvokeAsync<string?>("openwebui.prompt", "Papel (user/admin):", "user");
+        var created = await Api.AddUserAsync(new AddUserRequest(
+            name ?? email, email, password,
+            role is "admin" or "user" ? role : "user"));
+        if (created)
+        {
+            _users = await Api.GetUsersAsync();
+        }
+    }
+
+    private async Task SetRoleAsync(AdminUserResponse user, string role)
+    {
+        var updated = await Api.UpdateUserAsync(user.Id,
+            new AdminUpdateUserRequest(user.Name, role, null, user.ProfileImageUrl));
+        if (updated is not null && _users is not null)
+        {
+            var index = _users.FindIndex(u => u.Id == user.Id);
+            if (index >= 0)
+            {
+                _users[index] = user with { Role = role };
+            }
+        }
+    }
+
+    private async Task DeleteUserAsync(AdminUserResponse user)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm",
+            $"Excluir o usuário \"{user.Email}\"? Todos os chats dele serão removidos.")
+            && await Api.DeleteUserAsync(user.Id))
+        {
+            _users?.Remove(user);
+        }
+    }
+
+    private static string FormatDate(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+}

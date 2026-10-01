@@ -1,108 +1,324 @@
 @inject ApiService Api
 @inject AuthService Auth
-@inject ChatListState ChatList
 @inject NavigationManager Nav
+@inject ChatListState ChatList
+@inject IJSRuntime JS
 @implements IDisposable
 
 <aside class="sidebar">
     <div class="sidebar-header">
-        <button class="btn-new-chat" @onclick="NewChat" title="Novo chat">
-            <span class="logo">Open WebUI</span>
-            <span class="icon">＋</span>
+        <button class="btn-new-chat" @onclick="NewChat">
+            <span>Nova conversa</span>
+            <span class="icon">✎</span>
         </button>
     </div>
 
     <div class="sidebar-search">
-        <input type="search" placeholder="Buscar chats" @bind="_search" @bind:event="oninput" />
+        <input type="text" placeholder="Buscar conversas" @bind="_query" @bind:event="oninput" />
     </div>
 
-    <nav class="sidebar-chats">
-        @if (_chats is null)
+    <div class="sidebar-chats">
+        @if (_pinned.Count > 0)
         {
-            <div class="sidebar-empty">Carregando…</div>
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Fixados</div>
+                @foreach (var chat in _pinned)
+                {
+                    @ChatItem(chat)
+                }
+            </div>
         }
-        else if (FilteredChats.Count == 0)
+
+        @foreach (var folder in _folders)
         {
-            <div class="sidebar-empty">Nenhum chat</div>
+            <div class="sidebar-section">
+                <div class="sidebar-section-title folder-title" @onclick="() => folder.Expanded = !folder.Expanded">
+                    <span>@(folder.Expanded ? "▾" : "▸") @folder.Name</span>
+                    <span class="folder-actions">
+                        <button class="icon-mini" title="Excluir pasta" @onclick="() => DeleteFolderAsync(folder)"
+                                @onclick:stopPropagation>×</button>
+                    </span>
+                </div>
+                @if (folder.Expanded)
+                {
+                    <div class="folder-items">
+                        @foreach (var chat in folder.Chats)
+                        {
+                            @ChatItem(chat)
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
+        {
+            <div class="sidebar-empty">@(string.IsNullOrEmpty(_query) ? "Nenhuma conversa ainda" : "Nenhum resultado")</div>
         }
         else
         {
-            @foreach (var chat in FilteredChats)
-            {
-                var id = chat.Id;
-                <div class="chat-item @(IsActive(id) ? "active" : "")">
-                    <a href="/c/@id" class="chat-link" title="@chat.Title">@chat.Title</a>
-                    <button class="chat-delete" title="Excluir" @onclick="() => DeleteAsync(id)">×</button>
-                </div>
-            }
+            <div class="sidebar-section">
+                @if (FilteredChats.Count > 0)
+                {
+                    <div class="sidebar-section-title">Conversas</div>
+                }
+                @foreach (var chat in FilteredChats)
+                {
+                    @ChatItem(chat)
+                }
+            </div>
         }
-    </nav>
+    </div>
+
+    <div class="sidebar-nav">
+        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/archived")'>📦 Arquivadas</button>
+        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/workspace")'>🛠 Workspace</button>
+        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/notes")'>📝 Notas</button>
+        @if (Auth.CurrentUser?.Role == "admin")
+        {
+            <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/admin")'>⚙ Administração</button>
+        }
+    </div>
 
     <div class="sidebar-footer">
-        <div class="user-chip" title="@Auth.CurrentUser?.Email">
-            <span class="avatar">@Initials</span>
-            <span class="user-name">@Auth.CurrentUser?.Name</span>
+        <div class="user-chip">
+            <div class="avatar">@Initials</div>
+            <div class="user-name">@Auth.CurrentUser?.Name</div>
         </div>
         <button class="icon-btn" title="Configurações" @onclick="() => OnOpenSettings.InvokeAsync()">⚙</button>
         <button class="icon-btn" title="Sair" @onclick="SignOutAsync">⏻</button>
     </div>
 </aside>
 
+@if (_menuFor is not null)
+{
+    <div class="context-backdrop" @onclick="CloseMenu"></div>
+    <div class="context-menu">
+        <button @onclick="() => PinAsync(_menuFor)">📌 @(_menuFor.Pinned ? "Desafixar" : "Fixar")</button>
+        <button @onclick="() => RenameAsync(_menuFor)">✏️ Renomear</button>
+        <button @onclick="() => CloneAsync(_menuFor)">⧉ Clonar</button>
+        <button @onclick="() => ShareAsync(_menuFor)">🔗 Compartilhar</button>
+        <button @onclick="() => ArchiveAsync(_menuFor)">📦 Arquivar</button>
+        @if (_folders.Count > 0)
+        {
+            <div class="context-sub">
+                <div class="context-sub-title">Mover para</div>
+                @foreach (var folder in _folders)
+                {
+                    <button @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">📁 @folder.Name</button>
+                }
+                <button @onclick="() => MoveToFolderAsync(_menuFor, null)">— Remover da pasta</button>
+            </div>
+        }
+        <button @onclick="() => CreateFolderForAsync(_menuFor)">📁 Nova pasta</button>
+        <button class="danger" @onclick="() => DeleteAsync(_menuFor)">🗑 Excluir</button>
+    </div>
+}
+
+@if (_shareUrl is not null)
+{
+    <div class="modal-backdrop" @onclick="() => _shareUrl = null">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span>Compartilhar conversa</span>
+                <button class="icon-btn" @onclick="() => _shareUrl = null">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Link público</label>
+                    <input class="input" readonly value="@_shareUrl" @onclick="CopyShareLink" />
+                </div>
+                <button class="auth-submit" @onclick="CopyShareLink">@(_copied ? "Copiado!" : "Copiar link")</button>
+                <button class="auth-submit danger-btn" @onclick="UnshareAsync">Desativar compartilhamento</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    /// <summary>Callback para abrir o modal de configurações.</summary>
+    /// <summary>Disparado quando o usuário abre as configurações.</summary>
     [Parameter] public EventCallback OnOpenSettings { get; set; }
 
-    private List<ChatSummaryResponse>? _chats;
-    private string _search = string.Empty;
+    private List<ChatSummaryResponse> _chats = [];
+    private List<ChatSummaryResponse> _pinned = [];
+    private List<FolderWithChats> _folders = [];
+    private string _query = string.Empty;
+    private ChatSummaryResponse? _menuFor;
+    private string? _shareUrl;
+    private string? _shareChatId;
+    private bool _copied;
 
-    private List<ChatSummaryResponse> FilteredChats => _chats is null
-        ? []
-        : string.IsNullOrWhiteSpace(_search)
+    private List<ChatSummaryResponse> FilteredChats =>
+        string.IsNullOrWhiteSpace(_query)
             ? _chats
-            : _chats.Where(c => c.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+            : _chats.Where(c => c.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)).ToList();
 
     private string Initials =>
-        string.IsNullOrWhiteSpace(Auth.CurrentUser?.Name)
-            ? "?"
-            : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
+        string.Concat((Auth.CurrentUser?.Name ?? "U").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2).Select(p => char.ToUpperInvariant(p[0])));
 
     protected override async Task OnInitializedAsync()
     {
-        ChatList.Changed += OnChatListChanged;
-        Auth.Changed += OnAuthChanged;
+        ChatList.Changed += OnChatsChanged;
         await LoadAsync();
     }
 
-    private async void OnChatListChanged() => await LoadAsync();
-    private void OnAuthChanged() => StateHasChanged();
+    private async void OnChatsChanged()
+    {
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
 
     private async Task LoadAsync()
     {
-        if (!Auth.IsAuthenticated)
+        _chats = await Api.GetChatsAsync();
+        _pinned = await Api.GetPinnedChatsAsync();
+        _folders = await Api.GetFoldersAsync();
+    }
+
+    private RenderFragment ChatItem(ChatSummaryResponse chat) => __builder =>
+    {
+        var current = Nav.Uri.Contains($"/c/{chat.Id}");
+        <div class="chat-item @(current ? "active" : "")">
+            <a class="chat-link" href="/c/@chat.Id">@(chat.Pinned ? "📌 " : "")@chat.Title</a>
+            <button class="chat-delete" title="Opções" @onclick="() => _menuFor = chat">⋯</button>
+        </div>
+    };
+
+    private void NewChat() => Nav.NavigateTo("/");
+
+    private void CloseMenu() => _menuFor = null;
+
+    private async Task PinAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        await Api.TogglePinChatAsync(chat.Id);
+        await LoadAsync();
+    }
+
+    private async Task RenameAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Novo título:", chat.Title);
+        if (string.IsNullOrWhiteSpace(title))
         {
             return;
         }
 
-        _chats = await Api.GetChatsAsync();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private bool IsActive(string id) =>
-        Nav.Uri.EndsWith($"/c/{id}", StringComparison.Ordinal);
-
-    private void NewChat() => Nav.NavigateTo("/");
-
-    private async Task DeleteAsync(string id)
-    {
-        if (await Api.DeleteChatAsync(id))
+        var full = await Api.GetChatAsync(chat.Id);
+        if (full is not null)
         {
-            if (IsActive(id))
-            {
-                Nav.NavigateTo("/");
-            }
-
+            await Api.UpdateChatAsync(chat.Id, new ChatUpsertRequest(title.Trim(), full.Models, full.Messages));
             await LoadAsync();
         }
+    }
+
+    private async Task CloneAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        var clone = await Api.CloneChatAsync(chat.Id);
+        if (clone is not null)
+        {
+            Nav.NavigateTo($"/c/{clone.Id}");
+            await LoadAsync();
+        }
+    }
+
+    private async Task ShareAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        var updated = await Api.ShareChatAsync(chat.Id);
+        if (updated?.ShareId is not null)
+        {
+            _shareChatId = chat.Id;
+            _shareUrl = $"{Nav.BaseUri.TrimEnd('/')}/s/{updated.ShareId}";
+            _copied = false;
+        }
+    }
+
+    private async Task CopyShareLink()
+    {
+        if (_shareUrl is not null)
+        {
+            await JS.InvokeVoidAsync("openwebui.copyText", _shareUrl);
+            _copied = true;
+        }
+    }
+
+    private async Task UnshareAsync()
+    {
+        if (_shareChatId is not null)
+        {
+            await Api.UnshareChatAsync(_shareChatId);
+            _shareUrl = null;
+            _shareChatId = null;
+        }
+    }
+
+    private async Task ArchiveAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        await Api.ToggleArchiveChatAsync(chat.Id);
+        ChatList.NotifyChanged();
+        if (Nav.Uri.Contains($"/c/{chat.Id}"))
+        {
+            Nav.NavigateTo("/");
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task MoveToFolderAsync(ChatSummaryResponse chat, string? folderId)
+    {
+        _menuFor = null;
+        await Api.SetChatFolderAsync(chat.Id, folderId);
+        await LoadAsync();
+    }
+
+    private async Task CreateFolderForAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da pasta:", "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var folder = await Api.CreateFolderAsync(name.Trim());
+        if (folder is not null)
+        {
+            await Api.SetChatFolderAsync(chat.Id, folder.Id);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteFolderAsync(FolderWithChats folder)
+    {
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm",
+            $"Excluir a pasta \"{folder.Name}\"? As conversas saem da pasta."))
+        {
+            return;
+        }
+
+        await Api.DeleteFolderAsync(folder.Id);
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(ChatSummaryResponse chat)
+    {
+        _menuFor = null;
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir \"{chat.Title}\"?"))
+        {
+            return;
+        }
+
+        await Api.DeleteChatAsync(chat.Id);
+        if (Nav.Uri.Contains($"/c/{chat.Id}"))
+        {
+            Nav.NavigateTo("/");
+        }
+
+        await LoadAsync();
     }
 
     private async Task SignOutAsync()
@@ -111,10 +327,6 @@
         Nav.NavigateTo("/auth", replace: true);
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        ChatList.Changed -= OnChatListChanged;
-        Auth.Changed -= OnAuthChanged;
-    }
+    /// <summary>Limpa inscrições.</summary>
+    public void Dispose() => ChatList.Changed -= OnChatsChanged;
 }

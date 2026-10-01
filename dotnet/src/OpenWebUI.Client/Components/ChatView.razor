@@ -8,6 +8,12 @@
 <div class="chat-container">
     <div class="chat-topbar">
         <ModelSelector Value="@_model" ValueChanged="OnModelChanged" />
+        <div class="chat-topbar-right">
+            @if (_loadedChatId is not null)
+            {
+                <button class="icon-btn" title="Compartilhar" @onclick="ShareAsync">🔗</button>
+            }
+        </div>
     </div>
 
     <div class="chat-messages" @ref="_scrollContainer">
@@ -16,20 +22,34 @@
             <div class="chat-empty">
                 <div class="chat-empty-logo">Open WebUI</div>
                 <div class="chat-empty-sub">Como posso ajudar?</div>
+                @if (_prompts.Count > 0)
+                {
+                    <div class="prompt-hints">
+                        @foreach (var prompt in _prompts.Take(4))
+                        {
+                            <button class="prompt-chip" @onclick="() => UsePrompt(prompt)">
+                                /@prompt.Command — @prompt.Title
+                            </button>
+                        }
+                    </div>
+                }
             </div>
         }
         else
         {
             @for (var i = 0; i < _messages.Count; i++)
             {
+                var index = i;
                 var message = _messages[i];
                 var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
                 <MessageBubble
                     Message="message"
                     Streaming="_streaming && isLastAssistant"
-                    ShowActions="isLastAssistant"
+                    ShowActions="true"
                     Initials="@UserInitials"
-                    OnRegenerate="RegenerateAsync" />
+                    OnRegenerate="() => RegenerateAtAsync(index)"
+                    OnEdit="() => EditAt(index)"
+                    OnRate="rating => RateAsync(message, rating)" />
             }
         }
 
@@ -37,13 +57,38 @@
         {
             <div class="chat-error">@_error</div>
         }
+
+        @if (_followUps.Count > 0 && !_streaming)
+        {
+            <div class="follow-ups">
+                @foreach (var suggestion in _followUps)
+                {
+                    <button class="follow-up-chip" @onclick="() => SendFollowUpAsync(suggestion)">@suggestion</button>
+                }
+            </div>
+        }
     </div>
 
     <div class="chat-input-area">
+        @if (_attachedFiles.Count > 0)
+        {
+            <div class="attached-files">
+                @foreach (var file in _attachedFiles)
+                {
+                    <span class="file-chip">
+                        📎 @file.Filename
+                        <button class="file-remove" @onclick="() => _attachedFiles.Remove(file)">×</button>
+                    </span>
+                }
+            </div>
+        }
         <div class="chat-input-box @(_streaming ? "streaming" : "")">
+            <button class="attach-btn" title="Anexar arquivo" disabled="@(_loading || _uploading)"
+                    @onclick="TriggerFilePicker">📎</button>
+            <InputFile @ref="_fileInput" OnChange="OnFileSelected" class="hidden-input" />
             <textarea
                 class="chat-textarea"
-                placeholder="Envie uma mensagem"
+                placeholder="@(_uploading ? "Enviando arquivo…" : "Envie uma mensagem (digite / para prompts)")"
                 rows="1"
                 @bind="_input"
                 @bind:event="oninput"
@@ -58,6 +103,15 @@
                 <button class="send-btn" title="Enviar" disabled="@SendDisabled" @onclick="SendAsync">➤</button>
             }
         </div>
+        @if (_promptSuggestions.Count > 0)
+        {
+            <div class="prompt-suggestions">
+                @foreach (var p in _promptSuggestions)
+                {
+                    <button class="prompt-suggestion" @onclick="() => SelectPrompt(p)">/@p.Command @p.Title</button>
+                }
+            </div>
+        }
         <div class="chat-disclaimer">Open WebUI .NET — Blazor WebAssembly</div>
     </div>
 </div>
@@ -67,6 +121,10 @@
     [Parameter] public string? ChatId { get; set; }
 
     private readonly List<ChatMessageModel> _messages = [];
+    private readonly List<FileResponse> _attachedFiles = [];
+    private List<PromptResponse> _prompts = [];
+    private List<PromptResponse> _promptSuggestions = [];
+    private List<string> _followUps = [];
     private string? _loadedChatId;
     private string _chatTitle = "New Chat";
     private string? _model;
@@ -74,8 +132,10 @@
     private string? _error;
     private bool _loading;
     private bool _streaming;
+    private bool _uploading;
     private CancellationTokenSource? _cts;
     private ElementReference _scrollContainer;
+    private InputFile? _fileInput;
     private string? _pendingNavigateId;
 
     private string UserInitials =>
@@ -84,7 +144,13 @@
             : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
 
     private bool SendDisabled =>
-        string.IsNullOrWhiteSpace(_input) || string.IsNullOrEmpty(_model) || _loading;
+        (string.IsNullOrWhiteSpace(_input) && _attachedFiles.Count == 0)
+        || string.IsNullOrEmpty(_model) || _loading || _uploading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _prompts = await Api.GetPromptsAsync();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -94,6 +160,8 @@
         }
 
         _error = null;
+        _followUps = [];
+        _attachedFiles.Clear();
         if (ChatId is null)
         {
             _loadedChatId = null;
@@ -129,31 +197,103 @@
 
     private void OnModelChanged(string? model) => _model = model;
 
+    private void UsePrompt(PromptResponse prompt)
+    {
+        _input = prompt.Content;
+    }
+
+    private void SelectPrompt(PromptResponse prompt)
+    {
+        _input = prompt.Content;
+        _promptSuggestions = [];
+    }
+
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey && !SendDisabled && !_streaming)
         {
             await SendAsync();
+            return;
+        }
+
+        UpdatePromptSuggestions();
+    }
+
+    private void UpdatePromptSuggestions()
+    {
+        _promptSuggestions = _input.StartsWith('/')
+            ? _prompts
+                .Where(p => p.Command.StartsWith(_input[1..], StringComparison.OrdinalIgnoreCase))
+                .Take(5)
+                .ToList()
+            : [];
+    }
+
+    private async Task TriggerFilePicker()
+    {
+        await JS.InvokeVoidAsync("openwebui.openFilePicker", _fileInput?.Element);
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _uploading = true;
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(10))
+            {
+                await using var stream = file.OpenReadStream(100 * 1024 * 1024);
+                var uploaded = await Api.UploadFileAsync(stream, file.Name, file.ContentType);
+                if (uploaded is not null)
+                {
+                    _attachedFiles.Add(uploaded);
+                }
+                else
+                {
+                    _error = $"Falha ao enviar {file.Name}.";
+                }
+            }
+        }
+        finally
+        {
+            _uploading = false;
         }
     }
 
     private async Task SendAsync()
     {
         var text = _input.Trim();
-        if (text.Length == 0 || string.IsNullOrEmpty(_model))
+        var fileIds = _attachedFiles.Select(f => f.Id).ToList();
+        if ((text.Length == 0 && fileIds.Count == 0) || string.IsNullOrEmpty(_model))
         {
             return;
         }
 
         _input = string.Empty;
+        _promptSuggestions = [];
+        _followUps = [];
         _error = null;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", text, null, now));
+        var content = text.Length > 0
+            ? text
+            : _attachedFiles.Count > 0 ? "(arquivos anexados)" : text;
+        if (_attachedFiles.Count > 0 && text.Length > 0)
+        {
+            content += "\n\n📎 " + string.Join(", ", _attachedFiles.Select(f => f.Filename));
+        }
 
-        if (_loadedChatId is null)
+        _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", content, null, now));
+        _attachedFiles.Clear();
+
+        var isNew = _loadedChatId is null;
+        if (isNew)
         {
             var title = text.Length > 60 ? text[..60] : text;
+            if (string.IsNullOrEmpty(title))
+            {
+                title = "New Chat";
+            }
+
             var created = await Api.CreateChatAsync(
                 new ChatUpsertRequest(title, [_model!], _messages));
             if (created is null)
@@ -169,7 +309,7 @@
             ChatList.NotifyChanged();
         }
 
-        await StreamAssistantAsync();
+        await StreamAssistantAsync(fileIds);
         await PersistAsync();
 
         if (_pendingNavigateId is not null)
@@ -178,16 +318,41 @@
             _pendingNavigateId = null;
             Nav.NavigateTo($"/c/{id}");
         }
+
+        if (isNew)
+        {
+            _ = GenerateTitleAsync();
+        }
+
+        _ = LoadFollowUpsAsync();
     }
 
-    private async Task RegenerateAsync()
+    private async Task SendFollowUpAsync(string text)
+    {
+        _input = text;
+        _followUps = [];
+        await SendAsync();
+    }
+
+    private void EditAt(int index)
+    {
+        if (_streaming)
+        {
+            return;
+        }
+
+        _input = _messages[index].Content;
+    }
+
+    private async Task RegenerateAtAsync(int index)
     {
         if (_streaming || _messages.Count == 0)
         {
             return;
         }
 
-        while (_messages.Count > 0 && _messages[^1].Role == "assistant")
+        // Remove a resposta na posição e tudo depois dela, depois gera de novo.
+        while (_messages.Count > index)
         {
             _messages.RemoveAt(_messages.Count - 1);
         }
@@ -198,11 +363,39 @@
         }
 
         _error = null;
-        await StreamAssistantAsync();
+        _followUps = [];
+        await StreamAssistantAsync([]);
         await PersistAsync();
+        _ = LoadFollowUpsAsync();
     }
 
-    private async Task StreamAssistantAsync()
+    private async Task RateAsync(ChatMessageModel message, int rating)
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+
+        await Api.SaveFeedbackAsync(_loadedChatId, message.Id, message.Model, rating, null);
+    }
+
+    private async Task ShareAsync()
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+
+        var updated = await Api.ShareChatAsync(_loadedChatId);
+        if (updated?.ShareId is not null)
+        {
+            var url = $"{Nav.BaseUri.TrimEnd('/')}/s/{updated.ShareId}";
+            await JS.InvokeVoidAsync("openwebui.copyText", url);
+            _error = null;
+        }
+    }
+
+    private async Task StreamAssistantAsync(IReadOnlyList<string> fileIds)
     {
         var placeholder = new ChatMessageModel(
             Guid.NewGuid().ToString(), "assistant", string.Empty, _model,
@@ -220,7 +413,9 @@
                 _model!,
                 _messages.Take(index)
                     .Select(m => new ChatCompletionMessage(m.Role, m.Content))
-                    .ToList());
+                    .ToList(),
+                Stream: true,
+                FileIds: fileIds.Count > 0 ? fileIds : null);
 
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
             {
@@ -246,6 +441,37 @@
     }
 
     private void StopStreaming() => _cts?.Cancel();
+
+    private async Task GenerateTitleAsync()
+    {
+        if (_loadedChatId is null || string.IsNullOrEmpty(_model))
+        {
+            return;
+        }
+
+        var title = await Api.GenerateTitleAsync(_model, _messages.Take(4).ToList(), _loadedChatId);
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            _chatTitle = title;
+            await PersistAsync();
+        }
+    }
+
+    private async Task LoadFollowUpsAsync()
+    {
+        if (_loadedChatId is null || string.IsNullOrEmpty(_model) || _messages.Count < 2)
+        {
+            return;
+        }
+
+        var followUps = await Api.GenerateFollowUpsAsync(
+            _model, _messages.TakeLast(6).ToList(), _loadedChatId);
+        if (followUps.Count > 0)
+        {
+            _followUps = followUps.Take(3).ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private async Task PersistAsync()
     {

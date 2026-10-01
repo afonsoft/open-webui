@@ -66,6 +66,11 @@ public class ConfigService(AppDbContext db)
     public Task<ConnectionsConfig> GetConnectionsAsync(CancellationToken ct = default) =>
         GetAsync("connections", ConnectionsConfig.Default, ct);
 
+    /// <summary>Obtém a configuração administrativa (flags de auth e features).</summary>
+    /// <param name="ct">Token de cancelamento.</param>
+    public Task<AdminConfig> GetAdminConfigAsync(CancellationToken ct = default) =>
+        GetAsync("admin.config", AdminConfig.Default, ct);
+
     /// <summary>Obtém (ou gera e persiste) o segredo usado para assinar tokens JWT.</summary>
     /// <param name="ct">Token de cancelamento.</param>
     public async Task<string> GetOrCreateJwtSecretAsync(CancellationToken ct = default)

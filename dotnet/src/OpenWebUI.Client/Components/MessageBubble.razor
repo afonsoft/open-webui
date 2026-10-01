@@ -1,4 +1,5 @@
 @inject MarkdownService Markdown
+@inject IJSRuntime JS
 
 <div class="message @Message.Role">
     <div class="message-avatar">@(Message.Role == "assistant" ? "◈" : Initials)</div>
@@ -27,10 +28,24 @@
                 <span class="user-text">@Message.Content</span>
             }
         </div>
-        @if (Message.Role == "assistant" && !Streaming && ShowActions)
+        @if (ShowActions && !Streaming)
         {
             <div class="message-actions">
-                <button class="msg-action" title="Regenerar" @onclick="() => OnRegenerate.InvokeAsync()">↻ Regenerar</button>
+                <button class="msg-action" title="Copiar" @onclick="CopyAsync">⧉ Copiar</button>
+                @if (Message.Role == "assistant")
+                {
+                    <button class="msg-action" title="Boa resposta"
+                            @onclick="() => OnRate.InvokeAsync(1)">👍</button>
+                    <button class="msg-action" title="Resposta ruim"
+                            @onclick="() => OnRate.InvokeAsync(-1)">👎</button>
+                    <button class="msg-action" title="Regenerar"
+                            @onclick="() => OnRegenerate.InvokeAsync()">↻ Regenerar</button>
+                }
+                else
+                {
+                    <button class="msg-action" title="Editar"
+                            @onclick="() => OnEdit.InvokeAsync()">✏️ Editar</button>
+                }
             </div>
         }
     </div>
@@ -43,7 +58,7 @@
     /// <summary>Indica que a mensagem está sendo transmitida.</summary>
     [Parameter] public bool Streaming { get; set; }
 
-    /// <summary>Mostra ações (regenerar) — habilitado na última resposta.</summary>
+    /// <summary>Mostra ações da mensagem.</summary>
     [Parameter] public bool ShowActions { get; set; }
 
     /// <summary>Iniciais do usuário para o avatar.</summary>
@@ -51,4 +66,13 @@
 
     /// <summary>Disparado ao pedir regeneração da resposta.</summary>
     [Parameter] public EventCallback OnRegenerate { get; set; }
+
+    /// <summary>Disparado ao pedir edição da mensagem (usuário).</summary>
+    [Parameter] public EventCallback OnEdit { get; set; }
+
+    /// <summary>Disparado ao avaliar a resposta (1 ou -1).</summary>
+    [Parameter] public EventCallback<int> OnRate { get; set; }
+
+    private async Task CopyAsync() =>
+        await JS.InvokeVoidAsync("openwebui.copyText", Message.Content);
 }

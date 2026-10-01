@@ -21,8 +21,12 @@ public sealed record ChatCompletionMessage(string Role, string Content);
 /// <param name="Messages">Histórico de mensagens.</param>
 /// <param name="Stream">Se a resposta deve ser transmitida via SSE.</param>
 /// <param name="Connection">Provedor preferencial ("ollama"/"openai"), opcional.</param>
+/// <param name="FileIds">Ids de arquivos cujo conteúdo entra como contexto (opcional).</param>
+/// <param name="Params">Parâmetros de geração (temperature, top_p, max_tokens), opcional.</param>
 public sealed record ChatCompletionRequest(
     string Model,
     IReadOnlyList<ChatCompletionMessage> Messages,
     bool Stream = true,
-    string? Connection = null);
+    string? Connection = null,
+    IReadOnlyList<string>? FileIds = null,
+    IReadOnlyDictionary<string, object>? Params = null);
