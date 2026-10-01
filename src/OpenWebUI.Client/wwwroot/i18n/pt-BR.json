@@ -290,5 +290,21 @@
   "calendar.d5": "Sex",
   "calendar.d6": "Sáb",
   "calendar.scheduled": "Agendada",
-  "calendar.no_events": "Nada neste dia."
+  "calendar.no_events": "Nada neste dia.",
+  "voice.dictate": "Ditar mensagem",
+  "voice.stop_dictation": "Parar ditado",
+  "voice.listen": "Ouvir",
+  "voice.stop_speaking": "Parar leitura",
+  "voice.call": "Chamada de voz",
+  "voice.call_exit": "Sair da chamada",
+  "voice.listening": "Ouvindo…",
+  "voice.thinking": "Pensando…",
+  "voice.speaking": "Falando…",
+  "voice.retry": "Tentar novamente",
+  "voice.mic_denied": "Permissão de microfone negada",
+  "voice.call_error": "Erro na chamada de voz",
+  "voice.stt_error": "Erro no reconhecimento de voz",
+  "settings.audio_voice": "Voz (leitura de mensagens)",
+  "settings.audio_voice_default": "Padrão do navegador",
+  "settings.audio_autosend": "Enviar automaticamente após o ditado"
 }

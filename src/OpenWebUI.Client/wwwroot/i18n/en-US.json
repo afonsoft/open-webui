@@ -290,5 +290,21 @@
   "calendar.d5": "Fri",
   "calendar.d6": "Sat",
   "calendar.scheduled": "Scheduled",
-  "calendar.no_events": "Nothing on this day."
+  "calendar.no_events": "Nothing on this day.",
+  "voice.dictate": "Dictate message",
+  "voice.stop_dictation": "Stop dictation",
+  "voice.listen": "Listen",
+  "voice.stop_speaking": "Stop reading",
+  "voice.call": "Voice call",
+  "voice.call_exit": "Exit call",
+  "voice.listening": "Listening…",
+  "voice.thinking": "Thinking…",
+  "voice.speaking": "Speaking…",
+  "voice.retry": "Try again",
+  "voice.mic_denied": "Microphone permission denied",
+  "voice.call_error": "Voice call error",
+  "voice.stt_error": "Speech recognition error",
+  "settings.audio_voice": "Voice (message reading)",
+  "settings.audio_voice_default": "Browser default",
+  "settings.audio_autosend": "Auto-send after dictation"
 }
