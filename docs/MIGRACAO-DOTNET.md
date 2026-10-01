@@ -60,7 +60,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | RAG / Knowledge / vector store         | ⬜ Pendente | 9 vector DBs no original                                  |
 | Web search RAG                         | ⬜ Pendente | Stub de query generation existe                           |
 | Tools / Functions / Pipes / Filters    | ⬜ Pendente | Sistema de plugins Python                                 |
-| Channels (chat em grupo)               | ⬜ Pendente |                                                           |
+| Channels (chat em grupo)               | ✅ Migrado  | SignalR /ws + mensagens + @modelo + typing/presence   |
 | Groups / RBAC granular                 | ✅ Migrado  | `Group`/`GroupMember` + flags workspace/sharing/chat      |
 | OAuth / LDAP / SAML / SCIM             | 🟡 Parcial  | OAuth (Google/GitHub/Microsoft/OIDC) + LDAP bind; SAML/SCIM pendentes |
 | Voice / STT / TTS / Call               | ⬜ Pendente |                                                           |

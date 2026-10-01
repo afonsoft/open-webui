@@ -69,6 +69,28 @@ else
                 </div>
             </div>
 
+            @if (_channels.Count > 0 || true)
+            {
+                <div>
+                    <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
+                        <span>Canais</span>
+                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                                title="Criar canal" @onclick="CreateChannelAsync">+</button>
+                    </div>
+                    <div class="flex flex-col">
+                        @foreach (var channel in _channels)
+                        {
+                            var current = Nav.Uri.Contains($"/channels/{channel.Id}");
+                            <a class="w-full flex items-center rounded-xl px-2.5 py-1.5 mx-1 text-[0.8125rem] leading-5 truncate transition
+                                      @(current
+                                          ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
+                               href="/channels/@channel.Id" draggable="false"># @channel.Name</a>
+                        }
+                    </div>
+                </div>
+            }
+
             @if (_pinned.Count > 0)
             {
                 <div>
@@ -243,6 +265,7 @@ else
     private List<ChatSummaryResponse> _chats = [];
     private List<ChatSummaryResponse> _pinned = [];
     private List<FolderWithChats> _folders = [];
+    private List<ChannelResponse> _channels = [];
     private string _query = string.Empty;
     private ChatSummaryResponse? _menuFor;
     private string? _shareUrl;
@@ -277,6 +300,22 @@ else
         _chats = await Api.GetChatsAsync();
         _pinned = await Api.GetPinnedChatsAsync();
         _folders = await Api.GetFoldersAsync();
+        _channels = await Api.GetChannelsAsync();
+    }
+
+    private async Task CreateChannelAsync()
+    {
+        var name = await JS.InvokeAsync<string?>("prompt", "Nome do novo canal:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+        var channel = await Api.CreateChannelAsync(name.Trim());
+        if (channel is not null)
+        {
+            _channels = await Api.GetChannelsAsync();
+            Nav.NavigateTo($"/channels/{channel.Id}");
+        }
     }
 
     private RenderFragment ChatItem(ChatSummaryResponse chat) => __builder =>
