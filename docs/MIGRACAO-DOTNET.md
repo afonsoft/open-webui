@@ -67,7 +67,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Image generation                       | 🟡 Parcial  | OpenAI Images; botão na mensagem + config admin; sem ComfyUI/A1111 |
 | Code execution (Pyodide/Open Terminal) | 🟡 Parcial  | JS em Web Worker + Python via Pyodide WASM; botão Executar em blocos |
 | Socket.io / realtime multiusuário      | ⬜ Pendente | Avaliar SignalR                                           |
-| PWA / offline                          | ⬜ Pendente |                                                           |
+| PWA (manifest + service worker do shell) | ✅ Migrado   |                                                           |
 | i18n                                   | 🟡 Parcial  | pt-BR/en-US com troca sem reload; backend não traduzido   |
 | Analytics / métricas                   | 🟡 Parcial  | `/api/v1/analytics` admin-only + aba Analytics em /admin |
 | Automations / calendar / pipelines     | ⬜ Pendente |                                                           |
