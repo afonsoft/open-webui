@@ -155,7 +155,15 @@ public class AutomationScheduler(IServiceScopeFactory scopeFactory) : Background
                 // Um tick com falha não derruba o scheduler.
             }
 
-            await Task.Delay(Tick, stoppingToken);
+            try
+            {
+                await Task.Delay(Tick, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Shutdown gracioso — não é falha do scheduler.
+                break;
+            }
         }
     }
 
