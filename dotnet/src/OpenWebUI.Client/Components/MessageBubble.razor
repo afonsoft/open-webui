@@ -1,0 +1,54 @@
+@inject MarkdownService Markdown
+
+<div class="message @Message.Role">
+    <div class="message-avatar">@(Message.Role == "assistant" ? "◈" : Initials)</div>
+    <div class="message-body">
+        <div class="message-meta">
+            @(Message.Role == "assistant" ? Message.Model ?? "Assistente" : "Você")
+        </div>
+        <div class="message-content">
+            @if (Message.Role == "assistant")
+            {
+                @if (string.IsNullOrEmpty(Message.Content) && Streaming)
+                {
+                    <span class="typing">▌</span>
+                }
+                else
+                {
+                    @((MarkupString)Markdown.ToHtml(Message.Content))
+                    @if (Streaming)
+                    {
+                        <span class="typing">▌</span>
+                    }
+                }
+            }
+            else
+            {
+                <span class="user-text">@Message.Content</span>
+            }
+        </div>
+        @if (Message.Role == "assistant" && !Streaming && ShowActions)
+        {
+            <div class="message-actions">
+                <button class="msg-action" title="Regenerar" @onclick="() => OnRegenerate.InvokeAsync()">↻ Regenerar</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Mensagem a renderizar.</summary>
+    [Parameter, EditorRequired] public ChatMessageModel Message { get; set; } = default!;
+
+    /// <summary>Indica que a mensagem está sendo transmitida.</summary>
+    [Parameter] public bool Streaming { get; set; }
+
+    /// <summary>Mostra ações (regenerar) — habilitado na última resposta.</summary>
+    [Parameter] public bool ShowActions { get; set; }
+
+    /// <summary>Iniciais do usuário para o avatar.</summary>
+    [Parameter] public string Initials { get; set; } = "U";
+
+    /// <summary>Disparado ao pedir regeneração da resposta.</summary>
+    [Parameter] public EventCallback OnRegenerate { get; set; }
+}

@@ -1,0 +1,141 @@
+@inject ApiService Api
+@inject AuthService Auth
+@inject ThemeService Theme
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span>Configurações</span>
+                <button class="icon-btn" @onclick="Close">×</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>Geral</button>
+                @if (Auth.CurrentUser?.Role == "admin")
+                {
+                    <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>Conexões</button>
+                }
+                <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>Sobre</button>
+            </div>
+
+            <div class="modal-body">
+                @if (_tab == "general")
+                {
+                    <div class="field">
+                        <label>Tema</label>
+                        <select class="input" value="@Theme.Current" @onchange="OnThemeChanged">
+                            <option value="dark">Escuro</option>
+                            <option value="light">Claro</option>
+                        </select>
+                    </div>
+                }
+                else if (_tab == "connections")
+                {
+                    @if (_connections is null)
+                    {
+                        <div>Carregando…</div>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label>URLs do Ollama (uma por linha)</label>
+                            <textarea class="input" rows="2" @bind="_ollamaUrls"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>URLs OpenAI (uma por linha)</label>
+                            <textarea class="input" rows="2" @bind="_openAiUrls"></textarea>
+                        </div>
+                        <div class="field">
+                            <label>Chaves de API OpenAI (uma por linha, na mesma ordem)</label>
+                            <textarea class="input" rows="2" @bind="_openAiKeys" placeholder="••• deixe vazio para manter"></textarea>
+                        </div>
+                        @if (_saveMessage is not null)
+                        {
+                            <div class="field-note">@_saveMessage</div>
+                        }
+                        <button class="auth-submit" @onclick="SaveConnectionsAsync">Salvar</button>
+                    }
+                }
+                else
+                {
+                    <div class="field">
+                        <label>Versão do backend</label>
+                        <div>@(_version ?? "…")</div>
+                    </div>
+                    <div class="field">
+                        <label>Stack</label>
+                        <div>.NET 10 · C# 14 · Blazor WebAssembly</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Controla a visibilidade do modal.</summary>
+    [Parameter] public bool IsOpen { get; set; }
+
+    /// <summary>Disparado quando o modal é fechado.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string _tab = "general";
+    private ConnectionsConfigResponse? _connections;
+    private string _ollamaUrls = string.Empty;
+    private string _openAiUrls = string.Empty;
+    private string _openAiKeys = string.Empty;
+    private string? _saveMessage;
+    private string? _version;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen)
+        {
+            _version = (await Api.GetVersionAsync())?.Version;
+            if (Auth.CurrentUser?.Role == "admin")
+            {
+                _connections = await Api.GetConnectionsAsync();
+                if (_connections is not null)
+                {
+                    _ollamaUrls = string.Join('\n', _connections.OllamaBaseUrls);
+                    _openAiUrls = string.Join('\n', _connections.OpenAiBaseUrls);
+                    _openAiKeys = string.Empty;
+                }
+            }
+        }
+    }
+
+    private async Task OnThemeChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string theme)
+        {
+            await Theme.SetAsync(theme);
+        }
+    }
+
+    private async Task SaveConnectionsAsync()
+    {
+        var ollama = SplitLines(_ollamaUrls);
+        var openAi = SplitLines(_openAiUrls);
+        var keys = SplitLines(_openAiKeys);
+
+        // Chaves deixadas em branco são preservadas pelo servidor.
+        while (keys.Count < openAi.Count)
+        {
+            keys.Add(string.Empty);
+        }
+
+        var result = await Api.UpdateConnectionsAsync(
+            new ConnectionsConfig(ollama, openAi, keys));
+        _saveMessage = result is null ? "Falha ao salvar." : "Configurações salvas.";
+        _connections = result;
+    }
+
+    private static List<string> SplitLines(string text) =>
+        text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+    private Task Close() => OnClose.InvokeAsync();
+}

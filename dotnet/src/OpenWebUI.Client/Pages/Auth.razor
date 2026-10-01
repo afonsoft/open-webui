@@ -1,0 +1,116 @@
+@page "/auth"
+@layout EmptyLayout
+@inject AuthService AuthService
+@inject NavigationManager Nav
+
+<PageTitle>Entrar — Open WebUI</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">Open WebUI <span class="auth-badge">.NET</span></div>
+
+        @if (!AuthService.IsAuthenticated)
+        {
+            <div class="auth-tabs">
+                <button class="auth-tab @(!_signUp ? "active" : "")" @onclick="() => SetMode(false)">Entrar</button>
+                <button class="auth-tab @(_signUp ? "active" : "")" @onclick="() => SetMode(true)">Cadastrar</button>
+            </div>
+
+            <div class="auth-form">
+                @if (_signUp)
+                {
+                    <input class="auth-input" type="text" placeholder="Nome" @bind="_name" />
+                }
+                <input class="auth-input" type="email" placeholder="E-mail" @bind="_email" />
+                <input class="auth-input" type="password" placeholder="Senha" @bind="_password"
+                       @onkeydown="OnKeyDown" />
+
+                @if (_error is not null)
+                {
+                    <div class="auth-error">@_error</div>
+                }
+
+                <button class="auth-submit" disabled="@(_busy || !FormValid)" @onclick="SubmitAsync">
+                    @if (_busy)
+                    {
+                        <span>Aguarde…</span>
+                    }
+                    else
+                    {
+                        <span>@(_signUp ? "Criar conta" : "Entrar")</span>
+                    }
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="auth-form">
+                <p>Você já está autenticado como <strong>@AuthService.CurrentUser?.Email</strong>.</p>
+                <button class="auth-submit" @onclick="GoToApp">Ir para o app</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool _signUp;
+    private bool _busy;
+    private string _name = string.Empty;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _error;
+
+    private bool FormValid =>
+        !string.IsNullOrWhiteSpace(_email)
+        && !string.IsNullOrWhiteSpace(_password)
+        && (!_signUp || !string.IsNullOrWhiteSpace(_name));
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            Nav.NavigateTo("/", replace: true);
+        }
+    }
+
+    private void GoToApp() => Nav.NavigateTo("/");
+
+    private void SetMode(bool signUp)
+    {
+        _signUp = signUp;
+        _error = null;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && FormValid)
+        {
+            await SubmitAsync();
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var error = _signUp
+                ? await AuthService.SignUpAsync(_name.Trim(), _email.Trim(), _password)
+                : await AuthService.SignInAsync(_email.Trim(), _password);
+
+            if (error is null)
+            {
+                Nav.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                _error = error;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
