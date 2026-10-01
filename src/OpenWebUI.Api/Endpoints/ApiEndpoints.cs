@@ -37,9 +37,10 @@ public static class ApiEndpoints
     }
 
     private static async Task<IResult> GetAppConfigAsync(
-        HttpContext http, ConfigService config, CancellationToken ct)
+        HttpContext http, ConfigService config, ImageGenerationService images, CancellationToken ct)
     {
         var adminConfig = await config.GetAdminConfigAsync(ct);
+        var imagesConfig = await images.GetConfigAsync(ct);
 
         return Results.Ok(new AppConfigResponse(
             Status: true,
@@ -57,7 +58,7 @@ public static class ApiEndpoints
                 EnableNotes: true,
                 EnableChannels: true,
                 EnableWebSearch: false,
-                EnableImageGeneration: false,
+                EnableImageGeneration: imagesConfig.Enabled,
                 EnableCodeExecution: true,
                 EnableCommunitySharing: true),
             DefaultPromptSuggestions: [],

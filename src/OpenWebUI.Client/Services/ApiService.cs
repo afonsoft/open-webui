@@ -460,6 +460,21 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");
 
+    // ---------------- Geração de imagens ----------------
+
+    /// <summary>Obtém a configuração de geração de imagens (somente admin, chave mascarada).</summary>
+    public Task<ImagesConfig?> GetImagesConfigAsync() =>
+        SendAsync<ImagesConfig>(HttpMethod.Get, "/api/v1/images/config");
+
+    /// <summary>Atualiza a configuração de geração de imagens (somente admin).</summary>
+    public Task<ImagesConfig?> UpdateImagesConfigAsync(ImagesConfig config) =>
+        SendAsync<ImagesConfig>(HttpMethod.Post, "/api/v1/images/config", config);
+
+    /// <summary>Gera imagens a partir de um prompt; nulo quando falha ou feature off.</summary>
+    public Task<List<GeneratedImage>?> GenerateImagesAsync(string prompt, string? size = null) =>
+        SendAsync<List<GeneratedImage>>(HttpMethod.Post, "/api/v1/images/generations",
+            new ImageGenerationRequest(prompt, 1, size));
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)
