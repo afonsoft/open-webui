@@ -1,7 +1,27 @@
 # Open WebUI — .NET
 
 Migração do [Open WebUI](https://github.com/open-webui/open-webui) para
-**.NET 10 · C# 14 · Blazor WebAssembly** (SvelteKit + FastAPI → ASP.NET Core + Blazor).
+**.NET 10 · C# 14 · Blazor WebAssembly** (SvelteKit + FastAPI → ASP.NET Core + Blazor),
+mantendo o layout, as funcionalidades e a configuração do original.
+
+## Funcionalidades
+
+- **Chat** com streaming SSE (Ollama / OpenAI-compat), anexos, avaliação 👍/👎,
+  edição, regeneração, título/follow-ups/tags gerados por LLM
+- **Canais em grupo** com realtime (SignalR `/ws`), menção `@modelo`, typing/presence
+- **Knowledge/RAG** — coleções com embeddings e retrieval vetorial em SQLite
+- **Tools** — tools HTTP com function calling (loop no servidor, URL de execução nunca exposta)
+- **Geração de imagens** — provider OpenAI Images, botão por mensagem
+- **Execução de código** — blocos do chat: JS em Web Worker e Python via Pyodide WASM
+- **Voz** — ditado (STT), leitura de mensagens (TTS) e modo Call via Web Speech API
+- **Automações** — execuções agendadas (intervalo/diário/semanal) + calendário mensal
+- **Auth** — JWT, chaves `sk-*`, OAuth/OIDC (Google/GitHub/Microsoft), LDAP, grupos/RBAC
+- **PWA** — manifest + service worker do shell, instalável e offline-safe
+- **i18n** — pt-BR/en-US com troca de idioma sem reload
+- **Admin** — usuários, conexões, avaliações, feature flags e dashboard de analytics
+
+Mapa de paridade detalhado: [`docs/MIGRACAO-DOTNET.md`](docs/MIGRACAO-DOTNET.md).
+Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architecture.md).
 
 ## Estrutura (Clean Architecture)
 
@@ -10,12 +30,13 @@ Migração do [Open WebUI](https://github.com/open-webui/open-webui) para
 ├── src/
 │   ├── OpenWebUI.Domain/          # Entidades de domínio (sem dependências)
 │   ├── OpenWebUI.Application/     # Contratos/DTOs compartilhados
-│   ├── OpenWebUI.Infrastructure/  # EF Core (AppDbContext), serviços
-│   │                              # (JWT, providers Ollama/OpenAI, config)
-│   ├── OpenWebUI.Api/             # Minimal APIs + hosting do Blazor WASM
+│   ├── OpenWebUI.Infrastructure/  # EF Core (AppDbContext + Migrations), serviços
+│   │                              # (JWT, providers, RAG, imagens, automations)
+│   ├── OpenWebUI.Api/             # Minimal APIs + SignalR + hosting do Blazor WASM
 │   └── OpenWebUI.Client/          # SPA Blazor WebAssembly (UI do chat)
 └── tests/
-    └── OpenWebUI.Api.Tests/       # Testes de integração NUnit
+    ├── OpenWebUI.Api.Tests/       # Testes de integração NUnit
+    └── OpenWebUI.Client.Tests/    # Testes NUnit dos serviços do cliente
 ```
 
 Dependências apontam para dentro: `Api → Infrastructure → Application → Domain`.
@@ -23,11 +44,12 @@ O `Client` consome apenas `Application` (contratos).
 
 | Camada    | Original                     | Migrado                                    |
 | --------- | ---------------------------- | ------------------------------------------ |
-| Frontend  | SvelteKit + Tailwind         | Blazor WebAssembly                         |
+| Frontend  | SvelteKit + Tailwind         | Blazor WebAssembly + Tailwind v4           |
 | Backend   | Python FastAPI               | ASP.NET Core 10 (Minimal APIs)             |
-| Banco     | SQLAlchemy + SQLite/Postgres | EF Core 10 + SQLite                        |
+| Banco     | SQLAlchemy + SQLite/Postgres | EF Core 10 + SQLite (Migrations)           |
 | Auth      | JWT + bcrypt                 | JWT + PBKDF2 (PasswordHasher ASP.NET Core) |
-| Streaming | WebSocket/socket.io + SSE    | SSE server→client                          |
+| Realtime  | socket.io                    | SignalR `/ws`                              |
+| Streaming | SSE                          | SSE server→client                          |
 
 ## Executar
 
@@ -39,41 +61,26 @@ dotnet run --project src/OpenWebUI.Api
 # http://localhost:8080 — o primeiro usuário cadastrado vira admin
 ```
 
-O servidor serve o Blazor WASM e a API na mesma origem (sem CORS).
-Por padrão conecta em um Ollama local (`http://localhost:11434`); conexões
-OpenAI são configuradas em **Configurações → Conexões** (somente admin).
-
-### Configuração
-
-| Variável                     | Padrão                          | Descrição                 |
-| ---------------------------- | ------------------------------- | ------------------------- |
-| `ConnectionStrings__Default` | `Data Source=data/openwebui.db` | Connection string EF Core |
-
-O segredo JWT é gerado automaticamente e persistido na tabela de configuração.
-
-## Docker
+Docker:
 
 ```bash
-docker compose up -d        # app + Ollama em http://localhost:3000
-docker compose up -d --no-deps openwebui   # só o app
+docker compose up --build
 ```
 
-Dados (SQLite + uploads) ficam no volume `openwebui`. Conexões com
-provedores podem ser semeadas via `OLLAMA_BASE_URL`, `OPENAI_API_BASE_URLS`
-e `OPENAI_API_KEYS` (separadas por `;`) na primeira execução.
-
-## Testar
+## Testes
 
 ```bash
 dotnet test OpenWebUI.slnx
+# 63 testes de API + 7 de cliente (NUnit)
 ```
 
 ## Documentação
 
-- [docs/MIGRACAO-DOTNET.md](docs/MIGRACAO-DOTNET.md) — mapa de paridade com o
-  upstream (o que está migrado, parcial e pendente) e roadmap.
+- [`docs/MIGRACAO-DOTNET.md`](docs/MIGRACAO-DOTNET.md) — mapa de paridade upstream → .NET
+- [`docs/architecture/architecture.md`](docs/architecture/architecture.md) — diagrama Mermaid da arquitetura
+- [`docs/specs/`](docs/specs/) — SPEC SDDs entregues (Epic gap-analysis-20261001)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Licença
 
-Este fork mantém os arquivos de licença do projeto original
-(`LICENSE`, `LICENSE_HISTORY`, `LICENSE_NOTICE`).
+BSD-3-Clause — ver [`LICENSE`](LICENSE).

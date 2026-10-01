@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-tools-functions` |
 | Ticket | `GAP-implementation-tools-functions — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -90,3 +90,9 @@ tests/OpenWebUI.Api.Tests/ToolEndpointsTests.cs
 ## 7. Notas
 
 `[A DEFINIR]` se tools HTTP usam chamada direta ou queue; recomendado: direta com timeout 30s.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/33 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/19
+- Epic: https://github.com/afonsoft/open-webui/issues/14

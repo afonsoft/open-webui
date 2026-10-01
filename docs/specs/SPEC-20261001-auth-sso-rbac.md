@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-auth-sso-rbac` |
 | Ticket | `GAP-security-auth-sso-rbac — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -99,3 +99,9 @@ tests/OpenWebUI.Api.Tests/{OAuthEndpoints,GroupEndpoints}Tests.cs
 
 `[A DEFINIR]` LDAP na primeira entrega (recomendado: sim, bind simples; mapeamento de papéis fase 2).
 `[A DEFINIR]` quais providers OAuth pré-habilitar (recomendado: OIDC genérico + Google + GitHub + Microsoft).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/30 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/16
+- Epic: https://github.com/afonsoft/open-webui/issues/14

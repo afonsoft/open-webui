@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-ef-migrations` |
 | Ticket | `GAP-architecture-ef-migrations — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -78,3 +78,9 @@ N/A (infra).
 - [ ] `webui.db` legado (criado pelo SchemaBootstrap) faz baseline e continua funcionando (teste com dump real).
 - [ ] Adicionar coluna nova via migration aplica sem código manual.
 - [ ] Testes existentes seguem verdes.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/29 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/15
+- Epic: https://github.com/afonsoft/open-webui/issues/14

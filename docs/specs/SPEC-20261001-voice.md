@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-voice` |
 | Ticket | `GAP-implementation-voice — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -90,3 +90,9 @@ tests — cobertura de config/feature flags
 ## 7. Notas
 
 `[A DEFINIR]` engines da primeira entrega — recomendado: Web Speech (STT+TTS) no cliente já; provider remoto TTS (OpenAI) como config adicional.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/41 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/27
+- Epic: https://github.com/afonsoft/open-webui/issues/14

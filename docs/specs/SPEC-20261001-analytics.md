@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-analytics` |
 | Ticket | `GAP-observability-analytics — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -76,3 +76,9 @@ tests/OpenWebUI.Api.Tests/AnalyticsEndpointsTests.cs
 - [ ] Endpoint retorna contagens corretas sobre dados semeados.
 - [ ] Aba renderiza cards + gráfico com dados reais.
 - [ ] Não-admin → 403. Testes cobrem agregação e auth.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/34 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/20
+- Epic: https://github.com/afonsoft/open-webui/issues/14
