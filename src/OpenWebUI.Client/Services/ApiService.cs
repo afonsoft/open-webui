@@ -406,6 +406,12 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<AppConfigResponse?> GetAppConfigAsync() =>
         SendAsync<AppConfigResponse>(HttpMethod.Get, "/api/config");
 
+    private AppConfigResponse? _appConfigCache;
+
+    /// <summary>Obtém a configuração pública com cache em memória (uma chamada por sessão).</summary>
+    public async Task<AppConfigResponse?> GetAppConfigCachedAsync() =>
+        _appConfigCache ??= await GetAppConfigAsync();
+
     /// <summary>Obtém a configuração administrativa (somente admin).</summary>
     public Task<AdminConfig?> GetAdminConfigAsync() =>
         SendAsync<AdminConfig>(HttpMethod.Get, "/api/v1/auths/admin/config");
