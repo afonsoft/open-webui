@@ -308,6 +308,7 @@ public static class ChatEndpoints
             UserId = user.Id,
             Title = string.IsNullOrWhiteSpace(request.Title) ? "New Chat" : request.Title.Trim(),
             ModelsJson = JsonSerializer.Serialize(request.Models ?? [], JsonOptions),
+            ToolIdsJson = JsonSerializer.Serialize(request.ToolIds ?? [], JsonOptions),
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -344,6 +345,10 @@ public static class ChatEndpoints
 
         chat.Title = string.IsNullOrWhiteSpace(request.Title) ? chat.Title : request.Title.Trim();
         chat.ModelsJson = JsonSerializer.Serialize(request.Models ?? [], JsonOptions);
+        if (request.ToolIds is not null)
+        {
+            chat.ToolIdsJson = JsonSerializer.Serialize(request.ToolIds, JsonOptions);
+        }
         chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         db.ChatMessages.RemoveRange(chat.Messages);
@@ -728,6 +733,7 @@ public static class ChatEndpoints
         JsonSerializer.Deserialize<List<string>>(chat.TagsJson, JsonOptions) ?? [],
         chat.FolderId,
         chat.ShareId,
+        JsonSerializer.Deserialize<List<string>>(chat.ToolIdsJson, JsonOptions) ?? [],
         chat.CreatedAt,
         chat.UpdatedAt);
 

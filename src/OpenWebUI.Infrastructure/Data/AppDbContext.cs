@@ -48,6 +48,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Contas OAuth/OIDC vinculadas a usuários.</summary>
     public DbSet<OAuthAccount> OAuthAccounts => Set<OAuthAccount>();
 
+    /// <summary>Tools externas (function calling via HTTP).</summary>
+    public DbSet<Tool> Tools => Set<Tool>();
+
     /// <summary>Canais de conversa em grupo.</summary>
     public DbSet<Channel> Channels => Set<Channel>();
 
@@ -171,6 +174,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(a => a.Id);
             entity.HasIndex(a => new { a.Provider, a.ProviderAccountId }).IsUnique();
             entity.HasIndex(a => a.UserId);
+        });
+
+        modelBuilder.Entity<Tool>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.HasIndex(t => t.UserId);
+            entity.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Channel>(entity =>

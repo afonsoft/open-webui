@@ -86,6 +86,9 @@ public class Chat
     /// <summary>Id da pasta que contém o chat, quando organizado em pastas.</summary>
     public string? FolderId { get; set; }
 
+    /// <summary>Ids das tools habilitadas neste chat, serializados como JSON.</summary>
+    public string ToolIdsJson { get; set; } = "[]";
+
     /// <summary>Id público de compartilhamento (rota /s/{shareId}), quando compartilhado.</summary>
     public string? ShareId { get; set; }
 
@@ -397,6 +400,40 @@ public class OAuthAccount
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
+}
+
+/// <summary>Tool externa invocável pelo modelo (function calling via HTTP).</summary>
+public class Tool
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da tool.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Nome de exibição.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Descrição exibida na UI.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Spec da função no formato OpenAI {"type":"function","function":{...}}.</summary>
+    public string SpecJson { get; set; } = string.Empty;
+
+    /// <summary>Endpoint HTTP POST que executa a tool (server-side, nunca exposto).</summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Se a tool está habilitada.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
 }
 
 /// <summary>Canal de conversa em grupo (múltiplos usuários, estilo chat de equipe).</summary>
