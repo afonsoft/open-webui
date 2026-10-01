@@ -1,0 +1,212 @@
+@inject IJSRuntime JS
+@inject LocalizationService L
+@implements IAsyncDisposable
+
+@* Modo Call: conversa por voz full-screen (ouve → envia → fala → ouve). *@
+@if (Active)
+{
+    <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 text-gray-100">
+        <button class="absolute top-4 right-4 size-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition cursor-pointer"
+                title="@L["voice.call_exit"]" @onclick="CloseAsync">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+
+        <div class="size-24 rounded-full flex items-center justify-center transition
+                    @(_state == "listening" ? "bg-green-500/15 text-green-400 animate-pulse" :
+                      _state == "thinking" ? "bg-blue-500/15 text-blue-400" :
+                      _state == "speaking" ? "bg-gray-100/10 text-gray-200 animate-pulse" :
+                      "bg-red-500/15 text-red-400")">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-10"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
+        </div>
+
+        <div class="mt-4 text-sm text-gray-400">@StatusText()</div>
+
+        @if (!string.IsNullOrEmpty(_transcript))
+        {
+            <div class="mt-4 max-w-xl px-6 text-center text-base text-gray-200">@_transcript</div>
+        }
+        @if (!string.IsNullOrEmpty(_lastReply) && _state == "speaking")
+        {
+            <div class="mt-2 max-w-xl px-6 text-center text-sm text-gray-500 line-clamp-3">@_lastReply</div>
+        }
+        @if (_state == "error")
+        {
+            <button class="mt-6 rounded-full bg-gray-100/10 hover:bg-gray-100/20 px-4 py-2 text-sm transition cursor-pointer"
+                    @onclick="StartListeningAsync">@L["voice.retry"]</button>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Overlay visível/ativo.</summary>
+    [Parameter] public bool Active { get; set; }
+
+    /// <summary>Executa um turno: prompt falado → resposta do modelo (null = erro).</summary>
+    [Parameter] public Func<string, Task<string?>>? OnTurn { get; set; }
+
+    /// <summary>Fecha o overlay.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Idioma do reconhecimento.</summary>
+    [Parameter] public string Lang { get; set; } = "pt-BR";
+
+    private string _state = "idle"; // idle | listening | thinking | speaking | error
+    private string _transcript = string.Empty;
+    private string _lastReply = string.Empty;
+    private string? _error;
+    private DotNetObjectReference<CallOverlay>? _ref;
+    private bool _wasActive;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Active && !_wasActive)
+        {
+            _wasActive = true;
+            await StartListeningAsync();
+        }
+        else if (!Active && _wasActive)
+        {
+            _wasActive = false;
+            await StopAudioAsync();
+        }
+    }
+
+    private async Task StartListeningAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("openwebui.audio.sttSupported"))
+        {
+            _state = "error";
+            _error = L["voice.mic_denied"];
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _ref ??= DotNetObjectReference.Create(this);
+        _transcript = string.Empty;
+        _error = null;
+        _state = "listening";
+        var started = await JS.InvokeAsync<bool>("openwebui.audio.startStt", _ref, Lang);
+        if (!started)
+        {
+            _state = "error";
+            _error = L["voice.mic_denied"];
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Callback do JS: transcrição acumulada.</summary>
+    [JSInvokable]
+    public async Task OnSttResult(string text)
+    {
+        _transcript = text;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Callback do JS: fala do usuário terminou → envia o turno.</summary>
+    [JSInvokable]
+    public async Task OnSttEnded()
+    {
+        if (!Active || _state != "listening")
+        {
+            return;
+        }
+
+        var text = _transcript.Trim();
+        if (text.Length == 0)
+        {
+            // Escutou nada — volta a ouvir.
+            await StartListeningAsync();
+            return;
+        }
+
+        _state = "thinking";
+        await InvokeAsync(StateHasChanged);
+        string? reply = null;
+        try
+        {
+            reply = OnTurn is null ? null : await OnTurn(text);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+
+        if (string.IsNullOrEmpty(reply))
+        {
+            _state = "error";
+            _error ??= L["voice.call_error"];
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _lastReply = reply;
+        _transcript = string.Empty;
+        _state = "speaking";
+        await InvokeAsync(StateHasChanged);
+        var ok = await JS.InvokeAsync<bool>("openwebui.audio.speak", reply, _ref);
+        if (!ok)
+        {
+            // Sem TTS — volta a escutar direto.
+            await StartListeningAsync();
+        }
+    }
+
+    /// <summary>Callback do JS: resposta falada terminou → próximo turno.</summary>
+    [JSInvokable]
+    public async Task OnTtsEnded()
+    {
+        if (Active)
+        {
+            await StartListeningAsync();
+        }
+    }
+
+    /// <summary>Callback do JS: erro do STT (permissão negada etc.).</summary>
+    [JSInvokable]
+    public async Task OnSttError(string error)
+    {
+        if (!Active)
+        {
+            return;
+        }
+
+        if (error is "no-speech" or "aborted")
+        {
+            await StartListeningAsync();
+            return;
+        }
+
+        _state = "error";
+        _error = error == "not-allowed" ? L["voice.mic_denied"] : L["voice.call_error"];
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StopAudioAsync()
+    {
+        await JS.InvokeVoidAsync("openwebui.audio.stopStt");
+        await JS.InvokeVoidAsync("openwebui.audio.stopSpeak");
+        _state = "idle";
+    }
+
+    private async Task CloseAsync()
+    {
+        await StopAudioAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    private string StatusText() => _state switch
+    {
+        "listening" => L["voice.listening"],
+        "thinking" => L["voice.thinking"],
+        "speaking" => L["voice.speaking"],
+        "error" => _error ?? L["voice.call_error"],
+        _ => string.Empty,
+    };
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await StopAudioAsync();
+        _ref?.Dispose();
+    }
+}

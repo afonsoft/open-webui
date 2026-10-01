@@ -49,6 +49,15 @@
                 </button>
                 @if (Message.Role == "assistant")
                 {
+                    @if (TtsSupported)
+                    {
+                        <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer
+                                       @(Speaking ? "text-blue-500 dark:text-blue-400" : "")"
+                                title="@(Speaking ? L["voice.stop_speaking"] : L["voice.listen"])"
+                                @onclick="() => OnSpeak.InvokeAsync()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                        </button>
+                    }
                     <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
                             title="@L["chat.good_response"]" @onclick="() => OnRate.InvokeAsync(1)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V3a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.25m6.01-9.007a48.5 48.5 0 0 0-1.01.01m0 0v-.019a2.25 2.25 0 0 1-2.25-2.25" transform="scale(-1,1) translate(-24,0)" /></svg>
@@ -105,6 +114,15 @@
 
     /// <summary>Disparado ao pedir geração de imagem a partir da resposta.</summary>
     [Parameter] public EventCallback OnGenerateImage { get; set; }
+
+    /// <summary>Reproduz/interrompe a leitura da mensagem (TTS).</summary>
+    [Parameter] public EventCallback OnSpeak { get; set; }
+
+    /// <summary>Esta mensagem está sendo lida em voz alta.</summary>
+    [Parameter] public bool Speaking { get; set; }
+
+    /// <summary>O navegador suporta TTS.</summary>
+    [Parameter] public bool TtsSupported { get; set; }
 
     private ElementReference _contentRef;
     private bool _codeExecEnabled;

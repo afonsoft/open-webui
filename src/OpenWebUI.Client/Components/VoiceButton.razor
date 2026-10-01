@@ -1,0 +1,104 @@
+@inject IJSRuntime JS
+@inject LocalizationService L
+@implements IAsyncDisposable
+
+@* Botão de ditado (STT) — esconde quando o navegador não suporta Web Speech. *@
+@if (_supported)
+{
+    <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
+                   @(_listening ? "bg-red-500/15 text-red-500 animate-pulse" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
+            title="@(_listening ? L["voice.stop_dictation"] : L["voice.dictate"])"
+            disabled="@Disabled"
+            @onclick="ToggleAsync">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
+    </button>
+}
+
+@code {
+    /// <summary>Texto acumulado (parcial + final) do ditado em andamento.</summary>
+    [Parameter] public EventCallback<string> OnTranscript { get; set; }
+
+    /// <summary>Ditado iniciou — para o pai capturar o texto base do input.</summary>
+    [Parameter] public EventCallback OnDictationStarted { get; set; }
+
+    /// <summary>Ditado terminou (fim da fala ou stop manual).</summary>
+    [Parameter] public EventCallback OnDictationEnded { get; set; }
+
+    /// <summary>Erro de microfone/STT (ex.: "not-allowed").</summary>
+    [Parameter] public EventCallback<string> OnError { get; set; }
+
+    /// <summary>Desabilita o botão externamente (ex.: streaming/carregando).</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Idioma do reconhecimento (ex.: pt-BR).</summary>
+    [Parameter] public string Lang { get; set; } = "pt-BR";
+
+    private bool _supported = true;
+    private bool _listening;
+    private DotNetObjectReference<VoiceButton>? _ref;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _supported = await JS.InvokeAsync<bool>("openwebui.audio.sttSupported");
+            if (!_supported)
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        if (_listening)
+        {
+            await JS.InvokeVoidAsync("openwebui.audio.stopStt");
+            return;
+        }
+
+        _ref ??= DotNetObjectReference.Create(this);
+        _listening = await JS.InvokeAsync<bool>(
+            "openwebui.audio.startStt", _ref, Lang);
+        if (!_listening)
+        {
+            await OnError.InvokeAsync("unsupported");
+        }
+        else
+        {
+            await OnDictationStarted.InvokeAsync();
+        }
+    }
+
+    /// <summary>Callback do JS: texto acumulado do ditado.</summary>
+    [JSInvokable]
+    public Task OnSttResult(string text) => OnTranscript.InvokeAsync(text);
+
+    /// <summary>Callback do JS: ditado encerrado.</summary>
+    [JSInvokable]
+    public async Task OnSttEnded()
+    {
+        _listening = false;
+        await OnDictationEnded.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Callback do JS: erro do reconhecimento.</summary>
+    [JSInvokable]
+    public async Task OnSttError(string error)
+    {
+        _listening = false;
+        await OnError.InvokeAsync(error);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_listening)
+        {
+            await JS.InvokeVoidAsync("openwebui.audio.stopStt");
+        }
+        _ref?.Dispose();
+    }
+}

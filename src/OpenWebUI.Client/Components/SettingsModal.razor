@@ -44,6 +44,20 @@
                             }
                         </select>
                     </div>
+                    @if (_ttsSupported || _sttSupported)
+                    {
+                        <div class="field">
+                            <label>@L["settings.audio_voice"]</label>
+                            <select class="input" value="@_audioVoice" @onchange="OnAudioVoiceChanged" disabled="@(!_ttsSupported)">
+                                <option value="">@L["settings.audio_voice_default"]</option>
+                                @foreach (var v in _audioVoices)
+                                {
+                                    <option value="@v.Name">@v.Name (@v.Lang)</option>
+                                }
+                            </select>
+                        </div>
+                        <label class="check"><input type="checkbox" checked="@_audioAutoSend" @onchange="OnAutoSendChanged" disabled="@(!_sttSupported)" /> @L["settings.audio_autosend"]</label>
+                    }
                 }
                 else if (_tab == "account")
                 {
@@ -281,6 +295,7 @@
         _profileImage = Auth.CurrentUser?.ProfileImageUrl ?? string.Empty;
         _apiKeyInfo = await Api.GetApiKeyAsync();
         _memories = await Api.GetMemoriesAsync();
+        await LoadAudioSettingsAsync();
 
         if (Auth.CurrentUser?.Role == "admin")
         {
@@ -333,6 +348,40 @@
         {
             await L.SetLanguageAsync(language);
         }
+    }
+
+    private bool _ttsSupported;
+    private bool _sttSupported;
+    private bool _audioAutoSend;
+    private string _audioVoice = string.Empty;
+    private List<VoiceInfo> _audioVoices = [];
+
+    private sealed record VoiceInfo(string Name, string Lang);
+
+    private async Task LoadAudioSettingsAsync()
+    {
+        _ttsSupported = await JS.InvokeAsync<bool>("openwebui.audio.ttsSupported");
+        _sttSupported = await JS.InvokeAsync<bool>("openwebui.audio.sttSupported");
+        if (!_ttsSupported && !_sttSupported)
+        {
+            return;
+        }
+
+        _audioVoice = await JS.InvokeAsync<string>("openwebui.audio.getVoice");
+        _audioAutoSend = await JS.InvokeAsync<bool>("openwebui.audio.getAutoSend");
+        _audioVoices = await JS.InvokeAsync<List<VoiceInfo>>("openwebui.audio.voices");
+    }
+
+    private async Task OnAudioVoiceChanged(ChangeEventArgs e)
+    {
+        _audioVoice = e.Value as string ?? string.Empty;
+        await JS.InvokeVoidAsync("openwebui.audio.setVoice", _audioVoice);
+    }
+
+    private async Task OnAutoSendChanged(ChangeEventArgs e)
+    {
+        _audioAutoSend = e.Value is true;
+        await JS.InvokeVoidAsync("openwebui.audio.setAutoSend", _audioAutoSend);
     }
 
     private async Task SaveProfileAsync()
