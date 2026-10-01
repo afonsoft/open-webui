@@ -18,13 +18,13 @@ dotnet/
     └── OpenWebUI.Server.Tests/  # Testes de integração NUnit
 ```
 
-| Camada | Original | Migrado |
-|--------|----------|---------|
-| Frontend | SvelteKit + Tailwind | Blazor WebAssembly |
-| Backend | Python FastAPI | ASP.NET Core 10 (Minimal APIs) |
-| Banco | SQLAlchemy + SQLite/Postgres | EF Core 10 + SQLite |
-| Auth | JWT + bcrypt | JWT + PBKDF2 (PasswordHasher ASP.NET Core) |
-| Streaming | WebSocket/socket.io + SSE | SSE server→client |
+| Camada    | Original                     | Migrado                                    |
+| --------- | ---------------------------- | ------------------------------------------ |
+| Frontend  | SvelteKit + Tailwind         | Blazor WebAssembly                         |
+| Backend   | Python FastAPI               | ASP.NET Core 10 (Minimal APIs)             |
+| Banco     | SQLAlchemy + SQLite/Postgres | EF Core 10 + SQLite                        |
+| Auth      | JWT + bcrypt                 | JWT + PBKDF2 (PasswordHasher ASP.NET Core) |
+| Streaming | WebSocket/socket.io + SSE    | SSE server→client                          |
 
 ## Executando
 
@@ -43,8 +43,8 @@ OpenAI são configuradas em **Configurações → Conexões** (somente admin).
 
 ### Configuração
 
-| Variável | Padrão | Descrição |
-|----------|--------|-----------|
+| Variável                     | Padrão                          | Descrição                 |
+| ---------------------------- | ------------------------------- | ------------------------- |
 | `ConnectionStrings__Default` | `Data Source=data/openwebui.db` | Connection string EF Core |
 
 O segredo JWT é gerado automaticamente e persistido na tabela de configuração.
