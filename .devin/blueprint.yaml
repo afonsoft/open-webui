@@ -1,0 +1,22 @@
+# https://docs.devin.ai/onboard-devin/environment-yaml
+# Commands run from the repo root.
+# One-time setup (e.g., install system tools, global CLIs).
+initialize: |
+  true
+# Install project dependencies (runs during builds, surfaced to agent at session start).
+maintenance: |
+  # Restore dos pacotes NuGet da migração .NET (em dotnet/)
+  (cd dotnet && dotnet restore OpenWebUI.slnx)
+# Reference info for agent
+knowledge:
+  - name: build
+    contents: |
+      # Backend Blazor/.NET 10 (migração): cd dotnet && dotnet build
+      # Original Svelte/FastAPI: ver Makefile (npm install + pip)
+  - name: test
+    contents: |
+      # cd dotnet && dotnet test (NUnit, OpenWebUI.Server.Tests)
+  - name: startup
+    contents: |
+      # App migrado: cd dotnet && dotnet run --project src/OpenWebUI.Server -> http://localhost:8080
+      # Primeiro usuário cadastrado vira admin; conexões Ollama/OpenAI em Configurações -> Conexões
