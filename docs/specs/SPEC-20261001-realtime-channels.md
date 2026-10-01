@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-realtime-channels` |
 | Ticket | `GAP-implementation-realtime-channels — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -98,3 +98,9 @@ tests/OpenWebUI.Api.Tests/ChannelEndpointsTests.cs
 ## 7. Notas
 
 `[A DEFINIR]` se DM entre usuários entra já ou fica para RBAC (SPEC `auth-sso-rbac`) — recomendado: depois.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/31 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/17
+- Epic: https://github.com/afonsoft/open-webui/issues/14

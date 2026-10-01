@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-missing-pages` |
 | Ticket | `[missing-pages] Issue #22` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -76,3 +76,9 @@ tests — cobertura de novos endpoints
 - [ ] `/playground` responde em streaming sem criar chat na sidebar.
 - [ ] Aba Avaliações lista feedbacks reais.
 - [ ] Flag editada persiste e reflete no `/api/config`.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/38 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/24
+- Epic: https://github.com/afonsoft/open-webui/issues/14

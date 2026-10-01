@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-image-generation` |
 | Ticket | `[image-generation] Issue #21` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -84,3 +84,9 @@ tests/OpenWebUI.Api.Tests/ImageEndpointsTests.cs
 - [ ] Botão na mensagem anexa a imagem à conversa.
 - [ ] Feature off → endpoint `501` e botão oculto.
 - [ ] Testes cobrem geração e autorização.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/37 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/23
+- Epic: https://github.com/afonsoft/open-webui/issues/14

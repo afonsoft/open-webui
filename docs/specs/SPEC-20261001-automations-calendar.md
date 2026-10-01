@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-automations` |
 | Ticket | `[automations-calendar] Issue #17` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -80,3 +80,9 @@ tests/OpenWebUI.Api.Tests/AutomationEndpointsTests.cs
 - [ ] Run failed registra erro sem parar o scheduler.
 - [ ] Calendário marca dias com runs.
 - [ ] Testes cobrem CRUD e cálculo de próxima execução.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/40 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/26
+- Epic: https://github.com/afonsoft/open-webui/issues/14

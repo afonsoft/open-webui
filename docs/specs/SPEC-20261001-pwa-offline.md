@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-pwa-offline` |
 | Ticket | `[pwa-offline] Issue #23` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -76,3 +76,9 @@ N/A (infra de hosting). Feature flag `pwa` em `/api/config` se quisermos opt-out
 - [ ] Segunda carga carrega shell do cache (DevTools → SW ativo).
 - [ ] `index.html` sai com `Cache-Control: no-cache`.
 - [ ] Upgrade de versão não prende usuário em reload loop.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/39 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/25
+- Epic: https://github.com/afonsoft/open-webui/issues/14

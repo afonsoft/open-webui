@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-rag-knowledge` |
 | Ticket | `GAP-implementation-rag-knowledge — Issue a criar via create-issues` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -105,3 +105,9 @@ tests/OpenWebUI.Api.Tests/KnowledgeEndpointsTests.cs
 
 `[A DEFINIR]` vector store final (SQLite ext. vs arquivo vetorial próprio vs EF in-memory persistido) — recomendado: tabela `EmbeddingChunks` com busca por cosseno em C# (suficiente para volumes pessoais).
 `[A DEFINIR]` provider de web search padrão.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/32 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/18
+- Epic: https://github.com/afonsoft/open-webui/issues/14

@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-code-execution` |
 | Ticket | `GAP-implementation-code-execution — Issue a criar` |
-| Status | `In implementation` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -75,3 +75,9 @@ N/A (client-side). Flag exposta em `GET /api/config`.
 - [ ] `console.log("oi")` em bloco js mostra `oi`.
 - [ ] Código com loop infinito é abortado pelo timeout com mensagem clara.
 - [ ] Flag off → nenhum botão renderizado.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/35 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/21
+- Epic: https://github.com/afonsoft/open-webui/issues/14
