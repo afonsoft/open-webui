@@ -63,8 +63,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = JwtTokenService.BuildValidationParameters(jwtSecret);
+        options.Events = new JwtBearerEvents
+        {
+            // SignalR envia o JWT via query string no handshake do WebSocket.
+            OnMessageReceived = context =>
+            {
+                var token = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/ws"))
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -127,6 +142,8 @@ app.MapApiEndpoints();
 app.MapGroupEndpoints();
 app.MapOAuthEndpoints();
 app.MapKnowledgeEndpoints();
+app.MapChannelEndpoints();
+app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 
 app.MapFallbackToFile("index.html");
 
