@@ -108,6 +108,11 @@ public sealed record NoteUpsertRequest(string Title, string Content);
 public sealed record FeedbackResponse(
     string Id, string ChatId, string MessageId, string? ModelId, int Rating, string? Reason, long CreatedAt);
 
+/// <summary>Avaliação com identificação do usuário (listagem administrativa).</summary>
+public sealed record AdminFeedbackResponse(
+    string Id, string UserId, string UserName, string ChatId, string MessageId,
+    string? ModelId, int Rating, string? Reason, long CreatedAt);
+
 /// <summary>Registro de avaliação em mensagem.</summary>
 /// <param name="ChatId">Chat da mensagem.</param>
 /// <param name="MessageId">Mensagem avaliada.</param>

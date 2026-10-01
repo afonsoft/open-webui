@@ -82,11 +82,13 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `/c/{id}`                                                 | `/c/{ChatId}`                             | ✅     |
 | `/auth`                                                   | `/auth`                                   | ✅     |
 | `/s/{id}`                                                 | `/s/{ShareId}`                            | ✅     |
-| `/admin` (users, evals, settings)                         | `/admin` (usuários) + modal Settings      | 🟡     |
+| `/admin` (users, evals, settings)                         | `/admin` (usuários, grupos, analytics, avaliações, flags) | ✅     |
 | `/workspace` (models, prompts, knowledge, tools, files)   | `/workspace` (prompts, modelos, arquivos, tools) | 🟡     |
 | `/notes`                                                  | `/notes`                                  | ✅     |
 | Arquivadas (modal/menu)                                   | `/archived`                               | ✅     |
-| `/channels/*`, `/playground`, `/calendar`, `/automations` | —                                         | ⬜     |
+| `/channels/*`                                            | `/channels/{id}`                          | ✅     |
+| `/playground`                                             | `/playground` (sem persistir chat)        | ✅     |
+| `/calendar`, `/automations`                               | —                                         | ⬜     |
 
 ## Decisões de design
 

@@ -475,6 +475,16 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<List<GeneratedImage>>(HttpMethod.Post, "/api/v1/images/generations",
             new ImageGenerationRequest(prompt, 1, size));
 
+    // ---------------- Admin: avaliações e flags ----------------
+
+    /// <summary>Lista todas as avaliações com identificação do usuário (somente admin).</summary>
+    public Task<List<AdminFeedbackResponse>?> GetAllFeedbacksAsync() =>
+        SendAsync<List<AdminFeedbackResponse>>(HttpMethod.Get, "/api/v1/evaluations/feedbacks/list");
+
+    /// <summary>Persiste feature flags administráveis (somente admin).</summary>
+    public Task<AdminConfig?> UpdateAppConfigAsync(AdminConfig config) =>
+        SendAsync<AdminConfig>(HttpMethod.Post, "/api/config", config);
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)

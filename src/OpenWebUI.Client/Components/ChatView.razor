@@ -195,6 +195,9 @@
     /// <summary>Id do chat carregado; null para um chat novo.</summary>
     [Parameter] public string? ChatId { get; set; }
 
+    /// <summary>Modo playground: conversa em memória, sem persistir chat.</summary>
+    [Parameter] public bool Playground { get; set; }
+
     private readonly List<ChatMessageModel> _messages = [];
     private readonly List<FileResponse> _attachedFiles = [];
     private List<PromptResponse> _prompts = [];
@@ -366,7 +369,7 @@
         _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", content, null, now));
         _attachedFiles.Clear();
 
-        var isNew = _loadedChatId is null;
+        var isNew = _loadedChatId is null && !Playground;
         if (isNew)
         {
             var title = text.Length > 60 ? text[..60] : text;

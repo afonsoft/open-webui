@@ -1,0 +1,10 @@
+@page "/playground"
+@inject LocalizationService L
+
+<PageTitle>@_title</PageTitle>
+
+<ChatView Playground="true" />
+
+@code {
+    private string _title => $"{L["page.playground"]} — Open WebUI";
+}

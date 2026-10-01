@@ -22,6 +22,10 @@
                     @onclick='() => SetTab("groups")'>@L["admin.groups"]</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("analytics")'>Analytics</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("evaluations")'>@L["admin.tab_evaluations"]</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("config")'>@L["admin.tab_config"]</button>
         </div>
 
         @if (_tab == "users")
@@ -122,6 +126,97 @@
                 </div>
             }
         }
+        else if (_tab == "evaluations")
+        {
+            if (_feedbacks is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else if (_feedbacks.Count == 0)
+            {
+                <div class="sidebar-empty">@L["admin.no_feedbacks"]</div>
+            }
+            else
+            {
+                <div class="card-list">
+                    <div class="grid grid-cols-[1fr_1fr_80px_1fr_110px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <span>@L["admin.col_user"]</span>
+                        <span>@L["admin.col_model"]</span>
+                        <span>@L["admin.col_rating"]</span>
+                        <span>@L["admin.col_reason"]</span>
+                        <span>@L["admin.col_date"]</span>
+                    </div>
+                    @foreach (var fb in PagedFeedbacks)
+                    {
+                        <div class="card-row">
+                            <div class="grid grid-cols-[1fr_1fr_80px_1fr_110px] gap-2 w-full text-sm">
+                                <span class="truncate">@fb.UserName</span>
+                                <span class="truncate text-gray-500">@(fb.ModelId ?? "—")</span>
+                                <span>@(fb.Rating > 0 ? "👍" : "👎")</span>
+                                <span class="truncate text-gray-500">@(fb.Reason ?? "—")</span>
+                                <span class="text-gray-500">@FormatDate(fb.CreatedAt)</span>
+                            </div>
+                        </div>
+                    }
+                    @if (FeedbackPages > 1)
+                    {
+                        <div class="flex items-center gap-3 justify-center py-2 text-sm">
+                            <button class="msg-action" disabled="@(_fbPage == 0)" @onclick="() => _fbPage--">@L["admin.prev"]</button>
+                            <span class="text-gray-500">@L.T("admin.page_of", ("page", (_fbPage + 1).ToString()), ("total", FeedbackPages.ToString()))</span>
+                            <button class="msg-action" disabled="@(_fbPage >= FeedbackPages - 1)" @onclick="() => _fbPage++">@L["admin.next"]</button>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (_tab == "config")
+        {
+            if (_adminConfig is null || _appConfig is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else
+            {
+                <div class="card-list">
+                    <div class="card-row">
+                        <div class="card-main">
+                            <div class="card-title">@L["admin.flags_editable"]</div>
+                            <div class="card-sub">@L["admin.flags_editable_hint"]</div>
+                        </div>
+                    </div>
+                    <div class="card-row">
+                        <div class="flex flex-col gap-2 w-full text-sm py-1">
+                            <label class="check"><input type="checkbox" @bind="_flagSignup" /> @L["settings.allow_signup"]</label>
+                            <label class="check"><input type="checkbox" @bind="_flagLoginForm" /> @L["settings.allow_password_login"]</label>
+                            <label class="check"><input type="checkbox" @bind="_flagApiKeys" /> @L["settings.allow_api_keys"]</label>
+                            <label class="check"><input type="checkbox" @bind="_flagRating" /> @L["settings.enable_rating"]</label>
+                            <label class="check"><input type="checkbox" @bind="_flagFolders" /> @L["settings.enable_folders"]</label>
+                            <label class="check"><input type="checkbox" @bind="_flagMemories" /> @L["settings.enable_memories"]</label>
+                        </div>
+                    </div>
+                    <div class="card-row">
+                        @if (_configMessage is not null)
+                        {
+                            <div class="field-note">@_configMessage</div>
+                        }
+                        <button class="auth-submit" @onclick="SaveFlagsAsync">@L["common.save"]</button>
+                    </div>
+                    <div class="card-row">
+                        <div class="card-main">
+                            <div class="card-title">@L["admin.flags_readonly"]</div>
+                            <div class="card-sub">
+                                notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
+                                channels: @FlagBadge(_appConfig.Features.EnableChannels) ·
+                                web search: @FlagBadge(_appConfig.Features.EnableWebSearch) ·
+                                images: @FlagBadge(_appConfig.Features.EnableImageGeneration) ·
+                                code exec: @FlagBadge(_appConfig.Features.EnableCodeExecution) ·
+                                sharing: @FlagBadge(_appConfig.Features.EnableCommunitySharing)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
         else
         {
             if (_groups is null)
@@ -175,7 +270,25 @@
     private List<AdminUserResponse>? _users;
     private List<GroupResponse>? _groups;
     private AnalyticsResponse? _analytics;
+    private List<AdminFeedbackResponse>? _feedbacks;
+    private AdminConfig? _adminConfig;
+    private AppConfigResponse? _appConfig;
     private string _tab = "users";
+    private int _fbPage;
+    private bool _flagSignup;
+    private bool _flagLoginForm;
+    private bool _flagApiKeys;
+    private bool _flagRating;
+    private bool _flagFolders;
+    private bool _flagMemories;
+    private string? _configMessage;
+
+    private const int FeedbackPageSize = 20;
+    private int FeedbackPages => _feedbacks is null ? 0
+        : (int)Math.Ceiling(_feedbacks.Count / (double)FeedbackPageSize);
+    private IEnumerable<AdminFeedbackResponse> PagedFeedbacks => (_feedbacks ?? [])
+        .Skip(_fbPage * FeedbackPageSize).Take(FeedbackPageSize);
+    private static string FlagBadge(bool on) => on ? "on" : "off";
 
     private int TotalMessages => _analytics?.Series.Messages.Sum(d => d.Count) ?? 0;
     private int TotalChats => _analytics?.Series.Chats.Sum(d => d.Count) ?? 0;
@@ -192,6 +305,42 @@
         _users = await Api.GetUsersAsync();
         _groups = await Api.GetGroupsAsync();
         _analytics = await Api.GetAnalyticsAsync(30);
+        _feedbacks = await Api.GetAllFeedbacksAsync();
+        _adminConfig = await Api.GetAdminConfigAsync();
+        _appConfig = await Api.GetAppConfigAsync();
+        if (_adminConfig is not null)
+        {
+            _flagSignup = _adminConfig.EnableSignup;
+            _flagLoginForm = _adminConfig.EnableLoginForm;
+            _flagApiKeys = _adminConfig.EnableApiKeys;
+            _flagRating = _adminConfig.EnableMessageRating;
+            _flagFolders = _adminConfig.EnableFolders;
+            _flagMemories = _adminConfig.EnableMemories;
+        }
+    }
+
+    private async Task SaveFlagsAsync()
+    {
+        if (_adminConfig is null)
+        {
+            return;
+        }
+
+        var updated = await Api.UpdateAppConfigAsync(_adminConfig with
+        {
+            EnableSignup = _flagSignup,
+            EnableLoginForm = _flagLoginForm,
+            EnableApiKeys = _flagApiKeys,
+            EnableMessageRating = _flagRating,
+            EnableFolders = _flagFolders,
+            EnableMemories = _flagMemories,
+        });
+        if (updated is not null)
+        {
+            _adminConfig = updated;
+            _appConfig = await Api.GetAppConfigAsync();
+        }
+        _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
 
     private void SetTab(string tab) => _tab = tab;
