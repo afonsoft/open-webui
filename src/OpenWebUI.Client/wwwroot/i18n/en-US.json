@@ -223,5 +223,13 @@
   "auth.error_provider": "Authentication with the provider failed.",
   "auth.error_load_user": "Failed to load the authenticated user.",
   "auth.error_failed": "Authentication failed.",
-  "auth.error_invalid": "Invalid response from the server."
+  "auth.error_invalid": "Invalid response from the server.",
+  "workspace.knowledge": "Knowledge",
+  "workspace.new_collection": "+ New collection",
+  "workspace.file_count": "{{count}} file(s)",
+  "workspace.no_files_yet": "No files yet.",
+  "workspace.add_file": "+ file",
+  "workspace.no_collections": "No collections. Use #name in chat to inject context.",
+  "workspace.prompt_collection_name": "Collection name:",
+  "workspace.prompt_file_name": "Name of the file to add:"
 }

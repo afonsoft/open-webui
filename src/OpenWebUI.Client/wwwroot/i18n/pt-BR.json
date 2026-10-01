@@ -223,5 +223,13 @@
   "auth.error_provider": "Falha na autenticação com o provedor.",
   "auth.error_load_user": "Falha ao carregar o usuário autenticado.",
   "auth.error_failed": "Falha na autenticação.",
-  "auth.error_invalid": "Resposta inválida do servidor."
+  "auth.error_invalid": "Resposta inválida do servidor.",
+  "workspace.knowledge": "Knowledge",
+  "workspace.new_collection": "+ Nova coleção",
+  "workspace.file_count": "{{count}} arquivo(s)",
+  "workspace.no_files_yet": "Nenhum arquivo ainda.",
+  "workspace.add_file": "+ arquivo",
+  "workspace.no_collections": "Nenhuma coleção. Use #nome no chat para injetar contexto.",
+  "workspace.prompt_collection_name": "Nome da coleção:",
+  "workspace.prompt_file_name": "Nome do arquivo a adicionar:"
 }

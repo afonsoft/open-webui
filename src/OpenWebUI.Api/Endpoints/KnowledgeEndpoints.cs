@@ -1,0 +1,237 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using OpenWebUI.Application.Contracts;
+using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
+
+namespace OpenWebUI.Api.Endpoints;
+
+/// <summary>Endpoints de coleções Knowledge (/api/v1/knowledge) para RAG.</summary>
+public static class KnowledgeEndpoints
+{
+    /// <summary>Mapeia o grupo /api/v1/knowledge.</summary>
+    public static void MapKnowledgeEndpoints(this WebApplication app)
+    {
+        var knowledge = app.MapGroup("/api/v1/knowledge").RequireAuthorization();
+        knowledge.MapGet("/", ListAsync);
+        knowledge.MapPost("/", CreateAsync);
+        knowledge.MapGet("/{id}", GetAsync);
+        knowledge.MapPut("/{id}", UpdateAsync);
+        knowledge.MapDelete("/{id}", DeleteAsync);
+        knowledge.MapPost("/{id}/files", AddFileAsync);
+        knowledge.MapDelete("/{id}/files/{fileId}", RemoveFileAsync);
+    }
+
+    private static async Task<IResult> ListAsync(
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var collections = await db.KnowledgeCollections.AsNoTracking()
+            .Where(k => k.UserId == user.Id)
+            .OrderBy(k => k.Name)
+            .Select(k => new KnowledgeResponse(
+                k.Id, k.Name, k.Description, k.Files.Count(), k.CreatedAt))
+            .ToListAsync(ct);
+        return Results.Ok(collections);
+    }
+
+    private static async Task<IResult> CreateAsync(
+        [FromBody] CreateKnowledgeRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return Results.BadRequest(new { detail = "Nome é obrigatório." });
+        }
+
+        var name = request.Name.Trim();
+        var exists = await db.KnowledgeCollections
+            .AnyAsync(k => k.UserId == user.Id && k.Name == name, ct);
+        if (exists)
+        {
+            return Results.Conflict(new { detail = "Já existe uma coleção com esse nome." });
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var collection = new KnowledgeCollection
+        {
+            UserId = user.Id,
+            Name = name,
+            Description = request.Description?.Trim(),
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        db.KnowledgeCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+
+        return Results.Ok(new KnowledgeResponse(
+            collection.Id, collection.Name, collection.Description, 0, collection.CreatedAt));
+    }
+
+    private static async Task<IResult> GetAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        var files = await db.KnowledgeFiles.AsNoTracking()
+            .Where(f => f.CollectionId == id)
+            .Join(db.Files, k => k.FileId, f => f.Id,
+                (k, f) => new KnowledgeFileResponse(k.Id, f.Id, f.Filename, k.AddedAt))
+            .ToListAsync(ct);
+
+        return Results.Ok(new KnowledgeDetailResponse(
+            collection.Id, collection.Name, collection.Description,
+            collection.CreatedAt, files));
+    }
+
+    private static async Task<IResult> UpdateAsync(
+        string id, [FromBody] UpdateKnowledgeRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+        {
+            var name = request.Name.Trim();
+            var exists = await db.KnowledgeCollections.AnyAsync(
+                k => k.UserId == user.Id && k.Name == name && k.Id != id, ct);
+            if (exists)
+            {
+                return Results.Conflict(new { detail = "Já existe uma coleção com esse nome." });
+            }
+            collection.Name = name;
+        }
+        if (request.Description is not null)
+        {
+            collection.Description = request.Description.Trim();
+        }
+        collection.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true });
+    }
+
+    private static async Task<IResult> DeleteAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        db.KnowledgeCollections.Remove(collection);
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true });
+    }
+
+    private static async Task<IResult> AddFileAsync(
+        string id, [FromBody] AddKnowledgeFileRequest request,
+        HttpContext http, AppDbContext db, RagService rag, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        var file = await db.Files.FirstOrDefaultAsync(
+            f => f.Id == request.FileId && f.UserId == user.Id, ct);
+        if (file is null)
+        {
+            return Results.NotFound(new { detail = "Arquivo não encontrado." });
+        }
+
+        var exists = await db.KnowledgeFiles.AnyAsync(
+            f => f.CollectionId == id && f.FileId == file.Id, ct);
+        if (!exists)
+        {
+            db.KnowledgeFiles.Add(new KnowledgeFile
+            {
+                CollectionId = id,
+                FileId = file.Id,
+                AddedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
+        // Indexação é best-effort: sem provider de embedding o arquivo entra
+        // mesmo assim e o fallback de texto integral continua valendo.
+        var indexed = await rag.IndexFileAsync(file, ct);
+        return Results.Ok(new { status = true, indexed });
+    }
+
+    private static async Task<IResult> RemoveFileAsync(
+        string id, string fileId,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        var link = await db.KnowledgeFiles.FirstOrDefaultAsync(
+            f => f.CollectionId == id && f.FileId == fileId, ct);
+        if (link is null)
+        {
+            return Results.NotFound(new { detail = "Arquivo não está na coleção." });
+        }
+
+        db.KnowledgeFiles.Remove(link);
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true });
+    }
+
+    private static async Task<(User? user, KnowledgeCollection? collection)> LoadAsync(
+        HttpContext http, string id, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return (null, null);
+        }
+
+        var collection = await db.KnowledgeCollections.FirstOrDefaultAsync(
+            k => k.Id == id && k.UserId == user.Id, ct);
+        return (user, collection);
+    }
+}

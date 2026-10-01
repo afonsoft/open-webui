@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-rag-knowledge` |
 | Ticket | `GAP-implementation-rag-knowledge — Issue a criar via create-issues` |
-| Status | `Approved` |
+| Status | `In implementation` |
 
 ## 1. User Story
 
