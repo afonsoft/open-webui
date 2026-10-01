@@ -60,7 +60,8 @@ public static class ApiEndpoints
                 EnableImageGeneration: false,
                 EnableCodeExecution: false,
                 EnableCommunitySharing: true),
-            DefaultPromptSuggestions: []));
+            DefaultPromptSuggestions: [],
+            OAuthProviders: OAuthProviderCatalog.ConfiguredProviders()));
     }
 
     private static async Task<IResult> ListAllModelsAsync(

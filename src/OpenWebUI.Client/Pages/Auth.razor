@@ -1,6 +1,7 @@
 @page "/auth"
 @layout EmptyLayout
 @inject AuthService AuthService
+@inject ApiService Api
 @inject NavigationManager Nav
 
 <PageTitle>Entrar — Open WebUI</PageTitle>
@@ -66,6 +67,24 @@
                                     <span class="self-center">@(_busy ? "Aguarde…" : _signUp ? "Criar conta" : "Entrar")</span>
                                 </button>
                             </div>
+
+                            @if (_oauthProviders.Count > 0)
+                            {
+                                <div class="mt-5 flex items-center gap-3">
+                                    <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
+                                    <div class="text-xs text-gray-500">ou</div>
+                                    <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
+                                </div>
+                                <div class="mt-4 flex flex-col gap-2">
+                                    @foreach (var provider in _oauthProviders)
+                                    {
+                                        <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 flex justify-center cursor-pointer"
+                                                @onclick="() => LoginOAuth(provider)">
+                                            <span class="self-center">Continuar com @ProviderLabel(provider)</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
                         }
                         else
                         {
@@ -100,13 +119,31 @@
         && !string.IsNullOrWhiteSpace(_password)
         && (!_signUp || !string.IsNullOrWhiteSpace(_name));
 
-    protected override void OnInitialized()
+    private IReadOnlyList<string> _oauthProviders = [];
+
+    protected override async Task OnInitializedAsync()
     {
         if (AuthService.IsAuthenticated)
         {
             Nav.NavigateTo("/", replace: true);
+            return;
         }
+
+        var config = await Api.GetAppConfigAsync();
+        _oauthProviders = config?.OAuthProviders ?? [];
     }
+
+    private void LoginOAuth(string provider) =>
+        Nav.NavigateTo($"/oauth/{provider}/login", forceLoad: true);
+
+    private static string ProviderLabel(string provider) => provider switch
+    {
+        "google" => "Google",
+        "github" => "GitHub",
+        "microsoft" => "Microsoft",
+        "oidc" => "SSO",
+        _ => provider,
+    };
 
     private void GoToApp() => Nav.NavigateTo("/");
 

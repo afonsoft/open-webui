@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -461,13 +462,20 @@ public static class ChatEndpoints
     }
 
     private static async Task<IResult> ShareChatAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db, PermissionService permissions,
+        CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var chat = await LoadChatAsync(id, user?.Id, db, ct, tracking: true);
         if (chat is null)
         {
             return Results.NotFound();
+        }
+
+        // RF-004: flag sharing.public_chats avaliada por união dos grupos.
+        if (!await permissions.HasAsync(user!, PermissionService.SharingPublicChats, ct))
+        {
+            return Results.Forbid();
         }
 
         chat.ShareId ??= Guid.NewGuid().ToString("N")[..8];

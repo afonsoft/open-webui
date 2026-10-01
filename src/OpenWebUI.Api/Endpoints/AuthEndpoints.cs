@@ -102,13 +102,14 @@ public static class AuthEndpoints
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
         if (user is null)
         {
-            return Results.BadRequest(new { detail = "Credenciais inválidas." });
+            return await TryLdapSignInAsync(request, email, db, config, tokens, ct);
         }
 
         var result = new PasswordHasher<User>().VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
         {
-            return Results.BadRequest(new { detail = "Credenciais inválidas." });
+            // RF-002: fallback LDAP quando habilitado — falha de bind retorna erro genérico.
+            return await TryLdapSignInAsync(request, email, db, config, tokens, ct);
         }
 
         if (user.Role == UserRoles.Pending)
@@ -120,6 +121,45 @@ public static class AuthEndpoints
     }
 
     private static IResult SignOutAsync() => Results.Ok(new StatusResponse(true));
+
+    private static async Task<IResult> TryLdapSignInAsync(
+        SignInRequest request, string email, AppDbContext db,
+        ConfigService config, JwtTokenService tokens, CancellationToken ct)
+    {
+        var identity = await LdapService.TryBindAsync(request.Email, request.Password, ct);
+        if (identity is null)
+        {
+            return Results.BadRequest(new { detail = "Credenciais inválidas." });
+        }
+
+        // Sem e-mail do diretório não dá para identificar a conta local.
+        var ldapEmail = (identity.Email ?? email).Trim().ToLowerInvariant();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == ldapEmail, ct);
+        if (user is null)
+        {
+            var adminConfig = await config.GetAdminConfigAsync(ct);
+            var anyUser = await db.Users.AnyAsync(ct);
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            user = new User
+            {
+                Name = identity.Name ?? ldapEmail,
+                Email = ldapEmail,
+                Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
+                PasswordHash = string.Empty, // autenticação delegada ao LDAP
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);
+        }
+
+        if (user.Role == UserRoles.Pending)
+        {
+            return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador." });
+        }
+
+        return await IssueAuthResponseAsync(user, tokens, config, ct);
+    }
 
     private static async Task<IResult> GetCurrentUserAsync(
         HttpContext http, AppDbContext db, CancellationToken ct)

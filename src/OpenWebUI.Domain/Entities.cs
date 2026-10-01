@@ -326,3 +326,75 @@ public class Feedback
     /// <summary>Última atualização (epoch seconds).</summary>
     public long UpdatedAt { get; set; }
 }
+
+/// <summary>Grupo de usuários com permissões granulares (RBAC).</summary>
+public class Group
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Nome do grupo.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Descrição opcional.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Flags de permissão serializadas como JSON (workspace/sharing/chat).</summary>
+    public string PermissionsJson { get; set; } = "{}";
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+
+    /// <summary>Membros do grupo.</summary>
+    public List<GroupMember> Members { get; set; } = [];
+}
+
+/// <summary>Vínculo usuário ↔ grupo, com papel dentro do grupo.</summary>
+public class GroupMember
+{
+    /// <summary>Grupo do vínculo.</summary>
+    public string GroupId { get; set; } = string.Empty;
+
+    /// <summary>Grupo navegação.</summary>
+    public Group? Group { get; set; }
+
+    /// <summary>Usuário do vínculo.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Papel no grupo: "admin" (gerencia membros) ou "member".</summary>
+    public string Role { get; set; } = "member";
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Conta externa OAuth/OIDC vinculada a um usuário local.</summary>
+public class OAuthAccount
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Usuário local dono da conta.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Provedor (google, github, microsoft, oidc).</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>Identificador da conta no provedor (sub/id).</summary>
+    public string ProviderAccountId { get; set; } = string.Empty;
+
+    /// <summary>E-mail reportado pelo provedor.</summary>
+    public string? Email { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}

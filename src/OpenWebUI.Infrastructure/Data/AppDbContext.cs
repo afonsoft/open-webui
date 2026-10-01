@@ -39,6 +39,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Avaliações de mensagens.</summary>
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
 
+    /// <summary>Grupos de usuários (RBAC).</summary>
+    public DbSet<Group> Groups => Set<Group>();
+
+    /// <summary>Vínculos usuário↔grupo.</summary>
+    public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
+
+    /// <summary>Contas OAuth/OIDC vinculadas a usuários.</summary>
+    public DbSet<OAuthAccount> OAuthAccounts => Set<OAuthAccount>();
+
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
@@ -126,6 +135,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<ConfigEntry>(entity =>
         {
             entity.HasKey(e => e.Key);
+        });
+
+        modelBuilder.Entity<Group>(entity =>
+        {
+            entity.HasKey(g => g.Id);
+            entity.HasIndex(g => g.Name).IsUnique();
+            entity.HasMany(g => g.Members)
+                .WithOne(m => m.Group!)
+                .HasForeignKey(m => m.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GroupMember>(entity =>
+        {
+            entity.HasKey(m => new { m.GroupId, m.UserId });
+            entity.HasIndex(m => m.UserId);
+            entity.HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OAuthAccount>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.HasIndex(a => new { a.Provider, a.ProviderAccountId }).IsUnique();
+            entity.HasIndex(a => a.UserId);
         });
     }
 }

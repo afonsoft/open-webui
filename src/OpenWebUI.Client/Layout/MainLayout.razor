@@ -23,6 +23,13 @@
         await Auth.InitializeAsync();
         await Theme.InitializeAsync();
 
+        var oauthError = await Auth.CompleteOAuthLoginAsync(Nav.Uri);
+        if (Auth.IsAuthenticated && oauthError is null && Nav.Uri.Contains("oauth_", StringComparison.Ordinal))
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+
         if (!Auth.IsAuthenticated)
         {
             Nav.NavigateTo("/auth", replace: true);

@@ -18,6 +18,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
+builder.Services.AddScoped<OAuthService>();
+builder.Services.AddScoped<PermissionService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -34,7 +36,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
         }
     }
 
-    SchemaBootstrap.EnsureSchema(bootstrap);
+    DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
     SeedConnectionsFromEnv(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)
@@ -120,6 +122,8 @@ app.MapModelEndpoints();
 app.MapEvaluationEndpoints();
 app.MapTaskEndpoints();
 app.MapApiEndpoints();
+app.MapGroupEndpoints();
+app.MapOAuthEndpoints();
 
 app.MapFallbackToFile("index.html");
 
