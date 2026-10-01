@@ -58,7 +58,7 @@ public static class ApiEndpoints
                 EnableChannels: true,
                 EnableWebSearch: false,
                 EnableImageGeneration: false,
-                EnableCodeExecution: false,
+                EnableCodeExecution: true,
                 EnableCommunitySharing: true),
             DefaultPromptSuggestions: [],
             OAuthProviders: OAuthProviderCatalog.ConfiguredProviders()));

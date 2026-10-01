@@ -1,4 +1,5 @@
 @inject MarkdownService Markdown
+@inject ApiService Api
 @inject IJSRuntime JS
 
 <div class="group w-full flex gap-3 @(Message.Role == "user" ? "justify-end" : "")">
@@ -14,7 +15,7 @@
             @(Message.Role == "assistant" ? Message.Model ?? "Assistente" : "Você")
         </div>
 
-        <div class="@(Message.Role == "user"
+        <div @ref="_contentRef" class="@(Message.Role == "user"
                 ? "rounded-3xl bg-gray-100 dark:bg-gray-850 px-4 py-2.5 text-gray-800 dark:text-gray-100 text-[0.9375rem] whitespace-pre-wrap"
                 : "prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-100")">
             @if (Message.Role == "assistant")
@@ -93,6 +94,28 @@
 
     /// <summary>Disparado ao avaliar a resposta (1 ou -1).</summary>
     [Parameter] public EventCallback<int> OnRate { get; set; }
+
+    private ElementReference _contentRef;
+    private bool _codeExecEnabled;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        if (Message.Role == "assistant")
+        {
+            var config = await Api.GetAppConfigCachedAsync();
+            _codeExecEnabled = config?.Features.EnableCodeExecution ?? false;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_codeExecEnabled && Message.Role == "assistant")
+        {
+            await JS.InvokeVoidAsync("openwebui.codeExec.enhance", _contentRef);
+        }
+    }
 
     private async Task CopyAsync() =>
         await JS.InvokeVoidAsync("openwebui.copyText", Message.Content);
