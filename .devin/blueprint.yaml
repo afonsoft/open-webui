@@ -6,6 +6,8 @@ initialize: |
   mkdir -p "$HOME/.local/bin"
   curl -sSL -o "$HOME/.local/bin/tailwindcss" https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
   chmod +x "$HOME/.local/bin/tailwindcss"
+  # dotnet-ef para criar/aplicar EF Core Migrations
+  dotnet tool install -g dotnet-ef || dotnet tool update -g dotnet-ef
 # Install project dependencies (runs during builds, surfaced to agent at session start).
 maintenance: |
   # Restore dos pacotes NuGet da solução .NET na raiz
