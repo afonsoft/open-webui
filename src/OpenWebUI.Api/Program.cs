@@ -22,6 +22,7 @@ builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<EmbeddingService>();
 builder.Services.AddScoped<RagService>();
+builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -142,6 +143,7 @@ app.MapApiEndpoints();
 app.MapGroupEndpoints();
 app.MapOAuthEndpoints();
 app.MapKnowledgeEndpoints();
+app.MapToolEndpoints();
 app.MapChannelEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 

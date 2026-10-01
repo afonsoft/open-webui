@@ -59,7 +59,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Tema claro/escuro                      | ✅ Migrado  | Persistido em localStorage                                |
 | RAG / Knowledge / vector store         | ✅ Migrado  | Store SQLite + cosseno; embeddings Ollama/OpenAI       |
 | Web search RAG                         | ⬜ Pendente | Stub de query generation existe                           |
-| Tools / Functions / Pipes / Filters    | ⬜ Pendente | Sistema de plugins Python                                 |
+| Tools / Functions / Pipes / Filters    | 🟡 Parcial  | Tools HTTP com function calling (loop no servidor); Pipes/Filters não suportados |
 | Channels (chat em grupo)               | ✅ Migrado  | SignalR /ws + mensagens + @modelo + typing/presence   |
 | Groups / RBAC granular                 | ✅ Migrado  | `Group`/`GroupMember` + flags workspace/sharing/chat      |
 | OAuth / LDAP / SAML / SCIM             | 🟡 Parcial  | OAuth (Google/GitHub/Microsoft/OIDC) + LDAP bind; SAML/SCIM pendentes |
@@ -83,7 +83,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `/auth`                                                   | `/auth`                                   | ✅     |
 | `/s/{id}`                                                 | `/s/{ShareId}`                            | ✅     |
 | `/admin` (users, evals, settings)                         | `/admin` (usuários) + modal Settings      | 🟡     |
-| `/workspace` (models, prompts, knowledge, tools, files)   | `/workspace` (prompts, modelos, arquivos) | 🟡     |
+| `/workspace` (models, prompts, knowledge, tools, files)   | `/workspace` (prompts, modelos, arquivos, tools) | 🟡     |
 | `/notes`                                                  | `/notes`                                  | ✅     |
 | Arquivadas (modal/menu)                                   | `/archived`                               | ✅     |
 | `/channels/*`, `/playground`, `/calendar`, `/automations` | —                                         | ⬜     |

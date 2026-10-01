@@ -56,6 +56,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     /// <summary>Chunks vetoriais para retrieval.</summary>
     public DbSet<EmbeddingChunk> EmbeddingChunks => Set<EmbeddingChunk>();
+    /// <summary>Tools externas (function calling via HTTP).</summary>
+    public DbSet<Tool> Tools => Set<Tool>();
 
     /// <summary>Canais de conversa em grupo.</summary>
     public DbSet<Channel> Channels => Set<Channel>();
@@ -206,6 +208,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.HasKey(c => c.Id);
             entity.HasIndex(c => new { c.UserId, c.FileId });
+        });
+        modelBuilder.Entity<Tool>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.HasIndex(t => t.UserId);
+            entity.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Channel>(entity =>
