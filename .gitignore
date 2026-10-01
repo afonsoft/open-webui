@@ -311,3 +311,11 @@ cypress/videos
 cypress/screenshots
 .vscode/settings.json
 .cptr
+
+# .NET
+[Bb]in/
+[Oo]bj/
+dotnet/**/data/
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+@inject AuthService Auth
+@inject ThemeService Theme
+
+@Body
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+        await Theme.InitializeAsync();
+    }
+}

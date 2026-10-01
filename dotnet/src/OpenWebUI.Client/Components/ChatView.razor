@@ -1,0 +1,276 @@
+@inject ApiService Api
+@inject ChatStreamService ChatStream
+@inject AuthService Auth
+@inject ChatListState ChatList
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="chat-container">
+    <div class="chat-topbar">
+        <ModelSelector Value="@_model" ValueChanged="OnModelChanged" />
+    </div>
+
+    <div class="chat-messages" @ref="_scrollContainer">
+        @if (_messages.Count == 0 && !_loading)
+        {
+            <div class="chat-empty">
+                <div class="chat-empty-logo">Open WebUI</div>
+                <div class="chat-empty-sub">Como posso ajudar?</div>
+            </div>
+        }
+        else
+        {
+            @for (var i = 0; i < _messages.Count; i++)
+            {
+                var message = _messages[i];
+                var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
+                <MessageBubble
+                    Message="message"
+                    Streaming="_streaming && isLastAssistant"
+                    ShowActions="isLastAssistant"
+                    Initials="@UserInitials"
+                    OnRegenerate="RegenerateAsync" />
+            }
+        }
+
+        @if (_error is not null)
+        {
+            <div class="chat-error">@_error</div>
+        }
+    </div>
+
+    <div class="chat-input-area">
+        <div class="chat-input-box @(_streaming ? "streaming" : "")">
+            <textarea
+                class="chat-textarea"
+                placeholder="Envie uma mensagem"
+                rows="1"
+                @bind="_input"
+                @bind:event="oninput"
+                @onkeydown="OnKeyDown"
+                disabled="@_loading"></textarea>
+            @if (_streaming)
+            {
+                <button class="send-btn stop" title="Parar" @onclick="StopStreaming">■</button>
+            }
+            else
+            {
+                <button class="send-btn" title="Enviar" disabled="@SendDisabled" @onclick="SendAsync">➤</button>
+            }
+        </div>
+        <div class="chat-disclaimer">Open WebUI .NET — Blazor WebAssembly</div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Id do chat carregado; null para um chat novo.</summary>
+    [Parameter] public string? ChatId { get; set; }
+
+    private readonly List<ChatMessageModel> _messages = [];
+    private string? _loadedChatId;
+    private string _chatTitle = "New Chat";
+    private string? _model;
+    private string _input = string.Empty;
+    private string? _error;
+    private bool _loading;
+    private bool _streaming;
+    private CancellationTokenSource? _cts;
+    private ElementReference _scrollContainer;
+    private string? _pendingNavigateId;
+
+    private string UserInitials =>
+        string.IsNullOrWhiteSpace(Auth.CurrentUser?.Name)
+            ? "U"
+            : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
+
+    private bool SendDisabled =>
+        string.IsNullOrWhiteSpace(_input) || string.IsNullOrEmpty(_model) || _loading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ChatId == _loadedChatId)
+        {
+            return;
+        }
+
+        _error = null;
+        if (ChatId is null)
+        {
+            _loadedChatId = null;
+            _chatTitle = "New Chat";
+            _messages.Clear();
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var chat = await Api.GetChatAsync(ChatId);
+            if (chat is null)
+            {
+                Nav.NavigateTo("/", replace: true);
+                return;
+            }
+
+            _loadedChatId = chat.Id;
+            _chatTitle = chat.Title;
+            _messages.Clear();
+            _messages.AddRange(chat.Messages);
+            if (chat.Models.Count > 0)
+            {
+                _model = chat.Models[0];
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnModelChanged(string? model) => _model = model;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !SendDisabled && !_streaming)
+        {
+            await SendAsync();
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        var text = _input.Trim();
+        if (text.Length == 0 || string.IsNullOrEmpty(_model))
+        {
+            return;
+        }
+
+        _input = string.Empty;
+        _error = null;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", text, null, now));
+
+        if (_loadedChatId is null)
+        {
+            var title = text.Length > 60 ? text[..60] : text;
+            var created = await Api.CreateChatAsync(
+                new ChatUpsertRequest(title, [_model!], _messages));
+            if (created is null)
+            {
+                _error = "Não foi possível criar o chat.";
+                _messages.RemoveAt(_messages.Count - 1);
+                return;
+            }
+
+            _loadedChatId = created.Id;
+            _chatTitle = created.Title;
+            _pendingNavigateId = created.Id;
+            ChatList.NotifyChanged();
+        }
+
+        await StreamAssistantAsync();
+        await PersistAsync();
+
+        if (_pendingNavigateId is not null)
+        {
+            var id = _pendingNavigateId;
+            _pendingNavigateId = null;
+            Nav.NavigateTo($"/c/{id}");
+        }
+    }
+
+    private async Task RegenerateAsync()
+    {
+        if (_streaming || _messages.Count == 0)
+        {
+            return;
+        }
+
+        while (_messages.Count > 0 && _messages[^1].Role == "assistant")
+        {
+            _messages.RemoveAt(_messages.Count - 1);
+        }
+
+        if (_messages.Count == 0 || string.IsNullOrEmpty(_model))
+        {
+            return;
+        }
+
+        _error = null;
+        await StreamAssistantAsync();
+        await PersistAsync();
+    }
+
+    private async Task StreamAssistantAsync()
+    {
+        var placeholder = new ChatMessageModel(
+            Guid.NewGuid().ToString(), "assistant", string.Empty, _model,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        _messages.Add(placeholder);
+        var index = _messages.Count - 1;
+
+        _streaming = true;
+        _cts = new CancellationTokenSource();
+        var content = new System.Text.StringBuilder();
+
+        try
+        {
+            var request = new ChatCompletionRequest(
+                _model!,
+                _messages.Take(index)
+                    .Select(m => new ChatCompletionMessage(m.Role, m.Content))
+                    .ToList());
+
+            await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
+            {
+                content.Append(delta);
+                _messages[index] = placeholder with { Content = content.ToString() };
+                await InvokeAsync(StateHasChanged);
+                await ScrollToEndAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _streaming = false;
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
+
+    private void StopStreaming() => _cts?.Cancel();
+
+    private async Task PersistAsync()
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+
+        var updated = await Api.UpdateChatAsync(
+            _loadedChatId,
+            new ChatUpsertRequest(_chatTitle, _model is null ? [] : [_model], _messages));
+        if (updated is not null)
+        {
+            ChatList.NotifyChanged();
+        }
+    }
+
+    private async Task ScrollToEndAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("openwebui.scrollToEnd", _scrollContainer);
+        }
+        catch (JSException)
+        {
+        }
+    }
+}

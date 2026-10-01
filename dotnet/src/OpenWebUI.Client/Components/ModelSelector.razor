@@ -1,0 +1,72 @@
+@inject ApiService Api
+@inject BrowserStorage Storage
+
+<div class="model-selector">
+    @if (_models is null)
+    {
+        <span class="model-loading">Carregando modelos…</span>
+    }
+    else if (_models.Count == 0)
+    {
+        <span class="model-loading">Nenhum modelo disponível — configure as conexões</span>
+    }
+    else
+    {
+        <select class="model-select" value="@Value" @onchange="OnModelChanged">
+            @foreach (var group in _models.GroupBy(m => m.Provider))
+            {
+                <optgroup label="@ProviderLabel(group.Key)">
+                    @foreach (var model in group)
+                    {
+                        <option value="@model.Id">@model.Name</option>
+                    }
+                </optgroup>
+            }
+        </select>
+    }
+</div>
+
+@code {
+    /// <summary>Modelo atualmente selecionado.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>Disparado quando o modelo selecionado muda.</summary>
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    private const string ModelKey = "webui.model";
+    private List<ModelInfo>? _models;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _models = await Api.GetModelsAsync();
+        var saved = await Storage.GetAsync(ModelKey);
+        var selected = _models.Any(m => m.Id == saved)
+            ? saved
+            : _models.FirstOrDefault()?.Id;
+
+        if (selected != Value)
+        {
+            Value = selected;
+            await ValueChanged.InvokeAsync(selected);
+        }
+    }
+
+    private async Task OnModelChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        Value = value;
+        if (value is not null)
+        {
+            await Storage.SetAsync(ModelKey, value);
+        }
+
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    private static string ProviderLabel(string provider) => provider switch
+    {
+        "ollama" => "Ollama",
+        "openai" => "OpenAI",
+        _ => provider,
+    };
+}

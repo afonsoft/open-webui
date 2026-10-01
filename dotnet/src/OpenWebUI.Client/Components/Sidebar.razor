@@ -1,0 +1,120 @@
+@inject ApiService Api
+@inject AuthService Auth
+@inject ChatListState ChatList
+@inject NavigationManager Nav
+@implements IDisposable
+
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <button class="btn-new-chat" @onclick="NewChat" title="Novo chat">
+            <span class="logo">Open WebUI</span>
+            <span class="icon">＋</span>
+        </button>
+    </div>
+
+    <div class="sidebar-search">
+        <input type="search" placeholder="Buscar chats" @bind="_search" @bind:event="oninput" />
+    </div>
+
+    <nav class="sidebar-chats">
+        @if (_chats is null)
+        {
+            <div class="sidebar-empty">Carregando…</div>
+        }
+        else if (FilteredChats.Count == 0)
+        {
+            <div class="sidebar-empty">Nenhum chat</div>
+        }
+        else
+        {
+            @foreach (var chat in FilteredChats)
+            {
+                var id = chat.Id;
+                <div class="chat-item @(IsActive(id) ? "active" : "")">
+                    <a href="/c/@id" class="chat-link" title="@chat.Title">@chat.Title</a>
+                    <button class="chat-delete" title="Excluir" @onclick="() => DeleteAsync(id)">×</button>
+                </div>
+            }
+        }
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="user-chip" title="@Auth.CurrentUser?.Email">
+            <span class="avatar">@Initials</span>
+            <span class="user-name">@Auth.CurrentUser?.Name</span>
+        </div>
+        <button class="icon-btn" title="Configurações" @onclick="() => OnOpenSettings.InvokeAsync()">⚙</button>
+        <button class="icon-btn" title="Sair" @onclick="SignOutAsync">⏻</button>
+    </div>
+</aside>
+
+@code {
+    /// <summary>Callback para abrir o modal de configurações.</summary>
+    [Parameter] public EventCallback OnOpenSettings { get; set; }
+
+    private List<ChatSummaryResponse>? _chats;
+    private string _search = string.Empty;
+
+    private List<ChatSummaryResponse> FilteredChats => _chats is null
+        ? []
+        : string.IsNullOrWhiteSpace(_search)
+            ? _chats
+            : _chats.Where(c => c.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private string Initials =>
+        string.IsNullOrWhiteSpace(Auth.CurrentUser?.Name)
+            ? "?"
+            : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatList.Changed += OnChatListChanged;
+        Auth.Changed += OnAuthChanged;
+        await LoadAsync();
+    }
+
+    private async void OnChatListChanged() => await LoadAsync();
+    private void OnAuthChanged() => StateHasChanged();
+
+    private async Task LoadAsync()
+    {
+        if (!Auth.IsAuthenticated)
+        {
+            return;
+        }
+
+        _chats = await Api.GetChatsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsActive(string id) =>
+        Nav.Uri.EndsWith($"/c/{id}", StringComparison.Ordinal);
+
+    private void NewChat() => Nav.NavigateTo("/");
+
+    private async Task DeleteAsync(string id)
+    {
+        if (await Api.DeleteChatAsync(id))
+        {
+            if (IsActive(id))
+            {
+                Nav.NavigateTo("/");
+            }
+
+            await LoadAsync();
+        }
+    }
+
+    private async Task SignOutAsync()
+    {
+        await Auth.SignOutAsync();
+        Nav.NavigateTo("/auth", replace: true);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        ChatList.Changed -= OnChatListChanged;
+        Auth.Changed -= OnAuthChanged;
+    }
+}
