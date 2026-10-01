@@ -5,18 +5,21 @@ initialize: |
   true
 # Install project dependencies (runs during builds, surfaced to agent at session start).
 maintenance: |
-  # Restore dos pacotes NuGet da migração .NET (em dotnet/)
-  (cd dotnet && dotnet restore OpenWebUI.slnx)
+  # Restore dos pacotes NuGet da solução .NET na raiz
+  dotnet restore OpenWebUI.slnx
 # Reference info for agent
 knowledge:
   - name: build
     contents: |
-      # Repo é somente .NET 10 / Blazor WASM (o código original Svelte/FastAPI foi removido)
-      # cd dotnet && dotnet build OpenWebUI.slnx
+      # Repo é somente .NET 10 / Blazor WASM, Clean Architecture na raiz:
+      #   src/OpenWebUI.Domain (entidades), src/OpenWebUI.Application (contratos),
+      #   src/OpenWebUI.Infrastructure (EF Core/serviços), src/OpenWebUI.Api (endpoints+host),
+      #   src/OpenWebUI.Client (Blazor WASM), tests/OpenWebUI.Api.Tests (NUnit)
+      # dotnet build OpenWebUI.slnx
   - name: test
     contents: |
-      # cd dotnet && dotnet test OpenWebUI.slnx (NUnit, OpenWebUI.Server.Tests)
+      # dotnet test OpenWebUI.slnx (NUnit, OpenWebUI.Api.Tests)
   - name: startup
     contents: |
-      # cd dotnet && dotnet run --project src/OpenWebUI.Server -> http://localhost:8080
+      # dotnet run --project src/OpenWebUI.Api -> http://localhost:8080
       # Primeiro usuário cadastrado vira admin; conexões Ollama/OpenAI em Configurações -> Conexões

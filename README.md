@@ -3,34 +3,57 @@
 Migração do [Open WebUI](https://github.com/open-webui/open-webui) para
 **.NET 10 · C# 14 · Blazor WebAssembly** (SvelteKit + FastAPI → ASP.NET Core + Blazor).
 
-## Estrutura
+## Estrutura (Clean Architecture)
 
 ```
-dotnet/
 ├── OpenWebUI.slnx
 ├── src/
-│   ├── OpenWebUI.Shared/   # Contratos/DTOs compartilhados
-│   ├── OpenWebUI.Server/   # API ASP.NET Core (serve o cliente)
-│   └── OpenWebUI.Client/   # App Blazor WebAssembly
+│   ├── OpenWebUI.Domain/          # Entidades de domínio (sem dependências)
+│   ├── OpenWebUI.Application/     # Contratos/DTOs compartilhados
+│   ├── OpenWebUI.Infrastructure/  # EF Core (AppDbContext), serviços
+│   │                              # (JWT, providers Ollama/OpenAI, config)
+│   ├── OpenWebUI.Api/             # Minimal APIs + hosting do Blazor WASM
+│   └── OpenWebUI.Client/          # SPA Blazor WebAssembly (UI do chat)
 └── tests/
-    └── OpenWebUI.Server.Tests/  # Testes NUnit
+    └── OpenWebUI.Api.Tests/       # Testes de integração NUnit
 ```
+
+Dependências apontam para dentro: `Api → Infrastructure → Application → Domain`.
+O `Client` consome apenas `Application` (contratos).
+
+| Camada    | Original                     | Migrado                                    |
+| --------- | ---------------------------- | ------------------------------------------ |
+| Frontend  | SvelteKit + Tailwind         | Blazor WebAssembly                         |
+| Backend   | Python FastAPI               | ASP.NET Core 10 (Minimal APIs)             |
+| Banco     | SQLAlchemy + SQLite/Postgres | EF Core 10 + SQLite                        |
+| Auth      | JWT + bcrypt                 | JWT + PBKDF2 (PasswordHasher ASP.NET Core) |
+| Streaming | WebSocket/socket.io + SSE    | SSE server→client                          |
 
 ## Executar
 
 Requisito: SDK do .NET 10.
 
 ```bash
-cd dotnet
 dotnet restore OpenWebUI.slnx
-dotnet run --project src/OpenWebUI.Server
+dotnet run --project src/OpenWebUI.Api
 # http://localhost:8080 — o primeiro usuário cadastrado vira admin
 ```
+
+O servidor serve o Blazor WASM e a API na mesma origem (sem CORS).
+Por padrão conecta em um Ollama local (`http://localhost:11434`); conexões
+OpenAI são configuradas em **Configurações → Conexões** (somente admin).
+
+### Configuração
+
+| Variável                     | Padrão                          | Descrição                 |
+| ---------------------------- | ------------------------------- | ------------------------- |
+| `ConnectionStrings__Default` | `Data Source=data/openwebui.db` | Connection string EF Core |
+
+O segredo JWT é gerado automaticamente e persistido na tabela de configuração.
 
 ## Testar
 
 ```bash
-cd dotnet
 dotnet test OpenWebUI.slnx
 ```
 
@@ -38,7 +61,6 @@ dotnet test OpenWebUI.slnx
 
 - [docs/MIGRACAO-DOTNET.md](docs/MIGRACAO-DOTNET.md) — mapa de paridade com o
   upstream (o que está migrado, parcial e pendente) e roadmap.
-- [dotnet/README.md](dotnet/README.md) — detalhes de arquitetura e configuração.
 
 ## Licença
 

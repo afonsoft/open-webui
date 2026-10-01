@@ -7,7 +7,7 @@ out/
 .vs/
 
 # Dados em runtime
-dotnet/**/data/
+**/data/
 *.db
 *.db-journal
 *.db-wal

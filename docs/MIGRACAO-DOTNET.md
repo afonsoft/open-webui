@@ -5,14 +5,16 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 > Revisão pós-expansão (out/2026): inventário refeito contra o upstream
 > `open-webui/open-webui` (~v0.11.x, ~600 endpoints, ~48 rotas de página,
-> ~250 chaves de `DEFAULT_CONFIG`). A tabela abaixo reflete o estado real
-> implementado em `dotnet/` nesta branch.
+> ~250 chaves de `DEFAULT_CONFIG`). O código legado foi removido — o repo
+> agora contém apenas a migração .NET, organizada em Clean Architecture
+> (`src/OpenWebUI.{Domain,Application,Infrastructure,Api,Client}`).
+> A tabela abaixo reflete o estado real implementado.
 
 ## Arquitetura alvo
 
 ```
 ┌─────────────────────────────────────────────┐
-│ OpenWebUI.Server (ASP.NET Core 10)          │
+│ OpenWebUI.Api (ASP.NET Core 10)             │
 │  ├── serve OpenWebUI.Client (Blazor WASM)   │
 │  ├── /api/v1/*  (auth, chats, configs)      │
 │  ├── /api/models, /api/chat/completions     │
@@ -22,10 +24,10 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
         Ollama /api/*    OpenAI /v1/*
 ```
 
-## Paridade por área (inventário → dotnet/)
+## Paridade por área (inventário → src/)
 
 | Área (Open WebUI original)             | Status      | Observação                                                |
-| -------------------------------------- | ----------- | --------------------------------------------------------- | ------- |
+| -------------------------------------- | ----------- | --------------------------------------------------------- |
 | Auth (signup/signin/signout, JWT)      | ✅ Migrado  | `/api/v1/auths/*` completo, primeiro usuário vira admin   |
 | Papéis pending/user/admin              | ✅ Migrado  | `DEFAULT_USER_ROLE` configurável no Admin                 |
 | Aprovação de usuários pendentes        | ✅ Migrado  | Página `/admin` aprova/rebaixa/remove                     |
