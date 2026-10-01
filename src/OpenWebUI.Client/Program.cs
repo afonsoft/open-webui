@@ -19,5 +19,6 @@ builder.Services.AddScoped<ChatStreamService>();
 builder.Services.AddScoped<MarkdownService>();
 builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<ChatListState>();
+builder.Services.AddScoped<RealtimeService>();
 
 await builder.Build().RunAsync();

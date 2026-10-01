@@ -511,6 +511,36 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> RemoveGroupMemberAsync(string id, string userId) =>
         await SendStatusAsync(HttpMethod.Delete, $"/api/v1/groups/{id}/members/{userId}");
 
+    // ---------------- Canais ----------------
+
+    /// <summary>Lista os canais onde o usuário é membro.</summary>
+    public async Task<List<ChannelResponse>> GetChannelsAsync() =>
+        await SendAsync<List<ChannelResponse>>(HttpMethod.Get, "/api/v1/channels") ?? [];
+
+    /// <summary>Cria um canal e retorna o resumo.</summary>
+    public Task<ChannelResponse?> CreateChannelAsync(string name, string? description = null) =>
+        SendAsync<ChannelResponse>(HttpMethod.Post, "/api/v1/channels",
+            new CreateChannelRequest(name, description, null));
+
+    /// <summary>Obtém um canal com seus membros.</summary>
+    public Task<ChannelDetailResponse?> GetChannelAsync(string id) =>
+        SendAsync<ChannelDetailResponse>(HttpMethod.Get, $"/api/v1/channels/{id}");
+
+    /// <summary>Lista o histórico de mensagens do canal.</summary>
+    public async Task<List<ChannelMessageResponse>> GetChannelMessagesAsync(string id) =>
+        await SendAsync<List<ChannelMessageResponse>>(
+            HttpMethod.Get, $"/api/v1/channels/{id}/messages?take=200") ?? [];
+
+    /// <summary>Envia mensagem ao canal (retorna a mensagem persistida).</summary>
+    public Task<ChannelMessageResponse?> PostChannelMessageAsync(string id, string content) =>
+        SendAsync<ChannelMessageResponse>(HttpMethod.Post,
+            $"/api/v1/channels/{id}/messages", new CreateChannelMessageRequest(content));
+
+    /// <summary>Adiciona um usuário ao canal.</summary>
+    public Task<bool> AddChannelMemberAsync(string id, string userId) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/channels/{id}/members",
+            new AddChannelMembersRequest([userId], null));
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
 }
 

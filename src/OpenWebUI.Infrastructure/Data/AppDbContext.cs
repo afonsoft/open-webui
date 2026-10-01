@@ -51,6 +51,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Tools externas (function calling via HTTP).</summary>
     public DbSet<Tool> Tools => Set<Tool>();
 
+    /// <summary>Canais de conversa em grupo.</summary>
+    public DbSet<Channel> Channels => Set<Channel>();
+
+    /// <summary>Membros de canais.</summary>
+    public DbSet<ChannelMember> ChannelMembers => Set<ChannelMember>();
+
+    /// <summary>Mensagens de canais.</summary>
+    public DbSet<ChannelMessage> ChannelMessages => Set<ChannelMessage>();
+
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
@@ -174,6 +183,39 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(t => t.User)
                 .WithMany()
                 .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Channel>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.HasMany(c => c.Members)
+                .WithOne(m => m.Channel!)
+                .HasForeignKey(m => m.ChannelId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(c => c.Messages)
+                .WithOne(m => m.Channel!)
+                .HasForeignKey(m => m.ChannelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChannelMember>(entity =>
+        {
+            entity.HasKey(m => new { m.ChannelId, m.UserId });
+            entity.HasIndex(m => m.UserId);
+            entity.HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChannelMessage>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.HasIndex(m => new { m.ChannelId, m.CreatedAt });
+            entity.HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

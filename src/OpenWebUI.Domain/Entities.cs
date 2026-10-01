@@ -435,3 +435,84 @@ public class Tool
     /// <summary>Última atualização (epoch seconds).</summary>
     public long UpdatedAt { get; set; }
 }
+
+/// <summary>Canal de conversa em grupo (múltiplos usuários, estilo chat de equipe).</summary>
+public class Channel
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Nome do canal.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Descrição opcional.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Tipo do canal: "channel" (grupo) — "dm" fica para fase futura.</summary>
+    public string Type { get; set; } = "channel";
+
+    /// <summary>Usuário criador (sempre admin do canal).</summary>
+    public string CreatedByUserId { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+
+    /// <summary>Membros do canal.</summary>
+    public List<ChannelMember> Members { get; set; } = [];
+
+    /// <summary>Mensagens do canal.</summary>
+    public List<ChannelMessage> Messages { get; set; } = [];
+}
+
+/// <summary>Vínculo usuário↔canal com papel dentro do canal.</summary>
+public class ChannelMember
+{
+    /// <summary>Canal.</summary>
+    public string ChannelId { get; set; } = string.Empty;
+
+    /// <summary>Canal navegação.</summary>
+    public Channel? Channel { get; set; }
+
+    /// <summary>Usuário membro.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Papel no canal: "admin" (gerencia membros/canal) ou "member".</summary>
+    public string Role { get; set; } = "member";
+
+    /// <summary>Entrada (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Mensagem de canal; autor é usuário ou modelo (UserId nulo = modelo).</summary>
+public class ChannelMessage
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Canal dono da mensagem.</summary>
+    public string ChannelId { get; set; } = string.Empty;
+
+    /// <summary>Canal navegação.</summary>
+    public Channel? Channel { get; set; }
+
+    /// <summary>Usuário autor; nulo quando a mensagem é do modelo (@menção).</summary>
+    public string? UserId { get; set; }
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Identificador do modelo autor, quando UserId é nulo.</summary>
+    public string? ModelId { get; set; }
+
+    /// <summary>Conteúdo em texto/markdown.</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
