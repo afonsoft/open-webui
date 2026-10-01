@@ -161,6 +161,9 @@ public static class FileEndpoints
             File.Delete(file.StoragePath);
         }
 
+        // Deleção do arquivo remove seus chunks vetoriais (regra RAG).
+        await db.EmbeddingChunks.Where(c => c.FileId == file.Id)
+            .ExecuteDeleteAsync(ct);
         db.Files.Remove(file);
         await db.SaveChangesAsync(ct);
         return Results.Ok(new StatusResponse(true));

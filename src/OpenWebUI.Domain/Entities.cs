@@ -402,6 +402,77 @@ public class OAuthAccount
     public long CreatedAt { get; set; }
 }
 
+/// <summary>Coleção nomeada de arquivos para contexto RAG (aba Knowledge).</summary>
+public class KnowledgeCollection
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da coleção.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Usuário navegação.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Nome único por usuário.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Descrição opcional.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Arquivos vinculados.</summary>
+    public List<KnowledgeFile> Files { get; set; } = [];
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Vínculo arquivo↔coleção de knowledge.</summary>
+public class KnowledgeFile
+{
+    /// <summary>Identificador único do vínculo (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Coleção dona.</summary>
+    public string CollectionId { get; set; } = string.Empty;
+
+    /// <summary>Coleção navegação.</summary>
+    public KnowledgeCollection? Collection { get; set; }
+
+    /// <summary>Arquivo vinculado (FileEntry).</summary>
+    public string FileId { get; set; } = string.Empty;
+
+    /// <summary>Inclusão (epoch seconds).</summary>
+    public long AddedAt { get; set; }
+}
+
+/// <summary>Trecho de texto indexado com embedding vetorial para RAG.</summary>
+public class EmbeddingChunk
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Usuário dono do arquivo origem (isolamento por conta).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Arquivo origem (FileEntry).</summary>
+    public string FileId { get; set; } = string.Empty;
+
+    /// <summary>Ordem do chunk dentro do arquivo.</summary>
+    public int ChunkIndex { get; set; }
+
+    /// <summary>Texto do chunk.</summary>
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Vetor de embedding serializado (JSON array de floats).</summary>
+    public string EmbeddingJson { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
 /// <summary>Tool externa invocável pelo modelo (function calling via HTTP).</summary>
 public class Tool
 {
