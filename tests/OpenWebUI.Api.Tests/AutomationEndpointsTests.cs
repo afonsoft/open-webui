@@ -176,7 +176,7 @@ public class AutomationEndpointsTests
         });
 
         // O chat criado contém prompt + resposta do mock
-        var chat = await _client.GetFromJsonAsync<ChatResponse>($"/api/v1/chats/{run.ChatId}");
+        var chat = await _client.GetFromJsonAsync<ChatResponse>($"/api/v1/chats/{run.ChatId!}");
         Assert.That(chat!.Messages, Has.Count.EqualTo(2));
         Assert.That(chat.Messages[1].Content, Is.EqualTo("resposta do mock"));
 

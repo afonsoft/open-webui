@@ -21,3 +21,6 @@ Thumbs.db
 
 # Devin
 .devin-files/
+
+# Coverage/test artifacts
+TestResults/
