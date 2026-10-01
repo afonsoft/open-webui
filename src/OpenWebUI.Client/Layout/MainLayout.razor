@@ -1,7 +1,9 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthService Auth
 @inject ThemeService Theme
 @inject NavigationManager Nav
+@inject LocalizationService L
 
 @if (_ready)
 {
@@ -36,7 +38,15 @@
             return;
         }
 
+        L.Changed += OnLocaleChanged;
         _ready = true;
+    }
+
+    private void OnLocaleChanged() => StateHasChanged();
+
+    public void Dispose()
+    {
+        L.Changed -= OnLocaleChanged;
     }
 
     private void OpenSettings() => _settingsOpen = true;

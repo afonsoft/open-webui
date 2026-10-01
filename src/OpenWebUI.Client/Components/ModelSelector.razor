@@ -1,14 +1,15 @@
 @inject ApiService Api
 @inject BrowserStorage Storage
+@inject LocalizationService L
 
 <div class="relative">
     @if (_models is null)
     {
-        <span class="text-sm text-gray-400 dark:text-gray-500">Carregando modelos…</span>
+        <span class="text-sm text-gray-400 dark:text-gray-500">@L["models.loading"]</span>
     }
     else if (_models.Count == 0)
     {
-        <span class="text-sm text-gray-400 dark:text-gray-500">Nenhum modelo disponível — configure as conexões</span>
+        <span class="text-sm text-gray-400 dark:text-gray-500">@L["models.none"]</span>
     }
     else
     {
@@ -54,7 +55,7 @@
     private bool _open;
 
     private string SelectedName =>
-        _models?.FirstOrDefault(m => m.Id == Value)?.Name ?? "Selecionar modelo";
+        _models?.FirstOrDefault(m => m.Id == Value)?.Name ?? L["models.select"];
 
     protected override async Task OnInitializedAsync()
     {

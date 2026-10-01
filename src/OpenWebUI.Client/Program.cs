@@ -20,5 +20,8 @@ builder.Services.AddScoped<MarkdownService>();
 builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<ChatListState>();
 builder.Services.AddScoped<RealtimeService>();
+builder.Services.AddScoped<LocalizationService>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+await host.Services.GetRequiredService<LocalizationService>().InitializeAsync();
+await host.RunAsync();

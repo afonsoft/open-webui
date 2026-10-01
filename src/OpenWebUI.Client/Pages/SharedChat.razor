@@ -2,28 +2,29 @@
 @layout EmptyLayout
 @inject ApiService Api
 @inject MarkdownService Markdown
+@inject LocalizationService L
 
-<PageTitle>@(_chat?.Title ?? "Chat compartilhado") — Open WebUI</PageTitle>
+<PageTitle>@(_chat?.Title ?? L["shared.title_default"]) — Open WebUI</PageTitle>
 
 <div class="shared-page">
     <div class="shared-card">
         @if (_loading)
         {
-            <div class="sidebar-empty">Carregando…</div>
+            <div class="sidebar-empty">@L["common.loading"]</div>
         }
         else if (_chat is null)
         {
             <div class="chat-empty">
                 <div class="chat-empty-logo">Open WebUI</div>
-                <div class="chat-empty-sub">Chat compartilhado não encontrado ou link removido.</div>
-                <a class="auth-submit shared-back" href="/">Voltar ao início</a>
+                <div class="chat-empty-sub">@L["shared.not_found"]</div>
+                <a class="auth-submit shared-back" href="/">@L["shared.back"]</a>
             </div>
         }
         else
         {
             <h1 class="shared-title">@_chat.Title</h1>
             <div class="shared-meta">
-                Compartilhado por @(_chat.User?.Name ?? "usuário") ·
+                @L.T("shared.by", ("name", _chat.User?.Name ?? L["shared.user"])) ·
                 @FormatDate(_chat.UpdatedAt)
             </div>
             <div class="shared-messages">
@@ -33,7 +34,7 @@
                         <div class="message-avatar">@(message.Role == "assistant" ? "◈" : "U")</div>
                         <div class="message-body">
                             <div class="message-meta">
-                                @(message.Role == "assistant" ? message.Model ?? "Assistente" : _chat.User?.Name ?? "Você")
+                                @(message.Role == "assistant" ? message.Model ?? L["chat.assistant"] : _chat.User?.Name ?? L["chat.you"])
                             </div>
                             <div class="message-content">
                                 @if (message.Role == "assistant")

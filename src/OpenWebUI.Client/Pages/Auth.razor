@@ -3,8 +3,9 @@
 @inject AuthService AuthService
 @inject ApiService Api
 @inject NavigationManager Nav
+@inject LocalizationService L
 
-<PageTitle>Entrar — Open WebUI</PageTitle>
+<PageTitle>@L["page.auth"] — Open WebUI</PageTitle>
 
 <div class="w-full h-screen max-h-[100dvh] text-white relative">
     <div class="w-full h-full absolute top-0 left-0 bg-white dark:bg-black"></div>
@@ -22,14 +23,14 @@
                         {
                             <div class="mb-1">
                                 <div class="text-2xl font-normal">
-                                    @(_signUp ? "Cadastre-se no" : "Entrar no") Open WebUI
+                                    @(_signUp ? L["auth.signup_title"] : L["auth.signin_title"]) Open WebUI
                                 </div>
                                 <div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
                                     @(_signUp
-                                        ? "Já tem uma conta? "
-                                        : "Não tem uma conta? ")
+                                        ? L["auth.have_account"]
+                                        : L["auth.no_account"])
                                     <button class="font-normal underline cursor-pointer" @onclick="() => SetMode(!_signUp)">
-                                        @(_signUp ? "Entrar" : "Cadastrar")
+                                        @(_signUp ? L["auth.sign_in"] : L["auth.sign_up"])
                                     </button>
                                 </div>
                             </div>
@@ -38,18 +39,18 @@
                                 @if (_signUp)
                                 {
                                     <div class="mb-2">
-                                        <label class="text-sm font-normal mb-1 block">Nome</label>
+                                        <label class="text-sm font-normal mb-1 block">@L["common.name"]</label>
                                         <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
-                                               type="text" placeholder="Seu nome" @bind="_name" />
+                                               type="text" placeholder="@L["auth.name_placeholder"]" @bind="_name" />
                                     </div>
                                 }
                                 <div class="mb-2">
-                                    <label class="text-sm font-normal mb-1 block">E-mail</label>
+                                    <label class="text-sm font-normal mb-1 block">@L["common.email"]</label>
                                     <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
                                            type="email" placeholder="voce@exemplo.com" @bind="_email" />
                                 </div>
                                 <div class="mb-2">
-                                    <label class="text-sm font-normal mb-1 block">Senha</label>
+                                    <label class="text-sm font-normal mb-1 block">@L["common.password"]</label>
                                     <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
                                            type="password" placeholder="••••••••" @bind="_password"
                                            @onkeydown="OnKeyDown" />
@@ -64,7 +65,7 @@
                             <div class="mt-5">
                                 <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 disabled:opacity-50 flex justify-center cursor-pointer"
                                         disabled="@(_busy || !FormValid)" @onclick="SubmitAsync">
-                                    <span class="self-center">@(_busy ? "Aguarde…" : _signUp ? "Criar conta" : "Entrar")</span>
+                                    <span class="self-center">@(_busy ? L["auth.wait"] : _signUp ? L["auth.create_account"] : L["auth.sign_in"])</span>
                                 </button>
                             </div>
 
@@ -72,7 +73,7 @@
                             {
                                 <div class="mt-5 flex items-center gap-3">
                                     <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
-                                    <div class="text-xs text-gray-500">ou</div>
+                                    <div class="text-xs text-gray-500">@L["common.or"]</div>
                                     <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
                                 </div>
                                 <div class="mt-4 flex flex-col gap-2">
@@ -80,7 +81,7 @@
                                     {
                                         <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 flex justify-center cursor-pointer"
                                                 @onclick="() => LoginOAuth(provider)">
-                                            <span class="self-center">Continuar com @ProviderLabel(provider)</span>
+                                            <span class="self-center">@L.T("auth.continue_with", ("provider", ProviderLabel(provider)))</span>
                                         </button>
                                     }
                                 </div>
@@ -91,12 +92,12 @@
                             <div class="mb-1">
                                 <div class="text-2xl font-normal">Open WebUI</div>
                                 <div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
-                                    Autenticado como <strong>@AuthService.CurrentUser?.Email</strong>
+                                    @L["auth.authenticated_as"] <strong>@AuthService.CurrentUser?.Email</strong>
                                 </div>
                             </div>
                             <div class="mt-5">
                                 <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 flex justify-center cursor-pointer"
-                                        @onclick="GoToApp">Ir para o app</button>
+                                        @onclick="GoToApp">@L["auth.go_to_app"]</button>
                             </div>
                         }
                     </div>
