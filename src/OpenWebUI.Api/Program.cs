@@ -35,6 +35,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
     }
 
     SchemaBootstrap.EnsureSchema(bootstrap);
+    SeedConnectionsFromEnv(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)
     {
@@ -125,6 +126,46 @@ app.Run();
 
 static void ConfigureDatabase(DbContextOptionsBuilder options, string connectionString) =>
     options.UseSqlite(connectionString);
+
+/// <summary>
+/// Semeia as conexões com provedores a partir de variáveis de ambiente (mesmos
+/// nomes do Open WebUI original) apenas na primeira execução — depois disso a
+/// configuração é gerenciada pela UI admin.
+/// </summary>
+static void SeedConnectionsFromEnv(AppDbContext db)
+{
+    if (db.ConfigEntries.Find("connections") is not null)
+    {
+        return;
+    }
+
+    var ollama = SplitEnvUrls(
+        Environment.GetEnvironmentVariable("OLLAMA_BASE_URLS")
+        ?? Environment.GetEnvironmentVariable("OLLAMA_BASE_URL"));
+    var openAi = SplitEnvUrls(
+        Environment.GetEnvironmentVariable("OPENAI_API_BASE_URLS")
+        ?? Environment.GetEnvironmentVariable("OPENAI_API_BASE_URL"));
+    var openAiKeys = SplitEnvUrls(
+        Environment.GetEnvironmentVariable("OPENAI_API_KEYS")
+        ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
+
+    if (ollama.Count == 0 && openAi.Count == 0)
+    {
+        return;
+    }
+
+    db.ConfigEntries.Add(new ConfigEntry
+    {
+        Key = "connections",
+        ValueJson = System.Text.Json.JsonSerializer.Serialize(
+            new ConnectionsConfig(ollama, openAi, openAiKeys)),
+        UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+    });
+    db.SaveChanges();
+}
+
+static List<string> SplitEnvUrls(string? value) =>
+    value?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
 
 static DbContextOptions<AppDbContext> CreateDbOptions(string connectionString)
 {

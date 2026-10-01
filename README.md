@@ -51,6 +51,17 @@ OpenAI são configuradas em **Configurações → Conexões** (somente admin).
 
 O segredo JWT é gerado automaticamente e persistido na tabela de configuração.
 
+## Docker
+
+```bash
+docker compose up -d        # app + Ollama em http://localhost:3000
+docker compose up -d --no-deps openwebui   # só o app
+```
+
+Dados (SQLite + uploads) ficam no volume `openwebui`. Conexões com
+provedores podem ser semeadas via `OLLAMA_BASE_URL`, `OPENAI_API_BASE_URLS`
+e `OPENAI_API_KEYS` (separadas por `;`) na primeira execução.
+
 ## Testar
 
 ```bash
