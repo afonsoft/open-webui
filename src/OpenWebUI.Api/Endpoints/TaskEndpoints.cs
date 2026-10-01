@@ -35,7 +35,8 @@ public static class TaskEndpoints
 
         if (title is null)
         {
-            return Results.Ok(new TaskTitleResponse("New Chat"));
+            // Sem título gerado: o cliente mantém o título digitado em vez de sobrescrever.
+            return Results.NotFound();
         }
 
         var cleaned = title.Trim().Trim('"', '\'', '`').Trim();
