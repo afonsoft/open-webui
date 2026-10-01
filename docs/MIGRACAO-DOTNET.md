@@ -64,7 +64,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Groups / RBAC granular                 | ✅ Migrado  | `Group`/`GroupMember` + flags workspace/sharing/chat      |
 | OAuth / LDAP / SAML / SCIM             | 🟡 Parcial  | OAuth (Google/GitHub/Microsoft/OIDC) + LDAP bind; SAML/SCIM pendentes |
 | Voice / STT / TTS / Call               | ⬜ Pendente |                                                           |
-| Image generation                       | ⬜ Pendente |                                                           |
+| Image generation                       | 🟡 Parcial  | OpenAI Images; botão na mensagem + config admin; sem ComfyUI/A1111 |
 | Code execution (Pyodide/Open Terminal) | 🟡 Parcial  | JS em Web Worker + Python via Pyodide WASM; botão Executar em blocos |
 | Socket.io / realtime multiusuário      | ⬜ Pendente | Avaliar SignalR                                           |
 | PWA / offline                          | ⬜ Pendente |                                                           |
