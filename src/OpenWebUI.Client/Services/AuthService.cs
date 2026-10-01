@@ -86,6 +86,50 @@ public class AuthService(HttpClient http, BrowserStorage storage)
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Consome o token do callback OAuth (?oauth_token=... na URL atual),
+    /// persistindo a sessão. Retorna erro OAuth, se presente.
+    /// </summary>
+    public async Task<string?> CompleteOAuthLoginAsync(string uri)
+    {
+        var query = uri.Contains('?', StringComparison.Ordinal)
+            ? uri[(uri.IndexOf('?', StringComparison.Ordinal) + 1)..]
+            : string.Empty;
+        string? token = null;
+        string? error = null;
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            var key = Uri.UnescapeDataString(parts[0]);
+            var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+            if (key == "oauth_token")
+            {
+                token = value;
+            }
+            else if (key == "oauth_error")
+            {
+                error = value;
+            }
+        }
+
+        if (error is not null)
+        {
+            return error == "pending"
+                ? "Conta criada — aguardando aprovação do administrador."
+                : "Falha na autenticação com o provedor.";
+        }
+
+        if (token is null)
+        {
+            return null;
+        }
+
+        _token = token;
+        await storage.SetAsync(TokenKey, token);
+        await RefreshUserAsync();
+        return IsAuthenticated ? null : "Falha ao carregar o usuário autenticado.";
+    }
+
     /// <summary>Cria uma requisição autenticada com o token da sessão.</summary>
     public HttpRequestMessage CreateRequest(HttpMethod method, string uri)
     {

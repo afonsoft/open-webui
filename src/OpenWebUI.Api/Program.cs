@@ -18,6 +18,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
+builder.Services.AddScoped<OAuthService>();
+builder.Services.AddScoped<PermissionService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -120,6 +122,8 @@ app.MapModelEndpoints();
 app.MapEvaluationEndpoints();
 app.MapTaskEndpoints();
 app.MapApiEndpoints();
+app.MapGroupEndpoints();
+app.MapOAuthEndpoints();
 
 app.MapFallbackToFile("index.html");
 

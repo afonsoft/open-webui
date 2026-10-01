@@ -47,7 +47,8 @@ public sealed record AppConfigResponse(
     string Version,
     string DefaultLocale,
     AppFeatures Features,
-    IReadOnlyList<string> DefaultPromptSuggestions);
+    IReadOnlyList<string> DefaultPromptSuggestions,
+    IReadOnlyList<string> OAuthProviders);
 
 /// <summary>Flags de funcionalidades expostas pelo /api/config.</summary>
 /// <param name="Auth">Se autenticação está ativa.</param>

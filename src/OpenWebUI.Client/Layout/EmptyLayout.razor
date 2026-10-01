@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject AuthService Auth
 @inject ThemeService Theme
+@inject NavigationManager Nav
 
 @Body
 
@@ -9,5 +10,6 @@
     {
         await Auth.InitializeAsync();
         await Theme.InitializeAsync();
+        await Auth.CompleteOAuthLoginAsync(Nav.Uri);
     }
 }

@@ -467,6 +467,32 @@ public class ApiService(HttpClient http, AuthService auth)
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
 
+    // ---------------- Grupos (RBAC) ----------------
+
+    /// <summary>Lista os grupos visíveis ao usuário (admin vê todos).</summary>
+    public async Task<List<GroupResponse>> GetGroupsAsync() =>
+        await SendAsync<List<GroupResponse>>(HttpMethod.Get, "/api/v1/groups") ?? [];
+
+    /// <summary>Cria um grupo (admin).</summary>
+    public Task<GroupResponse?> CreateGroupAsync(CreateGroupRequest request) =>
+        SendAsync<GroupResponse>(HttpMethod.Post, "/api/v1/groups", request);
+
+    /// <summary>Atualiza nome/descrição/permissões de um grupo.</summary>
+    public Task<GroupResponse?> UpdateGroupAsync(string id, UpdateGroupRequest request) =>
+        SendAsync<GroupResponse>(HttpMethod.Put, $"/api/v1/groups/{id}", request);
+
+    /// <summary>Exclui um grupo (admin).</summary>
+    public async Task<bool> DeleteGroupAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/groups/{id}");
+
+    /// <summary>Adiciona membros a um grupo.</summary>
+    public Task<GroupResponse?> AddGroupMembersAsync(string id, UpdateGroupMembersRequest request) =>
+        SendAsync<GroupResponse>(HttpMethod.Post, $"/api/v1/groups/{id}/members", request);
+
+    /// <summary>Remove um membro do grupo.</summary>
+    public async Task<bool> RemoveGroupMemberAsync(string id, string userId) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/groups/{id}/members/{userId}");
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
 }
 

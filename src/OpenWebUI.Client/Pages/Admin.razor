@@ -7,58 +7,119 @@
 <PageTitle>Administração — Open WebUI</PageTitle>
 
 <div class="page">
-    <h1 class="page-title">Administração — Usuários</h1>
+    <h1 class="page-title">Administração</h1>
     @if (!IsAdmin)
     {
         <div class="chat-error">Acesso restrito a administradores.</div>
     }
-    else if (_users is null)
-    {
-        <div class="sidebar-empty">Carregando…</div>
-    }
     else
     {
-        <div class="card-row">
-            <button class="auth-submit" @onclick="AddUserAsync">+ Novo usuário</button>
+        <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-800 pb-2">
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "users" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("users")'>Usuários</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("groups")'>Grupos</button>
         </div>
-        <div class="card-list">
-            @foreach (var user in _users)
+
+        @if (_tab == "users")
+        {
+            if (_users is null)
+            {
+                <div class="sidebar-empty">Carregando…</div>
+            }
+            else
             {
                 <div class="card-row">
-                    <div class="card-main">
-                        <div class="card-title">@user.Name <span class="role-badge role-@user.Role">@user.Role</span></div>
-                        <div class="card-sub">@user.Email · criado em @FormatDate(user.CreatedAt)</div>
-                    </div>
-                    <div class="card-actions">
-                        @if (user.Role == "pending")
-                        {
-                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>✅ Aprovar</button>
-                        }
-                        @if (user.Role == "user")
-                        {
-                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "admin")'>⬆ Tornar admin</button>
-                        }
-                        @if (user.Role == "admin" && user.Id != Auth.CurrentUser?.Id)
-                        {
-                            <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>⬇ Rebaixar</button>
-                        }
-                        @if (user.Id != Auth.CurrentUser?.Id)
-                        {
-                            <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
-                        }
-                    </div>
+                    <button class="auth-submit" @onclick="AddUserAsync">+ Novo usuário</button>
+                </div>
+                <div class="card-list">
+                    @foreach (var user in _users)
+                    {
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@user.Name <span class="role-badge role-@user.Role">@user.Role</span></div>
+                                <div class="card-sub">@user.Email · criado em @FormatDate(user.CreatedAt)</div>
+                            </div>
+                            <div class="card-actions">
+                                @if (user.Role == "pending")
+                                {
+                                    <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>✅ Aprovar</button>
+                                }
+                                @if (user.Role == "user")
+                                {
+                                    <button class="msg-action" @onclick='() => SetRoleAsync(user, "admin")'>⬆ Tornar admin</button>
+                                }
+                                @if (user.Role == "admin" && user.Id != Auth.CurrentUser?.Id)
+                                {
+                                    <button class="msg-action" @onclick='() => SetRoleAsync(user, "user")'>⬇ Rebaixar</button>
+                                }
+                                @if (user.Id != Auth.CurrentUser?.Id)
+                                {
+                                    <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (_users.Count == 0)
+                    {
+                        <div class="sidebar-empty">Nenhum usuário.</div>
+                    }
                 </div>
             }
-            @if (_users.Count == 0)
+        }
+        else
+        {
+            if (_groups is null)
             {
-                <div class="sidebar-empty">Nenhum usuário.</div>
+                <div class="sidebar-empty">Carregando…</div>
             }
-        </div>
+            else
+            {
+                <div class="card-row">
+                    <button class="auth-submit" @onclick="AddGroupAsync">+ Novo grupo</button>
+                </div>
+                <div class="card-list">
+                    @foreach (var group in _groups)
+                    {
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@group.Name</div>
+                                <div class="card-sub">
+                                    @(group.Description ?? "sem descrição") ·
+                                    @group.Members.Count membro(s) ·
+                                    sharing: @(group.Permissions.Sharing?.PublicChats == false ? "off" : "on") ·
+                                    prompts: @(group.Permissions.Workspace?.Prompts == false ? "off" : "on")
+                                </div>
+                                @if (group.Members.Count > 0)
+                                {
+                                    <div class="card-sub">
+                                        @string.Join(", ", group.Members.Select(m => m.Name))
+                                    </div>
+                                }
+                            </div>
+                            <div class="card-actions">
+                                <button class="msg-action" @onclick="() => AddMemberAsync(group)">+ Membro</button>
+                                <button class="msg-action" @onclick="() => ToggleSharingAsync(group)">
+                                    @(group.Permissions.Sharing?.PublicChats == false ? "🔓 Permitir share" : "🔒 Bloquear share")
+                                </button>
+                                <button class="msg-action danger" @onclick="() => DeleteGroupAsync(group)">🗑</button>
+                            </div>
+                        </div>
+                    }
+                    @if (_groups.Count == 0)
+                    {
+                        <div class="sidebar-empty">Nenhum grupo.</div>
+                    }
+                </div>
+            }
+        }
     }
 </div>
 
 @code {
     private List<AdminUserResponse>? _users;
+    private List<GroupResponse>? _groups;
+    private string _tab = "users";
 
     private bool IsAdmin => Auth.CurrentUser?.Role == "admin";
 
@@ -70,7 +131,10 @@
         }
 
         _users = await Api.GetUsersAsync();
+        _groups = await Api.GetGroupsAsync();
     }
+
+    private void SetTab(string tab) => _tab = tab;
 
     private async Task AddUserAsync()
     {
@@ -113,6 +177,72 @@
             && await Api.DeleteUserAsync(user.Id))
         {
             _users?.Remove(user);
+        }
+    }
+
+    private async Task AddGroupAsync()
+    {
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome do grupo:", "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var description = await JS.InvokeAsync<string?>("openwebui.prompt", "Descrição:", "");
+        var created = await Api.CreateGroupAsync(
+            new CreateGroupRequest(name, description, null));
+        if (created is not null)
+        {
+            _groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private async Task AddMemberAsync(GroupResponse group)
+    {
+        var email = await JS.InvokeAsync<string?>("openwebui.prompt", "E-mail do membro:", "");
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+
+        var target = _users?.FirstOrDefault(
+            u => u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            await JS.InvokeAsync<bool>("openwebui.confirm", "Usuário não encontrado.");
+            return;
+        }
+
+        var updated = await Api.AddGroupMembersAsync(group.Id,
+            new UpdateGroupMembersRequest([target.Id]));
+        if (updated is not null)
+        {
+            _groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private async Task ToggleSharingAsync(GroupResponse group)
+    {
+        var sharing = !(group.Permissions.Sharing?.PublicChats ?? true);
+        var permissions = (group.Permissions ?? GroupPermissions.Full) with
+        {
+            Sharing = new SharingPermissions(sharing),
+        };
+        var updated = await Api.UpdateGroupAsync(group.Id,
+            new UpdateGroupRequest(null, null, permissions));
+        if (updated is not null)
+        {
+            _groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private async Task DeleteGroupAsync(GroupResponse group)
+    {
+        if (await JS.InvokeAsync<bool>("openwebui.confirm",
+            $"Excluir o grupo \"{group.Name}\"?")
+            && await Api.DeleteGroupAsync(group.Id))
+        {
+            _groups?.Remove(group);
         }
     }
 
