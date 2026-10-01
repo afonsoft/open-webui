@@ -5,9 +5,10 @@
 @inject RealtimeService Realtime
 @inject MarkdownService Markdown
 @inject NavigationManager Nav
+@inject LocalizationService L
 @inject IJSRuntime JS
 
-<PageTitle>@(_channel?.Name ?? "Canal") — Open WebUI</PageTitle>
+<PageTitle>@(_channel?.Name ?? L["channel.title_default"]) — Open WebUI</PageTitle>
 
 <div class="flex flex-col flex-1 h-full w-full min-w-0">
     <div class="sticky top-0 z-30 w-full">
@@ -21,13 +22,13 @@
                 @if (_online.Count > 0)
                 {
                     <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="size-1.5 rounded-full bg-green-500"></span>@_online.Count online
+                        <span class="size-1.5 rounded-full bg-green-500"></span>@L.T("channel.online", ("count", _online.Count.ToString()))
                     </span>
                 }
                 @if (_channel?.MyRole == "admin" || Auth.CurrentUser?.Role == "admin")
                 {
                     <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
-                            title="Adicionar membro" @onclick="AddMemberAsync">
+                            title="@L["channel.add_member"]" @onclick="AddMemberAsync">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
                     </button>
                 }
@@ -40,7 +41,7 @@
             @if (_channel is null && _loaded)
             {
                 <div class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-                    Canal não encontrado ou você não é membro.
+                    @L["channel.not_found"]
                 </div>
             }
             else if (_messages.Count == 0 && _loaded)
@@ -48,7 +49,7 @@
                 <div class="py-16 text-center">
                     <div class="text-lg text-gray-700 dark:text-gray-200"># @_channel?.Name</div>
                     <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Comece a conversa — use @@modelo para invocar um modelo.
+                        @L["channel.start"]
                     </div>
                 </div>
             }
@@ -74,7 +75,7 @@
                     @if (_typing is not null)
                     {
                         <div class="text-xs italic text-gray-400 dark:text-gray-500">
-                            @_typing está digitando…
+                            @L.T("channel.typing", ("name", _typing ?? ""))
                         </div>
                     }
                 </div>
@@ -87,7 +88,7 @@
             <div class="flex items-end gap-2 rounded-3xl border border-gray-100 bg-white px-4 py-2.5 dark:border-gray-850 dark:bg-gray-900">
                 <textarea
                     class="max-h-40 flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
-                    rows="1" placeholder="Mensagem em #@(_channel?.Name ?? "canal") — @@modelo chama a IA"
+                    rows="1" placeholder="@L.T("channel.placeholder", ("name", _channel?.Name ?? "canal"))"
                     @bind="_draft" @bind:event="oninput" @onkeydown="OnKeyDown"
                     disabled="@(_channel is null)"></textarea>
                 <button
@@ -213,7 +214,7 @@
 
     private async Task AddMemberAsync()
     {
-        var email = await JS.InvokeAsync<string?>("prompt", "E-mail do usuário a adicionar:");
+        var email = await JS.InvokeAsync<string?>("prompt", L["channel.prompt_member"]);
         if (string.IsNullOrWhiteSpace(email))
         {
             return;

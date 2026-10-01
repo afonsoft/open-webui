@@ -4,7 +4,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Client.Services;
 
 /// <summary>Gerencia autenticação do usuário: login, cadastro, sessão e token JWT.</summary>
-public class AuthService(HttpClient http, BrowserStorage storage)
+public class AuthService(HttpClient http, BrowserStorage storage, LocalizationService l10n)
 {
     private const string TokenKey = "webui.token";
     private const string UserKey = "webui.user";
@@ -114,9 +114,7 @@ public class AuthService(HttpClient http, BrowserStorage storage)
 
         if (error is not null)
         {
-            return error == "pending"
-                ? "Conta criada — aguardando aprovação do administrador."
-                : "Falha na autenticação com o provedor.";
+            return l10n[error == "pending" ? "auth.error_pending" : "auth.error_provider"];
         }
 
         if (token is null)
@@ -127,7 +125,7 @@ public class AuthService(HttpClient http, BrowserStorage storage)
         _token = token;
         await storage.SetAsync(TokenKey, token);
         await RefreshUserAsync();
-        return IsAuthenticated ? null : "Falha ao carregar o usuário autenticado.";
+        return IsAuthenticated ? null : l10n["auth.error_load_user"];
     }
 
     /// <summary>Cria uma requisição autenticada com o token da sessão.</summary>
@@ -162,18 +160,18 @@ public class AuthService(HttpClient http, BrowserStorage storage)
             {
                 var node = System.Text.Json.Nodes.JsonNode.Parse(
                     await response.Content.ReadAsStringAsync());
-                return node?["detail"]?.GetValue<string>() ?? "Falha na autenticação.";
+                return node?["detail"]?.GetValue<string>() ?? l10n["auth.error_failed"];
             }
             catch (System.Text.Json.JsonException)
             {
-                return "Falha na autenticação.";
+                return l10n["auth.error_failed"];
             }
         }
 
         var auth = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
         if (auth is null)
         {
-            return "Resposta inválida do servidor.";
+            return l10n["auth.error_invalid"];
         }
 
         _token = auth.Token;

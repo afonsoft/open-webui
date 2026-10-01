@@ -7,6 +7,7 @@
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject LocalizationService L
 
 <PageTitle>Workspace — Open WebUI</PageTitle>
 
@@ -14,13 +15,13 @@
     <h1 class="page-title">Workspace</h1>
     <div class="page-tabs">
         <button class="modal-tab @(Section == "prompts" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/prompts")'>Prompts</button>
+                @onclick='() => Nav.NavigateTo("/workspace/prompts")'>@L["workspace.prompts"]</button>
         <button class="modal-tab @(Section == "models" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/models")'>Modelos</button>
+                @onclick='() => Nav.NavigateTo("/workspace/models")'>@L["workspace.models"]</button>
         <button class="modal-tab @(Section == "files" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/files")'>Arquivos</button>
+                @onclick='() => Nav.NavigateTo("/workspace/files")'>@L["workspace.files"]</button>
         <button class="modal-tab @(Section == "knowledge" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>Knowledge</button>
+                @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>@L["workspace.knowledge"]</button>
         <button class="modal-tab @(Section == "tools" ? "active" : "")"
                 @onclick='() => Nav.NavigateTo("/workspace/tools")'>Tools</button>
     </div>
@@ -29,19 +30,19 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewModel">+ Novo modelo</button>
+                <button class="auth-submit" @onclick="NewModel">@L["workspace.new_model"]</button>
             </div>
             @foreach (var model in _models)
             {
                 <div class="card-row">
                     <div class="card-main">
-                        <div class="card-title">@model.Name @(model.IsActive ? "" : "(inativo)")</div>
+                        <div class="card-title">@model.Name @(model.IsActive ? "" : L["workspace.inactive"])</div>
                         <div class="card-sub">Base: @model.BaseModelId</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => EditModel(model)">✏️ Editar</button>
+                        <button class="msg-action" @onclick="() => EditModel(model)">@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
-                            @(model.IsActive ? "🙈 Ocultar" : "👁 Ativar")
+                            @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
                         </button>
                         <button class="msg-action danger" @onclick="() => DeleteModelAsync(model)">🗑</button>
                     </div>
@@ -49,7 +50,7 @@
             }
             @if (_models.Count == 0)
             {
-                <div class="sidebar-empty">Nenhum modelo personalizado.</div>
+                <div class="sidebar-empty">@L["workspace.no_models"]</div>
             }
         </div>
     }
@@ -70,7 +71,7 @@
             }
             @if (_files.Count == 0)
             {
-                <div class="sidebar-empty">Nenhum arquivo enviado. Anexe arquivos em uma conversa.</div>
+                <div class="sidebar-empty">@L["workspace.no_files"]</div>
             }
         </div>
     }
@@ -78,14 +79,14 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewKnowledgeAsync">+ Nova coleção</button>
+                <button class="auth-submit" @onclick="NewKnowledgeAsync">@L["workspace.new_collection"]</button>
             </div>
             @foreach (var item in _knowledge)
             {
                 <div class="card-row">
                     <div class="card-main">
                         <div class="card-title"># @item.Name</div>
-                        <div class="card-sub">@item.FileCount arquivo(s) — @(item.Description ?? "sem descrição")</div>
+                        <div class="card-sub">@L.T("workspace.file_count", ("count", item.FileCount.ToString())) — @(item.Description ?? L["admin.no_description"])</div>
                         @if (_knowledgeDetail?.Id == item.Id)
                         {
                             <div class="card-sub">
@@ -97,7 +98,7 @@
                                 }
                                 @if (_knowledgeDetail.Files.Count == 0)
                                 {
-                                    <div>Nenhum arquivo ainda.</div>
+                                    <div>@L["workspace.no_files_yet"]</div>
                                 }
                             </div>
                         }
@@ -106,14 +107,14 @@
                         <button class="msg-action" @onclick="() => ToggleKnowledgeDetailAsync(item)">
                             @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
                         </button>
-                        <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">+ arquivo</button>
+                        <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">@L["workspace.add_file"]</button>
                         <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
                     </div>
                 </div>
             }
             @if (_knowledge.Count == 0)
             {
-                <div class="sidebar-empty">Nenhuma coleção. Use #nome no chat para injetar contexto.</div>
+                <div class="sidebar-empty">@L["workspace.no_collections"]</div>
             }
         </div>
     }
@@ -121,18 +122,18 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewTool">+ Nova tool</button>
+                <button class="auth-submit" @onclick="NewTool">@L["workspace.new_tool"]</button>
             </div>
             @foreach (var tool in _tools)
             {
                 <div class="card-row">
                     <div class="card-main">
-                        <div class="card-title">@tool.Name @(tool.Enabled ? "" : "(desabilitada)")</div>
+                        <div class="card-title">@tool.Name @(tool.Enabled ? "" : L["workspace.disabled"])</div>
                         <div class="card-sub">@tool.Description</div>
                     </div>
                     <div class="card-actions">
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
-                            @(tool.Enabled ? "⏸ Desabilitar" : "▶ Habilitar")
+                            @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
                         </button>
                         <button class="msg-action danger" @onclick="() => DeleteToolAsync(tool)">🗑</button>
                     </div>
@@ -140,7 +141,7 @@
             }
             @if (_tools.Count == 0)
             {
-                <div class="sidebar-empty">Nenhuma tool. Tools são endpoints HTTP que o modelo invoca via function calling.</div>
+                <div class="sidebar-empty">@L["workspace.no_tools"]</div>
             }
         </div>
     }
@@ -148,7 +149,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewPrompt">+ Novo prompt</button>
+                <button class="auth-submit" @onclick="NewPrompt">@L["workspace.new_prompt"]</button>
             </div>
             @foreach (var prompt in _prompts)
             {
@@ -158,14 +159,14 @@
                         <div class="card-sub card-pre">@prompt.Content</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => EditPrompt(prompt)">✏️ Editar</button>
+                        <button class="msg-action" @onclick="() => EditPrompt(prompt)">@L["common.edit"]</button>
                         <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
                 </div>
             }
             @if (_prompts.Count == 0)
             {
-                <div class="sidebar-empty">Nenhum prompt. Crie atalhos para instruções frequentes.</div>
+                <div class="sidebar-empty">@L["workspace.no_prompts"]</div>
             }
         </div>
     }
@@ -196,7 +197,7 @@
 
     private async Task NewKnowledgeAsync()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da coleção:", "");
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_collection_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -219,7 +220,7 @@
     {
         var names = string.Join("\n", _files.Select(f => $"- {f.Filename}"));
         var filename = await JS.InvokeAsync<string?>("openwebui.prompt",
-            $"Nome do arquivo a adicionar:\n{names}", "");
+            $"{L["workspace.prompt_file_name"]}\n{names}", "");
         var file = _files.FirstOrDefault(f =>
             f.Filename.Equals(filename?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (file is null)
@@ -258,14 +259,14 @@
 
     private async Task NewPrompt()
     {
-        var command = await JS.InvokeAsync<string?>("openwebui.prompt", "Comando (sem /):", "");
+        var command = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_command"], "");
         if (string.IsNullOrWhiteSpace(command))
         {
             return;
         }
 
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Título:", "");
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", "Conteúdo do prompt:", "");
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", "");
+        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_content"], "");
         if (string.IsNullOrWhiteSpace(content))
         {
             return;
@@ -281,8 +282,8 @@
 
     private async Task EditPrompt(PromptResponse prompt)
     {
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Título:", prompt.Title);
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", "Conteúdo:", prompt.Content);
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", prompt.Title);
+        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.content"] + ":", prompt.Content);
         if (string.IsNullOrWhiteSpace(content))
         {
             return;
@@ -302,7 +303,7 @@
 
     private async Task DeletePromptAsync(PromptResponse prompt)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir prompt /{prompt.Command}?")
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_prompt", ("command", prompt.Command)))
             && await Api.DeletePromptAsync(prompt.Id))
         {
             _prompts.Remove(prompt);
@@ -311,21 +312,21 @@
 
     private async Task NewModel()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome do modelo:", "");
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_model_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
         var baseModel = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "Modelo base (ex.: llama3.2):", "");
+            "openwebui.prompt", L["workspace.prompt_base_model"], "");
         if (string.IsNullOrWhiteSpace(baseModel))
         {
             return;
         }
 
         var systemPrompt = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "System prompt (opcional):", "");
+            "openwebui.prompt", L["workspace.prompt_system"], "");
 
         var created = await Api.CreateCustomModelAsync(
             new ModelEntryUpsertRequest(name.Trim(), baseModel.Trim(), systemPrompt, null, null));
@@ -337,9 +338,9 @@
 
     private async Task EditModel(ModelEntryResponse model)
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome:", model.Name);
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.name"] + ":", model.Name);
         var systemPrompt = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "System prompt:", model.SystemPrompt ?? "");
+            "openwebui.prompt", L["workspace.prompt_system_plain"], model.SystemPrompt ?? "");
 
         var updated = await Api.UpdateCustomModelAsync(model.Id,
             new ModelEntryUpsertRequest(name ?? model.Name, model.BaseModelId,
@@ -369,7 +370,7 @@
 
     private async Task DeleteModelAsync(ModelEntryResponse model)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir modelo \"{model.Name}\"?")
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_model", ("name", model.Name)))
             && await Api.DeleteCustomModelAsync(model.Id))
         {
             _models.Remove(model);
@@ -378,7 +379,7 @@
 
     private async Task DeleteFileAsync(FileResponse file)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir \"{file.Filename}\"?")
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", file.Filename)))
             && await Api.DeleteFileAsync(file.Id))
         {
             _files.Remove(file);
@@ -390,25 +391,25 @@
 
     private async Task NewTool()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da tool:", "");
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_tool_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
         var url = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "URL de execução (HTTP POST):", "");
+            "openwebui.prompt", L["workspace.prompt_tool_url"], "");
         if (string.IsNullOrWhiteSpace(url))
         {
             return;
         }
         var spec = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "Spec JSON da função (formato OpenAI):", DefaultSpec);
+            "openwebui.prompt", L["workspace.prompt_tool_spec"], DefaultSpec);
         if (string.IsNullOrWhiteSpace(spec))
         {
             return;
         }
         var description = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", "Descrição (opcional):", "");
+            "openwebui.prompt", L["workspace.prompt_tool_desc"], "");
 
         var created = await Api.CreateToolAsync(
             new ToolUpsertRequest(name.Trim(), description, spec, url.Trim()));
@@ -434,7 +435,7 @@
 
     private async Task DeleteToolAsync(ToolResponse tool)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir tool \"{tool.Name}\"?")
+        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_tool", ("name", tool.Name)))
             && await Api.DeleteToolAsync(tool.Id))
         {
             _tools.Remove(tool);

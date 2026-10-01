@@ -1,6 +1,7 @@
 @* Gráfico de barras SVG simples para séries DayCount (analytics). *@
+@inject LocalizationService L
 
-<svg viewBox="0 0 @(Width) @(Height)" class="w-full h-24 text-gray-400 dark:text-gray-500" role="img" aria-label="Gráfico de barras">
+<svg viewBox="0 0 @(Width) @(Height)" class="w-full h-24 text-gray-400 dark:text-gray-500" role="img" aria-label="@L["admin.chart"]">
     @foreach (var bar in Bars)
     {
         <rect x="@bar.X" y="@bar.Y" width="@bar.W" height="@bar.H" rx="1"
