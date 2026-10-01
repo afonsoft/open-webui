@@ -1,19 +1,20 @@
 @page "/archived"
 @inject ApiService Api
 @inject ChatListState ChatList
+@inject LocalizationService L
 @inject IJSRuntime JS
 
-<PageTitle>Arquivadas — Open WebUI</PageTitle>
+<PageTitle>@L["page.archived"] — Open WebUI</PageTitle>
 
 <div class="page">
-    <h1 class="page-title">Conversas arquivadas</h1>
+    <h1 class="page-title">@L["archived.title"]</h1>
     @if (_chats is null)
     {
-        <div class="sidebar-empty">Carregando…</div>
+        <div class="sidebar-empty">@L["common.loading"]</div>
     }
     else if (_chats.Count == 0)
     {
-        <div class="sidebar-empty">Nenhuma conversa arquivada.</div>
+        <div class="sidebar-empty">@L["archived.empty"]</div>
     }
     else
     {
@@ -23,11 +24,11 @@
                 <div class="card-row">
                     <div class="card-main">
                         <div class="card-title">@chat.Title</div>
-                        <div class="card-sub">Atualizada em @FormatDate(chat.UpdatedAt)</div>
+                        <div class="card-sub">@L.T("archived.updated", ("date", FormatDate(chat.UpdatedAt)))</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => UnarchiveAsync(chat)">📤 Desarquivar</button>
-                        <button class="msg-action danger" @onclick="() => DeleteAsync(chat)">🗑 Excluir</button>
+                        <button class="msg-action" @onclick="() => UnarchiveAsync(chat)">@L["archived.unarchive"]</button>
+                        <button class="msg-action danger" @onclick="() => DeleteAsync(chat)">@L["archived.delete"]</button>
                     </div>
                 </div>
             }
@@ -52,7 +53,7 @@
 
     private async Task DeleteAsync(ChatSummaryResponse chat)
     {
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir \"{chat.Title}\" definitivamente?"))
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("archived.confirm_delete", ("name", chat.Title))))
         {
             return;
         }

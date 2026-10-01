@@ -1,6 +1,7 @@
 @inject ApiService Api
 @inject AuthService Auth
 @inject ThemeService Theme
+@inject LocalizationService L
 @inject IJSRuntime JS
 
 @if (IsOpen)
@@ -8,79 +9,88 @@
     <div class="modal-backdrop" @onclick="Close">
         <div class="modal" @onclick:stopPropagation>
             <div class="modal-header">
-                <span>Configurações</span>
+                <span>@L["settings.title"]</span>
                 <button class="icon-btn" @onclick="Close">×</button>
             </div>
 
             <div class="modal-tabs">
-                <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>Geral</button>
-                <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>Conta</button>
-                <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>Memórias</button>
+                <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
+                <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
+                <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
                 @if (Auth.CurrentUser?.Role == "admin")
                 {
-                    <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>Conexões</button>
-                    <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>Admin</button>
+                    <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
+                    <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>@L["settings.admin"]</button>
                 }
-                <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>Sobre</button>
+                <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>@L["settings.about"]</button>
             </div>
 
             <div class="modal-body">
                 @if (_tab == "general")
                 {
                     <div class="field">
-                        <label>Tema</label>
+                        <label>@L["settings.theme"]</label>
                         <select class="input" value="@Theme.Current" @onchange="OnThemeChanged">
-                            <option value="dark">Escuro</option>
-                            <option value="light">Claro</option>
+                            <option value="dark">@L["settings.theme_dark"]</option>
+                            <option value="light">@L["settings.theme_light"]</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>@L["settings.language"]</label>
+                        <select class="input" value="@L.Language" @onchange="OnLanguageChanged">
+                            @foreach (var (lang, display) in LocalizationService.Languages)
+                            {
+                                <option value="@lang">@display</option>
+                            }
                         </select>
                     </div>
                 }
                 else if (_tab == "account")
                 {
                     <div class="field">
-                        <label>Nome</label>
+                        <label>@L["common.name"]</label>
                         <input class="input" @bind="_name" />
                     </div>
                     <div class="field">
-                        <label>URL da imagem de perfil</label>
+                        <label>@L["settings.profile_url"]</label>
                         <input class="input" @bind="_profileImage" placeholder="https://…" />
                     </div>
-                    <button class="auth-submit" @onclick="SaveProfileAsync">Salvar perfil</button>
+                    <button class="auth-submit" @onclick="SaveProfileAsync">@L["settings.save_profile"]</button>
 
                     <hr class="modal-sep" />
 
                     <div class="field">
-                        <label>Senha atual</label>
+                        <label>@L["settings.current_password"]</label>
                         <input class="input" type="password" @bind="_currentPassword" />
                     </div>
                     <div class="field">
-                        <label>Nova senha</label>
+                        <label>@L["settings.new_password"]</label>
                         <input class="input" type="password" @bind="_newPassword" />
                     </div>
-                    <button class="auth-submit" @onclick="ChangePasswordAsync">Alterar senha</button>
+                    <button class="auth-submit" @onclick="ChangePasswordAsync">@L["settings.change_password"]</button>
 
                     <hr class="modal-sep" />
 
                     <div class="field">
-                        <label>Chave de API</label>
+                        <label>@L["settings.api_key"]</label>
                         @if (_apiKeyCreated is not null)
                         {
                             <input class="input" readonly value="@_apiKeyCreated" />
-                            <div class="field-note">Copie agora — a chave não será exibida novamente.</div>
+                            <div class="field-note">@L["settings.api_key_copy_now"]</div>
                         }
                         else if (_apiKeyInfo is not null)
                         {
-                            <div class="field-note">Chave ativa desde @FormatDate(_apiKeyInfo.CreatedAt)</div>
+                            <div class="field-note">@L.T("settings.api_key_active_since", ("date", FormatDate(_apiKeyInfo.CreatedAt)))</div>
                         }
                         else
                         {
-                            <div class="field-note">Nenhuma chave gerada.</div>
+                            <div class="field-note">@L["settings.api_key_none"]</div>
                         }
                         <div class="field-actions">
-                            <button class="msg-action" @onclick="CreateApiKeyAsync">Gerar nova chave</button>
+                            <button class="msg-action" @onclick="CreateApiKeyAsync">@L["settings.generate_key"]</button>
                             @if (_apiKeyInfo is not null || _apiKeyCreated is not null)
                             {
-                                <button class="msg-action" @onclick="RevokeApiKeyAsync">Revogar</button>
+                                <button class="msg-action" @onclick="RevokeApiKeyAsync">@L["settings.revoke"]</button>
                             }
                         </div>
                     </div>
@@ -93,10 +103,10 @@
                 else if (_tab == "memories")
                 {
                     <div class="field">
-                        <label>Memórias lembradas entre conversas</label>
+                        <label>@L["settings.memories_label"]</label>
                         @if (_memories.Count == 0)
                         {
-                            <div class="field-note">Nenhuma memória.</div>
+                            <div class="field-note">@L["settings.memories_empty"]</div>
                         }
                         @foreach (var memory in _memories)
                         {
@@ -107,76 +117,76 @@
                         }
                     </div>
                     <div class="field">
-                        <label>Adicionar memória</label>
-                        <input class="input" @bind="_newMemory" placeholder="Ex.: Prefiro respostas em português" />
+                        <label>@L["settings.add_memory"]</label>
+                        <input class="input" @bind="_newMemory" placeholder="@L["settings.add_memory_placeholder"]" />
                     </div>
                     <button class="auth-submit" disabled="@string.IsNullOrWhiteSpace(_newMemory)"
-                            @onclick="AddMemoryAsync">Adicionar</button>
+                            @onclick="AddMemoryAsync">@L["settings.add"]</button>
                 }
                 else if (_tab == "connections")
                 {
                     @if (_connections is null)
                     {
-                        <div>Carregando…</div>
+                        <div>@L["common.loading"]</div>
                     }
                     else
                     {
                         <div class="field">
-                            <label>URLs do Ollama (uma por linha)</label>
+                            <label>@L["settings.ollama_urls"]</label>
                             <textarea class="input" rows="2" @bind="_ollamaUrls"></textarea>
                         </div>
                         <div class="field">
-                            <label>URLs OpenAI (uma por linha)</label>
+                            <label>@L["settings.openai_urls"]</label>
                             <textarea class="input" rows="2" @bind="_openAiUrls"></textarea>
                         </div>
                         <div class="field">
-                            <label>Chaves de API OpenAI (uma por linha, na mesma ordem)</label>
-                            <textarea class="input" rows="2" @bind="_openAiKeys" placeholder="••• deixe vazio para manter"></textarea>
+                            <label>@L["settings.openai_keys"]</label>
+                            <textarea class="input" rows="2" @bind="_openAiKeys" placeholder="@L["settings.keys_keep"]"></textarea>
                         </div>
                         @if (_saveMessage is not null)
                         {
                             <div class="field-note">@_saveMessage</div>
                         }
-                        <button class="auth-submit" @onclick="SaveConnectionsAsync">Salvar</button>
+                        <button class="auth-submit" @onclick="SaveConnectionsAsync">@L["common.save"]</button>
                     }
                 }
                 else if (_tab == "admin")
                 {
                     @if (!_adminLoaded)
                     {
-                        <div>Carregando…</div>
+                        <div>@L["common.loading"]</div>
                     }
                     else
                     {
                         <div class="field">
-                            <label>Nome da instância</label>
+                            <label>@L["settings.instance_name"]</label>
                             <input class="input" @bind="_adminWebUiName" />
                         </div>
                         <div class="field">
-                            <label>Papel padrão de novos usuários</label>
+                            <label>@L["settings.default_role"]</label>
                             <select class="input" @bind="_adminDefaultRole">
-                                <option value="pending">Pendente (requer aprovação)</option>
-                                <option value="user">Usuário</option>
-                                <option value="admin">Admin</option>
+                                <option value="pending">@L["settings.role_pending"]</option>
+                                <option value="user">@L["settings.role_user"]</option>
+                                <option value="admin">@L["settings.role_admin"]</option>
                             </select>
                         </div>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableSignup" /> Permitir cadastro</label>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableLoginForm" /> Permitir login com senha</label>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableApiKeys" /> Permitir chaves de API</label>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableRating" /> Avaliação de mensagens</label>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableFolders" /> Pastas de conversas</label>
-                        <label class="check"><input type="checkbox" @bind="_adminEnableMemories" /> Memórias do usuário</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableSignup" /> @L["settings.allow_signup"]</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableLoginForm" /> @L["settings.allow_password_login"]</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableApiKeys" /> @L["settings.allow_api_keys"]</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableRating" /> @L["settings.enable_rating"]</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableFolders" /> @L["settings.enable_folders"]</label>
+                        <label class="check"><input type="checkbox" @bind="_adminEnableMemories" /> @L["settings.enable_memories"]</label>
                         @if (_adminMessage is not null)
                         {
                             <div class="field-note">@_adminMessage</div>
                         }
-                        <button class="auth-submit" @onclick="SaveAdminAsync">Salvar</button>
+                        <button class="auth-submit" @onclick="SaveAdminAsync">@L["common.save"]</button>
                     }
                 }
                 else
                 {
                     <div class="field">
-                        <label>Versão do backend</label>
+                        <label>@L["settings.backend_version"]</label>
                         <div>@(_version ?? "…")</div>
                     </div>
                     <div class="field">
@@ -273,24 +283,32 @@
         }
     }
 
+    private async Task OnLanguageChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string language)
+        {
+            await L.SetLanguageAsync(language);
+        }
+    }
+
     private async Task SaveProfileAsync()
     {
         var user = await Api.UpdateProfileAsync(_name.Trim(), _profileImage.Trim());
         if (user is not null)
         {
             await Auth.RefreshUserAsync();
-            _accountMessage = "Perfil atualizado.";
+            _accountMessage = L["settings.profile_saved"];
         }
         else
         {
-            _accountMessage = "Falha ao atualizar o perfil.";
+            _accountMessage = L["settings.profile_failed"];
         }
     }
 
     private async Task ChangePasswordAsync()
     {
         var ok = await Api.UpdatePasswordAsync(_currentPassword, _newPassword);
-        _accountMessage = ok ? "Senha alterada." : "Falha ao alterar a senha (verifique a senha atual).";
+        _accountMessage = ok ? L["settings.password_changed"] : L["settings.password_failed"];
         _currentPassword = string.Empty;
         _newPassword = string.Empty;
     }
@@ -340,7 +358,7 @@
 
         var result = await Api.UpdateConnectionsAsync(
             new ConnectionsConfig(ollama, openAi, keys));
-        _saveMessage = result is null ? "Falha ao salvar." : "Configurações salvas.";
+        _saveMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
         _connections = result;
     }
 
@@ -355,7 +373,7 @@
             _adminEnableFolders,
             _adminEnableMemories,
             _adminWebUiName.Trim()));
-        _adminMessage = result is null ? "Falha ao salvar." : "Configurações administrativas salvas.";
+        _adminMessage = result is null ? L["settings.save_failed"] : L["settings.admin_saved"];
     }
 
     private static string FormatDate(long unixSeconds) =>

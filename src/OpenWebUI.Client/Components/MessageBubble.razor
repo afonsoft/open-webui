@@ -1,5 +1,6 @@
 @inject MarkdownService Markdown
 @inject ApiService Api
+@inject LocalizationService L
 @inject IJSRuntime JS
 
 <div class="group w-full flex gap-3 @(Message.Role == "user" ? "justify-end" : "")">
@@ -12,7 +13,7 @@
 
     <div class="flex flex-col min-w-0 @(Message.Role == "user" ? "items-end max-w-[85%]" : "flex-1")">
         <div class="text-[0.8125rem] font-medium text-gray-500 dark:text-gray-400 mb-0.5 @(Message.Role == "user" ? "text-right" : "")">
-            @(Message.Role == "assistant" ? Message.Model ?? "Assistente" : "Você")
+            @(Message.Role == "assistant" ? Message.Model ?? L["chat.assistant"] : L["chat.you"])
         </div>
 
         <div @ref="_contentRef" class="@(Message.Role == "user"
@@ -43,28 +44,28 @@
         {
             <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
                 <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                        title="Copiar" @onclick="CopyAsync">
+                        title="@L["chat.copy"]" @onclick="CopyAsync">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5" /></svg>
                 </button>
                 @if (Message.Role == "assistant")
                 {
                     <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                            title="Boa resposta" @onclick="() => OnRate.InvokeAsync(1)">
+                            title="@L["chat.good_response"]" @onclick="() => OnRate.InvokeAsync(1)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V3a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.25m6.01-9.007a48.5 48.5 0 0 0-1.01.01m0 0v-.019a2.25 2.25 0 0 1-2.25-2.25" transform="scale(-1,1) translate(-24,0)" /></svg>
                     </button>
                     <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                            title="Resposta ruim" @onclick="() => OnRate.InvokeAsync(-1)">
+                            title="@L["chat.bad_response"]" @onclick="() => OnRate.InvokeAsync(-1)">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 rotate-180"><path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V3a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.25m6.01-9.007a48.5 48.5 0 0 0-1.01.01m0 0v-.019a2.25 2.25 0 0 1-2.25-2.25" /></svg>
                     </button>
                     <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                            title="Regenerar" @onclick="() => OnRegenerate.InvokeAsync()">
+                            title="@L["chat.regenerate"]" @onclick="() => OnRegenerate.InvokeAsync()">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                     </button>
                 }
                 else
                 {
                     <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                            title="Editar" @onclick="() => OnEdit.InvokeAsync()">
+                            title="@L["chat.edit"]" @onclick="() => OnEdit.InvokeAsync()">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                     </button>
                 }

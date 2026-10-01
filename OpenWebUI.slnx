@@ -8,5 +8,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/OpenWebUI.Api.Tests/OpenWebUI.Api.Tests.csproj" />
+    <Project Path="tests/OpenWebUI.Client.Tests/OpenWebUI.Client.Tests.csproj" />
   </Folder>
 </Solution>

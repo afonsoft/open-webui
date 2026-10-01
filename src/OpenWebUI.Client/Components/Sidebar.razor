@@ -2,6 +2,7 @@
 @inject AuthService Auth
 @inject NavigationManager Nav
 @inject ChatListState ChatList
+@inject LocalizationService L
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -10,14 +11,14 @@
     @* Rail fina quando a sidebar está recolhida, como no upstream *@
     <div class="w-[42px] shrink-0 py-1 px-1 flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
         <div class="flex flex-col flex-1 items-center">
-            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="Nova conversa" @onclick="NewChat">
+            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" @onclick="NewChat">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
             </button>
         </div>
         <div class="flex justify-center items-center">
-            <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="Abrir barra lateral" @onclick="() => _collapsed = false">
+            <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </div>
@@ -29,7 +30,7 @@ else
 {
     <div class="my-auto flex flex-col justify-between h-screen max-h-[100dvh] w-[260px] shrink-0 overflow-x-hidden scrollbar-hidden z-50 border-e border-gray-50 dark:border-gray-850/30">
         <div class="px-1 pt-1.5 pb-1 flex justify-between space-x-1 text-gray-600 dark:text-gray-400 sticky top-0 z-10 -mb-2">
-            <button class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" @onclick="NewChat" aria-label="Nova conversa">
+            <button class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" @onclick="NewChat" aria-label="@L["sidebar.new_chat"]">
                 <img src="favicon.png" class="size-5 rounded-full" alt="" />
             </button>
 
@@ -38,7 +39,7 @@ else
             </button>
 
             <button class="flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
-                    title="Recolher barra lateral" @onclick="() => _collapsed = true">
+                    title="@L["sidebar.collapse"]" @onclick="() => _collapsed = true">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
             </button>
         </div>
@@ -47,12 +48,12 @@ else
             <div class="pb-1">
                 <div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
                     <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none cursor-pointer"
-                            @onclick="NewChat" aria-label="Nova conversa">
+                            @onclick="NewChat" aria-label="@L["sidebar.new_chat"]">
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" /></svg>
                         </div>
                         <div class="flex flex-1 self-center translate-y-[0.5px]">
-                            <div class="self-center text-[0.8125rem] leading-5">Nova conversa</div>
+                            <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.new_chat"]</div>
                         </div>
                     </button>
                 </div>
@@ -62,7 +63,7 @@ else
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         </div>
-                        <input type="text" placeholder="Buscar"
+                        <input type="text" placeholder="@L["sidebar.search"]"
                                class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0"
                                @bind="_query" @bind:event="oninput" />
                     </div>
@@ -73,9 +74,9 @@ else
             {
                 <div>
                     <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
-                        <span>Canais</span>
+                        <span>@L["sidebar.channels"]</span>
                         <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                title="Criar canal" @onclick="CreateChannelAsync">+</button>
+                                title="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
                     </div>
                     <div class="flex flex-col">
                         @foreach (var channel in _channels)
@@ -94,7 +95,7 @@ else
             @if (_pinned.Count > 0)
             {
                 <div>
-                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">Fixados</div>
+                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">@L["sidebar.pinned"]</div>
                     <div class="flex flex-col">
                         @foreach (var chat in _pinned)
                         {
@@ -113,7 +114,7 @@ else
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                             @folder.Name
                         </span>
-                        <span class="text-gray-400 hover:text-red-500 px-1" title="Excluir pasta"
+                        <span class="text-gray-400 hover:text-red-500 px-1" title="@L["sidebar.delete_folder"]"
                               @onclick="() => DeleteFolderAsync(folder)" @onclick:stopPropagation>×</span>
                     </button>
                     @if (folder.Expanded)
@@ -131,13 +132,13 @@ else
             @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
             {
                 <div class="px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600">
-                    @(string.IsNullOrEmpty(_query) ? "Nenhuma conversa ainda" : "Nenhum resultado")
+                    @(string.IsNullOrEmpty(_query) ? L["sidebar.empty"] : L["sidebar.no_results"])
                 </div>
             }
             else if (FilteredChats.Count > 0)
             {
                 <div>
-                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">Conversas</div>
+                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">@L["sidebar.chats"]</div>
                     <div class="flex flex-col">
                         @foreach (var chat in FilteredChats)
                         {
@@ -162,7 +163,7 @@ else
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                     </div>
-                    <div class="self-center text-[0.8125rem] leading-5">Notas</div>
+                    <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.notes"]</div>
                 </button>
                 @if (Auth.CurrentUser?.Role == "admin")
                 {
@@ -171,7 +172,7 @@ else
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         </div>
-                        <div class="self-center text-[0.8125rem] leading-5">Administração</div>
+                        <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.admin"]</div>
                     </button>
                 }
             </div>
@@ -194,16 +195,16 @@ else
                         <div class="absolute bottom-full left-0 mb-1 z-50 w-full min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1">
                             <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
                                     @onclick="OpenSettingsAndClose">
-                                Configurações
+                                @L["sidebar.settings"]
                             </button>
                             <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
                                     @onclick='() => { _userMenuOpen = false; Nav.NavigateTo("/archived"); }'>
-                                Arquivadas
+                                @L["sidebar.archived"]
                             </button>
                             <hr class="border-gray-100 dark:border-gray-800 my-1" />
                             <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
                                     @onclick="SignOutAsync">
-                                Sair
+                                @L["sidebar.sign_out"]
                             </button>
                         </div>
                     }
@@ -218,24 +219,24 @@ else
     <div class="fixed inset-0 z-40" @onclick="CloseMenu"></div>
     <div class="fixed z-50 min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
          style="left: 280px; top: 30%;">
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? "Desafixar" : "Fixar")</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">Renomear</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">Clonar</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">Compartilhar</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">Arquivar</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? L["sidebar.unpin"] : L["sidebar.pin"])</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">@L["sidebar.rename"]</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">@L["sidebar.clone"]</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">@L["sidebar.share"]</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">@L["sidebar.archive"]</button>
         @if (_folders.Count > 0)
         {
             <hr class="border-gray-100 dark:border-gray-800 my-1" />
-            <div class="px-2.5 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">Mover para</div>
+            <div class="px-2.5 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["sidebar.move_to"]</div>
             @foreach (var folder in _folders)
             {
                 <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
             }
-            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">Remover da pasta</button>
+            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">@L["sidebar.remove_from_folder"]</button>
         }
         <hr class="border-gray-100 dark:border-gray-800 my-1" />
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">Nova pasta</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">Excluir</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">@L["sidebar.new_folder"]</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">@L["common.delete"]</button>
     </div>
 }
 
@@ -244,16 +245,16 @@ else
     <div class="fixed inset-0 z-50 bg-gray-900/40 dark:bg-gray-950/60 flex items-center justify-center" @onclick="() => _shareUrl = null">
         <div class="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl p-5" @onclick:stopPropagation>
             <div class="flex items-center justify-between mb-3">
-                <span class="text-base font-medium text-gray-800 dark:text-gray-100">Compartilhar conversa</span>
+                <span class="text-base font-medium text-gray-800 dark:text-gray-100">@L["sidebar.share_title"]</span>
                 <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer" @onclick="() => _shareUrl = null">×</button>
             </div>
-            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Link público</label>
+            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">@L["sidebar.public_link"]</label>
             <input class="w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100"
                    readonly value="@_shareUrl" @onclick="CopyShareLink" />
             <button class="mt-3 w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 cursor-pointer"
-                    @onclick="CopyShareLink">@(_copied ? "Copiado!" : "Copiar link")</button>
+                    @onclick="CopyShareLink">@(_copied ? L["sidebar.copied"] : L["sidebar.copy_link"])</button>
             <button class="mt-2 w-full rounded-full text-sm py-2.5 text-red-500 hover:bg-red-500/10 transition cursor-pointer"
-                    @onclick="UnshareAsync">Desativar compartilhamento</button>
+                    @onclick="UnshareAsync">@L["sidebar.disable_sharing"]</button>
         </div>
     </div>
 }
@@ -305,7 +306,7 @@ else
 
     private async Task CreateChannelAsync()
     {
-        var name = await JS.InvokeAsync<string?>("prompt", "Nome do novo canal:");
+        var name = await JS.InvokeAsync<string?>("prompt", L["sidebar.prompt_channel_name"]);
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -331,7 +332,7 @@ else
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
                            @(current ? "flex" : "hidden group-hover:flex")"
-                    title="Opções" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                    title="@L["sidebar.options"]" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
             </button>
         </div>
@@ -357,7 +358,7 @@ else
     private async Task RenameAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", "Novo título:", chat.Title);
+        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["sidebar.prompt_rename"], chat.Title);
         if (string.IsNullOrWhiteSpace(title))
         {
             return;
@@ -436,7 +437,7 @@ else
     private async Task CreateFolderForAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", "Nome da pasta:", "");
+        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["sidebar.prompt_folder_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -453,7 +454,7 @@ else
     private async Task DeleteFolderAsync(FolderWithChats folder)
     {
         if (!await JS.InvokeAsync<bool>("openwebui.confirm",
-            $"Excluir a pasta \"{folder.Name}\"? As conversas saem da pasta."))
+            L.T("sidebar.confirm_delete_folder", ("name", folder.Name))))
         {
             return;
         }
@@ -465,7 +466,7 @@ else
     private async Task DeleteAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", $"Excluir \"{chat.Title}\"?"))
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", chat.Title))))
         {
             return;
         }
