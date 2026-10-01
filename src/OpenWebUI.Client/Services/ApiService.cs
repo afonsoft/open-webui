@@ -485,6 +485,12 @@ public class ApiService(HttpClient http, AuthService auth)
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
 
+    // ---------------- Analytics (admin) ----------------
+
+    /// <summary>Dashboard de analytics agregado (admin, apenas contagens).</summary>
+    public Task<AnalyticsResponse?> GetAnalyticsAsync(int days = 30) =>
+        SendAsync<AnalyticsResponse>(HttpMethod.Get, $"/api/v1/analytics?days={days}");
+
     // ---------------- Grupos (RBAC) ----------------
 
     /// <summary>Lista os grupos visíveis ao usuário (admin vê todos).</summary>

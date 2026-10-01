@@ -19,6 +19,8 @@
                     @onclick='() => SetTab("users")'>Usuários</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("groups")'>Grupos</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("analytics")'>Analytics</button>
         </div>
 
         @if (_tab == "users")
@@ -64,6 +66,58 @@
                     {
                         <div class="sidebar-empty">Nenhum usuário.</div>
                     }
+                </div>
+            }
+        }
+        else if (_tab == "analytics")
+        {
+            if (_analytics is null)
+            {
+                <div class="sidebar-empty">Carregando…</div>
+            }
+            else
+            {
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-2xl font-medium">@_analytics.Users.Total</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Usuários (@_analytics.Users.New novos)</div>
+                    </div>
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-2xl font-medium">@TotalMessages</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Mensagens</div>
+                    </div>
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-2xl font-medium">@TotalChats</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Conversas</div>
+                    </div>
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-2xl font-medium">@_analytics.Evaluations.Positive / @_analytics.Evaluations.Negative</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Avaliações +/−</div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-3">
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-sm font-medium mb-2">Mensagens por dia</div>
+                        <BarChart Points="_analytics.Series.Messages" />
+                    </div>
+                    <div class="rounded-2xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-800/50 p-4">
+                        <div class="text-sm font-medium mb-2">Top modelos</div>
+                        @if (_analytics.Models.Count == 0)
+                        {
+                            <div class="sidebar-empty">Sem dados no período.</div>
+                        }
+                        else
+                        {
+                            @foreach (var model in _analytics.Models)
+                            {
+                                <div class="flex justify-between text-sm py-1 border-b border-gray-100 dark:border-gray-800/50 last:border-0">
+                                    <span class="truncate mr-2">@model.Model</span>
+                                    <span class="text-gray-500">@model.Count</span>
+                                </div>
+                            }
+                        }
+                    </div>
                 </div>
             }
         }
@@ -119,7 +173,11 @@
 @code {
     private List<AdminUserResponse>? _users;
     private List<GroupResponse>? _groups;
+    private AnalyticsResponse? _analytics;
     private string _tab = "users";
+
+    private int TotalMessages => _analytics?.Series.Messages.Sum(d => d.Count) ?? 0;
+    private int TotalChats => _analytics?.Series.Chats.Sum(d => d.Count) ?? 0;
 
     private bool IsAdmin => Auth.CurrentUser?.Role == "admin";
 
@@ -132,6 +190,7 @@
 
         _users = await Api.GetUsersAsync();
         _groups = await Api.GetGroupsAsync();
+        _analytics = await Api.GetAnalyticsAsync(30);
     }
 
     private void SetTab(string tab) => _tab = tab;

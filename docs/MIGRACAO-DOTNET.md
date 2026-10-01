@@ -69,7 +69,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Socket.io / realtime multiusuário      | ⬜ Pendente | Avaliar SignalR                                           |
 | PWA / offline                          | ⬜ Pendente |                                                           |
 | i18n                                   | ⬜ Pendente | UI em pt-BR hardcoded                                     |
-| Analytics / métricas                   | ⬜ Pendente |                                                           |
+| Analytics / métricas                   | 🟡 Parcial  | `/api/v1/analytics` admin-only + aba Analytics em /admin |
 | Automations / calendar / pipelines     | ⬜ Pendente |                                                           |
 | Migrações EF Core                      | ✅ Migrado  | `DatabaseMigrator` + EF Migrations; baseline de bases legadas |
 | Docker / deploy dedicado               | ⬜ Pendente |                                                           |

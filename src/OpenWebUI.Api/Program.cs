@@ -137,6 +137,7 @@ app.MapFileEndpoints();
 app.MapModelEndpoints();
 app.MapToolEndpoints();
 app.MapEvaluationEndpoints();
+app.MapAnalyticsEndpoints();
 app.MapTaskEndpoints();
 app.MapApiEndpoints();
 app.MapGroupEndpoints();

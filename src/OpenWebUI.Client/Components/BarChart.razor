@@ -1,0 +1,36 @@
+@* Gráfico de barras SVG simples para séries DayCount (analytics). *@
+
+<svg viewBox="0 0 @(Width) @(Height)" class="w-full h-24 text-gray-400 dark:text-gray-500" role="img" aria-label="Gráfico de barras">
+    @foreach (var bar in Bars)
+    {
+        <rect x="@bar.X" y="@bar.Y" width="@bar.W" height="@bar.H" rx="1"
+              class="fill-gray-300 dark:fill-gray-600" />
+    }
+</svg>
+
+@code {
+    /// <summary>Pontos (dia, contagem) já ordenados.</summary>
+    [Parameter] public IReadOnlyList<DayCount> Points { get; set; } = [];
+
+    private const int Width = 300;
+    private const int Height = 96;
+
+    private IEnumerable<(double X, double Y, double W, double H)> Bars
+    {
+        get
+        {
+            if (Points.Count == 0)
+            {
+                yield break;
+            }
+
+            var max = Math.Max(1, Points.Max(p => p.Count));
+            var step = (double)Width / Points.Count;
+            for (var i = 0; i < Points.Count; i++)
+            {
+                var h = Height * (Points[i].Count / (double)max);
+                yield return (i * step + 1, Height - h, step - 2, h);
+            }
+        }
+    }
+}
