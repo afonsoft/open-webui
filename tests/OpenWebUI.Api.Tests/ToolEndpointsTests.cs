@@ -59,13 +59,27 @@ public class ToolEndpointsTests
     /// <summary>Sobe um provedor OpenAI + endpoint de tool mockados na porta livre.</summary>
     private string StartMock()
     {
-        using var probe = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
-
-        _mock = new HttpListener();
-        _mock.Prefixes.Add($"http://localhost:{port}/");
-        _mock.Start();
+        var random = new Random();
+        var port = 0;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            port = random.Next(40000, 60000);
+            _mock = new HttpListener();
+            _mock.Prefixes.Add($"http://localhost:{port}/");
+            try
+            {
+                _mock.Start();
+                break;
+            }
+            catch (HttpListenerException)
+            {
+                _mock.Close();
+            }
+        }
+        if (!_mock.IsListening)
+        {
+            throw new InvalidOperationException("Nenhuma porta livre para o mock.");
+        }
         _mockCts = new CancellationTokenSource();
         _ = Task.Run(() => MockLoopAsync(_mockCts.Token));
         return $"http://localhost:{port}";
