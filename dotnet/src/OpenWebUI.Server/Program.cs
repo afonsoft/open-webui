@@ -1,8 +1,10 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Server.Data;
 using OpenWebUI.Server.Endpoints;
 using OpenWebUI.Server.Services;
+using OpenWebUI.Shared.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,7 +33,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
         }
     }
 
-    bootstrap.Database.EnsureCreated();
+    SchemaBootstrap.EnsureSchema(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)
     {
@@ -70,10 +72,50 @@ app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();
+
+// Chaves de API (Bearer sk-...) autenticam como o usuário dono da chave.
+app.Use(async (context, next) =>
+{
+    var header = context.Request.Headers.Authorization.ToString();
+    if (header.StartsWith("Bearer sk-", StringComparison.Ordinal))
+    {
+        var key = header["Bearer ".Length..].Trim();
+        var hash = AuthEndpoints.HashApiKey(key);
+        using var scope = context.RequestServices.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var apiKey = await db.ApiKeys.AsNoTracking()
+            .FirstOrDefaultAsync(k => k.KeyHash == hash);
+        if (apiKey is not null)
+        {
+            var user = await db.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
+            if (user is not null && user.Role != UserRoles.Pending)
+            {
+                var identity = new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim(ClaimTypes.Name, user.Name),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role),
+                ], "ApiKey");
+                context.User = new ClaimsPrincipal(identity);
+            }
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapChatEndpoints();
+app.MapUserEndpoints();
+app.MapWorkspaceEndpoints();
+app.MapFileEndpoints();
+app.MapModelEndpoints();
+app.MapEvaluationEndpoints();
+app.MapTaskEndpoints();
 app.MapApiEndpoints();
 
 app.MapFallbackToFile("index.html");

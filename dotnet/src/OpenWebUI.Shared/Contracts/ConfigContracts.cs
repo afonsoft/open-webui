@@ -28,3 +28,52 @@ public sealed record ConnectionsConfigResponse(
 /// <summary>Resposta de versão da API.</summary>
 /// <param name="Version">Versão do backend .NET.</param>
 public sealed record VersionResponse(string Version);
+
+/// <summary>Resposta de verificação de atualizações.</summary>
+/// <param name="Current">Versão atual.</param>
+/// <param name="Latest">Última versão conhecida.</param>
+public sealed record VersionUpdateResponse(string Current, string Latest);
+
+/// <summary>Configuração pública da aplicação consumida pelo frontend antes do login.</summary>
+/// <param name="Status">Indica que o backend está no ar.</param>
+/// <param name="Name">Nome da instância.</param>
+/// <param name="Version">Versão do backend.</param>
+/// <param name="DefaultLocale">Localidade padrão.</param>
+/// <param name="Features">Flags de funcionalidades habilitadas.</param>
+/// <param name="DefaultPromptSuggestions">Sugestões de prompt para chat vazio.</param>
+public sealed record AppConfigResponse(
+    bool Status,
+    string Name,
+    string Version,
+    string DefaultLocale,
+    AppFeatures Features,
+    IReadOnlyList<string> DefaultPromptSuggestions);
+
+/// <summary>Flags de funcionalidades expostas pelo /api/config.</summary>
+/// <param name="Auth">Se autenticação está ativa.</param>
+/// <param name="EnableSignup">Cadastro aberto.</param>
+/// <param name="EnableLoginForm">Formulário de login habilitado.</param>
+/// <param name="EnableApiKeys">Chaves de API habilitadas.</param>
+/// <param name="EnableMessageRating">Avaliação de respostas habilitada.</param>
+/// <param name="EnableFolders">Pastas habilitadas.</param>
+/// <param name="EnableMemories">Memórias habilitadas.</param>
+/// <param name="EnableNotes">Notas habilitadas.</param>
+/// <param name="EnableChannels">Canais habilitados (não implementado).</param>
+/// <param name="EnableWebSearch">Busca web habilitada (não implementado).</param>
+/// <param name="EnableImageGeneration">Geração de imagens habilitada (não implementado).</param>
+/// <param name="EnableCodeExecution">Execução de código habilitada (não implementado).</param>
+/// <param name="EnableCommunitySharing">Compartilhamento comunitário habilitado.</param>
+public sealed record AppFeatures(
+    bool Auth,
+    bool EnableSignup,
+    bool EnableLoginForm,
+    bool EnableApiKeys,
+    bool EnableMessageRating,
+    bool EnableFolders,
+    bool EnableMemories,
+    bool EnableNotes,
+    bool EnableChannels,
+    bool EnableWebSearch,
+    bool EnableImageGeneration,
+    bool EnableCodeExecution,
+    bool EnableCommunitySharing);

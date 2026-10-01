@@ -105,6 +105,23 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         return models;
     }
 
+    /// <summary>Executa uma completion sem streaming e retorna o texto do assistant.</summary>
+    /// <param name="request">Requisição de completion (Stream é ignorado).</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<string> CompleteAsync(ChatCompletionRequest request, CancellationToken ct = default)
+    {
+        var connections = await config.GetConnectionsAsync(ct);
+        var provider = await ResolveProviderAsync(request, connections, ct);
+
+        return provider switch
+        {
+            "ollama" => await CompleteOllamaAsync(request, connections, ct),
+            "openai" => await CompleteOpenAiAsync(request, connections, ct),
+            _ => throw new InvalidOperationException(
+                $"Nenhuma conexão configurada atende ao modelo '{request.Model}'."),
+        };
+    }
+
     /// <summary>
     /// Transmite uma completion como linhas SSE no formato de chunks da OpenAI.
     /// Roteia para Ollama ou OpenAI conforme o provedor resolvido para o modelo.
@@ -153,24 +170,118 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         return connections.OpenAiBaseUrls.Count > 0 ? "openai" : "ollama";
     }
 
+    private JsonObject BuildPayload(ChatCompletionRequest request, bool stream)
+    {
+        var payload = new JsonObject
+        {
+            ["model"] = request.Model,
+            ["messages"] = new JsonArray(request.Messages
+                .Select(m => (JsonNode)new JsonObject
+                {
+                    ["role"] = m.Role,
+                    ["content"] = m.Content,
+                })
+                .ToArray()),
+            ["stream"] = stream,
+        };
+
+        if (request.Params is not null)
+        {
+            foreach (var (key, value) in request.Params)
+            {
+                payload[key] = value switch
+                {
+                    JsonElement e => JsonNode.Parse(e.GetRawText()),
+                    bool b => b,
+                    int i => i,
+                    long l => l,
+                    float f => f,
+                    double d => d,
+                    decimal m => m,
+                    string s => s,
+                    null => null,
+                    _ => JsonSerializer.SerializeToNode(value, JsonOptions),
+                };
+            }
+        }
+
+        return payload;
+    }
+
+    private static string? FirstBaseUrl(ConnectionsConfig connections) =>
+        connections.OllamaBaseUrls.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u));
+
+    private async Task<string> CompleteOllamaAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var baseUrl = FirstBaseUrl(connections)
+            ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
+
+        var payload = BuildPayload(request, stream: false);
+        using var response = await httpClientFactory.CreateClient().PostAsync(
+            $"{TrimSlash(baseUrl)}/api/chat",
+            new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
+            ct);
+        response.EnsureSuccessStatusCode();
+
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return json?["message"]?["content"]?.GetValue<string>() ?? string.Empty;
+    }
+
+    private async Task<string> CompleteOpenAiAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var (index, baseUrl) = FirstOpenAiConnection(connections);
+
+        var payload = BuildPayload(request, stream: false);
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"{TrimSlash(baseUrl)}/chat/completions")
+        {
+            Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        var apiKey = connections.OpenAiApiKeys.ElementAtOrDefault(index);
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        using var response = await httpClientFactory.CreateClient().SendAsync(httpRequest, ct);
+        response.EnsureSuccessStatusCode();
+
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? string.Empty;
+    }
+
     private async IAsyncEnumerable<string> StreamOllamaAsync(
         ChatCompletionRequest request,
         ConnectionsConfig connections,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var baseUrl = connections.OllamaBaseUrls.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u))
+        var baseUrl = FirstBaseUrl(connections)
             ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
 
-        var payload = new
+        var payload = BuildPayload(request, stream: true);
+        // Ollama aceita "options" em vez de parâmetros de topo: move extras para lá.
+        if (request.Params is { Count: > 0 })
         {
-            model = request.Model,
-            messages = request.Messages.Select(m => new { role = m.Role, content = m.Content }),
-            stream = true,
-        };
+            var options = new JsonObject();
+            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" })
+            {
+                if (payload.Remove(key, out var value))
+                {
+                    options[MapOllamaParam(key)] = value;
+                }
+            }
+
+            if (options.Count > 0)
+            {
+                payload["options"] = options;
+            }
+        }
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{TrimSlash(baseUrl)}/api/chat")
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"),
+            Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
         };
 
         using var response = await httpClientFactory.CreateClient()
@@ -229,37 +340,24 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         yield return "data: [DONE]";
     }
 
+    private static string MapOllamaParam(string key) => key switch
+    {
+        "max_tokens" => "num_predict",
+        _ => key,
+    };
+
     private async IAsyncEnumerable<string> StreamOpenAiAsync(
         ChatCompletionRequest request,
         ConnectionsConfig connections,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var index = -1;
-        for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
-        {
-            if (!string.IsNullOrWhiteSpace(connections.OpenAiBaseUrls[i]))
-            {
-                index = i;
-                break;
-            }
-        }
+        var (index, baseUrl) = FirstOpenAiConnection(connections);
 
-        if (index < 0)
-        {
-            throw new InvalidOperationException("Nenhuma conexão OpenAI configurada.");
-        }
-
-        var payload = new
-        {
-            model = request.Model,
-            messages = request.Messages.Select(m => new { role = m.Role, content = m.Content }),
-            stream = true,
-        };
-
+        var payload = BuildPayload(request, stream: true);
         using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post, $"{TrimSlash(connections.OpenAiBaseUrls[index])}/chat/completions")
+            HttpMethod.Post, $"{TrimSlash(baseUrl)}/chat/completions")
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"),
+            Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
         };
 
         var apiKey = connections.OpenAiApiKeys.ElementAtOrDefault(index);
@@ -288,6 +386,19 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
                 yield break;
             }
         }
+    }
+
+    private static (int Index, string BaseUrl) FirstOpenAiConnection(ConnectionsConfig connections)
+    {
+        for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(connections.OpenAiBaseUrls[i]))
+            {
+                return (i, connections.OpenAiBaseUrls[i]);
+            }
+        }
+
+        throw new InvalidOperationException("Nenhuma conexão OpenAI configurada.");
     }
 
     private static string TrimSlash(string url) => url.TrimEnd('/');
