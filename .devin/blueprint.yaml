@@ -11,12 +11,12 @@ maintenance: |
 knowledge:
   - name: build
     contents: |
-      # Backend Blazor/.NET 10 (migração): cd dotnet && dotnet build
-      # Original Svelte/FastAPI: ver Makefile (npm install + pip)
+      # Repo é somente .NET 10 / Blazor WASM (o código original Svelte/FastAPI foi removido)
+      # cd dotnet && dotnet build OpenWebUI.slnx
   - name: test
     contents: |
-      # cd dotnet && dotnet test (NUnit, OpenWebUI.Server.Tests)
+      # cd dotnet && dotnet test OpenWebUI.slnx (NUnit, OpenWebUI.Server.Tests)
   - name: startup
     contents: |
-      # App migrado: cd dotnet && dotnet run --project src/OpenWebUI.Server -> http://localhost:8080
+      # cd dotnet && dotnet run --project src/OpenWebUI.Server -> http://localhost:8080
       # Primeiro usuário cadastrado vira admin; conexões Ollama/OpenAI em Configurações -> Conexões
