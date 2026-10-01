@@ -70,8 +70,9 @@ if (app.Environment.IsDevelopment())
     app.UseWebAssemblyDebugging();
 }
 
-app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
+// Serve os static web assets com fingerprinting e resolve os placeholders
+// #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).
+app.MapStaticAssets();
 
 app.UseAuthentication();
 
