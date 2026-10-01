@@ -1,28 +1,44 @@
 @inject ApiService Api
 @inject BrowserStorage Storage
 
-<div class="model-selector">
+<div class="relative">
     @if (_models is null)
     {
-        <span class="model-loading">Carregando modelos…</span>
+        <span class="text-sm text-gray-400 dark:text-gray-500">Carregando modelos…</span>
     }
     else if (_models.Count == 0)
     {
-        <span class="model-loading">Nenhum modelo disponível — configure as conexões</span>
+        <span class="text-sm text-gray-400 dark:text-gray-500">Nenhum modelo disponível — configure as conexões</span>
     }
     else
     {
-        <select class="model-select" value="@Value" @onchange="OnModelChanged">
-            @foreach (var group in _models.GroupBy(m => m.Provider))
-            {
-                <optgroup label="@ProviderLabel(group.Key)">
+        <button class="flex items-center gap-1.5 rounded-xl px-2 py-1 text-[0.9375rem] font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 transition cursor-pointer"
+                @onclick="() => _open = !_open">
+            <span class="truncate max-w-[16rem]">@(SelectedName)</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 text-gray-400"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </button>
+
+        @if (_open)
+        {
+            <div class="fixed inset-0 z-40" @onclick="() => _open = false"></div>
+            <div class="absolute left-0 top-full mt-1 z-50 w-64 max-h-80 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1">
+                @foreach (var group in _models.GroupBy(m => m.Provider))
+                {
+                    <div class="px-3 pt-2 pb-1 text-[0.6875rem] uppercase tracking-wide text-gray-400 dark:text-gray-500">@ProviderLabel(group.Key)</div>
                     @foreach (var model in group)
                     {
-                        <option value="@model.Id">@model.Name</option>
+                        <button class="w-full flex items-center justify-between px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                @onclick="() => SelectAsync(model.Id)">
+                            <span class="truncate">@model.Name</span>
+                            @if (model.Id == Value)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            }
+                        </button>
                     }
-                </optgroup>
-            }
-        </select>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -35,6 +51,10 @@
 
     private const string ModelKey = "webui.model";
     private List<ModelInfo>? _models;
+    private bool _open;
+
+    private string SelectedName =>
+        _models?.FirstOrDefault(m => m.Id == Value)?.Name ?? "Selecionar modelo";
 
     protected override async Task OnInitializedAsync()
     {
@@ -51,15 +71,11 @@
         }
     }
 
-    private async Task OnModelChanged(ChangeEventArgs e)
+    private async Task SelectAsync(string value)
     {
-        var value = e.Value?.ToString();
+        _open = false;
         Value = value;
-        if (value is not null)
-        {
-            await Storage.SetAsync(ModelKey, value);
-        }
-
+        await Storage.SetAsync(ModelKey, value);
         await ValueChanged.InvokeAsync(value);
     }
 

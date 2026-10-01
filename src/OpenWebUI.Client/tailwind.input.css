@@ -1,0 +1,384 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@source './**/*.razor';
+@source './**/*.html';
+@source './**/*.js';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+	--font-sans:
+		'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+		'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', 'Vazirmatn', sans-serif;
+
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+		'Courier New', monospace;
+
+	--color-gray-50: oklch(0.98 0 0);
+	--color-gray-100: oklch(0.96 0 0);
+	--color-gray-200: oklch(0.9 0 0);
+	--color-gray-300: oklch(0.86 0 0);
+	--color-gray-400: oklch(0.7 0 0);
+	--color-gray-500: oklch(0.55 0 0);
+	--color-gray-600: oklch(0.44 0 0);
+	--color-gray-700: oklch(0.37 0 0);
+	--color-gray-750: oklch(0.33 0 0);
+	--color-gray-800: oklch(0.3 0 0);
+	--color-gray-850: oklch(0.27 0 0);
+	--color-gray-900: oklch(0.2 0 0);
+	--color-gray-950: oklch(0.16 0 0);
+}
+
+@layer base {
+	@font-face {
+		font-family: 'Inter Variable';
+		src: url('/assets/fonts/Inter-Variable.ttf') format('truetype-variations');
+		font-weight: 100 900;
+		font-style: normal;
+		font-display: swap;
+	}
+
+	html {
+		scrollbar-color: rgba(255 255 255 / 0.2) transparent;
+	}
+
+	*,
+	::before,
+	::after {
+		border-color: var(--color-gray-200);
+	}
+
+	.dark *,
+	.dark ::before,
+	.dark ::after {
+		border-color: var(--color-gray-800);
+	}
+
+	body {
+		font-family: var(--font-sans);
+		font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+		-webkit-font-smoothing: antialiased;
+	}
+
+	::selection {
+		background: oklch(0.75 0.1 250 / 0.3);
+	}
+}
+
+@layer components {
+	.boot-splash {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		height: 100%;
+		font-size: 1.5rem;
+		font-weight: 400;
+		color: var(--color-gray-700);
+		background: #fff;
+	}
+
+	.dark .boot-splash {
+		color: var(--color-gray-200);
+		background: var(--color-gray-900);
+	}
+
+	.boot-splash img {
+		width: 8rem;
+		height: 8rem;
+		border-radius: 9999px;
+	}
+
+	.typing {
+		display: inline-block;
+		animation: typing-blink 1s steps(2, start) infinite;
+		color: var(--color-gray-500);
+	}
+
+	@keyframes typing-blink {
+		to {
+			visibility: hidden;
+		}
+	}
+
+	/* ----- Componentes compartilhados (páginas secundárias, modais) ----- */
+
+	.page {
+		@apply flex-1 overflow-y-auto scrollbar-hidden h-full w-full px-6 py-5;
+	}
+
+	.page-header {
+		@apply flex items-center justify-between mb-5;
+	}
+
+	.page-title {
+		@apply text-xl font-normal text-gray-800 dark:text-gray-100;
+	}
+
+	.page-new {
+		@apply rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition text-sm px-4 py-1.5 cursor-pointer;
+	}
+
+	.page-tabs {
+		@apply flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-800 pb-2;
+	}
+
+	.page-tabs button {
+		@apply rounded-full px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer;
+	}
+
+	.page-tabs button.active {
+		@apply bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100;
+	}
+
+	.card-list {
+		@apply flex flex-col gap-2;
+	}
+
+	.card-row {
+		@apply flex items-center justify-between gap-3 rounded-2xl border border-gray-100 dark:border-gray-850 bg-gray-50/50 dark:bg-gray-850/40 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-850 transition;
+	}
+
+	.card-main {
+		@apply flex flex-col min-w-0 flex-1;
+	}
+
+	.card-title {
+		@apply text-sm font-normal text-gray-800 dark:text-gray-100 truncate;
+	}
+
+	.card-sub {
+		@apply text-xs text-gray-400 dark:text-gray-500 truncate;
+	}
+
+	.card-pre {
+		@apply text-xs text-gray-500 dark:text-gray-400 font-mono whitespace-pre-wrap mt-1;
+	}
+
+	.card-actions {
+		@apply flex items-center gap-1 shrink-0;
+	}
+
+	.role-badge {
+		@apply text-[0.6875rem] rounded-full px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400;
+	}
+
+	.field {
+		@apply mb-4;
+	}
+
+	.field label {
+		@apply block text-sm font-normal text-gray-600 dark:text-gray-400 mb-1;
+	}
+
+	.field-note {
+		@apply text-xs text-gray-400 dark:text-gray-500 mt-1;
+	}
+
+	.field-actions {
+		@apply flex gap-3 mt-1.5;
+	}
+
+	.input {
+		@apply w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100 focus:border-gray-300 dark:focus:border-gray-700;
+	}
+
+	.auth-submit {
+		@apply w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 disabled:opacity-50 cursor-pointer;
+	}
+
+	.danger-btn {
+		@apply text-red-500 hover:bg-red-500/10;
+	}
+
+	.check {
+		@apply flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 py-1 cursor-pointer;
+	}
+
+	.check input[type='checkbox'] {
+		@apply size-4 accent-gray-700 dark:accent-gray-300;
+	}
+
+	.memory-row {
+		@apply flex items-center justify-between gap-2 rounded-xl bg-gray-50 dark:bg-gray-850 px-3 py-2 mb-1.5;
+	}
+
+	.memory-text {
+		@apply text-sm text-gray-700 dark:text-gray-300;
+	}
+
+	.icon-btn {
+		@apply size-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition cursor-pointer;
+	}
+
+	.icon-mini {
+		@apply size-5 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer;
+	}
+
+	.msg-action {
+		@apply text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer;
+	}
+
+	/* ----- Modal ----- */
+
+	.modal-backdrop {
+		@apply fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 dark:bg-gray-950/60 px-4;
+	}
+
+	.modal {
+		@apply w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl;
+	}
+
+	.modal-header {
+		@apply flex items-center justify-between px-5 py-4 text-base font-medium text-gray-800 dark:text-gray-100;
+	}
+
+	.modal-tabs {
+		@apply flex gap-1 px-4 py-2 border-b border-gray-100 dark:border-gray-800 overflow-x-auto scrollbar-hidden;
+	}
+
+	.modal-tab {
+		@apply rounded-full px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer whitespace-nowrap;
+	}
+
+	.modal-tab.active {
+		@apply bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100;
+	}
+
+	.modal-body {
+		@apply flex-1 overflow-y-auto px-5 py-4;
+	}
+
+	.modal-sep {
+		@apply border-gray-100 dark:border-gray-800 my-4;
+	}
+
+	.danger {
+		@apply text-red-500;
+	}
+
+	/* ----- Página de chat compartilhado ----- */
+
+	.shared-page {
+		@apply min-h-screen bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 flex flex-col items-center px-4 py-10;
+	}
+
+	.shared-card {
+		@apply w-full max-w-3xl;
+	}
+
+	.shared-title {
+		@apply text-2xl font-normal mb-1;
+	}
+
+	.shared-meta {
+		@apply text-xs text-gray-400 dark:text-gray-500 mb-6;
+	}
+
+	.shared-messages {
+		@apply flex flex-col gap-5;
+	}
+
+	.shared-back {
+		@apply mt-8 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline cursor-pointer;
+	}
+
+	.message {
+		@apply flex gap-3 w-full;
+	}
+
+	.message.user {
+		@apply justify-end;
+	}
+
+	.message-avatar {
+		@apply size-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[0.625rem] font-medium shrink-0 mt-0.5;
+	}
+
+	.message-body {
+		@apply flex flex-col min-w-0 flex-1;
+	}
+
+	.message-meta {
+		@apply text-[0.8125rem] font-medium text-gray-500 dark:text-gray-400 mb-0.5;
+	}
+
+	.message-content {
+		@apply prose prose-sm dark:prose-invert max-w-none;
+	}
+
+	.user-text {
+		@apply whitespace-pre-wrap;
+	}
+
+	.chat-empty {
+		@apply flex flex-col items-center justify-center text-center min-h-[60vh];
+	}
+
+	.chat-empty-logo {
+		@apply text-2xl font-normal text-gray-700 dark:text-gray-200;
+	}
+
+	.chat-empty-sub {
+		@apply mt-1 text-sm text-gray-500 dark:text-gray-400;
+	}
+
+	.chat-error {
+		@apply my-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm text-red-600 dark:text-red-400;
+	}
+
+	.sidebar-empty {
+		@apply px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600;
+	}
+}
+
+@utility scrollbar-hidden {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/* Scrollbar fina global, como no upstream */
+::-webkit-scrollbar {
+	width: 5px;
+	height: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: rgba(140, 140, 140, 0.4);
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+/* UI de erro do Blazor */
+#blazor-error-ui {
+	background: lightyellow;
+	bottom: 0;
+	box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+	display: none;
+	left: 0;
+	padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+	position: fixed;
+	width: 100%;
+	z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+	cursor: pointer;
+	position: absolute;
+	right: 0.75rem;
+	top: 0.5rem;
+}
+
+.dark #blazor-error-ui {
+	background: var(--color-gray-850);
+	color: var(--color-gray-100);
+}

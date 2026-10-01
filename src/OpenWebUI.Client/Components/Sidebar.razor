@@ -5,132 +5,233 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<aside class="sidebar">
-    <div class="sidebar-header">
-        <button class="btn-new-chat" @onclick="NewChat">
-            <span>Nova conversa</span>
-            <span class="icon">✎</span>
-        </button>
-    </div>
-
-    <div class="sidebar-search">
-        <input type="text" placeholder="Buscar conversas" @bind="_query" @bind:event="oninput" />
-    </div>
-
-    <div class="sidebar-chats">
-        @if (_pinned.Count > 0)
-        {
-            <div class="sidebar-section">
-                <div class="sidebar-section-title">Fixados</div>
-                @foreach (var chat in _pinned)
-                {
-                    @ChatItem(chat)
-                }
-            </div>
-        }
-
-        @foreach (var folder in _folders)
-        {
-            <div class="sidebar-section">
-                <div class="sidebar-section-title folder-title" @onclick="() => folder.Expanded = !folder.Expanded">
-                    <span>@(folder.Expanded ? "▾" : "▸") @folder.Name</span>
-                    <span class="folder-actions">
-                        <button class="icon-mini" title="Excluir pasta" @onclick="() => DeleteFolderAsync(folder)"
-                                @onclick:stopPropagation>×</button>
-                    </span>
+@if (_collapsed)
+{
+    @* Rail fina quando a sidebar está recolhida, como no upstream *@
+    <div class="w-[42px] shrink-0 py-1 px-1 flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
+        <div class="flex flex-col flex-1 items-center">
+            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="Nova conversa" @onclick="NewChat">
+                <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
+                    <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
-                @if (folder.Expanded)
-                {
-                    <div class="folder-items">
-                        @foreach (var chat in folder.Chats)
+            </button>
+        </div>
+        <div class="flex justify-center items-center">
+            <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="Abrir barra lateral" @onclick="() => _collapsed = false">
+                <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                </div>
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="my-auto flex flex-col justify-between h-screen max-h-[100dvh] w-[260px] shrink-0 overflow-x-hidden scrollbar-hidden z-50 border-e border-gray-50 dark:border-gray-850/30">
+        <div class="px-1 pt-1.5 pb-1 flex justify-between space-x-1 text-gray-600 dark:text-gray-400 sticky top-0 z-10 -mb-2">
+            <button class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" @onclick="NewChat" aria-label="Nova conversa">
+                <img src="favicon.png" class="size-5 rounded-full" alt="" />
+            </button>
+
+            <button class="flex flex-1 px-0.5 cursor-pointer" @onclick="NewChat">
+                <div class="self-center font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
+            </button>
+
+            <button class="flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
+                    title="Recolher barra lateral" @onclick="() => _collapsed = true">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            </button>
+        </div>
+
+        <div class="relative flex flex-col flex-1 overflow-y-auto scrollbar-hidden space-y-1.5 pt-2.5 pb-2.5">
+            <div class="pb-1">
+                <div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
+                    <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none cursor-pointer"
+                            @onclick="NewChat" aria-label="Nova conversa">
+                        <div class="self-center flex size-4 shrink-0 items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" /></svg>
+                        </div>
+                        <div class="flex flex-1 self-center translate-y-[0.5px]">
+                            <div class="self-center text-[0.8125rem] leading-5">Nova conversa</div>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
+                    <div class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none">
+                        <div class="self-center flex size-4 shrink-0 items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                        </div>
+                        <input type="text" placeholder="Buscar"
+                               class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0"
+                               @bind="_query" @bind:event="oninput" />
+                    </div>
+                </div>
+            </div>
+
+            @if (_pinned.Count > 0)
+            {
+                <div>
+                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">Fixados</div>
+                    <div class="flex flex-col">
+                        @foreach (var chat in _pinned)
                         {
                             @ChatItem(chat)
                         }
                     </div>
-                }
-            </div>
-        }
+                </div>
+            }
 
-        @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
-        {
-            <div class="sidebar-empty">@(string.IsNullOrEmpty(_query) ? "Nenhuma conversa ainda" : "Nenhum resultado")</div>
-        }
-        else
-        {
-            <div class="sidebar-section">
-                @if (FilteredChats.Count > 0)
-                {
-                    <div class="sidebar-section-title">Conversas</div>
-                }
-                @foreach (var chat in FilteredChats)
-                {
-                    @ChatItem(chat)
-                }
-            </div>
-        }
-    </div>
+            @foreach (var folder in _folders)
+            {
+                <div>
+                    <button class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500 cursor-pointer"
+                            @onclick="() => folder.Expanded = !folder.Expanded">
+                        <span class="flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            @folder.Name
+                        </span>
+                        <span class="text-gray-400 hover:text-red-500 px-1" title="Excluir pasta"
+                              @onclick="() => DeleteFolderAsync(folder)" @onclick:stopPropagation>×</span>
+                    </button>
+                    @if (folder.Expanded)
+                    {
+                        <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
+                            @foreach (var chat in folder.Chats)
+                            {
+                                @ChatItem(chat)
+                            }
+                        </div>
+                    }
+                </div>
+            }
 
-    <div class="sidebar-nav">
-        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/archived")'>📦 Arquivadas</button>
-        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/workspace")'>🛠 Workspace</button>
-        <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/notes")'>📝 Notas</button>
-        @if (Auth.CurrentUser?.Role == "admin")
-        {
-            <button class="sidebar-link" @onclick='() => Nav.NavigateTo("/admin")'>⚙ Administração</button>
-        }
-    </div>
-
-    <div class="sidebar-footer">
-        <div class="user-chip">
-            <div class="avatar">@Initials</div>
-            <div class="user-name">@Auth.CurrentUser?.Name</div>
+            @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
+            {
+                <div class="px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600">
+                    @(string.IsNullOrEmpty(_query) ? "Nenhuma conversa ainda" : "Nenhum resultado")
+                </div>
+            }
+            else if (FilteredChats.Count > 0)
+            {
+                <div>
+                    <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">Conversas</div>
+                    <div class="flex flex-col">
+                        @foreach (var chat in FilteredChats)
+                        {
+                            @ChatItem(chat)
+                        }
+                    </div>
+                </div>
+            }
         </div>
-        <button class="icon-btn" title="Configurações" @onclick="() => OnOpenSettings.InvokeAsync()">⚙</button>
-        <button class="icon-btn" title="Sair" @onclick="SignOutAsync">⏻</button>
+
+        <div class="px-1 pb-1.5">
+            <div class="px-1 flex flex-col text-gray-700 dark:text-gray-300">
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/workspace")'>
+                    <div class="self-center flex size-4 shrink-0 items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
+                    </div>
+                    <div class="self-center text-[0.8125rem] leading-5">Workspace</div>
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/notes")'>
+                    <div class="self-center flex size-4 shrink-0 items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
+                    </div>
+                    <div class="self-center text-[0.8125rem] leading-5">Notas</div>
+                </button>
+                @if (Auth.CurrentUser?.Role == "admin")
+                {
+                    <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                            @onclick='() => Nav.NavigateTo("/admin")'>
+                        <div class="self-center flex size-4 shrink-0 items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                        </div>
+                        <div class="self-center text-[0.8125rem] leading-5">Administração</div>
+                    </button>
+                }
+            </div>
+
+            <div class="px-1 mt-1">
+                <div class="relative">
+                    <button class="w-full flex items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                            @onclick="() => _userMenuOpen = !_userMenuOpen">
+                        <div class="size-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-[0.625rem] font-medium text-gray-700 dark:text-gray-200 shrink-0">
+                            @Initials
+                        </div>
+                        <div class="flex-1 text-left text-[0.8125rem] leading-5 truncate text-gray-700 dark:text-gray-300">
+                            @Auth.CurrentUser?.Name
+                        </div>
+                    </button>
+
+                    @if (_userMenuOpen)
+                    {
+                        <div class="fixed inset-0 z-40" @onclick="() => _userMenuOpen = false"></div>
+                        <div class="absolute bottom-full left-0 mb-1 z-50 w-full min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1">
+                            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                    @onclick="OpenSettingsAndClose">
+                                Configurações
+                            </button>
+                            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                    @onclick='() => { _userMenuOpen = false; Nav.NavigateTo("/archived"); }'>
+                                Arquivadas
+                            </button>
+                            <hr class="border-gray-100 dark:border-gray-800 my-1" />
+                            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                    @onclick="SignOutAsync">
+                                Sair
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
-</aside>
+}
 
 @if (_menuFor is not null)
 {
-    <div class="context-backdrop" @onclick="CloseMenu"></div>
-    <div class="context-menu">
-        <button @onclick="() => PinAsync(_menuFor)">📌 @(_menuFor.Pinned ? "Desafixar" : "Fixar")</button>
-        <button @onclick="() => RenameAsync(_menuFor)">✏️ Renomear</button>
-        <button @onclick="() => CloneAsync(_menuFor)">⧉ Clonar</button>
-        <button @onclick="() => ShareAsync(_menuFor)">🔗 Compartilhar</button>
-        <button @onclick="() => ArchiveAsync(_menuFor)">📦 Arquivar</button>
+    <div class="fixed inset-0 z-40" @onclick="CloseMenu"></div>
+    <div class="fixed z-50 min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+         style="left: 280px; top: 30%;">
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? "Desafixar" : "Fixar")</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">Renomear</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">Clonar</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">Compartilhar</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">Arquivar</button>
         @if (_folders.Count > 0)
         {
-            <div class="context-sub">
-                <div class="context-sub-title">Mover para</div>
-                @foreach (var folder in _folders)
-                {
-                    <button @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">📁 @folder.Name</button>
-                }
-                <button @onclick="() => MoveToFolderAsync(_menuFor, null)">— Remover da pasta</button>
-            </div>
+            <hr class="border-gray-100 dark:border-gray-800 my-1" />
+            <div class="px-2.5 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">Mover para</div>
+            @foreach (var folder in _folders)
+            {
+                <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
+            }
+            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">Remover da pasta</button>
         }
-        <button @onclick="() => CreateFolderForAsync(_menuFor)">📁 Nova pasta</button>
-        <button class="danger" @onclick="() => DeleteAsync(_menuFor)">🗑 Excluir</button>
+        <hr class="border-gray-100 dark:border-gray-800 my-1" />
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">Nova pasta</button>
+        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">Excluir</button>
     </div>
 }
 
 @if (_shareUrl is not null)
 {
-    <div class="modal-backdrop" @onclick="() => _shareUrl = null">
-        <div class="modal" @onclick:stopPropagation>
-            <div class="modal-header">
-                <span>Compartilhar conversa</span>
-                <button class="icon-btn" @onclick="() => _shareUrl = null">×</button>
+    <div class="fixed inset-0 z-50 bg-gray-900/40 dark:bg-gray-950/60 flex items-center justify-center" @onclick="() => _shareUrl = null">
+        <div class="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl p-5" @onclick:stopPropagation>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-base font-medium text-gray-800 dark:text-gray-100">Compartilhar conversa</span>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer" @onclick="() => _shareUrl = null">×</button>
             </div>
-            <div class="modal-body">
-                <div class="field">
-                    <label>Link público</label>
-                    <input class="input" readonly value="@_shareUrl" @onclick="CopyShareLink" />
-                </div>
-                <button class="auth-submit" @onclick="CopyShareLink">@(_copied ? "Copiado!" : "Copiar link")</button>
-                <button class="auth-submit danger-btn" @onclick="UnshareAsync">Desativar compartilhamento</button>
-            </div>
+            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Link público</label>
+            <input class="w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100"
+                   readonly value="@_shareUrl" @onclick="CopyShareLink" />
+            <button class="mt-3 w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 cursor-pointer"
+                    @onclick="CopyShareLink">@(_copied ? "Copiado!" : "Copiar link")</button>
+            <button class="mt-2 w-full rounded-full text-sm py-2.5 text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                    @onclick="UnshareAsync">Desativar compartilhamento</button>
         </div>
     </div>
 }
@@ -147,6 +248,8 @@
     private string? _shareUrl;
     private string? _shareChatId;
     private bool _copied;
+    private bool _collapsed;
+    private bool _userMenuOpen;
 
     private List<ChatSummaryResponse> FilteredChats =>
         string.IsNullOrWhiteSpace(_query)
@@ -179,13 +282,29 @@
     private RenderFragment ChatItem(ChatSummaryResponse chat) => __builder =>
     {
         var current = Nav.Uri.Contains($"/c/{chat.Id}");
-        <div class="chat-item @(current ? "active" : "")">
-            <a class="chat-link" href="/c/@chat.Id">@(chat.Pinned ? "📌 " : "")@chat.Title</a>
-            <button class="chat-delete" title="Opções" @onclick="() => _menuFor = chat">⋯</button>
+        <div class="group relative px-1">
+            <a class="w-full flex items-center rounded-xl px-2.5 py-1.5 text-[0.8125rem] leading-5 truncate transition
+                      @(current
+                          ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
+               href="/c/@chat.Id" draggable="false">
+                <span class="truncate flex-1">@chat.Title</span>
+            </a>
+            <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
+                           @(current ? "flex" : "hidden group-hover:flex")"
+                    title="Opções" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
+            </button>
         </div>
     };
 
     private void NewChat() => Nav.NavigateTo("/");
+
+    private void OpenSettingsAndClose()
+    {
+        _userMenuOpen = false;
+        OnOpenSettings.InvokeAsync();
+    }
 
     private void CloseMenu() => _menuFor = null;
 
@@ -323,6 +442,7 @@
 
     private async Task SignOutAsync()
     {
+        _userMenuOpen = false;
         await Auth.SignOutAsync();
         Nav.NavigateTo("/auth", replace: true);
     }
