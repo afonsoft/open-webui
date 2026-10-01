@@ -17,4 +17,4 @@ Base: `/api/v1` — Minimal APIs em `src/OpenWebUI.Api/Endpoints/`. Auth: `Autho
 
 - Erros de provider → status de erro (`404`/`502`), nunca payload enlatado.
 - Seed de conexões por env na primeira inicialização.
-- `SchemaBootstrap` evolui o schema do SQLite sem migrações formais.
+- `DatabaseMigrator` aplica EF Core Migrations no startup; bases legadas (sem `__EFMigrationsHistory`) são baselinadas sem recriar tabelas.

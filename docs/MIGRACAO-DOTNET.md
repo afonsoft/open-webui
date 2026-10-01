@@ -71,7 +71,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | i18n                                   | ⬜ Pendente | UI em pt-BR hardcoded                                     |
 | Analytics / métricas                   | ⬜ Pendente |                                                           |
 | Automations / calendar / pipelines     | ⬜ Pendente |                                                           |
-| Migrações EF Core                      | 🟡 Parcial  | `SchemaBootstrap` incremental (colunas/tabelas)           |
+| Migrações EF Core                      | ✅ Migrado  | `DatabaseMigrator` + EF Migrations; baseline de bases legadas |
 | Docker / deploy dedicado               | ⬜ Pendente |                                                           |
 
 ## Rotas de página (frontend)
@@ -90,10 +90,9 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 ## Decisões de design
 
-- **`SchemaBootstrap`** em vez de EF Migrations — evolui o SQLite incrementalmente
-  (colunas novas via `ALTER`, tabelas via `CREATE TABLE IF NOT EXISTS`, rebuild da
-  `ChatMessages` para PK composta `ChatId+Id`). Alembic → EF Migrations quando
-  o esquema estabilizar.
+- **EF Core Migrations** — `DatabaseMigrator` aplica `Migrate()` no startup e faz
+  baseline de bases legadas criadas sem histórico (marca migrações como aplicadas
+  em `__EFMigrationsHistory` sem recriar tabelas nem perder dados).
 - **Streaming SSE** no lugar de WebSocket — suficiente para token streaming;
   SignalR reservado para features realtime futuras.
 - **Chaves de API somente no servidor** — a UI nunca recebe segredos;

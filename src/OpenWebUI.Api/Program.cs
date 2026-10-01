@@ -34,7 +34,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
         }
     }
 
-    SchemaBootstrap.EnsureSchema(bootstrap);
+    DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
     SeedConnectionsFromEnv(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)

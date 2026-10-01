@@ -87,7 +87,7 @@ tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
 ## Soft Rules
 
 1. Modificar `Dockerfile`/`docker-compose.yaml` → confirmar com o usuário.
-2. Mudança de schema do SQLite → verificar migração automática em `SchemaBootstrap`.
+2. Mudança de schema do SQLite → criar migration: `dotnet ef migrations add <Nome> --project src/OpenWebUI.Infrastructure --startup-project src/OpenWebUI.Api`. `DatabaseMigrator` aplica no startup e faz baseline de bases legadas (`webui.db` antigas sem `__EFMigrationsHistory`).
 3. Adicionar dependência NuGet → verificar breaking changes.
 4. Deletar arquivos → exigir justificativa.
 
