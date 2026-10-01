@@ -1,0 +1,197 @@
+@page "/calendar"
+@inject ApiService Api
+@inject LocalizationService L
+
+<PageTitle>@L["page.calendar"] — Open WebUI</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">@MonthTitle()</h1>
+        <div class="flex gap-2">
+            <button class="msg-action" @onclick="() => ChangeMonthAsync(-1)">@L["admin.prev"]</button>
+            <button class="msg-action" @onclick="() => ChangeMonthAsync(1)">@L["admin.next"]</button>
+        </div>
+    </div>
+
+    @if (_runs is null)
+    {
+        <div class="sidebar-empty">@L["common.loading"]</div>
+    }
+    else
+    {
+        <div class="grid grid-cols-7 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+            @for (var d = 0; d < 7; d++)
+            {
+                <div class="text-center py-1">@L[$"calendar.d{d}"]</div>
+            }
+        </div>
+        <div class="grid grid-cols-7 gap-1">
+            @foreach (var cell in Cells())
+            {
+                @if (cell.Day == 0)
+                {
+                    <div class="h-20"></div>
+                }
+                else
+                {
+                    var day = cell.Day;
+                    var runs = RunsOn(day);
+                    var scheduled = ScheduledOn(day);
+                    var selected = _selectedDay == day;
+                    <button class="h-20 rounded-xl border text-left p-1.5 text-sm align-top transition
+                            @(selected ? "border-gray-400 dark:border-gray-500" : "border-gray-200 dark:border-gray-800")
+                            @(cell.Today ? "font-semibold" : "")
+                            hover:border-gray-400 dark:hover:border-gray-600"
+                            @onclick="() => SelectDay(day)">
+                        <div class="flex items-center justify-between">
+                            <span>@day</span>
+                            @if (cell.Today)
+                            {
+                                <span class="size-1.5 rounded-full bg-blue-500"></span>
+                            }
+                        </div>
+                        <div class="mt-1 flex flex-wrap gap-1">
+                            @if (runs.Count > 0)
+                            {
+                                <span class="size-2 rounded-full @(runs.Any(r => r.Status != "ok") ? "bg-red-500" : "bg-green-500")"></span>
+                            }
+                            @if (scheduled.Count > 0)
+                            {
+                                <span class="size-2 rounded-full bg-gray-400 dark:bg-gray-500"></span>
+                            }
+                        </div>
+                    </button>
+                }
+            }
+        </div>
+
+        @if (_selectedDay is not null)
+        {
+            <div class="card-list mt-4">
+                <div class="card-title px-3 pt-2">@DayTitle(_selectedDay.Value)</div>
+                @if (RunsOn(_selectedDay.Value).Count == 0 && ScheduledOn(_selectedDay.Value).Count == 0)
+                {
+                    <div class="sidebar-empty">@L["calendar.no_events"]</div>
+                }
+                else
+                {
+                    @foreach (var s in ScheduledOn(_selectedDay.Value))
+                    {
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@s.Name</div>
+                                <div class="card-sub">@L["calendar.scheduled"] · @s.ModelId</div>
+                            </div>
+                        </div>
+                    }
+                    @foreach (var r in RunsOn(_selectedDay.Value))
+                    {
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@r.AutomationName</div>
+                                <div class="card-sub">
+                                    @FormatTime(r.StartedAt)
+                                    @if (r.Status == "ok")
+                                    {
+                                        <span class="text-green-500">✓</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-red-500">✗ @r.Error</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (r.ChatId is not null)
+                            {
+                                <div class="card-actions">
+                                    <a class="msg-action underline" href="/c/@r.ChatId">@L["automations.open_chat"]</a>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private int _year;
+    private int _month;
+    private int? _selectedDay;
+    private List<AutomationRunResponse>? _runs;
+    private List<AutomationResponse> _automations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTime.Now;
+        _year = now.Year;
+        _month = now.Month;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _runs = null;
+        var first = new DateTimeOffset(new DateTime(_year, _month, 1));
+        var last = first.AddMonths(1).AddSeconds(-1);
+        _automations = await Api.GetAutomationsAsync();
+        _runs = await Api.GetAutomationRunsInRangeAsync(
+            first.ToUnixTimeSeconds(), last.ToUnixTimeSeconds());
+    }
+
+    private async Task ChangeMonthAsync(int delta)
+    {
+        var d = new DateTime(_year, _month, 1).AddMonths(delta);
+        _year = d.Year;
+        _month = d.Month;
+        _selectedDay = null;
+        await LoadAsync();
+    }
+
+    private void SelectDay(int day) => _selectedDay = _selectedDay == day ? null : day;
+
+    private List<AutomationRunResponse> RunsOn(int day) => _runs?
+        .Where(r => DateTimeOffset.FromUnixTimeSeconds(r.StartedAt).LocalDateTime.Day == day &&
+                    DateTimeOffset.FromUnixTimeSeconds(r.StartedAt).LocalDateTime.Month == _month)
+        .ToList() ?? [];
+
+    private List<AutomationResponse> ScheduledOn(int day) => _automations
+        .Where(a => a.NextRunAt is not null &&
+                    LocalDate(a.NextRunAt.Value).Day == day &&
+                    LocalDate(a.NextRunAt.Value).Month == _month &&
+                    LocalDate(a.NextRunAt.Value).Year == _year)
+        .ToList();
+
+    private IEnumerable<(int Day, bool Today)> Cells()
+    {
+        var first = new DateTime(_year, _month, 1);
+        var days = DateTime.DaysInMonth(_year, _month);
+        var today = DateTime.Today;
+        for (var i = 0; i < (int)first.DayOfWeek; i++)
+        {
+            yield return (0, false);
+        }
+        for (var d = 1; d <= days; d++)
+        {
+            yield return (d, today.Year == _year && today.Month == _month && today.Day == d);
+        }
+    }
+
+    private static DateTime LocalDate(long epoch) =>
+        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime;
+
+    private string MonthTitle()
+    {
+        var names = L["calendar.months"].Split(',');
+        var name = _month is >= 1 and <= 12 && names.Length >= _month
+            ? names[_month - 1]
+            : _month.ToString();
+        return $"{name} {_year}";
+    }
+
+    private string DayTitle(int day) => $"{day:D2}/{_month:D2}/{_year}";
+
+    private static string FormatTime(long epoch) =>
+        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("HH:mm");
+}

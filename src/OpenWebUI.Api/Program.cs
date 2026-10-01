@@ -18,6 +18,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
+builder.Services.AddScoped<AutomationService>();
+builder.Services.AddHostedService<AutomationScheduler>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<EmbeddingService>();
@@ -173,6 +175,7 @@ app.MapKnowledgeEndpoints();
 app.MapToolEndpoints();
 app.MapChannelEndpoints();
 app.MapImageEndpoints();
+app.MapAutomationEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 
 app.MapFallbackToFile("index.html");

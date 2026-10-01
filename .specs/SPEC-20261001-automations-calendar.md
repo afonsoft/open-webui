@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261001-automations` |
-| Ticket | `GAP-implementation-automations — Issue a criar` |
-| Status | `Approved` |
+| Ticket | `[automations-calendar] Issue #17` |
+| Status | `In implementation` |
 
 ## 1. User Story
 
