@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-knowledge-v2` |
 | Ticket | Issue #81 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -60,3 +60,9 @@ Hoje: coleções + itens + embeddings + access grants. Falta: anexar arquivo já
 - [ ] Reindex atualiza embeddings (assert via mock).
 - [ ] Batch delete respeita grants/ownership.
 - [ ] Testes NUnit dos 3 endpoints + erro paths.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/95
+- Issue: https://github.com/afonsoft/open-webui/issues/81
+- Epic: https://github.com/afonsoft/open-webui/issues/79
