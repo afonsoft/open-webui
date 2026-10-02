@@ -1,0 +1,79 @@
+@inject ApiService Api
+@inject AuthService Auth
+
+@foreach (var banner in _banners)
+{
+    <div class="w-full flex justify-center px-4 pt-2">
+        <div class="@BannerClass(banner.Type) w-full max-w-4xl rounded-xl px-4 py-2.5 text-sm flex items-start gap-3 shadow-sm">
+            <div class="flex-1 min-w-0">
+                @if (!string.IsNullOrWhiteSpace(banner.Title))
+                {
+                    <div class="font-semibold">@banner.Title</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(banner.Content))
+                {
+                    <div class="opacity-90 whitespace-pre-wrap">@banner.Content</div>
+                }
+            </div>
+            @if (banner.Dismissible)
+            {
+                <button class="shrink-0 opacity-70 hover:opacity-100 cursor-pointer"
+                        @onclick="() => DismissAsync(banner)" aria-label="dispensar">✕</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<BannerResponse> _banners = [];
+    private HashSet<string> _dismissed = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var settings = await Api.GetUserSettingsAsync();
+            if (settings is not null
+                && settings.TryGetValue("dismissedBanners", out var raw)
+                && raw is System.Text.Json.JsonElement el
+                && el.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                _dismissed = el.EnumerateArray()
+                    .Select(e => e.GetString())
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .Select(id => id!)
+                    .ToHashSet();
+            }
+
+            var all = await Api.GetBannersAsync();
+            _banners = all.Where(b => !_dismissed.Contains(b.Id)).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            // Rede indisponível — banners simplesmente não aparecem.
+        }
+    }
+
+    private async Task DismissAsync(BannerResponse banner)
+    {
+        _banners.Remove(banner);
+        _dismissed.Add(banner.Id);
+
+        var settings = await Api.GetUserSettingsAsync() ?? [];
+        settings["dismissedBanners"] = _dismissed.ToList();
+        await Api.UpdateUserSettingsAsync(settings);
+    }
+
+    private static string BannerClass(string type) => type switch
+    {
+        "warning" => "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-100 border border-yellow-300 dark:border-yellow-800",
+        "error" => "bg-red-100 dark:bg-red-900/40 text-red-900 dark:text-red-100 border border-red-300 dark:border-red-800",
+        "success" => "bg-green-100 dark:bg-green-900/40 text-green-900 dark:text-green-100 border border-green-300 dark:border-green-800",
+        _ => "bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 border border-blue-300 dark:border-blue-800",
+    };
+}

@@ -316,5 +316,20 @@
   "workspace.tool_url": "Execution URL (HTTP POST):",
   "workspace.tool_spec": "Tool spec (JSON):",
   "admin.search_users": "Search by name or email…",
-  "admin.all_roles": "All roles"
+  "admin.all_roles": "All roles",
+  "admin.config_general": "General",
+  "admin.config_models": "Models",
+  "admin.config_features": "Features",
+  "admin.webui_name": "Instance name",
+  "admin.default_role": "Default role for new users",
+  "admin.jwt_expires": "JWT expiry (e.g. 7d, 24h, 30m)",
+  "admin.default_models": "Default models (comma-separated)",
+  "admin.suggestions": "Prompt suggestions",
+  "admin.suggestions_hint": "Shown in the empty chat state",
+  "admin.suggestion_title": "Title",
+  "admin.suggestion_content": "Prompt content",
+  "admin.add_suggestion": "+ Suggestion",
+  "admin.banners": "Banners",
+  "admin.banner_title": "Banner title",
+  "admin.banner_content": "Content"
 }

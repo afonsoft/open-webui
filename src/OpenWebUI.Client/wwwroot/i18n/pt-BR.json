@@ -316,5 +316,20 @@
   "workspace.tool_url": "URL de execução (HTTP POST):",
   "workspace.tool_spec": "Spec da tool (JSON):",
   "admin.search_users": "Buscar por nome ou e-mail…",
-  "admin.all_roles": "Todos os papéis"
+  "admin.all_roles": "Todos os papéis",
+  "admin.config_general": "Geral",
+  "admin.config_models": "Modelos",
+  "admin.config_features": "Recursos",
+  "admin.webui_name": "Nome da instância",
+  "admin.default_role": "Papel padrão de novos usuários",
+  "admin.jwt_expires": "Expiração do JWT (ex.: 7d, 24h, 30m)",
+  "admin.default_models": "Modelos padrão (separados por vírgula)",
+  "admin.suggestions": "Sugestões de prompt",
+  "admin.suggestions_hint": "Exibidas no estado vazio do chat",
+  "admin.suggestion_title": "Título",
+  "admin.suggestion_content": "Conteúdo do prompt",
+  "admin.add_suggestion": "+ Sugestão",
+  "admin.banners": "Banners",
+  "admin.banner_title": "Título do banner",
+  "admin.banner_content": "Conteúdo"
 }

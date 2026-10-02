@@ -145,22 +145,27 @@ app.Use(async (context, next) =>
         var hash = AuthEndpoints.HashApiKey(key);
         using var scope = context.RequestServices.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var apiKey = await db.ApiKeys.AsNoTracking()
-            .FirstOrDefaultAsync(k => k.KeyHash == hash);
-        if (apiKey is not null)
+        var configService = scope.ServiceProvider.GetRequiredService<ConfigService>();
+        var adminConfig = await configService.GetAdminConfigAsync();
+        if (adminConfig.EnableApiKeys)
         {
-            var user = await db.Users.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
-            if (user is not null && user.Role != UserRoles.Pending)
+            var apiKey = await db.ApiKeys.AsNoTracking()
+                .FirstOrDefaultAsync(k => k.KeyHash == hash);
+            if (apiKey is not null)
             {
-                var identity = new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, user.Id),
-                    new Claim(ClaimTypes.Name, user.Name),
-                    new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role),
-                ], "ApiKey");
-                context.User = new ClaimsPrincipal(identity);
+                var user = await db.Users.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
+                if (user is not null && user.Role != UserRoles.Pending)
+                {
+                    var identity = new ClaimsIdentity(
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, user.Id),
+                        new Claim(ClaimTypes.Name, user.Name),
+                        new Claim(ClaimTypes.Email, user.Email),
+                        new Claim(ClaimTypes.Role, user.Role),
+                    ], "ApiKey");
+                    context.User = new ClaimsPrincipal(identity);
+                }
             }
         }
     }
@@ -187,6 +192,7 @@ app.MapToolEndpoints();
 app.MapChannelEndpoints();
 app.MapImageEndpoints();
 app.MapAutomationEndpoints();
+app.MapConfigEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 
 app.MapFallbackToFile("index.html");

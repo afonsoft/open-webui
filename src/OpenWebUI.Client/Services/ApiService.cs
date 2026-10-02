@@ -673,6 +673,65 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<KnowledgeResponse>(HttpMethod.Put, $"/api/v1/knowledge/{Uri.EscapeDataString(id)}",
             new UpdateKnowledgeRequest(name, description));
 
+    // ---------------- Configurações admin (/api/v1/configs) ----------------
+
+    /// <summary>Lista banners ativos (qualquer usuário autenticado).</summary>
+    public async Task<List<BannerResponse>> GetBannersAsync() =>
+        await SendAsync<List<BannerResponse>>(HttpMethod.Get, "/api/v1/configs/banners") ?? [];
+
+    /// <summary>Cria um banner (somente admin).</summary>
+    public Task<BannerResponse?> CreateBannerAsync(BannerRequest request) =>
+        SendAsync<BannerResponse>(HttpMethod.Post, "/api/v1/configs/banners", request);
+
+    /// <summary>Atualiza um banner (somente admin).</summary>
+    public Task<BannerResponse?> UpdateBannerAsync(string id, BannerRequest request) =>
+        SendAsync<BannerResponse>(HttpMethod.Put, $"/api/v1/configs/banners/{id}", request);
+
+    /// <summary>Remove um banner (somente admin).</summary>
+    public async Task<bool> DeleteBannerAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/configs/banners/{id}");
+
+    /// <summary>Obtém default models + sugestões de prompt.</summary>
+    public Task<ModelsConfig?> GetModelsConfigAsync() =>
+        SendAsync<ModelsConfig>(HttpMethod.Get, "/api/v1/configs/models");
+
+    /// <summary>Atualiza default models + sugestões (somente admin).</summary>
+    public Task<ModelsConfig?> UpdateModelsConfigAsync(ModelsConfig config) =>
+        SendAsync<ModelsConfig>(HttpMethod.Post, "/api/v1/configs/models", config);
+
+    /// <summary>Lê um toggle/config de feature ("channels", "direct_connections").</summary>
+    public async Task<bool> GetFeatureToggleAsync(string name, bool fallback = false) =>
+        (await SendAsync<FeatureToggle>(HttpMethod.Get, $"/api/v1/configs/{name}"))?.Enabled ?? fallback;
+
+    /// <summary>Grava um toggle de feature (somente admin).</summary>
+    public async Task<bool> SetFeatureToggleAsync(string name, bool enabled) =>
+        await SendAsync<FeatureToggle>(HttpMethod.Post, $"/api/v1/configs/{name}",
+            new FeatureToggle(enabled)) is not null;
+
+    /// <summary>Obtém a configuração de cadastro (somente admin para escrita).</summary>
+    public Task<SignupConfig?> GetSignupConfigAsync() =>
+        SendAsync<SignupConfig>(HttpMethod.Get, "/api/v1/configs/signup");
+
+    /// <summary>Atualiza a configuração de cadastro (somente admin).</summary>
+    public Task<SignupConfig?> UpdateSignupConfigAsync(SignupConfig config) =>
+        SendAsync<SignupConfig>(HttpMethod.Post, "/api/v1/configs/signup", config);
+
+    /// <summary>Obtém a configuração de execução de código.</summary>
+    public Task<CodeExecutionConfig?> GetCodeExecutionConfigAsync() =>
+        SendAsync<CodeExecutionConfig>(HttpMethod.Get, "/api/v1/configs/code_execution");
+
+    /// <summary>Atualiza a configuração de execução de código (somente admin).</summary>
+    public Task<CodeExecutionConfig?> UpdateCodeExecutionConfigAsync(CodeExecutionConfig config) =>
+        SendAsync<CodeExecutionConfig>(HttpMethod.Post, "/api/v1/configs/code_execution", config);
+
+    /// <summary>Obtém a duração configurada do JWT.</summary>
+    public Task<JwtExpiryConfig?> GetJwtExpiryAsync() =>
+        SendAsync<JwtExpiryConfig>(HttpMethod.Get, "/api/v1/configs/jwt");
+
+    /// <summary>Atualiza a duração do JWT (somente admin).</summary>
+    public Task<JwtExpiryConfig?> UpdateJwtExpiryAsync(JwtExpiryConfig config) =>
+        SendAsync<JwtExpiryConfig>(HttpMethod.Post, "/api/v1/configs/jwt", config);
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }
 

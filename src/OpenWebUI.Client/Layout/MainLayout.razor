@@ -9,9 +9,12 @@
 {
     <div class="text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-900 h-screen max-h-[100dvh] overflow-hidden flex flex-row">
         <Sidebar OnOpenSettings="OpenSettings" />
-        <main id="main-content" class="contents">
-            @Body
-        </main>
+        <div class="flex-1 min-w-0 flex flex-col h-screen max-h-[100dvh]">
+            <BannerBar />
+            <main id="main-content" class="contents">
+                @Body
+            </main>
+        </div>
     </div>
     <SettingsModal IsOpen="_settingsOpen" OnClose="CloseSettings" />
 }

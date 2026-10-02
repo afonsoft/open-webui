@@ -671,3 +671,25 @@ public class AutomationRun
     /// <summary>Fim da execução (epoch seconds).</summary>
     public long FinishedAt { get; set; }
 }
+
+/// <summary>Banner de aviso exibido no topo do app (CRUD admin).</summary>
+public class Banner
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Tipo visual: info, warning, error ou success.</summary>
+    public string Type { get; set; } = "info";
+
+    /// <summary>Título curto do aviso.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo do aviso (texto).</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Se o usuário pode dispensar o banner.</summary>
+    public bool Dismissible { get; set; } = true;
+
+    /// <summary>Criação (epoch seconds; usado para ordenar).</summary>
+    public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+}
