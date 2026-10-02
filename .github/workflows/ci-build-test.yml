@@ -1,0 +1,213 @@
+name: 🚀 CI Build & Test
+
+permissions: {}
+
+on:
+  push:
+    branches:
+      - "main"
+      - "develop"
+      - "feature/*"
+      - "fix/*"
+      - "bug/*"
+      - "hotfix/*"
+      - "chore/*"
+      - "test/*"
+  pull_request:
+    branches:
+      - "main"
+    types: [opened, synchronize, reopened]
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  SOLUTION: "OpenWebUI.slnx"
+
+jobs:
+  build-openwebui:
+    name: Build OpenWebUI (.NET 10)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore Dependencies
+        run: dotnet restore ${{ env.SOLUTION }} --verbosity normal
+
+      - name: Build Solution
+        run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration Release --verbosity minimal
+
+  test:
+    name: Tests + Coverage Gate (NUnit)
+    runs-on: ubuntu-latest
+    needs: build-openwebui
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Run All Tests
+        run: dotnet test ${{ env.SOLUTION }} --configuration Release --verbosity minimal --logger "trx;LogFileName=tests.trx"
+
+      - name: Collect Coverage
+        run: dotnet test tests/OpenWebUI.Api.Tests/OpenWebUI.Api.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
+
+      # Gate de cobertura: o piso vive em .ci/coverage-baseline.txt — baseline
+      # commitada, não hardcoded. PRs comparam contra ela; o job
+      # coverage-ratchet sobe o baseline automaticamente quando a cobertura
+      # medida na main melhora (ratchet, nunca desce).
+      - name: Coverage Gate
+        run: |
+          XML=$(ls -t TestResults/*/coverage.cobertura.xml 2>/dev/null | head -1)
+          if [ -z "$XML" ]; then echo "::error::coverage.cobertura.xml not found"; exit 1; fi
+          RATE=$(python3 -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('$XML').getroot().get('line-rate'))*100, 2))")
+          BASELINE=$(cat .ci/coverage-baseline.txt 2>/dev/null || echo "0")
+          echo "Line coverage: ${RATE}% (baseline ${BASELINE}%)"
+          if python3 -c "import sys; sys.exit(0 if float('$RATE') >= float('$BASELINE') else 1)"; then
+            echo "Coverage gate passed."
+          else
+            echo "::error::Coverage ${RATE}% < baseline ${BASELINE}%"; exit 1
+          fi
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
+        if: always()
+        with:
+          name: test-results
+          path: "**/tests.trx"
+          if-no-files-found: ignore
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
+        if: always()
+        with:
+          name: coverage-xml
+          path: "**/coverage.cobertura.xml"
+          if-no-files-found: ignore
+
+  blazor-client-validation:
+    name: Blazor WASM Client Validation
+    runs-on: ubuntu-latest
+    needs: build-openwebui
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build Blazor WASM Client
+        run: dotnet build src/OpenWebUI.Client/OpenWebUI.Client.csproj --configuration Release --verbosity minimal
+
+      - name: Validate WASM Assets
+        run: |
+          # Build simples emite o payload fingerprinted em _framework/;
+          # index.html fica em wwwroot e é servido pelo host OpenWebUI.Api.
+          fw="src/OpenWebUI.Client/bin/Release/net10.0/wwwroot/_framework"
+          app_wasm=$(ls "$fw"/OpenWebUI.Client.*.wasm 2>/dev/null | head -1)
+          if [ -z "$app_wasm" ]; then
+            echo "::error::WASM do app nao gerado em $fw (OpenWebUI.Client.*.wasm)"
+            exit 1
+          fi
+          if [ ! -f "src/OpenWebUI.Client/wwwroot/index.html" ]; then
+            echo "::error::wwwroot/index.html ausente no projeto Client"
+            exit 1
+          fi
+          echo "Blazor WASM assets gerados com sucesso: $(basename "$app_wasm")"
+          echo "payloads em _framework: $(ls "$fw" | wc -l)"
+
+  docker-build:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+    needs: build-openwebui
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e   # v4.3.0
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a   # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: openwebui:ci-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
+
+  # Depois de push na main, sobe .ci/coverage-baseline.txt para a taxa medida
+  # quando ela melhorou. O gate nos PRs passa a exigir "sem regressão vs main".
+  coverage-ratchet:
+    name: Coverage Baseline Ratchet
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Download Coverage Report
+        uses: actions/download-artifact@fc4bd39353f77d6ebe6f7a0b66a61cc069d5ae11   # v8
+        with:
+          name: coverage-xml
+
+      - name: Raise Baseline When Improved
+        run: |
+          XML=$(find . -name "coverage.cobertura.xml" | head -1)
+          if [ -z "$XML" ]; then echo "coverage xml not found — skipping ratchet"; exit 0; fi
+          RATE=$(python3 -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('$XML').getroot().get('line-rate'))*100, 2))")
+          BASELINE=$(cat .ci/coverage-baseline.txt 2>/dev/null || echo "0")
+          echo "measured ${RATE}% vs baseline ${BASELINE}%"
+          if python3 -c "import sys; sys.exit(0 if float('$RATE') > float('$BASELINE') else 1)"; then
+            echo "$RATE" > .ci/coverage-baseline.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .ci/coverage-baseline.txt
+            git commit -m "chore(ci): raise coverage baseline to ${RATE}% [skip ci]"
+            git push
+          else
+            echo "coverage did not improve — baseline unchanged"
+          fi
