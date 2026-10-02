@@ -1,0 +1,125 @@
+name: 🔒 Security Scan
+
+permissions: {}
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'    # Semanal, segunda às 2h UTC
+
+jobs:
+  codeql:
+    name: 🔍 CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: autobuild
+          - language: javascript
+            build-mode: none
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: 📦 Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: 🔍 Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63   # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: 🔍 Autobuild
+        if: matrix.language == 'csharp'
+        uses: github/codeql-action/autobuild@b96794f015dfd88f77b49b1c93e0fa7110f94c63   # v4
+
+      - name: 🔍 Perform Analysis
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63   # v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  snyk:
+    name: 🛡️ Snyk Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: 🗄️ Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: 🔧 Restore Dependencies
+        run: dotnet restore OpenWebUI.slnx --ignore-failed-sources
+
+      - name: 🔑 Check Snyk token
+        id: snyk-token
+        run: |
+          if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "::notice::SNYK_TOKEN não configurado — pulando Snyk"
+          fi
+
+      - name: 🛡️ Install Snyk CLI
+        if: steps.snyk-token.outputs.present == 'true'
+        run: |
+          curl -s https://static.snyk.io/cli/latest/snyk-linux -o snyk
+          chmod +x ./snyk
+          sudo mv ./snyk /usr/local/bin/
+
+      - name: 🛡️ Run Snyk Security Scan
+        if: steps.snyk-token.outputs.present == 'true'
+        run: snyk test --severity-threshold=high --all-projects
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  trivy:
+    name: 🔐 Trivy Container Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: 🐳 Build image to scan
+        run: docker build -t openwebui:scan .
+
+      - name: 🔐 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25   # v0.36.0
+        with:
+          image-ref: openwebui:scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 📤 Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63   # v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
