@@ -227,7 +227,10 @@ public class ChatHub(AppDbContext db, AccessControlService access) : Hub
         }
 
         note.Content = text;
-        note.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        // UpdatedAt tem granularidade de segundos: bump monotônico garante que
+        // duas writes no mesmo segundo ainda produzam versões distintas (LWW).
+        note.UpdatedAt = Math.Max(
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds(), note.UpdatedAt + 1);
         await db.SaveChangesAsync();
         await Clients.OthersInGroup(NoteGroupName(noteId))
             .SendAsync("note:update", noteId, user.Id, text, note.UpdatedAt);
