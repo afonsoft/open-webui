@@ -8,6 +8,7 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="Model">Modelo de imagem (ex.: gpt-image-1, dall-e-3).</param>
 /// <param name="Size">Tamanho padrão das imagens geradas.</param>
 /// <param name="TimeoutSeconds">Tempo limite da chamada ao provedor, em segundos.</param>
+/// <param name="EngineParams">Parâmetros livres do motor em JSON (workflow ComfyUI, steps, cfg, negative_prompt...).</param>
 public sealed record ImagesConfig(
     bool Enabled,
     string Engine,
@@ -15,7 +16,8 @@ public sealed record ImagesConfig(
     string ApiKey,
     string Model,
     string Size,
-    int TimeoutSeconds)
+    int TimeoutSeconds,
+    string EngineParams = "{}")
 {
     /// <summary>Placeholder exibido no lugar da chave real nas leituras.</summary>
     public const string MaskedApiKey = "********";
@@ -28,7 +30,8 @@ public sealed record ImagesConfig(
         ApiKey: string.Empty,
         Model: "gpt-image-1",
         Size: "1024x1024",
-        TimeoutSeconds: 120);
+        TimeoutSeconds: 120,
+        EngineParams: "{}");
 }
 
 /// <summary>Pedido de geração de imagem.</summary>
@@ -36,6 +39,15 @@ public sealed record ImagesConfig(
 /// <param name="N">Quantidade de imagens (1–4).</param>
 /// <param name="Size">Tamanho opcional, sobrescrevendo o padrão configurado.</param>
 public sealed record ImageGenerationRequest(string Prompt, int? N, string? Size);
+
+/// <summary>Pedido de edição de imagem (img2img/edits).</summary>
+/// <param name="ImageId">Id do arquivo de origem pertencente ao usuário.</param>
+/// <param name="Prompt">Instrução de edição.</param>
+/// <param name="Size">Tamanho opcional.</param>
+public sealed record ImageEditRequest(string ImageId, string Prompt, string? Size);
+
+/// <summary>Resultado do teste de conectividade do motor.</summary>
+public sealed record ImageTestResponse(bool Ok, string Detail);
 
 /// <summary>Imagem gerada persistida como arquivo do usuário.</summary>
 /// <param name="Url">URL servida pelo endpoint de conteúdo de arquivos.</param>

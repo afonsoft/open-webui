@@ -478,6 +478,15 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ImagesConfig?> UpdateImagesConfigAsync(ImagesConfig config) =>
         SendAsync<ImagesConfig>(HttpMethod.Post, "/api/v1/images/config", config);
 
+    /// <summary>Testa a conectividade do motor de imagens configurado (admin).</summary>
+    public Task<ImageTestResponse?> TestImagesConfigAsync() =>
+        SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/images/config/test");
+
+    /// <summary>Edita uma imagem existente com um prompt (engines com suporte).</summary>
+    public Task<GeneratedImage?> EditImageAsync(string imageId, string prompt, string? size = null) =>
+        SendAsync<GeneratedImage>(HttpMethod.Post, "/api/v1/images/edit",
+            new ImageEditRequest(imageId, prompt, size));
+
     /// <summary>Gera imagens a partir de um prompt; nulo quando falha ou feature off.</summary>
     public Task<List<GeneratedImage>?> GenerateImagesAsync(string prompt, string? size = null) =>
         SendAsync<List<GeneratedImage>>(HttpMethod.Post, "/api/v1/images/generations",

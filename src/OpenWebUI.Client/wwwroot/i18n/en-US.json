@@ -355,5 +355,11 @@
   "admin.col_battles": "Battles",
   "admin.col_wins": "Wins",
   "workspace.meta_json": "Meta JSON (arena: {\"arena\": true, \"model_ids\": [...]})",
-  "workspace.grants_json": "Access grants JSON"
+  "workspace.grants_json": "Access grants JSON",
+  "settings.images_engine": "Engine",
+  "settings.images_engine_params": "Engine params (JSON)",
+  "settings.images_test": "Test connection",
+  "settings.images_testing": "Testing…",
+  "settings.images_test_ok": "Connection successful",
+  "settings.images_test_fail": "Connection failed"
 }
