@@ -14,7 +14,8 @@ public static class ToolEndpoints
     /// <summary>Mapeia o grupo /api/v1/tools.</summary>
     public static void MapToolEndpoints(this WebApplication app)
     {
-        var tools = app.MapGroup("/api/v1/tools").RequireAuthorization();
+        var tools = app.MapGroup("/api/v1/tools").RequireAuthorization()
+            .RequirePermission(PermissionService.WorkspaceTools);
         tools.MapGet("/", ListAsync);
         tools.MapPost("/", CreateAsync);
         tools.MapPut("/{id}", UpdateAsync);

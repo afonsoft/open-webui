@@ -405,6 +405,41 @@ public static class AuthEndpoints
         return id is null ? null : await db.Users.FindAsync([id], ct);
     }
 
+    /// <summary>
+    /// Resolve o usuário e aplica a permissão granular ("seção.flag") do
+    /// <see cref="PermissionService"/>: usuário ausente → Unauthorized, sem a
+    /// permissão → Forbid. Retorna <c>(user, null)</c> quando autorizado.
+    /// </summary>
+    internal static async Task<(User? User, IResult? Error)> RequirePermissionAsync(
+        HttpContext http, AppDbContext db, PermissionService permissions,
+        string permission, CancellationToken ct)
+    {
+        var user = await FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return (null, Results.Unauthorized());
+        }
+        return await permissions.HasAsync(user, permission, ct)
+            ? (user, null)
+            : (null, Results.Forbid());
+    }
+
+    /// <summary>
+    /// Filtra todo um grupo (ou rota) pela permissão granular "seção.flag" —
+    /// 401 sem usuário, 403 sem permissão. Funciona em <see cref="RouteGroupBuilder"/>
+    /// e <see cref="RouteHandlerBuilder"/>.
+    /// </summary>
+    internal static TBuilder RequirePermission<TBuilder>(this TBuilder builder, string permission)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.AddEndpointFilter(async (ctx, next) =>
+        {
+            var http = ctx.HttpContext;
+            var db = http.RequestServices.GetRequiredService<AppDbContext>();
+            var permissions = http.RequestServices.GetRequiredService<PermissionService>();
+            var (_, error) = await RequirePermissionAsync(
+                http, db, permissions, permission, http.RequestAborted);
+            return error ?? await next(ctx);
+        });
 
     internal static UserResponse ToResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role, user.ProfileImageUrl, user.Timezone);

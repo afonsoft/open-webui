@@ -13,7 +13,8 @@ public static class KnowledgeEndpoints
     /// <summary>Mapeia o grupo /api/v1/knowledge.</summary>
     public static void MapKnowledgeEndpoints(this WebApplication app)
     {
-        var knowledge = app.MapGroup("/api/v1/knowledge").RequireAuthorization();
+        var knowledge = app.MapGroup("/api/v1/knowledge").RequireAuthorization()
+            .RequirePermission(PermissionService.WorkspaceKnowledge);
         knowledge.MapGet("/", ListAsync);
         knowledge.MapPost("/", CreateAsync);
         knowledge.MapGet("/{id}", GetAsync);
@@ -40,11 +41,15 @@ public static class KnowledgeEndpoints
         var all = await db.KnowledgeCollections.AsNoTracking()
             .OrderBy(k => k.Name)
             .ToListAsync(ct);
+        var fileCounts = await db.KnowledgeFiles.AsNoTracking()
+            .GroupBy(f => f.CollectionId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
         var groups = await access.GetGroupIdsAsync(user.Id, ct);
         var collections = access
             .FilterReadable(user, all, groups, k => k.UserId, k => k.AccessGrantsJson)
             .Select(k => new KnowledgeResponse(
-                k.Id, k.Name, k.Description, k.Files.Count(), k.CreatedAt))
+                k.Id, k.Name, k.Description, fileCounts.GetValueOrDefault(k.Id), k.CreatedAt))
             .ToList();
         return Results.Ok(collections);
     }

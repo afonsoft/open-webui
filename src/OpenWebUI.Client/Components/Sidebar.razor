@@ -320,8 +320,14 @@ else
     protected override async Task OnInitializedAsync()
     {
         ChatList.Changed += OnChatsChanged;
+        // Sem isso Nav.Uri fica avaliado só no primeiro render: o chat atual
+        // nunca ganha highlight e o botão ⋯ fica display:none para sempre.
+        Nav.LocationChanged += OnLocationChanged;
         await LoadAsync();
     }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(StateHasChanged);
 
     private async void OnChatsChanged()
     {
@@ -543,5 +549,9 @@ else
     }
 
     /// <summary>Limpa inscrições.</summary>
-    public void Dispose() => ChatList.Changed -= OnChatsChanged;
+    public void Dispose()
+    {
+        ChatList.Changed -= OnChatsChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }
