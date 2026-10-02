@@ -15,7 +15,7 @@ Fork do [Open WebUI](https://github.com/open-webui/open-webui) migrado para **.N
 | Auth | JWT + `Bearer sk-*` (chaves de API) | — |
 | CSS | Tailwind CSS v4 (saída estática commitada) | — |
 | Testes | NUnit | — |
-| Container | Docker multi-stage (`:3000 → :8080`) | — |
+| Container | Docker multi-stage (`:3032 → :8080`) | — |
 | CI | GitHub Actions (`ubuntu-latest`) | — |
 
 ## Estrutura do Projeto
@@ -50,7 +50,7 @@ dotnet run --project src/OpenWebUI.Api   # app em http://localhost:8080
 
 # Docker
 cp .env.exemplo .env                     # variáveis de ambiente (opcional)
-docker compose up -d --build             # app em http://localhost:3000 (WEBUI_PORT)
+docker compose up -d --build             # app em http://localhost:3032 (WEBUI_PORT)
 docker compose -f docker-compose.full.yaml up -d --build   # app + Ollama + Whisper (testes)
 
 # Regenerar CSS Tailwind (após editar classes em .razor)

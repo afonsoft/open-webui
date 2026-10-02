@@ -22,4 +22,4 @@ Seed de conexões acontece apenas no primeiro boot (env → tabela de conexões)
 `Dockerfile` multi-stage (SDK → publish → runtime ASP.NET). Dois compose:
 `docker-compose.yaml` (só o app, lê `.env` — ver `.env.exemplo`) e
 `docker-compose.full.yaml` (app + Ollama + Whisper para testes). Volume para
-`webui.db` e porta `3000:8080` (`WEBUI_PORT`).
+`webui.db` e porta `3032:8080` (`WEBUI_PORT`).

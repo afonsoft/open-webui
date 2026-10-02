@@ -66,7 +66,7 @@ Docker:
 ```bash
 cp .env.exemplo .env      # ajuste as variáveis (opcional)
 docker compose up -d --build
-# http://localhost:3000 (WEBUI_PORT no .env)
+# http://localhost:3032 (WEBUI_PORT no .env)
 ```
 
 `docker-compose.yaml` sobe só o app — providers (Ollama/OpenAI) vêm do `.env`

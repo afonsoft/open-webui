@@ -35,7 +35,7 @@ Client ──▶ Application
 ```bash
 dotnet run --project src/OpenWebUI.Api   # http://localhost:8080
 # ou
-cp .env.exemplo .env && docker compose up -d   # http://localhost:3000
+cp .env.exemplo .env && docker compose up -d   # http://localhost:3032
 ```
 
 Primeiro usuário registrado vira admin. Conexões de providers podem ser semeadas por env (`OLLAMA_BASE_URL`, `OPENAI_API_KEY`, ...) — ver `.env.exemplo`. Para testes com infra completa (Ollama + Whisper): `docker compose -f docker-compose.full.yaml up -d`.

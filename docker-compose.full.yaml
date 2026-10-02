@@ -3,7 +3,7 @@
 #   cp .env.exemplo .env        # ajuste as variáveis (opcional)
 #   docker compose -f docker-compose.full.yaml up -d --build
 #
-# App:     http://localhost:3000
+# App:     http://localhost:3032
 # Ollama:  http://localhost:11434 — semeado como conexão no 1º boot (OLLAMA_BASE_URL).
 #          Baixe um modelo: `docker exec -it ollama ollama pull llama3.2`
 # Whisper: http://localhost:8000  — STT faster-whisper (WHISPER_URL).
@@ -16,7 +16,7 @@ services:
     image: openwebui-dotnet
     container_name: openwebui
     ports:
-      - "${WEBUI_PORT:-3000}:8080"
+      - "${WEBUI_PORT:-3032}:8080"
     env_file:
       - path: .env
         required: false
