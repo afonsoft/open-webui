@@ -9,6 +9,8 @@
 
 .git
 .gitignore
+.env
+.env.*
 .devin
 .devin-files
 .github

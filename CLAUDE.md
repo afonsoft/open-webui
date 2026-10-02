@@ -28,7 +28,7 @@ src/OpenWebUI.Api            # Minimal APIs + hosting do WASM
 src/OpenWebUI.Client         # Blazor WASM (UI fiel ao upstream)
 tests/OpenWebUI.Api.Tests    # NUnit
 OpenWebUI.slnx               # solução
-Dockerfile, docker-compose.yaml
+Dockerfile, docker-compose.yaml (só app, lê .env), docker-compose.full.yaml (infra de testes), .env.exemplo
 ```
 
 Dependências apontam para dentro: `Api → Infrastructure → Application → Domain`. O `Client` referencia apenas `Application`.
@@ -49,7 +49,9 @@ dotnet test tests/OpenWebUI.Api.Tests
 dotnet run --project src/OpenWebUI.Api   # app em http://localhost:8080
 
 # Docker
-docker compose up -d --build             # app em http://localhost:3000
+cp .env.exemplo .env                     # variáveis de ambiente (opcional)
+docker compose up -d --build             # app em http://localhost:3000 (WEBUI_PORT)
+docker compose -f docker-compose.full.yaml up -d --build   # app + Ollama + Whisper (testes)
 
 # Regenerar CSS Tailwind (após editar classes em .razor)
 tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
@@ -112,7 +114,7 @@ Padrão: **Plan-and-Execute**.
 
 - Feature: `feature/{Agent}-{YYYYMMDD}-{descricao}` → implementar → testes → PR para `main`.
 - Bug fix: `fix/{descricao}` → reproduzir → corrigir → regressão → PR.
-- Seed de conexões por env: `OLLAMA_BASE_URL(S)`, `OPENAI_API_BASE_URL(S)`, `OPENAI_API_KEY(S)` (`;`-separados, primeiro boot).
+- Seed de conexões por env: `OLLAMA_BASE_URL(S)`, `OPENAI_API_BASE_URL(S)`, `OPENAI_API_KEY(S)` (`;`-separados, primeiro boot). Lista completa em `.env.exemplo`.
 - Primeiro usuário registrado vira admin.
 
 ## Referências
