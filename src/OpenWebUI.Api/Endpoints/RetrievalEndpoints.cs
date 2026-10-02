@@ -268,12 +268,14 @@ public static class RetrievalEndpoints
             return Results.Forbid();
         }
 
-        var valid = request.Engine is "none" or "searxng" or "duckduckgo" or "tavily" or "brave"
+        var valid = request.Engine is "none" or "searxng" or "duckduckgo" or "tavily"
+            or "brave" or "google_pse" or "jina" or "exa" or "kagi" or "perplexity"
             && request.TopK is > 0 and <= 100
             && request.ChunkSize is >= 100 and <= 10000
             && request.ChunkOverlap >= 0
             && request.ChunkOverlap < request.ChunkSize
-            && request.HybridWeight is >= 0 and <= 1;
+            && request.HybridWeight is >= 0 and <= 1
+            && request.RerankEngine is "local" or "external";
         if (!valid)
         {
             return Results.BadRequest(new { detail = "Configuração de retrieval inválida." });
@@ -285,6 +287,12 @@ public static class RetrievalEndpoints
         {
             BraveApiKey = request.BraveApiKey is null or "********" ? current.BraveApiKey : request.BraveApiKey,
             TavilyApiKey = request.TavilyApiKey is null or "********" ? current.TavilyApiKey : request.TavilyApiKey,
+            GooglePseApiKey = request.GooglePseApiKey is null or "********" ? current.GooglePseApiKey : request.GooglePseApiKey,
+            JinaApiKey = request.JinaApiKey is null or "********" ? current.JinaApiKey : request.JinaApiKey,
+            ExaApiKey = request.ExaApiKey is null or "********" ? current.ExaApiKey : request.ExaApiKey,
+            KagiApiKey = request.KagiApiKey is null or "********" ? current.KagiApiKey : request.KagiApiKey,
+            PerplexityApiKey = request.PerplexityApiKey is null or "********" ? current.PerplexityApiKey : request.PerplexityApiKey,
+            RerankExternalApiKey = request.RerankExternalApiKey is null or "********" ? current.RerankExternalApiKey : request.RerankExternalApiKey,
         };
         await config.SetAsync("retrieval.config", merged, ct);
         return Results.Ok(merged.Masked());
