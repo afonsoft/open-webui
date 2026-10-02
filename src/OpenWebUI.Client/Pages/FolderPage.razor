@@ -1,0 +1,61 @@
+@page "/folders/{FolderId}"
+@inject ApiService Api
+@inject NavigationManager Nav
+@inject LocalizationService L
+
+<PageTitle>@(_folder?.Name ?? "Pasta") — Open WebUI</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">📁 @(_folder?.Name ?? "")</h1>
+        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+    </div>
+
+    @if (_notFound)
+    {
+        <div class="sidebar-empty">@L["common.not_found"]</div>
+    }
+    else if (_chats is null)
+    {
+        <div class="sidebar-empty">@L["common.loading"]</div>
+    }
+    else if (_chats.Count == 0)
+    {
+        <div class="sidebar-empty">@L["sidebar.empty"]</div>
+    }
+    else
+    {
+        <div class="card-list">
+            @foreach (var chat in _chats)
+            {
+                <div class="card-row" role="button" @onclick='() => Nav.NavigateTo($"/c/{chat.Id}")'>
+                    <div class="card-main">
+                        <div class="card-title">@chat.Title</div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? FolderId { get; set; }
+
+    private FolderResponse? _folder;
+    private List<ChatSummaryResponse>? _chats;
+    private bool _notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (FolderId is null) { _notFound = true; return; }
+        _folder = await Api.GetFolderAsync(FolderId);
+        if (_folder is null)
+        {
+            _notFound = true;
+            return;
+        }
+        _chats = await Api.GetFolderChatsAsync(FolderId);
+    }
+
+    private void GoBack() => Nav.NavigateTo("/");
+}

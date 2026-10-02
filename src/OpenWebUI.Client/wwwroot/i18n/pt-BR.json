@@ -306,5 +306,13 @@
   "voice.stt_error": "Erro no reconhecimento de voz",
   "settings.audio_voice": "Voz (leitura de mensagens)",
   "settings.audio_voice_default": "Padrão do navegador",
-  "settings.audio_autosend": "Enviar automaticamente após o ditado"
+  "settings.audio_autosend": "Enviar automaticamente após o ditado",
+  "common.back": "← Voltar",
+  "common.new": "Novo",
+  "common.not_found": "Item não encontrado.",
+  "common.save_failed": "Falha ao salvar. Verifique os campos e tente novamente.",
+  "notes.edit": "Editar nota",
+  "workspace.params_json": "Parâmetros (JSON, opcional):",
+  "workspace.tool_url": "URL de execução (HTTP POST):",
+  "workspace.tool_spec": "Spec da tool (JSON):"
 }

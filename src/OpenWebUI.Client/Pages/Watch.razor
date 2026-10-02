@@ -1,0 +1,15 @@
+@page "/watch"
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Mesmo shim do upstream: /watch?v=<youtube-id> → /?youtube=<id>
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var video = query["v"];
+        Nav.NavigateTo(string.IsNullOrEmpty(video)
+            ? "/"
+            : $"/?youtube={Uri.EscapeDataString(video)}", replace: true);
+    }
+}

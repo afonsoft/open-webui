@@ -636,6 +636,35 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<AutomationRunResponse?> RunAutomationNowAsync(string id) =>
         SendAsync<AutomationRunResponse>(HttpMethod.Post, $"/api/v1/automations/{id}/run-now");
 
+    // ---------------- Rotas dedicadas (detalhe por id) ----------------
+
+    /// <summary>Obtém um prompt pelo id.</summary>
+    public Task<PromptResponse?> GetPromptAsync(string id) =>
+        SendAsync<PromptResponse>(HttpMethod.Get, $"/api/v1/prompts/id/{Uri.EscapeDataString(id)}");
+
+    /// <summary>Obtém uma automação pelo id.</summary>
+    public Task<AutomationResponse?> GetAutomationAsync(string id) =>
+        SendAsync<AutomationResponse>(HttpMethod.Get, $"/api/v1/automations/{Uri.EscapeDataString(id)}");
+
+    /// <summary>Obtém um modelo customizado pelo id.</summary>
+    public Task<ModelEntryResponse?> GetCustomModelAsync(string id) =>
+        SendAsync<ModelEntryResponse>(HttpMethod.Get,
+            $"/api/v1/models/model?id={Uri.EscapeDataString(id)}");
+
+    /// <summary>Obtém uma pasta pelo id.</summary>
+    public Task<FolderResponse?> GetFolderAsync(string id) =>
+        SendAsync<FolderResponse>(HttpMethod.Get, $"/api/v1/folders/{Uri.EscapeDataString(id)}");
+
+    /// <summary>Lista os chats de uma pasta.</summary>
+    public async Task<List<ChatSummaryResponse>> GetFolderChatsAsync(string id) =>
+        await SendAsync<List<ChatSummaryResponse>>(
+            HttpMethod.Get, $"/api/v1/chats/folder/{Uri.EscapeDataString(id)}") ?? [];
+
+    /// <summary>Atualiza nome/descrição de uma coleção de knowledge.</summary>
+    public Task<KnowledgeResponse?> UpdateKnowledgeAsync(string id, string name, string? description) =>
+        SendAsync<KnowledgeResponse>(HttpMethod.Put, $"/api/v1/knowledge/{Uri.EscapeDataString(id)}",
+            new UpdateKnowledgeRequest(name, description));
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
 }
 
