@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@using System.Text.Json.Nodes
 
 <PageTitle>@L["page.admin"] — Open WebUI</PageTitle>
 
@@ -89,10 +90,30 @@
                                 }
                                 @if (user.Id != Auth.CurrentUser?.Id)
                                 {
+                                    <button class="msg-action" title="@L["admin.perms"]"
+                                            @onclick="() => TogglePermEditorAsync(user)">🛡</button>
                                     <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
                                 }
                             </div>
                         </div>
+                        @if (_permUserId == user.Id)
+                        {
+                            <div class="card-row">
+                                <div class="flex flex-col gap-1 w-full text-sm py-1">
+                                    <div class="text-xs text-gray-500">@L["admin.perm_hint"]</div>
+                                    @foreach (var (key, label) in PermFlags)
+                                    {
+                                        <div class="flex items-center justify-between py-0.5">
+                                            <span>@label</span>
+                                            <button class="msg-action" @onclick="() => CyclePermAsync(key)">
+                                                @PermLabel(key)
+                                            </button>
+                                        </div>
+                                    }
+                                    <button class="auth-submit" @onclick="SavePermsAsync">@L["common.save"]</button>
+                                </div>
+                            </div>
+                        }
                     }
                     @if (_users.Count == 0)
                     {
@@ -420,6 +441,143 @@
                         }
                     </div>
                 }
+                else if (_configTab == "audio")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.stt_engine"]</label>
+                                <select class="input w-52" @bind="_sttEngine">
+                                    <option value="none">none</option>
+                                    <option value="web-speech">web-speech</option>
+                                    <option value="openai">openai</option>
+                                    <option value="deepgram">deepgram</option>
+                                </select>
+                                @if (_sttEngine is "openai" or "deepgram")
+                                {
+                                    <input class="input" @bind="_sttBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input class="input" type="password" @bind="_sttKey" placeholder="API key" />
+                                    <input class="input" @bind="_sttModel" placeholder="whisper-1" />
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.tts_engine"]</label>
+                                <select class="input w-52" @bind="_ttsEngine">
+                                    <option value="none">none</option>
+                                    <option value="openai">openai</option>
+                                </select>
+                                @if (_ttsEngine == "openai")
+                                {
+                                    <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input class="input" @bind="_ttsModel" placeholder="tts-1" />
+                                    <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_configMessage is not null)
+                            {
+                                <div class="field-note">@_configMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveAudioAsync">@L["common.save"]</button>
+                        </div>
+                    </div>
+                }
+                else if (_configTab == "retrieval")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.search_engine"]</label>
+                                <select class="input w-52" @bind="_retEngine">
+                                    <option value="none">none</option>
+                                    <option value="searxng">searxng</option>
+                                    <option value="duckduckgo">duckduckgo</option>
+                                    <option value="tavily">tavily</option>
+                                    <option value="brave">brave</option>
+                                    <option value="google_pse">google_pse</option>
+                                    <option value="jina">jina</option>
+                                    <option value="exa">exa</option>
+                                    <option value="kagi">kagi</option>
+                                    <option value="perplexity">perplexity</option>
+                                </select>
+                                @if (_retEngine == "searxng")
+                                {
+                                    <input class="input" @bind="_retSearxng" placeholder="http://searxng:8080" />
+                                }
+                                @if (_retEngine == "tavily")
+                                {
+                                    <input class="input" type="password" @bind="_retTavily" placeholder="tavily api key" />
+                                }
+                                @if (_retEngine == "brave")
+                                {
+                                    <input class="input" type="password" @bind="_retBrave" placeholder="brave api key" />
+                                }
+                                @if (_retEngine == "google_pse")
+                                {
+                                    <input class="input" type="password" @bind="_retGooglePseKey" placeholder="google pse api key" />
+                                    <input class="input" @bind="_retGooglePseCx" placeholder="engine id (cx)" />
+                                }
+                                @if (_retEngine == "jina")
+                                {
+                                    <input class="input" type="password" @bind="_retJinaKey" placeholder="jina api key" />
+                                }
+                                @if (_retEngine == "exa")
+                                {
+                                    <input class="input" type="password" @bind="_retExaKey" placeholder="exa api key" />
+                                }
+                                @if (_retEngine == "kagi")
+                                {
+                                    <input class="input" type="password" @bind="_retKagiKey" placeholder="kagi api key" />
+                                }
+                                @if (_retEngine == "perplexity")
+                                {
+                                    <input class="input" type="password" @bind="_retPplxKey" placeholder="perplexity api key" />
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">top-k</label>
+                                <input class="input w-28" type="number" @bind="_retTopK" />
+                                <label class="text-sm text-gray-600 dark:text-gray-300">chunk size / overlap</label>
+                                <div class="flex gap-2">
+                                    <input class="input w-28" type="number" @bind="_retChunkSize" />
+                                    <input class="input w-28" type="number" @bind="_retOverlap" />
+                                </div>
+                                <label class="check"><input type="checkbox" @bind="_retHybrid" /> hybrid (bm25+vector)</label>
+                                @if (_retHybrid)
+                                {
+                                    <label class="text-sm text-gray-600 dark:text-gray-300">hybrid weight (0..1)</label>
+                                    <input class="input w-28" type="number" step="0.1" min="0" max="1" @bind="_retWeight" />
+                                }
+                                <label class="check"><input type="checkbox" @bind="_retRerank" /> rerank</label>
+                                @if (_retRerank)
+                                {
+                                    <select class="input w-52" @bind="_retRerankEngine">
+                                        <option value="local">local</option>
+                                        <option value="external">external</option>
+                                    </select>
+                                    @if (_retRerankEngine == "external")
+                                    {
+                                        <input class="input" @bind="_retRerankUrl" placeholder="http://reranker:8080/rerank" />
+                                        <input class="input" type="password" @bind="_retRerankKey" placeholder="api key (opcional)" />
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_configMessage is not null)
+                            {
+                                <div class="field-note">@_configMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveRetrievalAsync">@L["common.save"]</button>
+                        </div>
+                    </div>
+                }
                 else
                 {
                     <div class="card-list">
@@ -620,6 +778,8 @@
                             </div>
                             <div class="card-actions">
                                 <button class="msg-action" @onclick="() => AddMemberAsync(group)">@L["admin.add_member"]</button>
+                                <button class="msg-action" title="@L["admin.group_domains"]"
+                                        @onclick="() => EditDomainsAsync(group)">🌐</button>
                                 <button class="msg-action" @onclick="() => ToggleSharingAsync(group)">
                                     @(group.Permissions.Sharing?.PublicChats == false ? L["admin.allow_share"] : L["admin.block_share"])
                                 </button>
@@ -649,6 +809,19 @@
     private int UsersTotalPages => Math.Max(1,
         (int)Math.Ceiling(_usersTotal / (double)UsersPerPage));
     private List<GroupResponse>? _groups;
+    private string? _permUserId;
+    private Dictionary<string, bool?> _permValues = new();
+
+    private static readonly (string Key, string Label)[] PermFlags =
+    [
+        ("workspace.models", "Модели"),
+        ("workspace.prompts", "Промпты"),
+        ("workspace.knowledge", "Знания"),
+        ("workspace.tools", "Инструменты"),
+        ("workspace.files", "Файлы"),
+        ("sharing.public_chats", "Публичные чаты"),
+        ("chat.controls", "Управление чатом"),
+    ];
     private AdminChatListResponse? _adminChats;
     private int _chatsPage = 1;
     private string? _chatQuery;
@@ -727,6 +900,20 @@
     private bool _retHybrid;
     private double _retWeight = 0.5;
     private bool _retRerank;
+    private string _retRerankEngine = "local";
+    private string? _retRerankUrl;
+    private string? _retRerankKey;
+    private string? _retGooglePseKey;
+    private string? _retGooglePseCx;
+    private string? _retGooglePseBase;
+    private string? _retJinaKey;
+    private string? _retJinaBase;
+    private string? _retExaKey;
+    private string? _retExaBase;
+    private string? _retKagiKey;
+    private string? _retKagiBase;
+    private string? _retPplxKey;
+    private string? _retPplxBase;
 
     private const int FeedbackPageSize = 20;
     private int FeedbackPages => _feedbacks is null ? 0
@@ -804,6 +991,20 @@
             _retHybrid = ret.Hybrid;
             _retWeight = ret.HybridWeight;
             _retRerank = ret.Rerank;
+            _retRerankEngine = ret.RerankEngine;
+            _retRerankUrl = ret.RerankExternalUrl;
+            _retRerankKey = ret.RerankExternalApiKey;
+            _retGooglePseKey = ret.GooglePseApiKey;
+            _retGooglePseCx = ret.GooglePseEngineId;
+            _retGooglePseBase = ret.GooglePseBaseUrl;
+            _retJinaKey = ret.JinaApiKey;
+            _retJinaBase = ret.JinaBaseUrl;
+            _retExaKey = ret.ExaApiKey;
+            _retExaBase = ret.ExaBaseUrl;
+            _retKagiKey = ret.KagiApiKey;
+            _retKagiBase = ret.KagiBaseUrl;
+            _retPplxKey = ret.PerplexityApiKey;
+            _retPplxBase = ret.PerplexityBaseUrl;
         }
         _terminals = await Api.GetTerminalServersAsync() ?? [];
         var saml = await Api.GetSamlConfigAsync();
@@ -1006,7 +1207,21 @@
         var updated = await Api.UpdateRetrievalConfigAsync(new RetrievalConfig(
             _retEngine, _retSearxng, _retBrave, _retTavily,
             _retTopK, _retChunkSize, _retOverlap,
-            _retHybrid, _retWeight, _retRerank));
+            _retHybrid, _retWeight, _retRerank,
+            GooglePseApiKey: _retGooglePseKey,
+            GooglePseEngineId: _retGooglePseCx,
+            GooglePseBaseUrl: _retGooglePseBase,
+            JinaApiKey: _retJinaKey,
+            JinaBaseUrl: _retJinaBase,
+            ExaApiKey: _retExaKey,
+            ExaBaseUrl: _retExaBase,
+            KagiApiKey: _retKagiKey,
+            KagiBaseUrl: _retKagiBase,
+            PerplexityApiKey: _retPplxKey,
+            PerplexityBaseUrl: _retPplxBase,
+            RerankEngine: _retRerankEngine,
+            RerankExternalUrl: _retRerankUrl,
+            RerankExternalApiKey: _retRerankKey));
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
 
@@ -1133,6 +1348,75 @@
 
         var updated = await Api.AddGroupMembersAsync(group.Id,
             new UpdateGroupMembersRequest([target.Id]));
+        if (updated is not null)
+        {
+            _groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private string PermLabel(string key) =>
+        _permValues.TryGetValue(key, out var v)
+            ? (v == true ? "✓ " + L["admin.perm_on"] : v == false ? "✗ " + L["admin.perm_off"] : "—")
+            : "—";
+
+    private async Task TogglePermEditorAsync(AdminUserResponse user)
+    {
+        if (_permUserId == user.Id)
+        {
+            _permUserId = null;
+            return;
+        }
+        _permUserId = user.Id;
+        _permValues = new Dictionary<string, bool?>();
+        var json = await Api.GetUserPermissionsAsync(user.Id);
+        if (json is not null)
+        {
+            foreach (var (key, _) in PermFlags)
+            {
+                var parts = key.Split('.');
+                if (json[parts[0]] is JsonObject section
+                    && section[parts[1]] is JsonValue flag
+                    && flag.TryGetValue<bool>(out var b))
+                {
+                    _permValues[key] = b;
+                }
+            }
+        }
+    }
+
+    private void CyclePermAsync(string key)
+    {
+        var cur = _permValues.TryGetValue(key, out var v) ? v : null;
+        _permValues[key] = cur is null ? true : cur == true ? false : (bool?)null;
+    }
+
+    private async Task SavePermsAsync()
+    {
+        if (_permUserId is null) return;
+        var obj = new JsonObject();
+        foreach (var (key, value) in _permValues)
+        {
+            if (value is null) continue;
+            var parts = key.Split('.');
+            if (obj[parts[0]] is not JsonObject section)
+            {
+                section = new JsonObject();
+                obj[parts[0]] = section;
+            }
+            section[parts[1]] = value.Value;
+        }
+        await Api.UpdateUserPermissionsAsync(_permUserId, obj);
+        _permUserId = null;
+    }
+
+    private async Task EditDomainsAsync(GroupResponse group)
+    {
+        var text = await JS.InvokeAsync<string?>("openwebui.prompt",
+            L["admin.prompt_group_domains"], string.Join(", ", group.AllowedDomains));
+        if (text is null) return;
+        var domains = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var updated = await Api.UpdateGroupAsync(group.Id,
+            new UpdateGroupRequest(null, null, null, domains));
         if (updated is not null)
         {
             _groups = await Api.GetGroupsAsync();

@@ -41,9 +41,9 @@ public class PermissionService(AppDbContext db)
     /// <param name="permission">Chave no formato "seção.flag".</param>
     /// <param name="ct">Token de cancelamento.</param>
     /// <remarks>
-    /// Semântica do upstream: merge das camadas — as permissões do usuário (defaults
-    /// herdados no signup) são a base e cada grupo sobrescreve flags declaradas
-    /// explicitamente. Sem valor explícito em nenhuma camada, o default é permitir.
+    /// Semântica: flags explícitas de grupo sobrescrevem o default do papel e,
+    /// por fim, flags explícitas do usuário (override do admin) vencem tudo.
+    /// Sem valor explícito em nenhuma camada, o default é permitir.
     /// JSON de grupo inválido (ou não-objeto) conta como negação explícita
     /// (fail-closed), que outro grupo pode sobrescrever.
     /// </remarks>
@@ -60,7 +60,7 @@ public class PermissionService(AppDbContext db)
             .Select(m => m.Group!.PermissionsJson)
             .ToListAsync(ct);
 
-        bool? effective = ExplicitValue(user.PermissionsJson, permission, invalidAsFalse: false);
+        bool? effective = null;
         foreach (var json in groups)
         {
             var value = ExplicitValue(json, permission, invalidAsFalse: true);
@@ -68,6 +68,13 @@ public class PermissionService(AppDbContext db)
             {
                 effective = value;
             }
+        }
+
+        // Override por usuário (definido pelo admin) vence qualquer grupo.
+        var userValue = ExplicitValue(user.PermissionsJson, permission, invalidAsFalse: false);
+        if (userValue.HasValue)
+        {
+            effective = userValue;
         }
 
         return effective ?? true;

@@ -160,6 +160,15 @@ public class AuthService(HttpClient http, BrowserStorage storage, LocalizationSe
             {
                 var node = System.Text.Json.Nodes.JsonNode.Parse(
                     await response.Content.ReadAsStringAsync());
+                // error_code do backend → chave errors.{code} localizada; senão detail cru.
+                if (node?["error_code"]?.GetValue<string>() is { } code)
+                {
+                    var translated = l10n[$"errors.{code}"];
+                    if (translated != $"errors.{code}")
+                    {
+                        return translated;
+                    }
+                }
                 return node?["detail"]?.GetValue<string>() ?? l10n["auth.error_failed"];
             }
             catch (System.Text.Json.JsonException)

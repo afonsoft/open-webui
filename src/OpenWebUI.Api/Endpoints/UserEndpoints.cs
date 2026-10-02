@@ -25,6 +25,8 @@ public static class UserEndpoints
         group.MapGet("/{id}", GetUserAsync);
         group.MapPost("/{id}/update", UpdateUserAsync);
         group.MapPost("/{id}/update/role", UpdateUserRoleAsync);
+        group.MapGet("/{id}/permissions", GetUserPermissionsAsync);
+        group.MapPut("/{id}/permissions", UpdateUserPermissionsAsync);
         group.MapGet("/{id}/oauth/sessions", ListOAuthSessionsAsync);
         group.MapDelete("/{id}/oauth/sessions/{sessionId}", RevokeOAuthSessionAsync);
         group.MapDelete("/{id}", DeleteUserAsync);
@@ -277,6 +279,57 @@ public static class UserEndpoints
             await notifications.DispatchAsync("user.approved",
                 new { user.Id, user.Name, user.Email, user.Role }, user.Id, ct);
         }
+        return Results.Ok(AuthEndpoints.ToResponse(user));
+    }
+
+    private static async Task<IResult> GetUserPermissionsAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Retorna o JSON cru para preservar flags desconhecidas do contrato atual.
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(user.PermissionsJson);
+            return Results.Json(doc.RootElement.Clone());
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return Results.Json(new { });
+        }
+    }
+
+    private static async Task<IResult> UpdateUserPermissionsAsync(
+        string id, System.Text.Json.JsonElement permissions,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+        if (permissions.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            return Results.BadRequest(new { detail = "Permissões devem ser um objeto JSON." });
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return Results.NotFound();
+        }
+
+        user.PermissionsJson = permissions.GetRawText();
+        user.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
         return Results.Ok(AuthEndpoints.ToResponse(user));
     }
 
