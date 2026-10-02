@@ -63,7 +63,12 @@ public class ChatStreamService(HttpClient http, AuthService auth)
             {
                 var node = JsonNode.Parse(payload);
                 error = node?["error"]?.GetValue<string>();
-                delta = node?["choices"]?[0]?["delta"]?["content"]?.GetValue<string>();
+                // Gateways podem emitir chunks sem choice (só role/usage/keepalive):
+                // indexar um array vazio lança ArgumentOutOfRangeException.
+                var choices = node?["choices"] as JsonArray;
+                delta = choices is { Count: > 0 }
+                    ? choices[0]?["delta"]?["content"]?.GetValue<string>()
+                    : null;
                 var arena = node?["arena"];
                 if (arena is not null)
                 {
