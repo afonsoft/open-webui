@@ -196,6 +196,15 @@
                         @if (_imagesEnabled)
                         {
                             <div class="field">
+                                <label>@L["settings.images_engine"]</label>
+                                <select class="input" @bind="_imagesEngine">
+                                    @foreach (var engine in _imageEngines)
+                                    {
+                                        <option value="@engine">@engine</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
                                 <label>@L["settings.images_base_url"]</label>
                                 <input class="input" @bind="_imagesBaseUrl" placeholder="https://api.openai.com/v1" />
                             </div>
@@ -217,6 +226,13 @@
                                     <option value="auto">auto</option>
                                 </select>
                             </div>
+                            <div class="field">
+                                <label>@L["settings.images_engine_params"]</label>
+                                <textarea class="input" rows="3" @bind="_imagesEngineParams" placeholder="{}"></textarea>
+                            </div>
+                            <button class="auth-submit" type="button" @onclick="TestImagesAsync" disabled="@_imagesTesting">
+                                @(_imagesTesting ? L["settings.images_testing"] : L["settings.images_test"])
+                            </button>
                         }
                         @if (_adminMessage is not null)
                         {
@@ -277,10 +293,14 @@
     private bool _adminEnableFolders = true;
     private bool _adminEnableMemories;
     private bool _imagesEnabled;
+    private string _imagesEngine = "openai";
     private string _imagesBaseUrl = "https://api.openai.com/v1";
     private string _imagesApiKey = string.Empty;
     private string _imagesModel = "gpt-image-1";
     private string _imagesSize = "1024x1024";
+    private string _imagesEngineParams = "{}";
+    private bool _imagesTesting;
+    private List<string> _imageEngines = ["openai", "a1111", "gemini", "comfyui"];
     private string? _adminMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -323,10 +343,12 @@
                 if (images is not null)
                 {
                     _imagesEnabled = images.Enabled;
+                    _imagesEngine = images.Engine;
                     _imagesBaseUrl = images.BaseUrl;
                     _imagesApiKey = string.Empty;
                     _imagesModel = images.Model;
                     _imagesSize = images.Size;
+                    _imagesEngineParams = images.EngineParams;
                 }
 
                 _adminLoaded = true;
@@ -468,15 +490,27 @@
             _adminWebUiName.Trim()));
         var images = await Api.UpdateImagesConfigAsync(new ImagesConfig(
             _imagesEnabled,
-            "openai",
+            _imagesEngine,
             _imagesBaseUrl.Trim(),
             _imagesApiKey.Trim(),
             _imagesModel.Trim(),
             _imagesSize,
-            120));
+            120,
+            string.IsNullOrWhiteSpace(_imagesEngineParams) ? "{}" : _imagesEngineParams.Trim()));
         _adminMessage = result is null || images is null
             ? L["settings.save_failed"]
             : L["settings.admin_saved"];
+    }
+
+    private async Task TestImagesAsync()
+    {
+        _imagesTesting = true;
+        _adminMessage = null;
+        var result = await Api.TestImagesConfigAsync();
+        _adminMessage = result is null
+            ? L["settings.save_failed"]
+            : result.Ok ? L["settings.images_test_ok"] : $"{L["settings.images_test_fail"]}: {result.Detail}";
+        _imagesTesting = false;
     }
 
     private static string FormatDate(long unixSeconds) =>

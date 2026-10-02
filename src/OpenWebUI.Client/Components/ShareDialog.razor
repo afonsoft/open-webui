@@ -1,0 +1,172 @@
+@inject ApiService Api
+@inject LocalizationService L
+
+@* Seção "Compartilhar" — grants de acesso (usuário/grupo/todos, read|write) de um recurso. *@
+<div class="card-list">
+    <div class="card-row" style="cursor:pointer" @onclick="ToggleAsync">
+        <div class="card-main">
+            <div class="card-title">@L["share.title"]</div>
+            <div class="card-sub">
+                @if (_grants.Count == 0)
+                {
+                    @L["share.only_you"]
+                }
+                else
+                {
+                    @_grants.Count @L["share.grants_count"]
+                }
+            </div>
+        </div>
+        <div class="card-actions text-gray-500">@(_open ? "▲" : "▼")</div>
+    </div>
+
+    @if (_open)
+    {
+        @foreach (var g in _grants)
+        {
+            <div class="card-row">
+                <div class="card-main">
+                    <div class="card-title">@PrincipalLabel(g)</div>
+                    <div class="card-sub">@L[$"share.perm.{g.Permission}"]</div>
+                </div>
+                <div class="card-actions">
+                    <button class="msg-action" @onclick="() => RemoveGrant(g)">@L["common.delete"]</button>
+                </div>
+            </div>
+        }
+
+        <div class="card-row">
+            <div class="card-main">
+                <div class="flex flex-wrap gap-2 items-center">
+                    <select class="input w-32" @bind="_newType">
+                        <option value="user">@L["share.user"]</option>
+                        <option value="group">@L["share.group"]</option>
+                        <option value="all">@L["share.everyone"]</option>
+                    </select>
+                    @if (_newType == "user")
+                    {
+                        @if (_users is not null)
+                        {
+                            <select class="input w-56" @bind="_newPrincipalId">
+                                <option value="">@L["share.pick_user"]</option>
+                                @foreach (var u in _users)
+                                {
+                                    <option value="@u.Id">@u.Name (@u.Email)</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input class="input w-56" placeholder="@L["share.principal_id"]" @bind="_newPrincipalId" />
+                        }
+                    }
+                    else if (_newType == "group")
+                    {
+                        @if (_groups.Count > 0)
+                        {
+                            <select class="input w-56" @bind="_newPrincipalId">
+                                <option value="">@L["share.pick_group"]</option>
+                                @foreach (var g in _groups)
+                                {
+                                    <option value="@g.Id">@g.Name</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input class="input w-56" placeholder="@L["share.principal_id"]" @bind="_newPrincipalId" />
+                        }
+                    }
+                    <select class="input w-32" @bind="_newPermission">
+                        <option value="read">@L["share.perm.read"]</option>
+                        <option value="write">@L["share.perm.write"]</option>
+                    </select>
+                    <button class="primary-btn" @onclick="AddGrant">@L["common.add"]</button>
+                    <button class="auth-submit" @onclick="SaveAsync" disabled="@_saving">
+                        @L["common.save"]
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Entidade da rota (knowledge | notes | models | channels | calendars).</summary>
+    [Parameter] public string Entity { get; set; } = string.Empty;
+
+    /// <summary>Id do recurso compartilhado.</summary>
+    [Parameter] public string ItemId { get; set; } = string.Empty;
+
+    private bool _open;
+    private bool _loaded;
+    private bool _saving;
+    private List<AccessGrant> _grants = [];
+    private List<AdminUserResponse>? _users;
+    private List<GroupResponse> _groups = [];
+    private string _newType = "user";
+    private string _newPrincipalId = string.Empty;
+    private string _newPermission = "read";
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        if (_open && !_loaded)
+        {
+            _loaded = true;
+            _grants = await Api.GetAccessGrantsAsync(Entity, ItemId) ?? [];
+            try
+            {
+                var page = await Api.GetUsersAsync(perPage: 200);
+                _users = page.Users;
+            }
+            catch
+            {
+                _users = null; // não-admin: campo de texto livre
+            }
+            try
+            {
+                _groups = await Api.GetGroupsAsync();
+            }
+            catch
+            {
+                _groups = [];
+            }
+        }
+    }
+
+    private void AddGrant()
+    {
+        var principalId = _newType == "all" ? "*" : _newPrincipalId.Trim();
+        var principalType = _newType == "all" ? "user" : _newType;
+        if (string.IsNullOrWhiteSpace(principalId))
+        {
+            return;
+        }
+
+        _grants.RemoveAll(g => g.PrincipalType == principalType && g.PrincipalId == principalId);
+        _grants.Add(new AccessGrant(principalType, principalId, _newPermission));
+        _newPrincipalId = string.Empty;
+    }
+
+    private void RemoveGrant(AccessGrant grant) => _grants.Remove(grant);
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            await Api.UpdateAccessGrantsAsync(Entity, ItemId, _grants);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string PrincipalLabel(AccessGrant g) => g.PrincipalId == "*"
+        ? L["share.everyone"]
+        : g.PrincipalType == "group"
+            ? $"{L["share.group"]}: {_groups.FirstOrDefault(x => x.Id == g.PrincipalId)?.Name ?? g.PrincipalId}"
+            : _users?.FirstOrDefault(u => u.Id == g.PrincipalId)?.Name ?? g.PrincipalId;
+}

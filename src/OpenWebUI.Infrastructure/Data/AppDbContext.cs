@@ -30,6 +30,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Modelos personalizados do workspace.</summary>
     public DbSet<ModelEntry> ModelEntries => Set<ModelEntry>();
 
+    /// <summary>Batalhas de arena com voto pendente ou registrado.</summary>
+    public DbSet<ArenaBattle> ArenaBattles => Set<ArenaBattle>();
+
     /// <summary>Memórias persistentes dos usuários.</summary>
     public DbSet<MemoryEntry> Memories => Set<MemoryEntry>();
 
@@ -68,6 +71,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Mensagens de canais.</summary>
     public DbSet<ChannelMessage> ChannelMessages => Set<ChannelMessage>();
 
+    /// <summary>Reações a mensagens de canais.</summary>
+    public DbSet<ChannelMessageReaction> ChannelMessageReactions => Set<ChannelMessageReaction>();
+
     /// <summary>Automações de prompts agendados.</summary>
     public DbSet<Automation> Automations => Set<Automation>();
 
@@ -79,6 +85,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     /// <summary>Banners administrativos.</summary>
     public DbSet<Banner> Banners => Set<Banner>();
+
+    /// <summary>Calendários.</summary>
+    public DbSet<Calendar> Calendars => Set<Calendar>();
+
+    /// <summary>Eventos de calendário.</summary>
+    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

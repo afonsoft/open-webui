@@ -25,6 +25,8 @@
                     @onclick='() => SetTab("analytics")'>Analytics</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("evaluations")'>@L["admin.tab_evaluations"]</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "leaderboard" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("leaderboard")'>@L["admin.tab_leaderboard"]</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("config")'>@L["admin.tab_config"]</button>
         </div>
@@ -197,6 +199,39 @@
                             <button class="msg-action" disabled="@(_fbPage == 0)" @onclick="() => _fbPage--">@L["admin.prev"]</button>
                             <span class="text-gray-500">@L.T("admin.page_of", ("page", (_fbPage + 1).ToString()), ("total", FeedbackPages.ToString()))</span>
                             <button class="msg-action" disabled="@(_fbPage >= FeedbackPages - 1)" @onclick="() => _fbPage++">@L["admin.next"]</button>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else if (_tab == "leaderboard")
+        {
+            if (_leaderboard is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else if (_leaderboard.Count == 0)
+            {
+                <div class="sidebar-empty">@L["admin.no_leaderboard"]</div>
+            }
+            else
+            {
+                <div class="card-list">
+                    <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <span>@L["admin.col_model"]</span>
+                        <span>@L["admin.col_rating_elo"]</span>
+                        <span>@L["admin.col_battles"]</span>
+                        <span>@L["admin.col_wins"]</span>
+                    </div>
+                    @foreach (var entry in _leaderboard)
+                    {
+                        <div class="card-row">
+                            <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 w-full text-sm">
+                                <span class="truncate">@entry.ModelId</span>
+                                <span>@entry.Rating.ToString("F0")</span>
+                                <span>@entry.Battles</span>
+                                <span>@(entry.Wins % 1 == 0 ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
+                            </div>
                         </div>
                     }
                 </div>
@@ -424,6 +459,7 @@
     private List<GroupResponse>? _groups;
     private AnalyticsResponse? _analytics;
     private List<AdminFeedbackResponse>? _feedbacks;
+    private List<LeaderboardEntryResponse>? _leaderboard;
     private AdminConfig? _adminConfig;
     private AppConfigResponse? _appConfig;
     private string _tab = "users";
@@ -484,6 +520,7 @@
         _groups = await Api.GetGroupsAsync();
         _analytics = await Api.GetAnalyticsAsync(30);
         _feedbacks = await Api.GetAllFeedbacksAsync();
+        _leaderboard = await Api.GetLeaderboardAsync();
         _adminConfig = await Api.GetAdminConfigAsync();
         _appConfig = await Api.GetAppConfigAsync();
         if (_adminConfig is not null)
@@ -622,7 +659,8 @@
 
     protected override void OnParametersSet()
     {
-        _tab = Tab is "users" or "groups" or "analytics" or "evaluations" or "config"
+        _tab = Tab is "users" or "groups" or "analytics" or "evaluations"
+            or "leaderboard" or "config"
             ? Tab
             : "users";
     }

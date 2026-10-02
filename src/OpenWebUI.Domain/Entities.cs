@@ -63,6 +63,40 @@ public class ApiKey
     public long UpdatedAt { get; set; }
 }
 
+/// <summary>Batalha de arena: duas respostas anônimas de modelos sorteados aguardando voto.</summary>
+public class ArenaBattle
+{
+    /// <summary>Identificador único (GUID interno).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Usuário que disparou a batalha.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Id do modelo arena usado.</summary>
+    public string ArenaModelId { get; set; } = string.Empty;
+
+    /// <summary>Modelo real da resposta A (revelado após o voto).</summary>
+    public string ModelA { get; set; } = string.Empty;
+
+    /// <summary>Modelo real da resposta B (revelado após o voto).</summary>
+    public string ModelB { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo da resposta A.</summary>
+    public string ResponseA { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo da resposta B.</summary>
+    public string ResponseB { get; set; } = string.Empty;
+
+    /// <summary>Vencedor: "a", "b", "tie" ou "both_bad"; null até o voto.</summary>
+    public string? Winner { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Momento do voto (epoch seconds); null até votar.</summary>
+    public long? VotedAt { get; set; }
+}
+
 /// <summary>Conversa pertencente a um usuário.</summary>
 public class Chat
 {
@@ -243,8 +277,14 @@ public class ModelEntry
     /// <summary>Nome público exibido no seletor de modelos.</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Modelo base usado na completion (id do provedor).</summary>
-    public string BaseModelId { get; set; } = string.Empty;
+    /// <summary>Modelo base usado na completion (id do provedor); null em modelos arena.</summary>
+    public string? BaseModelId { get; set; }
+
+    /// <summary>Metadados do modelo em JSON (ex.: {"arena": true, "model_ids": [...]}).</summary>
+    public string? MetaJson { get; set; }
+
+    /// <summary>Access grants (user/group/* × read/write) em JSON; null = visibilidade padrão.</summary>
+    public string? AccessGrantsJson { get; set; }
 
     /// <summary>System prompt aplicado antes das mensagens do usuário.</summary>
     public string? SystemPrompt { get; set; }
@@ -301,6 +341,9 @@ public class Note
 
     /// <summary>Conteúdo em Markdown.</summary>
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
@@ -430,6 +473,9 @@ public class KnowledgeCollection
     /// <summary>Descrição opcional.</summary>
     public string? Description { get; set; }
 
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
     /// <summary>Arquivos vinculados.</summary>
     public List<KnowledgeFile> Files { get; set; } = [];
 
@@ -541,6 +587,9 @@ public class Channel
     /// <summary>Última atualização (epoch seconds).</summary>
     public long UpdatedAt { get; set; }
 
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}] (ex.: leitura pública "*").</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
     /// <summary>Membros do canal.</summary>
     public List<ChannelMember> Members { get; set; } = [];
 
@@ -565,6 +614,9 @@ public class ChannelMember
 
     /// <summary>Papel no canal: "admin" (gerencia membros/canal) ou "member".</summary>
     public string Role { get; set; } = "member";
+
+    /// <summary>Última leitura (epoch seconds) — base do unread_count.</summary>
+    public long LastReadAt { get; set; }
 
     /// <summary>Entrada (epoch seconds).</summary>
     public long CreatedAt { get; set; }
@@ -591,8 +643,36 @@ public class ChannelMessage
     /// <summary>Identificador do modelo autor, quando UserId é nulo.</summary>
     public string? ModelId { get; set; }
 
+    /// <summary>Mensagem pai quando é reply de thread (nulo = mensagem raiz).</summary>
+    public string? ParentId { get; set; }
+
+    /// <summary>Mensagem fixada no canal.</summary>
+    public bool IsPinned { get; set; }
+
     /// <summary>Conteúdo em texto/markdown.</summary>
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Reação (emoji) de um usuário a uma mensagem de canal.</summary>
+public class ChannelMessageReaction
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Mensagem alvo.</summary>
+    public string ChannelMessageId { get; set; } = string.Empty;
+
+    /// <summary>Mensagem navegação.</summary>
+    public ChannelMessage? Message { get; set; }
+
+    /// <summary>Usuário que reagiu.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Emoji (ex.: "👍", ":smile:").</summary>
+    public string Emoji { get; set; } = string.Empty;
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
@@ -695,4 +775,67 @@ public class Banner
 
     /// <summary>Criação (epoch seconds; usado para ordenar).</summary>
     public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+}
+
+
+/// <summary>Calendário do usuário (colaborativo via grants).</summary>
+public class Calendar
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do calendário.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Nome.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Cor em hex (ex.: #3b82f6).</summary>
+    public string? Color { get; set; }
+
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
+    /// <summary>Eventos do calendário.</summary>
+    public List<CalendarEvent> Events { get; set; } = [];
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Evento de um calendário.</summary>
+public class CalendarEvent
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Calendário dono do evento.</summary>
+    public string CalendarId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o calendário.</summary>
+    public Calendar? Calendar { get; set; }
+
+    /// <summary>Título.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Início (epoch seconds).</summary>
+    public long StartTs { get; set; }
+
+    /// <summary>Fim (epoch seconds).</summary>
+    public long EndTs { get; set; }
+
+    /// <summary>Cor opcional em hex.</summary>
+    public string? Color { get; set; }
+
+    /// <summary>Notas/descrição opcional.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
 }

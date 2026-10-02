@@ -6,6 +6,7 @@ using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Infrastructure.Services;
+using OpenWebUI.Infrastructure.Services.Image;
 using OpenWebUI.Application.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,9 +27,11 @@ builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<EmbeddingService>();
 builder.Services.AddScoped<RagService>();
 builder.Services.AddScoped<ToolExecutor>();
+builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
 builder.Services.AddScoped<WebLoaderService>();
 builder.Services.AddScoped<WebSearchService>();
+builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -196,6 +199,7 @@ app.MapImageEndpoints();
 app.MapAutomationEndpoints();
 app.MapConfigEndpoints();
 app.MapRetrievalEndpoints();
+app.MapCalendarEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 
 app.MapFallbackToFile("index.html");

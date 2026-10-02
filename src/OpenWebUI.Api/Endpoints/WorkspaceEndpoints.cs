@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -40,6 +42,8 @@ public static class WorkspaceEndpoints
         notes.MapGet("/{id}", GetNoteAsync);
         notes.MapPost("/{id}/update", UpdateNoteAsync);
         notes.MapDelete("/{id}/delete", DeleteNoteAsync);
+        notes.MapPost("/{id}/access/update", UpdateNoteAccessAsync);
+        notes.MapGet("/{id}/access", GetNoteAccessAsync);
     }
 
     // -------- Prompts --------
@@ -396,7 +400,7 @@ public static class WorkspaceEndpoints
     // -------- Notes --------
 
     private static async Task<IResult> ListNotesAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, AccessControlService access, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -404,11 +408,11 @@ public static class WorkspaceEndpoints
             return Results.Unauthorized();
         }
 
-        var notes = await db.Notes.AsNoTracking()
-            .Where(n => n.UserId == user.Id)
+        var all = await db.Notes.AsNoTracking()
             .OrderByDescending(n => n.UpdatedAt)
             .ToListAsync(ct);
-
+        var groups = await access.GetGroupIdsAsync(user.Id, ct);
+        var notes = access.FilterReadable(user, all, groups, n => n.UserId, n => n.AccessGrantsJson);
         return Results.Ok(notes.Select(n => new NoteResponse(n.Id, n.Title, n.Content, n.CreatedAt, n.UpdatedAt)).ToList());
     }
 
@@ -440,14 +444,18 @@ public static class WorkspaceEndpoints
     }
 
     private static async Task<IResult> GetNoteAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db,
+        AccessControlService access, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
-        var note = await db.Notes.AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == user!.Id, ct);
-        return note is null
-            ? Results.NotFound()
-            : Results.Ok(new NoteResponse(note.Id, note.Title, note.Content, note.CreatedAt, note.UpdatedAt));
+        var note = await db.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id, ct);
+        if (note is null
+            || await access.LevelAsync(user!, note.UserId, note.AccessGrantsJson, ct)
+                is AccessControlService.None)
+        {
+            return Results.NotFound();
+        }
+        return Results.Ok(new NoteResponse(note.Id, note.Title, note.Content, note.CreatedAt, note.UpdatedAt));
     }
 
     private static async Task<IResult> UpdateNoteAsync(
@@ -455,11 +463,14 @@ public static class WorkspaceEndpoints
         NoteUpsertRequest request,
         HttpContext http,
         AppDbContext db,
+        AccessControlService access,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
-        var note = await db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == user!.Id, ct);
-        if (note is null)
+        var note = await db.Notes.FirstOrDefaultAsync(n => n.Id == id, ct);
+        if (note is null
+            || await access.LevelAsync(user!, note.UserId, note.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound();
         }
@@ -485,6 +496,49 @@ public static class WorkspaceEndpoints
         db.Notes.Remove(note);
         await db.SaveChangesAsync(ct);
         return Results.Ok(new StatusResponse(true));
+    }
+
+    private static async Task<IResult> UpdateNoteAccessAsync(
+        string id,
+        [FromBody] AccessUpdateRequest request,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var note = await db.Notes.FirstOrDefaultAsync(n => n.Id == id, ct);
+        if (note is null || (note.UserId != user!.Id && user!.Role != UserRoles.Admin))
+        {
+            return Results.NotFound();
+        }
+        if (request.AccessGrants.Any(g =>
+                g.PrincipalType is not ("user" or "group")
+                || string.IsNullOrWhiteSpace(g.PrincipalId)
+                || g.Permission is not ("read" or "write")))
+        {
+            return Results.BadRequest(new { detail = "Grant inválido." });
+        }
+
+        note.AccessGrantsJson = AccessControlService.Serialize(request.AccessGrants);
+        note.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true, access_grants = request.AccessGrants });
+    }
+
+    private static async Task<IResult> GetNoteAccessAsync(
+        string id,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var note = await db.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id, ct);
+        if (note is null || (note.UserId != user!.Id && user!.Role != UserRoles.Admin))
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(new { access_grants = AccessControlService.Parse(note.AccessGrantsJson) });
     }
 
     private static PromptResponse ToPromptResponse(Prompt p) =>
