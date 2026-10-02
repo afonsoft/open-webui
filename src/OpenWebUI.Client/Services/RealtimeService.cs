@@ -183,7 +183,10 @@ public class RealtimeService : IAsyncDisposable
         {
             try
             {
-                await _connection!.InvokeAsync(method, args);
+                // InvokeCoreAsync aceita object?[]: InvokeAsync(method, args) resolve
+                // para o overload (method, object? arg1) e mandaria o array inteiro
+                // como um único argumento (binding do hub falhava com InvalidDataException).
+                await _connection!.InvokeCoreAsync(method, args!, CancellationToken.None);
             }
             catch (Exception)
             {
