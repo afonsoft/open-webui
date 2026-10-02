@@ -9,7 +9,7 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-terminals` |
-| Ticket | Issue a criar via create-issues |
+| Ticket | Issue #60 |
 | Status | `Completed` |
 
 ## 1. User Story
@@ -95,3 +95,9 @@ Implementar proxy manual com `HttpClient`+`WebSocket` ou adotar YARP — recomen
 - `TerminalEndpoints`: `GET /api/v1/terminals/` (lista sem key) + `/config` admin (GET/POST/DELETE) + catch-all `/{id}/{**path}` (HTTP ou WS conforme upgrade). `UseWebSockets` habilitado; `access_token` query aceito no path `/api/v1/terminals` (mesmo padrão do `/ws` SignalR).
 - Cliente: `codeexec.js` — engine `jupyter` habilitada + servidor cadastrado → Python executa via kernel real (POST /api/kernels → WS channels execute_request → stream/error/idle → DELETE kernel); fallback Pyodide se kernel falhar. Admin → Configurações: lista + formulário de terminal servers.
 - Testes: `TerminalEndpointsTests` (5 casos — CRUD admin + sem key exposta, GET/POST proxied com auth injetada, traversal/404/502, **túnel WS real** com Kestrel echo).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/75 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/60
+- Epic: https://github.com/afonsoft/open-webui/issues/48

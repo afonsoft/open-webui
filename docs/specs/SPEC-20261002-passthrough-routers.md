@@ -9,7 +9,7 @@
 | Stack | `.NET` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-passthrough-routers` |
-| Ticket | Issue a criar via create-issues |
+| Ticket | Issue #59 |
 | Status | `Completed` |
 
 ## 1. User Story
@@ -86,3 +86,9 @@ Upstream suporta múltiplas conexões indexadas (`/ollama/{idx}/api/*`) — impl
 - `PassthroughEndpoints` (Api): `/ollama/api/{tags,version,show,chat,generate,embed}`, `/openai/{models,chat/completions,embeddings}` + variantes indexadas `/ollama/{idx}/api/{tags,chat}` e `/openai/{idx}/{models,chat/completions}`; `ProxiedResult` copia status/headers/stream (SSE/NDJSON preservados, headers hop-by-hop removidos).
 - Segurança: `Authorization` inbound NUNCA é repassado ao provedor — o cliente autentica no gateway e o servidor injeta a key mascarada da conexão. Sem provider → 503; provider fora → 502; path fora da allowlist → 404; sem auth → 401.
 - Testes: `PassthroughTests` (6 casos com HttpListener único para os dois providers).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/74 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/59
+- Epic: https://github.com/afonsoft/open-webui/issues/48

@@ -9,8 +9,8 @@
 | Stack | `.NET` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-image-engines` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #57 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -86,3 +86,9 @@ tests/OpenWebUI.Api.Tests/ImageEnginesTests.cs
 ## 7. Notas
 
 ComfyUI exige workflow JSON por instalação — config guarda template, não workflow fixo upstream-específico. Prioridade de engines: A1111 (API simples) → Gemini → ComfyUI (mais complexo).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/72 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/57
+- Epic: https://github.com/afonsoft/open-webui/issues/48

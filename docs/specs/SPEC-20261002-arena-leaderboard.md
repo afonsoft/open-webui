@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-arena-leaderboard` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #56 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -85,3 +85,9 @@ tests/OpenWebUI.Api.Tests/ArenaTests.cs
 ## 7. Notas
 
 ELO K=32 com start 1000 (padrão chess.com-like); leaderboard pode exigir mín. de batalhas (ex.: 3) para exibição — `[A DEFINIR]` threshold.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/71 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/56
+- Epic: https://github.com/afonsoft/open-webui/issues/48

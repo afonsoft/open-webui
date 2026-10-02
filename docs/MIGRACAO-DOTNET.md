@@ -28,8 +28,8 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 | Superfície | Upstream | Coberto | Gap |
 |---|---|---|---|
-| Routers (grupos de endpoints) | 33 | ~20 ✅ / ~8 🟡 parcial / ~5 ⬜ | ver tabela |
-| Rotas de página | 47 | ~24 | páginas de criar/editar em workspace + admin tabs |
+| Routers (grupos de endpoints) | 33 | ~24 ✅ / ~7 🟡 parcial / ~2 ⬜ | ver tabela |
+| Rotas de página | 47 | ~46 | falta apenas edição inline de functions (admin) |
 | Engines de integração | ~15 (embeddings, busca web, imagens, TTS, extração) | ~4 | engines alternativas por família |
 
 ## Paridade por área (router upstream → .NET)
@@ -42,10 +42,10 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `chats` — core | CRUD, busca, pin/archive, pastas, tags, share `/s/{id}`, clone, import/export, editar/regenerar mensagem |
 | `users` — core | Perfil, senha, timezone, admin CRUD |
 | `models` — custom | CRUD workspace, system prompt + params, toggle |
-| `evaluations` — feedbacks | 👍/👎 + lista admin paginada |
+| `evaluations` — feedbacks | 👍/👎 + lista admin paginada + export + arena battles + leaderboard ELO |
 | `files` — upload/serve | Extração de texto, `data/uploads/{user}/` fora do wwwroot |
 | `knowledge` — RAG | Coleções, itens, embeddings (Ollama/OpenAI), retrieval por cosseno |
-| `channels` — grupo | SignalR `/ws`: `message:new`, `typing`, `presence`, `@modelo` invoca provider |
+| `channels` — grupo + DM | SignalR `/ws`: `message:new`, `typing`, `presence`, `@modelo` invoca provider; DMs, threads, reações, lidos, pins, access grants por canal |
 | `groups` — RBAC | CRUD + membros + flags workspace/sharing/chat |
 | `folders`, `memories`, `notes`, `prompts` | CRUD completo |
 | `tasks` — LLM | Título, follow-ups, tags automáticas |
@@ -56,6 +56,8 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `analytics` | Dashboard admin-only |
 | `notifications` (7 eps) | Webhooks user/global, eventos (`user.pending`, `user.approved`, `automation.failed`), HMAC `X-Webhook-Signature`, `/test`, campo em Settings |
 | `automations` | Agendas (interval/daily/weekly UTC) + runs + run-now + visão calendário |
+| `calendar` | Calendários reais (CRUD) + events + access grants |
+| Multi-instância | `DATABASE_PROVIDER=postgresql`, `REDIS_URL` backplane SignalR, `IFileStorage` local/S3, `/health` enriquecido |
 | OAuth/OIDC + LDAP | Google/GitHub/Microsoft/OIDC + bind LDAP (slice auth-sso-rbac) |
 | SAML 2.0 | SP-initiated (HTTP-POST): metadata, login redirect, ACS com validação de assinatura/issuer/audience + JIT user (slice enterprise-sso) |
 | `scim` | Users CRUD + Groups + ServiceProviderConfig + filtro `userName eq`, token dedicado (`scim.token`), `active=false` → desativa |
@@ -67,29 +69,25 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Área | Feito | Falta |
 |---|---|---|
 | `retrieval` (17 eps) | Embeddings + busca vetorial + `/process/{file,text,url,youtube}` + `/process/web/search` (searxng/duckduckgo/tavily/brave) + híbrido BM25 + reset db/uploads | Demais engines de busca (8), reranking por provider, engines de extração de conteúdo |
-| `channels` (28 eps) | Canais em grupo + realtime + DM + threads + reações + unread + pins | Access grants por canal |
 | `users` (26 eps) | Perfil/admin + user settings + sessões OAuth + busca/paginação/filtros | Permissões granulares por usuário (hoje por grupo) |
 | `chats` (50 eps) | Core completo | Versões/diff de mensagens, chat-events realtime, lista admin de todos os chats |
-| `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, access grants por item, reindex, batch ops |
-| `tools` (15 eps) | Tools HTTP | Tools em código (execução server-side), valves/user settings por tool |
+| `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, reindex, batch ops |
+| `tools` (15 eps) | Tools HTTP | Valves/user settings por tool (tools em código: decisão documentada no plugin-ecosystem) |
 | `ollama`/`openai` passthrough | `/ollama/api/{tags,version,show,chat,generate,embed}` + `/openai/{models,chat/completions,embeddings}` (+ variantes indexadas) | `pull/create/delete/copy` + `blobs/*` (gerenciamento de modelos), audio/images via passthrough |
 | `images` (6 eps) | Engines plugáveis: OpenAI, A1111, Gemini, ComfyUI + `/edit` + `/config/engines` + `/config/test` | Variações avançadas por engine |
 | `audio` (6 eps) | `POST /audio/speech` (TTS OpenAI-compatible), `POST /transcriptions` (STT openai/deepgram), `/voices`, `/models`, `/capabilities`, fallback Web Speech | Whisper local, engines TTS extras (ElevenLabs/Azure) |
-| `calendar` (13 eps) | Visão mensal + calendários reais (CRUD) + events CRUD + access grants | Busca de eventos, múltiplos calendários com cores |
-| `configs` (25 eps) | Conexões/flags/admin | Banners, default models/suggestions, code-execution config, audio/image/retrieval config completa, OAuth/LDAP toggles, direct connections |
+| `configs` (25 eps) | Conexões/flags/admin | OAuth/LDAP toggles, direct connections, configs finas restantes por domínio |
 | `groups` (11 eps) | Flags workspace/sharing | Domínios allowlist, permissões granulares por feature |
 | `models` (16 eps) | Custom models + arena + access grants (user/group/*) | Model filters |
-| `evaluations` (15 eps) | Feedbacks + leaderboard ELO + arena battles | Export |
-| `notes` (12 eps) | CRUD | Colaboração realtime (yjs), access grants |
-| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local, PTY no host (por segurança, só proxy externo) |
+| `notes` (12 eps) | CRUD | Colaboração realtime (yjs) |
+| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local, PTY no host — decisão documentada: só proxy externo |
 | `i18n` | pt-BR/en-US sem reload | ~30 locales do upstream; backend não traduzido |
 
 ### Pendente ⬜
 
 | Área | Escopo upstream |
 |---|---|
-| `utils` (4 eps) | Gravatar, format, litellm config |
-| Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
+| `utils` (4 eps) | Gravatar, code format, litellm config |
 | Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
 | Rate limiting | Limites de uso por usuário/modelo |
 
@@ -99,16 +97,16 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 |---|---|---|
 | `/`, `/c/{id}`, `/auth`, `/s/{id}`, `/error` | idênticos | ✅ |
 | `/admin` (users, evals, settings, analytics) | `/admin` (usuários, grupos, analytics, avaliações, flags) | ✅ |
-| `/workspace` (models, prompts, knowledge, tools, files) | `/workspace` (abas) | 🟡 sem páginas dedicadas `create`/`edit`/`[id]` |
-| `/notes`, `/notes/{id}`, `/notes/new` | `/notes` (editor inline) | 🟡 rotas dedicadas |
+| `/workspace` (models, prompts, knowledge, tools, files) + `create`/`{id}` | `/workspace` + rotas dedicadas `create`/`{id}` | ✅ |
+| `/notes`, `/notes/{id}`, `/notes/new` | idênticos | ✅ |
 | Arquivadas | `/archived` | ✅ |
 | `/channels/{id}` | `/channels/{id}` | ✅ |
-| `/playground` (+`/completions`,`/images`) | `/playground` | 🟡 sub-páginas |
-| `/automations`, `/automations/{id}` | `/automations` | 🟡 detalhe |
+| `/playground` (+`/completions`,`/images`) | `/playground`, `/playground/completions`, `/playground/images` | ✅ |
+| `/automations`, `/automations/{id}` | idênticos | ✅ |
 | `/calendar` | `/calendar` | ✅ |
-| `/folders/{id}` | sidebar | 🟡 rota dedicada |
-| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | `/workspace/skills` (aba) + admin Functions/Pipelines | 🟡 edição inline |
-| `/watch` | — | ⬜ |
+| `/folders/{id}` | `/folders/{id}` | ✅ |
+| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | admin Functions/Pipelines + `/workspace/skills` (aba) | 🟡 functions por aba admin (edição inline, sem rotas dedicadas) |
+| `/watch` | `/watch?v=` | ✅ |
 
 ## Decisões de design
 

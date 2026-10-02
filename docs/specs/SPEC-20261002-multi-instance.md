@@ -9,8 +9,8 @@
 | Stack | `.NET` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-multi-instance` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #63 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -86,3 +86,9 @@ Sem endpoints novos — operacional (`/health` enriquecido).
 ## 7. Notas
 
 EF multi-provider: manter migrations em `Migrations/Sqlite/` + `Migrations/Postgres/` ou projeto separado — `[A DEFINIR]` no spike. S3 via `AWSSDK.S3` official.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/78 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/63
+- Epic: https://github.com/afonsoft/open-webui/issues/48

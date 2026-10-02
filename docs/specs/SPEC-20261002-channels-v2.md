@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-channels-v2` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #55 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -96,3 +96,9 @@ tests/OpenWebUI.Api.Tests/ChannelsV2Tests.cs
 ## 7. Notas
 
 Checar upstream `channels.py` para shape exato de `access_grants` (mesmo modelo de `knowledge`/`notes` grants se existir upstream) antes do merge — reutilizar padrão `Group`-based já existente.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/70 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/55
+- Epic: https://github.com/afonsoft/open-webui/issues/48

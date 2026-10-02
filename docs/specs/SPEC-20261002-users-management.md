@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-users-management` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #50 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -88,3 +88,9 @@ tests/OpenWebUI.Api.Tests/UsersManagementTests.cs
 ## 7. Notas
 
 Verificar no upstream se `/users/active` usa Redis/in-memory — nosso Hub in-memory basta (single-instance).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/65 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/50
+- Epic: https://github.com/afonsoft/open-webui/issues/48

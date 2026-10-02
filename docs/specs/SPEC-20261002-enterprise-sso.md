@@ -9,7 +9,7 @@
 | Stack | `.NET` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-enterprise-sso` |
-| Ticket | Issue a criar via create-issues |
+| Ticket | Issue #61 |
 | Status | `Completed` |
 
 ## 1. User Story
@@ -96,3 +96,9 @@ Spike rápido para escolher lib SAML (ITfoxtec vs Sustainsys) — critério: .NE
 - **Decisão (spike da SPEC)**: sem lib SAML (ITfoxtec/Sustainsys) — o BCL cobre XML-DSig e o escopo (assertion validada → JIT user) cabe em ~150 linhas auditáveis, evitando dependência com superfície de config maior que o uso.
 - Fora de escopo (mantido): SLO, AuthnRequests assinados, multi-IdP, SCIM bulk/patch complexo, `InResponseTo` (documentado no código).
 - Testes: `ScimTests` (9) + `SamlTests` (7 — assertion assinada com cert self-signed gerado em teste; tampered/issuer/audience → 401; disabled → 404).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/76 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/61
+- Epic: https://github.com/afonsoft/open-webui/issues/48

@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-retrieval-advanced` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #53 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -97,3 +97,9 @@ tests/OpenWebUI.Api.Tests/RetrievalEndpointsTests.cs
 
 `[A DEFINIR]` ordem de implementação das engines de busca — recomendado: SearXNG → DuckDuckGo → Tavily → Brave.
 YouTube transcripts podem exigir biblioteca ou scrape — avaliar viabilidade antes de prometer endpoint.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/68 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/53
+- Epic: https://github.com/afonsoft/open-webui/issues/48

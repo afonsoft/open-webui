@@ -9,8 +9,8 @@
 | Stack | `Blazor WASM` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-frontend-routes` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #49 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -85,3 +85,9 @@ Sem novos endpoints — roteamento apenas.
 ## 7. Notas
 
 Estratégia: reutilizar componentes existentes extraindo form de `Workspace.razor` para componentes roteáveis — evita duplicar lógica de save.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/64 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/49
+- Epic: https://github.com/afonsoft/open-webui/issues/48

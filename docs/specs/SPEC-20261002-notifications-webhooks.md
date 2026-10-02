@@ -9,7 +9,7 @@
 | Stack | `.NET` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-notifications-webhooks` |
-| Ticket | Issue a criar via create-issues |
+| Ticket | Issue #58 |
 | Status | `Completed` |
 
 ## 1. User Story
@@ -92,3 +92,9 @@ SSRF: avaliar blocklist de IPs internos (link-local, loopback) — upstream perm
 - Cliente: campo webhook (URL + eventos + enabled + testar/remover) na aba Conta e seção global na aba Admin do Settings, localizado pt-BR/en-US.
 - Testes: `NotificationEndpointsTests` (5 casos com HttpListener real).
 - Nota de implementação: handlers registrados como lambdas com 2+ parâmetros — lambda de 1 parâmetro (`HttpContext`) casa com o overload `RequestDelegate` que descarta o `IResult` (analyzer ASP0016), quebrando silenciosamente os status codes.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/73 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/58
+- Epic: https://github.com/afonsoft/open-webui/issues/48
