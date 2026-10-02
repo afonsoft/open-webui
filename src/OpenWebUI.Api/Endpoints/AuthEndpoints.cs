@@ -54,13 +54,13 @@ public static class AuthEndpoints
             || string.IsNullOrWhiteSpace(request.Email)
             || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Results.BadRequest(new { detail = "Nome, e-mail e senha são obrigatórios." });
+            return Results.BadRequest(new { detail = "Nome, e-mail e senha são obrigatórios.", error_code = "invalid_fields" });
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
         if (await db.Users.AnyAsync(u => u.Email == email, ct))
         {
-            return Results.BadRequest(new { detail = "E-mail já cadastrado." });
+            return Results.BadRequest(new { detail = "E-mail já cadastrado.", error_code = "email_taken" });
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -101,7 +101,7 @@ public static class AuthEndpoints
         var adminConfig = await config.GetAdminConfigAsync(ct);
         if (!adminConfig.EnableLoginForm)
         {
-            return Results.BadRequest(new { detail = "Formulário de login desabilitado." });
+            return Results.BadRequest(new { detail = "Formulário de login desabilitado.", error_code = "login_form_disabled" });
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
@@ -111,7 +111,7 @@ public static class AuthEndpoints
         if (limits.IsLoginLocked(lockKey, rateConfig, now))
         {
             return Results.Json(
-                new { detail = "Muitas tentativas de login. Tente novamente mais tarde." },
+                new { detail = "Muitas tentativas de login. Tente novamente mais tarde.", error_code = "login_locked" },
                 statusCode: 429);
         }
 
@@ -130,7 +130,7 @@ public static class AuthEndpoints
 
         if (user.Role == UserRoles.Pending)
         {
-            return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador." });
+            return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador.", error_code = "pending_approval" });
         }
 
         user.LastActiveAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -151,7 +151,7 @@ public static class AuthEndpoints
         if (identity is null)
         {
             limits.RecordLoginFailure(lockKey, rateConfig, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            return Results.BadRequest(new { detail = "Credenciais inválidas." });
+            return Results.BadRequest(new { detail = "Credenciais inválidas.", error_code = "invalid_credentials" });
         }
 
         // Sem e-mail do diretório não dá para identificar a conta local.
@@ -178,7 +178,7 @@ public static class AuthEndpoints
 
         if (user.Role == UserRoles.Pending)
         {
-            return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador." });
+            return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador.", error_code = "pending_approval" });
         }
 
         limits.ResetLogin(lockKey);
@@ -233,12 +233,12 @@ public static class AuthEndpoints
         var result = new PasswordHasher<User>().VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
         {
-            return Results.BadRequest(new { detail = "Senha atual incorreta." });
+            return Results.BadRequest(new { detail = "Senha atual incorreta.", error_code = "wrong_password" });
         }
 
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 4)
         {
-            return Results.BadRequest(new { detail = "A nova senha precisa de ao menos 4 caracteres." });
+            return Results.BadRequest(new { detail = "A nova senha precisa de ao menos 4 caracteres.", error_code = "weak_password" });
         }
 
         user.PasswordHash = new PasswordHasher<User>().HashPassword(user, request.NewPassword);
@@ -282,7 +282,7 @@ public static class AuthEndpoints
         var adminConfig = await config.GetAdminConfigAsync(ct);
         if (!adminConfig.EnableApiKeys)
         {
-            return Results.BadRequest(new { detail = "Chaves de API desabilitadas." });
+            return Results.BadRequest(new { detail = "Chaves de API desabilitadas.", error_code = "api_keys_disabled" });
         }
 
         var key = $"sk-{Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant()}";
@@ -344,7 +344,7 @@ public static class AuthEndpoints
         var email = request.Email.Trim().ToLowerInvariant();
         if (await db.Users.AnyAsync(u => u.Email == email, ct))
         {
-            return Results.BadRequest(new { detail = "E-mail já cadastrado." });
+            return Results.BadRequest(new { detail = "E-mail já cadastrado.", error_code = "email_taken" });
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
