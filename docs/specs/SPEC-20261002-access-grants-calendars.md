@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-access-grants` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #52 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -86,3 +86,9 @@ tests/OpenWebUI.Api.Tests/AccessGrantsTests.cs
 ## 7. Notas
 
 Verificar shape exato de `access_grants` no upstream (`models/groups.py` + routers) antes de finalizar contrato — padronizar.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/67 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/52
+- Epic: https://github.com/afonsoft/open-webui/issues/48

@@ -9,8 +9,8 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-audio-server` |
-| Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Ticket | Issue #54 |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -94,3 +94,9 @@ tests/OpenWebUI.Api.Tests/AudioEndpointsTests.cs
 ## 7. Notas
 
 Seguir o padrão de `ImageGenerationService` (config admin + `501`). Avaliar Whisper self-hosted (whisper.cpp) como fase 2 — dependência nativa no Docker aumenta imagem.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/69 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/54
+- Epic: https://github.com/afonsoft/open-webui/issues/48

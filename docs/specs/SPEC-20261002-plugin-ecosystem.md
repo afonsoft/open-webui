@@ -9,7 +9,7 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-plugin-ecosystem` |
-| Ticket | Issue a criar via create-issues |
+| Ticket | Issue #62 |
 | Status | `Completed` |
 
 ## 1. User Story
@@ -100,3 +100,9 @@ Decisão registrada: **não executar código de usuário no processo** (diferent
 - Entidades como migration `PluginEcosystem` em `Entities.cs` (convenção do repo sobre o file-layout do SPEC).
 - Fora de escopo (mantido): execução de Python/Roslyn, hot-reload, inlet/outlet filters como middleware, community openwebui.com.
 - Testes: `PluginEcosystemTests` (9 — skills CRUD/isolamento, injeção no system prompt via mock Ollama, functions admin 403/CRUD/toggle/valves/tipo inválido, pipelines registro/descoberta/roteamento/404/502).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/77 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/62
+- Epic: https://github.com/afonsoft/open-webui/issues/48
