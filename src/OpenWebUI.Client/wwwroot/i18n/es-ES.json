@@ -439,5 +439,6 @@
   "errors.invalid_credentials": "Credenciales no válidas.",
   "errors.wrong_password": "La contraseña actual es incorrecta.",
   "errors.weak_password": "La nueva contraseña debe tener al menos 4 caracteres.",
-  "errors.api_keys_disabled": "Las claves de API están deshabilitadas."
+  "errors.api_keys_disabled": "Las claves de API están deshabilitadas.",
+  "workspace.share_community": "Compartir en la comunidad"
 }

@@ -439,5 +439,6 @@
   "errors.invalid_credentials": "Ungültige Anmeldedaten.",
   "errors.wrong_password": "Aktuelles Passwort falsch.",
   "errors.weak_password": "Das neue Passwort muss mindestens 4 Zeichen haben.",
-  "errors.api_keys_disabled": "API-Schlüssel sind deaktiviert."
+  "errors.api_keys_disabled": "API-Schlüssel sind deaktiviert.",
+  "workspace.share_community": "In der Community teilen"
 }

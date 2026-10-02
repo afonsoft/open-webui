@@ -439,5 +439,6 @@
   "errors.invalid_credentials": "Identifiants invalides.",
   "errors.wrong_password": "Mot de passe actuel incorrect.",
   "errors.weak_password": "Le nouveau mot de passe doit contenir au moins 4 caractères.",
-  "errors.api_keys_disabled": "Les clés API sont désactivées."
+  "errors.api_keys_disabled": "Les clés API sont désactivées.",
+  "workspace.share_community": "Partager dans la communauté"
 }

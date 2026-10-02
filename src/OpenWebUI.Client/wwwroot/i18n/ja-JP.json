@@ -439,5 +439,6 @@
   "errors.invalid_credentials": "認証情報が無効です。",
   "errors.wrong_password": "現在のパスワードが正しくありません。",
   "errors.weak_password": "新しいパスワードは4文字以上必要です。",
-  "errors.api_keys_disabled": "APIキーは無効です。"
+  "errors.api_keys_disabled": "APIキーは無効です。",
+  "workspace.share_community": "コミュニティに共有"
 }
