@@ -27,6 +27,13 @@ public class User
     /// <summary>Configurações de UI do usuário, serializadas como JSON.</summary>
     public string SettingsJson { get; set; } = "{}";
 
+    /// <summary>Permissões próprias do usuário (JSON no formato de permissões granulares);
+    /// recebe os defaults no signup e faz união com as permissões dos grupos.</summary>
+    public string PermissionsJson { get; set; } = "{}";
+
+    /// <summary>Última atividade registrada (epoch seconds; atualizado no signin e na conexão do hub).</summary>
+    public long? LastActiveAt { get; set; }
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 

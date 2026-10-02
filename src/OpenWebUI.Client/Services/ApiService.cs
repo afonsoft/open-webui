@@ -371,11 +371,19 @@ public class ApiService(HttpClient http, AuthService auth)
 
     // ---------------- Usuários / Admin ----------------
 
-    /// <summary>Lista usuários (somente admin).</summary>
-    public async Task<List<AdminUserResponse>> GetUsersAsync()
+    /// <summary>Lista usuários paginada com busca/filtro/ordenação (somente admin).</summary>
+    public async Task<UsersPage> GetUsersAsync(
+        string? query = null, string? filter = null,
+        string? orderBy = null, string? direction = null,
+        int page = 1, int perPage = 20)
     {
-        var result = await SendAsync<UsersListResponse>(HttpMethod.Get, "/api/v1/users/");
-        return result?.Users.ToList() ?? [];
+        var uri = $"/api/v1/users/?page={page}&per_page={perPage}"
+            + (string.IsNullOrWhiteSpace(query) ? "" : $"&query={Uri.EscapeDataString(query)}")
+            + (string.IsNullOrWhiteSpace(filter) ? "" : $"&filter={Uri.EscapeDataString(filter)}")
+            + (string.IsNullOrWhiteSpace(orderBy) ? "" : $"&order_by={Uri.EscapeDataString(orderBy)}")
+            + (string.IsNullOrWhiteSpace(direction) ? "" : $"&direction={Uri.EscapeDataString(direction)}");
+        var result = await SendAsync<UsersListResponse>(HttpMethod.Get, uri);
+        return new UsersPage(result?.Users.ToList() ?? [], result?.Total ?? 0, result?.Page ?? page);
     }
 
     /// <summary>Atualiza um usuário (somente admin).</summary>
@@ -665,8 +673,14 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<KnowledgeResponse>(HttpMethod.Put, $"/api/v1/knowledge/{Uri.EscapeDataString(id)}",
             new UpdateKnowledgeRequest(name, description));
 
-    private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total);
+    private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }
+
+/// <summary>Página de usuários administráveis.</summary>
+/// <param name="Users">Usuários da página.</param>
+/// <param name="Total">Total de usuários que casam com o filtro.</param>
+/// <param name="Page">Página retornada.</param>
+public sealed record UsersPage(List<AdminUserResponse> Users, int Total, int Page);
 
 /// <summary>Pasta com os chats contidos (forma da resposta de /api/v1/folders).</summary>
 public class FolderWithChats

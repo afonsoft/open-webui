@@ -33,6 +33,10 @@ public sealed record GroupPermissions(
     /// <summary>Permissões completas (default).</summary>
     public static readonly GroupPermissions Full =
         new(new WorkspacePermissions(), new SharingPermissions(), new ChatPermissions());
+
+    /// <summary><see cref="Full"/> serializado — atribuído a <c>User.PermissionsJson</c> no signup.</summary>
+    public static readonly string FullJson =
+        System.Text.Json.JsonSerializer.Serialize(Full);
 }
 
 /// <summary>Membro de um grupo em respostas de API.</summary>

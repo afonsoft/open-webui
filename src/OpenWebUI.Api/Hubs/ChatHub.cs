@@ -27,6 +27,10 @@ public class ChatHub(AppDbContext db) : Hub
     public static IReadOnlyList<string> OnlineUsers(string channelId) =>
         Presence.TryGetValue(channelId, out var set) ? set.Keys.ToArray() : [];
 
+    /// <summary>Ids de usuários com ao menos uma conexão aberta no hub.</summary>
+    public static IReadOnlyList<string> ConnectedUserIds() =>
+        ConnectionsPerUser.Keys.ToArray();
+
     /// <inheritdoc />
     public override async Task OnConnectedAsync()
     {
@@ -38,6 +42,10 @@ public class ChatHub(AppDbContext db) : Hub
         }
 
         ConnectionsPerUser.AddOrUpdate(userId, 1, (_, count) => count + 1);
+
+        await db.Users.Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastActiveAt,
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
 
         var channelIds = await db.ChannelMembers.AsNoTracking()
             .Where(m => m.UserId == userId)

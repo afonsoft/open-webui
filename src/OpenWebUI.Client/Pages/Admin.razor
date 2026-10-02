@@ -40,6 +40,28 @@
                 <div class="card-row">
                     <button class="auth-submit" @onclick="AddUserAsync">@L["admin.new_user"]</button>
                 </div>
+                <div class="card-row">
+                    <div class="card-main w-full flex flex-wrap gap-2 items-center">
+                        <input class="input flex-1 min-w-40" placeholder="@L["admin.search_users"]"
+                               @bind="_userQuery" @bind:event="oninput"
+                               @onchange="() => ReloadUsersAsync(1)" />
+                        <select class="input w-32" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
+                            <option value="">@L["admin.all_roles"]</option>
+                            <option value="admin">admin</option>
+                            <option value="user">user</option>
+                            <option value="pending">pending</option>
+                        </select>
+                        <select class="input w-36" @bind="_userOrderBy" @bind:after="() => ReloadUsersAsync(1)">
+                            <option value="created_at">@L["admin.col_date"]</option>
+                            <option value="name">@L["common.name"]</option>
+                            <option value="email">@L["common.email"]</option>
+                            <option value="role">Role</option>
+                        </select>
+                        <button class="msg-action" @onclick="ToggleDirection">
+                            @(_userDirection == "desc" ? "↓" : "↑")
+                        </button>
+                    </div>
+                </div>
                 <div class="card-list">
                     @foreach (var user in _users)
                     {
@@ -73,6 +95,16 @@
                         <div class="sidebar-empty">@L["admin.no_users"]</div>
                     }
                 </div>
+                @if (UsersTotalPages > 1)
+                {
+                    <div class="flex gap-2 items-center justify-center mt-3 text-sm">
+                        <button class="msg-action" @onclick="() => ReloadUsersAsync(_usersPage - 1)"
+                                disabled="@(_usersPage <= 1)">@L["admin.prev"]</button>
+                        <span>@L.T("admin.page_of", ("page", _usersPage.ToString()), ("total", UsersTotalPages.ToString()))</span>
+                        <button class="msg-action" @onclick="() => ReloadUsersAsync(_usersPage + 1)"
+                                disabled="@(_usersPage >= UsersTotalPages)">@L["admin.next"]</button>
+                    </div>
+                }
             }
         }
         else if (_tab == "analytics")
@@ -269,6 +301,15 @@
 
 @code {
     private List<AdminUserResponse>? _users;
+    private int _usersTotal;
+    private int _usersPage = 1;
+    private string? _userQuery;
+    private string _userFilter = "";
+    private string _userOrderBy = "created_at";
+    private string _userDirection = "desc";
+    private const int UsersPerPage = 20;
+    private int UsersTotalPages => Math.Max(1,
+        (int)Math.Ceiling(_usersTotal / (double)UsersPerPage));
     private List<GroupResponse>? _groups;
     private AnalyticsResponse? _analytics;
     private List<AdminFeedbackResponse>? _feedbacks;
@@ -303,7 +344,7 @@
             return;
         }
 
-        _users = await Api.GetUsersAsync();
+        await ReloadUsersAsync();
         _groups = await Api.GetGroupsAsync();
         _analytics = await Api.GetAnalyticsAsync(30);
         _feedbacks = await Api.GetAllFeedbacksAsync();
@@ -371,8 +412,23 @@
             role is "admin" or "user" ? role : "user"));
         if (created)
         {
-            _users = await Api.GetUsersAsync();
+            await ReloadUsersAsync();
         }
+    }
+
+    private async Task ReloadUsersAsync(int page = 1)
+    {
+        var result = await Api.GetUsersAsync(
+            _userQuery, _userFilter, _userOrderBy, _userDirection, page, UsersPerPage);
+        _users = result.Users;
+        _usersTotal = result.Total;
+        _usersPage = result.Page;
+    }
+
+    private async Task ToggleDirection()
+    {
+        _userDirection = _userDirection == "desc" ? "asc" : "desc";
+        await ReloadUsersAsync(1);
     }
 
     private async Task SetRoleAsync(AdminUserResponse user, string role)

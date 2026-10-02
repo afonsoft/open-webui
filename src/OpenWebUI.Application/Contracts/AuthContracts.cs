@@ -127,6 +127,10 @@ public sealed record AdminUserResponse(
 public sealed record AdminUpdateUserRequest(
     string? Name, string? Role, string? Password, string? ProfileImageUrl);
 
+/// <summary>Atualização isolada de papel (admin).</summary>
+/// <param name="Role">Novo papel: admin, user ou pending.</param>
+public sealed record UpdateUserRoleRequest(string Role);
+
 /// <summary>Configurações de UI persistidas por usuário.</summary>
 /// <param name="SettingsJson">Objeto JSON arbitrário com preferências da interface.</param>
 public sealed record UserSettingsRequest(string SettingsJson);
