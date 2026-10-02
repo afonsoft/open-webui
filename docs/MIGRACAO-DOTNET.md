@@ -62,7 +62,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | SAML 2.0 | SP-initiated (HTTP-POST): metadata, login redirect, ACS com validação de assinatura/issuer/audience + JIT user (slice enterprise-sso) |
 | `scim` | Users CRUD + Groups + ServiceProviderConfig + filtro `userName eq`, token dedicado (`scim.token`), `active=false` → desativa |
 | EF Migrations | `DatabaseMigrator` + baseline de `webui.db` legadas |
-| Docker | Dockerfile multi-stage + compose (+ ollama opcional) |
+| Docker | Dockerfile multi-stage + compose simples (`.env`) + `docker-compose.full.yaml` (Ollama/Whisper p/ testes) |
 
 ### Parcial 🟡 (decisões documentadas)
 

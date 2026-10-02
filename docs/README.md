@@ -16,7 +16,7 @@ Client ──▶ Application
 - **Domain**: entidades (usuários, chats, mensagens, pastas, arquivos, modelos custom, memórias, notas, avaliações, conexões).
 - **Application**: contratos/DTOs e interfaces de serviços.
 - **Infrastructure**: EF Core + SQLite (`webui.db`, schema evoluído por EF Migrations com baseline de bases legadas), JWT, providers (Ollama, OpenAI-compatível), seed de conexões por env.
-- **Api**: Minimal APIs (`/api/v1/*`, `/api/config`) + hosting do WASM via `MapStaticAssets`.
+- **Api**: Minimal APIs (`/api/v1/*`, `/api/config`) + hosting do WASM via `MapStaticAssets` + espelho `/framework-assets/{stem}/{ext}` (boot resiliente a proxies que bloqueiam `.dat`/`.wasm`).
 - **Client**: Blazor WASM com Tailwind v4 (tema upstream, `.dark` class, Inter).
 
 ## Estrutura de diretórios
@@ -35,10 +35,10 @@ Client ──▶ Application
 ```bash
 dotnet run --project src/OpenWebUI.Api   # http://localhost:8080
 # ou
-docker compose up -d                    # http://localhost:3000
+cp .env.exemplo .env && docker compose up -d   # http://localhost:3032
 ```
 
-Primeiro usuário registrado vira admin. Conexões de providers podem ser semeadas por env (`OLLAMA_BASE_URL`, `OPENAI_API_KEY`, ...).
+Primeiro usuário registrado vira admin — ou semeado no primeiro boot via `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD` (ver `.env.exemplo`). Conexões de providers podem ser semeadas por env (`OLLAMA_BASE_URL`, `OPENAI_API_KEY`, ...) — ver `.env.exemplo`. Para testes com infra completa (Ollama + Whisper): `docker compose -f docker-compose.full.yaml up -d`.
 
 ## Referências
 

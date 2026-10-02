@@ -64,7 +64,19 @@ dotnet run --project src/OpenWebUI.Api
 Docker:
 
 ```bash
-docker compose up --build
+cp .env.exemplo .env      # ajuste as variáveis (opcional)
+docker compose up -d --build
+# http://localhost:3032 (WEBUI_PORT no .env)
+# admin inicial semeado via ADMIN_NAME/ADMIN_EMAIL/ADMIN_PASSWORD no .env
+```
+
+`docker-compose.yaml` sobe só o app — providers (Ollama/OpenAI) vêm do `.env`
+ou de Configurações → Conexões. Para testes locais com toda a infra
+(Ollama + Whisper já semeados):
+
+```bash
+docker compose -f docker-compose.full.yaml up -d --build
+docker exec -it ollama ollama pull llama3.2   # baixar um modelo
 ```
 
 ## Testes

@@ -196,7 +196,8 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
             json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
         }
 
-        var message = openAi ? json?["choices"]?[0]?["message"] : json?["message"];
+        var firstChoice = json?["choices"] is JsonArray { Count: > 0 } arr ? arr[0] : null;
+        var message = openAi ? firstChoice?["message"] : json?["message"];
         var content = message?["content"]?.GetValue<string>() ?? string.Empty;
         var calls = new List<ProviderToolCall>();
         var callsNode = message?["tool_calls"]?.AsArray();
@@ -340,7 +341,9 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
         response.EnsureSuccessStatusCode();
 
         var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
-        return json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? string.Empty;
+        return json?["choices"] is JsonArray { Count: > 0 } arr
+            ? arr[0]?["message"]?["content"]?.GetValue<string>() ?? string.Empty
+            : string.Empty;
     }
 
     private async IAsyncEnumerable<string> StreamOllamaAsync(

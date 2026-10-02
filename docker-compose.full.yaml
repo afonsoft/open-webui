@@ -1,0 +1,77 @@
+# Open WebUI (.NET) + infra completa para testes locais (Ollama + Whisper).
+#
+#   cp .env.exemplo .env        # ajuste as variáveis (opcional)
+#   docker compose -f docker-compose.full.yaml up -d --build
+#
+# App:     http://localhost:3032
+# Ollama:  http://localhost:11434 — semeado como conexão no 1º boot (OLLAMA_BASE_URL).
+#          Baixe um modelo: `docker exec -it ollama ollama pull llama3.2`
+# Whisper: http://localhost:8000  — STT faster-whisper (WHISPER_URL).
+#
+# Produção: use docker-compose.yaml (app sozinho, providers externos via .env).
+
+services:
+  openwebui:
+    build: .
+    image: openwebui-dotnet
+    container_name: openwebui
+    ports:
+      - "${WEBUI_PORT:-3032}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Defaults apontando para os serviços da stack; o .env sobrescreve.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:8000}
+    volumes:
+      - openwebui:/app/data
+    depends_on:
+      - ollama
+      - whisper
+    deploy:
+      resources:
+        limits:
+          memory: ${WEBUI_MEM_LIMIT:-4g}
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          # Modelos ficam em RAM — suba no .env se precisar de modelos maiores
+          memory: ${OLLAMA_MEM_LIMIT:-4g}
+    restart: unless-stopped
+    # GPU NVIDIA: descomente (requer nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: whisper
+    ports:
+      - "${WHISPER_PORT:-8000}:8000"
+    volumes:
+      # Cache dos modelos HuggingFace baixados no 1º uso
+      - whisper:/root/.cache/huggingface
+    deploy:
+      resources:
+        limits:
+          memory: ${WHISPER_MEM_LIMIT:-2g}
+    restart: unless-stopped
+
+volumes:
+  openwebui:
+  ollama:
+  whisper:

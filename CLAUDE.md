@@ -15,7 +15,7 @@ Fork do [Open WebUI](https://github.com/open-webui/open-webui) migrado para **.N
 | Auth | JWT + `Bearer sk-*` (chaves de API) | — |
 | CSS | Tailwind CSS v4 (saída estática commitada) | — |
 | Testes | NUnit | — |
-| Container | Docker multi-stage (`:3000 → :8080`) | — |
+| Container | Docker multi-stage (`:3032 → :8080`) | — |
 | CI | GitHub Actions (`ubuntu-latest`) | — |
 
 ## Estrutura do Projeto
@@ -28,7 +28,7 @@ src/OpenWebUI.Api            # Minimal APIs + hosting do WASM
 src/OpenWebUI.Client         # Blazor WASM (UI fiel ao upstream)
 tests/OpenWebUI.Api.Tests    # NUnit
 OpenWebUI.slnx               # solução
-Dockerfile, docker-compose.yaml
+Dockerfile, docker-compose.yaml (só app, lê .env), docker-compose.full.yaml (infra de testes), .env.exemplo
 ```
 
 Dependências apontam para dentro: `Api → Infrastructure → Application → Domain`. O `Client` referencia apenas `Application`.
@@ -49,7 +49,9 @@ dotnet test tests/OpenWebUI.Api.Tests
 dotnet run --project src/OpenWebUI.Api   # app em http://localhost:8080
 
 # Docker
-docker compose up -d --build             # app em http://localhost:3000
+cp .env.exemplo .env                     # variáveis de ambiente (opcional)
+docker compose up -d --build             # app em http://localhost:3032 (WEBUI_PORT)
+docker compose -f docker-compose.full.yaml up -d --build   # app + Ollama + Whisper (testes)
 
 # Regenerar CSS Tailwind (após editar classes em .razor)
 tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
@@ -74,6 +76,7 @@ tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
 - Não commitar secrets, `.env`, `webui.db` ou bases SQLite.
 - Não editar `wwwroot/css/tailwind.css` manualmente (é gerado).
 - Não usar `UseStaticFiles`/`MapFallbackToFile` para o WASM — usar `app.MapStaticAssets()` (placeholders `#[.{fingerprint}]` só são resolvidos por ele).
+- O boot WASM passa por `js/boot.js` (`autostart="false"`): assets de `_framework` que não sejam `.js` são buscados no espelho sem extensão `GET /framework-assets/{stem}/{ext}` (com `?enc=b64` como fallback anti content-sniffing) para sobreviver a proxies corporativos que bloqueiam `.dat`/`.wasm`.
 
 ## Hard Rules
 
@@ -112,8 +115,8 @@ Padrão: **Plan-and-Execute**.
 
 - Feature: `feature/{Agent}-{YYYYMMDD}-{descricao}` → implementar → testes → PR para `main`.
 - Bug fix: `fix/{descricao}` → reproduzir → corrigir → regressão → PR.
-- Seed de conexões por env: `OLLAMA_BASE_URL(S)`, `OPENAI_API_BASE_URL(S)`, `OPENAI_API_KEY(S)` (`;`-separados, primeiro boot).
-- Primeiro usuário registrado vira admin.
+- Seed de conexões por env: `OLLAMA_BASE_URL(S)`, `OPENAI_API_BASE_URL(S)`, `OPENAI_API_KEY(S)` (`;`-separados, primeiro boot). Lista completa em `.env.exemplo`.
+- Primeiro usuário registrado vira admin — ou semeado por `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD` quando a base está vazia.
 
 ## Referências
 

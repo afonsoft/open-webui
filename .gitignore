@@ -22,5 +22,9 @@ Thumbs.db
 # Devin
 .devin-files/
 
+# Env local (secrets) — commitar apenas .env.exemplo
+.env
+!.env.exemplo
+
 # Coverage/test artifacts
 TestResults/
