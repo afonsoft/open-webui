@@ -16,15 +16,21 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
     /// <summary>Chave do localStorage onde o idioma escolhido persiste.</summary>
     public const string StorageKey = "webui.locale";
 
-    /// <summary>Idiomas suportados (código → nome exibido no seletor).</summary>
-    public static readonly IReadOnlyList<(string Code, string Name)> Languages =
+    /// <summary>Idiomas padrão caso o manifesto <c>i18n/locales.json</c> não carregue.</summary>
+    public static readonly IReadOnlyList<(string Code, string Name)> DefaultLanguages =
     [
         ("pt-BR", "Português (Brasil)"),
         ("en-US", "English (US)"),
     ];
 
+    /// <summary>Idiomas disponíveis, carregados do manifesto <c>i18n/locales.json</c>
+    /// no boot (fallback para <see cref="DefaultLanguages"/>).</summary>
+    public IReadOnlyList<(string Code, string Name)> Languages { get; private set; } =
+        DefaultLanguages;
+
     private Dictionary<string, string> _active = new();
-    private Dictionary<string, string> _fallback = new();
+    private Dictionary<string, string> _fallbackEn = new();
+    private Dictionary<string, string> _fallbackPt = new();
 
     /// <summary>Idioma atual (código, ex.: "pt-BR").</summary>
     public string Language { get; private set; } = DefaultLanguage;
@@ -35,9 +41,12 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
     /// <summary>Resolve uma chave para a string localizada.</summary>
     public string this[string key] => T(key);
 
-    /// <summary>Resolve uma chave; fallback para pt-BR e, por último, a própria chave.</summary>
+    /// <summary>Resolve uma chave com cadeia de fallback:
+    /// idioma ativo → en-US → pt-BR → a própria chave.</summary>
     public string T(string key) =>
-        _active.TryGetValue(key, out var value) || _fallback.TryGetValue(key, out value)
+        _active.TryGetValue(key, out var value)
+        || _fallbackEn.TryGetValue(key, out value)
+        || _fallbackPt.TryGetValue(key, out value)
             ? value
             : key;
 
@@ -56,7 +65,9 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
     /// <summary>Carrega o idioma persistido (ou padrão) — chamado antes do primeiro render.</summary>
     public async Task InitializeAsync()
     {
-        _fallback = await LoadAsync(DefaultLanguage);
+        _fallbackPt = await LoadAsync(DefaultLanguage);
+        _fallbackEn = await LoadAsync("en-US");
+        await LoadManifestAsync();
         string? stored = null;
         try
         {
@@ -89,9 +100,36 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
     private async Task ApplyAsync(string? language)
     {
         var lang = Languages.Any(l => l.Code == language) ? language! : DefaultLanguage;
-        _active = lang == DefaultLanguage ? _fallback : await LoadAsync(lang);
+        _active = lang == DefaultLanguage ? _fallbackPt : await LoadAsync(lang);
         Language = lang;
     }
+
+    /// <summary>Manifesto de locales: atualiza <see cref="Languages"/> dinamicamente;
+    /// falha/JSON inválido mantém a lista padrão sem quebrar o boot.</summary>
+    private async Task LoadManifestAsync()
+    {
+        try
+        {
+            var manifest = await http.GetFromJsonAsync<LocalesManifest>("i18n/locales.json");
+            if (manifest?.Locales is { Count: > 0 } locales)
+            {
+                Languages = locales
+                    .Select(l => (l.Code, l.Name))
+                    .Where(l => !string.IsNullOrWhiteSpace(l.Code))
+                    .ToList();
+            }
+        }
+        catch (HttpRequestException)
+        {
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+    }
+
+    private sealed record LocaleEntry(string Code, string Name);
+
+    private sealed record LocalesManifest(List<LocaleEntry> Locales);
 
     private async Task<Dictionary<string, string>> LoadAsync(string language)
     {

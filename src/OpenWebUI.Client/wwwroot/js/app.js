@@ -30,5 +30,21 @@ window.openwebui = {
 			element.style.height = 'auto';
 			element.style.height = Math.min(element.scrollHeight, 200) + 'px';
 		}
+	},
+	// Protocolo upstream: abre https://openwebui.com/post?type=<type> em nova aba e
+	// posta o item serializado quando a página sinaliza 'loaded'.
+	shareCommunity: function (type, payloadJson) {
+		const url = 'https://openwebui.com';
+		const tab = window.open(url + '/post?type=' + encodeURIComponent(type), '_blank');
+		if (!tab) return false;
+		const handler = function (event) {
+			if (event.origin !== url) return;
+			if (event.data === 'loaded') {
+				tab.postMessage(payloadJson, '*');
+				window.removeEventListener('message', handler);
+			}
+		};
+		window.addEventListener('message', handler, false);
+		return true;
 	}
 };
