@@ -452,10 +452,11 @@
                                     <option value="web-speech">web-speech</option>
                                     <option value="openai">openai</option>
                                     <option value="deepgram">deepgram</option>
+                                    <option value="whisper">whisper</option>
                                 </select>
-                                @if (_sttEngine is "openai" or "deepgram")
+                                @if (_sttEngine is "openai" or "deepgram" or "whisper")
                                 {
-                                    <input class="input" @bind="_sttBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input class="input" @bind="_sttBaseUrl" placeholder="@(_sttEngine == "whisper" ? "http://localhost:8000/v1 (WHISPER_URL)" : "https://api.openai.com/v1")" />
                                     <input class="input" type="password" @bind="_sttKey" placeholder="API key" />
                                     <input class="input" @bind="_sttModel" placeholder="whisper-1" />
                                 }
@@ -467,13 +468,30 @@
                                 <select class="input w-52" @bind="_ttsEngine">
                                     <option value="none">none</option>
                                     <option value="openai">openai</option>
+                                    <option value="elevenlabs">elevenlabs</option>
+                                    <option value="azure">azure</option>
+                                    <option value="transformers">transformers</option>
                                 </select>
-                                @if (_ttsEngine == "openai")
+                                @if (_ttsEngine is "openai" or "transformers")
                                 {
                                     <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
                                     <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
                                     <input class="input" @bind="_ttsModel" placeholder="tts-1" />
                                     <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                }
+                                else if (_ttsEngine == "elevenlabs")
+                                {
+                                    <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.elevenlabs.io (opcional)" />
+                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input class="input" @bind="_ttsModel" placeholder="eleven_multilingual_v2" />
+                                    <input class="input" @bind="_ttsVoice" placeholder="voice_id" />
+                                }
+                                else if (_ttsEngine == "azure")
+                                {
+                                    <input class="input" @bind="_azureRegion" placeholder="region (ex.: brazilsouth)" />
+                                    <input class="input" @bind="_ttsBaseUrl" placeholder="base URL (opcional, sobrepõe a região)" />
+                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input class="input" @bind="_ttsVoice" placeholder="pt-BR-FranciscaNeural" />
                                 }
                             </div>
                         </div>
@@ -890,6 +908,7 @@
     private string? _ttsKey;
     private string? _ttsModel;
     private string? _ttsVoice;
+    private string? _azureRegion;
     private string _retEngine = "none";
     private string? _retSearxng;
     private string? _retBrave;
@@ -977,6 +996,7 @@
             _ttsKey = audio.TtsApiKey;
             _ttsModel = audio.TtsModel;
             _ttsVoice = audio.TtsVoice;
+            _azureRegion = audio.AzureRegion;
         }
         var ret = await Api.GetRetrievalConfigAsync();
         if (ret is not null)
@@ -1198,7 +1218,8 @@
     {
         var updated = await Api.UpdateAudioConfigAsync(new AudioConfig(
             _sttEngine, _sttBaseUrl, _sttKey, _sttModel,
-            _ttsEngine, _ttsBaseUrl, _ttsKey, _ttsModel, _ttsVoice));
+            _ttsEngine, _ttsBaseUrl, _ttsKey, _ttsModel, _ttsVoice,
+            _azureRegion));
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
         await JS.InvokeVoidAsync("openwebui.audio.refreshCaps");
     }
