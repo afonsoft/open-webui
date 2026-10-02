@@ -26,7 +26,9 @@ public static class ApiEndpoints
         app.MapPost("/api/config", UpdateAppConfigAsync).RequireAuthorization();
         app.MapGet("/api/models", ListAllModelsAsync).RequireAuthorization();
         app.MapGet("/api/v1/models/base", ListAllModelsAsync).RequireAuthorization();
-        app.MapPost("/api/chat/completions", ChatCompletionsAsync).RequireAuthorization();
+        app.MapPost("/api/chat/completions", ChatCompletionsAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(CompletionRateLimitFilterAsync);
         app.MapPost("/api/chat/completed", () => Results.Ok(new StatusResponse(true)))
             .RequireAuthorization();
 
@@ -35,6 +37,38 @@ public static class ApiEndpoints
         configs.MapPost("/connections", UpdateConnectionsAsync);
         configs.MapGet("/export", ExportConfigAsync);
         configs.MapPost("/import", ImportConfigAsync);
+    }
+
+    /// <summary>
+    /// Filtro de rate limiting para completions: aplica a janela por usuário
+    /// apenas quando habilitado na config (default desligado — compat).
+    /// </summary>
+    private static async ValueTask<object?> CompletionRateLimitFilterAsync(
+        EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
+    {
+        var http = ctx.HttpContext;
+        var config = http.RequestServices.GetRequiredService<ConfigService>();
+        var limits = http.RequestServices.GetRequiredService<RateLimitService>();
+        var rateConfig = await config.GetAsync(
+            "ratelimit", RateLimitConfig.Default, http.RequestAborted);
+        if (rateConfig.Enabled)
+        {
+            var userId = http.User
+                .FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? http.Connection.RemoteIpAddress?.ToString()
+                ?? "anon";
+            var retryAfter = limits.TryAcquire(
+                userId, rateConfig, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            if (retryAfter is { } retry)
+            {
+                http.Response.Headers.RetryAfter = retry.ToString();
+                return Results.Json(
+                    new { detail = "Limite de requisições excedido. Tente novamente em instantes." },
+                    statusCode: 429);
+            }
+        }
+
+        return await next(ctx);
     }
 
     private static async Task<IResult> GetAppConfigAsync(

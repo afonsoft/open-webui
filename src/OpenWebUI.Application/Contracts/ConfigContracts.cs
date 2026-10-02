@@ -141,3 +141,24 @@ public sealed record CodeExecutionConfig(List<string> Engines, bool DirectConnec
 /// <summary>Configuração de expiração do JWT.</summary>
 /// <param name="ExpiresIn">Duração textual (ex.: "7d", "24h", "30m") ou segundos.</param>
 public sealed record JwtExpiryConfig(string ExpiresIn);
+
+/// <summary>Configuração de rate limiting e lockout de login.</summary>
+/// <param name="Enabled">Se o limite de requisições por usuário está ativo.</param>
+/// <param name="PermitLimit">Requisições permitidas por janela em endpoints limitados.</param>
+/// <param name="WindowSeconds">Tamanho da janela deslizante em segundos.</param>
+/// <param name="LoginMaxFailures">Falhas de login antes do bloqueio.</param>
+/// <param name="LoginLockoutSeconds">Duração do bloqueio de login em segundos.</param>
+public sealed record RateLimitConfig(
+    bool Enabled,
+    int PermitLimit,
+    int WindowSeconds,
+    int LoginMaxFailures,
+    int LoginLockoutSeconds)
+{
+    /// <summary>Defaults: limite desligado (compat), 60 req/min, 5 falhas → 5 min de bloqueio.</summary>
+    public static readonly RateLimitConfig Default = new(false, 60, 60, 5, 300);
+}
+
+/// <summary>Pedido de reset do bloqueio de login de um e-mail (admin).</summary>
+/// <param name="Email">E-mail cujo lockout deve ser limpo.</param>
+public sealed record LoginLockoutResetRequest(string Email);
