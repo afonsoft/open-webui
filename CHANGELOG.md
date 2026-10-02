@@ -8,6 +8,12 @@ Todas as mudanças notáveis deste projeto são documentadas aqui, seguindo
 
 ### Added
 
+- `UseForwardedHeaders` (`X-Forwarded-For/Proto/Host`) — `redirect_uri` do
+  OAuth e cookies corretos atrás de reverse proxy (padrão do agent-harness).
+- Documentação de arquitetura: 5 ADRs (`docs/architecture/AD-0001`–`AD-0005`),
+  diagramas de deploy/sequência, índice `docs/architecture/README.md`.
+- Auditoria de paridade atualizada em `docs/MIGRACAO-DOTNET.md`
+  (33 routers upstream × estado real: ~20 migrados, ~12 parciais, ~5 pendentes).
 - Cobertura de testes elevada para **97,4% de linhas / 88,5% de branches**
   (311 testes de API): suites novas para chats, canais, auth/usuários,
   workspace, modelos/arquivos/avaliações, tasks, superfície da API, OAuth,
