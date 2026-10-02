@@ -383,6 +383,141 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main">
+                                <div class="card-title">@L["admin.terminals"]</div>
+                            </div>
+                        </div>
+                        @foreach (var server in _terminals)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@server.Name <span class="role-badge">@server.Type</span></div>
+                                    <div class="card-sub">@server.Url (@server.AuthType)</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action danger" @onclick="() => DeleteTerminalAsync(server)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_termName" placeholder="@L["admin.terminal_name"]" />
+                                <input class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
+                                <div class="flex gap-2">
+                                    <select class="input" @bind="_termAuth">
+                                        <option value="none">none</option>
+                                        <option value="token">token</option>
+                                        <option value="password">password</option>
+                                    </select>
+                                    <select class="input" @bind="_termType">
+                                        <option value="jupyter">jupyter</option>
+                                        <option value="pty">pty</option>
+                                    </select>
+                                </div>
+                                @if (_termAuth is not "none")
+                                {
+                                    <input class="input" type="password" @bind="_termKey" placeholder="@L["admin.terminal_key"]" />
+                                }
+                                <button class="auth-submit" @onclick="SaveTerminalAsync">@L["admin.terminal_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.sso_saml"]</div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="toggle">
+                                    <input type="checkbox" @bind="_samlEnabled" />
+                                    <span>@L["admin.sso_enabled"]</span>
+                                </label>
+                                <input class="input" @bind="_samlSsoUrl" placeholder="IdP SSO URL" />
+                                <input class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
+                                <textarea class="input" rows="3" @bind="_samlCert"
+                                    placeholder="@(_samlHasCert ? "********" : "IdP X.509 PEM")"></textarea>
+                                <input class="input" @bind="_samlSpEntity" placeholder="SP Entity ID (opcional)" />
+                                <input class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
+                                <button class="auth-submit" @onclick="SaveSamlAsync">@L["common.save"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.sso_scim"]</div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="toggle">
+                                    <input type="checkbox" @bind="_scimEnabled" />
+                                    <span>@L["admin.sso_enabled"]</span>
+                                </label>
+                                <input class="input" type="password" @bind="_scimToken"
+                                    placeholder="@(_scimHasToken ? "********" : L["admin.scim_token"])" />
+                                <button class="auth-submit" @onclick="SaveScimAsync">@L["common.save"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.functions"]</div>
+                            </div>
+                        </div>
+                        @foreach (var fn in _functions)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@fn.Name <span class="role-badge">@fn.Type</span></div>
+                                    <div class="card-sub">@(fn.Active ? L["common.active"] : L["common.inactive"])</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" @onclick="() => ToggleFunctionAsync(fn)">
+                                        @(fn.Active ? "⏻" : "▶")
+                                    </button>
+                                    <button class="msg-action danger" @onclick="() => DeleteFunctionAsync(fn)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_fnName" placeholder="@L["admin.function_name"]" />
+                                <select class="input" @bind="_fnType">
+                                    <option value="filter">filter</option>
+                                    <option value="pipe">pipe</option>
+                                    <option value="action">action</option>
+                                </select>
+                                <textarea class="input" rows="2" @bind="_fnManifest"
+                                    placeholder="@L["admin.function_manifest"]"></textarea>
+                                <textarea class="input" rows="2" @bind="_fnValves"
+                                    placeholder="@L["admin.function_valves"]"></textarea>
+                                <button class="auth-submit" @onclick="SaveFunctionAsync">@L["admin.function_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.pipelines"]</div>
+                            </div>
+                        </div>
+                        @foreach (var pipe in _pipelineServers)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@pipe.Name</div>
+                                    <div class="card-sub">@pipe.Url @(pipe.HasKey ? "· 🔑" : "")</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action danger" @onclick="() => DeletePipelineServerAsync(pipe)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_pipeName" placeholder="@L["admin.pipeline_name"]" />
+                                <input class="input" @bind="_pipeUrl" placeholder="http://pipelines:9099" />
+                                <input class="input" type="password" @bind="_pipeKey" placeholder="@L["admin.pipeline_key"]" />
+                                <button class="auth-submit" @onclick="SavePipelineServerAsync">@L["admin.pipeline_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
                                 <div class="card-title">@L["admin.flags_readonly"]</div>
                                 <div class="card-sub">
                                     notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
@@ -479,6 +614,31 @@
     private bool _toggleDirect;
     private bool _enginePyodide = true;
     private bool _engineJupyter;
+    private List<TerminalServerResponse> _terminals = [];
+    private bool _samlEnabled;
+    private string _samlSsoUrl = string.Empty;
+    private string _samlEntityId = string.Empty;
+    private string _samlCert = string.Empty;
+    private bool _samlHasCert;
+    private string _samlSpEntity = string.Empty;
+    private string _samlRoleAttr = string.Empty;
+    private bool _scimEnabled;
+    private string _scimToken = string.Empty;
+    private bool _scimHasToken;
+    private List<FunctionResponse> _functions = [];
+    private string _fnName = "";
+    private string _fnType = "filter";
+    private string _fnManifest = "";
+    private string _fnValves = "";
+    private List<PipelineServerResponse> _pipelineServers = [];
+    private string _pipeName = "";
+    private string _pipeUrl = "";
+    private string _pipeKey = "";
+    private string _termName = "";
+    private string _termUrl = "";
+    private string _termAuth = "token";
+    private string _termType = "jupyter";
+    private string? _termKey;
     private bool _flagSignup;
     private bool _flagLoginForm;
     private bool _flagApiKeys;
@@ -536,6 +696,119 @@
         _toggleDirect = codeExec?.DirectConnections ?? false;
         _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
         _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
+        _terminals = await Api.GetTerminalServersAsync() ?? [];
+        var saml = await Api.GetSamlConfigAsync();
+        _samlEnabled = saml?.Enabled ?? false;
+        _samlSsoUrl = saml?.IdpSsoUrl ?? string.Empty;
+        _samlEntityId = saml?.IdpEntityId ?? string.Empty;
+        _samlHasCert = saml?.HasCert ?? false;
+        _samlSpEntity = saml?.SpEntityId ?? string.Empty;
+        _samlRoleAttr = saml?.RoleAttribute ?? string.Empty;
+        var scim = await Api.GetScimConfigAsync();
+        _scimEnabled = scim?.Enabled ?? false;
+        _scimHasToken = scim?.HasToken ?? false;
+        _functions = await Api.GetFunctionsAsync() ?? [];
+        _pipelineServers = await Api.GetPipelineServersAsync() ?? [];
+    }
+
+    private async Task SaveTerminalAsync()
+    {
+        var saved = await Api.SaveTerminalServerAsync(new TerminalServerRequest(
+            _termName.Trim(), _termUrl.Trim(), _termAuth,
+            string.IsNullOrWhiteSpace(_termKey) ? null : _termKey, _termType));
+        if (saved is not null)
+        {
+            _termName = string.Empty;
+            _termUrl = string.Empty;
+            _termKey = null;
+            _terminals = await Api.GetTerminalServersAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task DeleteTerminalAsync(TerminalServerResponse server)
+    {
+        await Api.DeleteTerminalServerAsync(server.Id);
+        _terminals.RemoveAll(t => t.Id == server.Id);
+    }
+
+    private async Task SaveSamlAsync()
+    {
+        var saved = await Api.SaveSamlConfigAsync(new SamlConfigRequest(
+            _samlEnabled, _samlSsoUrl.Trim(), _samlEntityId.Trim(),
+            string.IsNullOrWhiteSpace(_samlCert) || _samlCert.Trim() == "********"
+                ? "********" : _samlCert.Trim(),
+            _samlSpEntity.Trim(), _samlRoleAttr.Trim()));
+        _samlHasCert = saved?.HasCert ?? _samlHasCert;
+        _samlCert = string.Empty;
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task SaveScimAsync()
+    {
+        var saved = await Api.SaveScimConfigAsync(new ScimConfigRequest(
+            _scimEnabled,
+            string.IsNullOrWhiteSpace(_scimToken) || _scimToken.Trim() == "********"
+                ? "********" : _scimToken.Trim()));
+        _scimHasToken = saved?.HasToken ?? _scimHasToken;
+        _scimToken = string.Empty;
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task SaveFunctionAsync()
+    {
+        var saved = await Api.CreateFunctionAsync(new FunctionRequest(
+            _fnName.Trim(), _fnType,
+            string.IsNullOrWhiteSpace(_fnManifest) ? null : _fnManifest,
+            string.IsNullOrWhiteSpace(_fnValves) ? null : _fnValves));
+        if (saved is not null)
+        {
+            _fnName = string.Empty;
+            _fnManifest = string.Empty;
+            _fnValves = string.Empty;
+            _functions = await Api.GetFunctionsAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task ToggleFunctionAsync(FunctionResponse fn)
+    {
+        var updated = await Api.ToggleFunctionAsync(fn.Id);
+        if (updated is not null)
+        {
+            var idx = _functions.FindIndex(f => f.Id == fn.Id);
+            if (idx >= 0)
+            {
+                _functions[idx] = updated;
+            }
+        }
+    }
+
+    private async Task DeleteFunctionAsync(FunctionResponse fn)
+    {
+        await Api.DeleteFunctionAsync(fn.Id);
+        _functions.RemoveAll(f => f.Id == fn.Id);
+    }
+
+    private async Task SavePipelineServerAsync()
+    {
+        var saved = await Api.SavePipelineServerAsync(new PipelineServerRequest(
+            _pipeName.Trim(), _pipeUrl.Trim(),
+            string.IsNullOrWhiteSpace(_pipeKey) ? null : _pipeKey));
+        if (saved is not null)
+        {
+            _pipeName = string.Empty;
+            _pipeUrl = string.Empty;
+            _pipeKey = string.Empty;
+            _pipelineServers = await Api.GetPipelineServersAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task DeletePipelineServerAsync(PipelineServerResponse server)
+    {
+        await Api.DeletePipelineServerAsync(server.Id);
+        _pipelineServers.RemoveAll(s => s.Id == server.Id);
     }
 
     private async Task SaveFlagsAsync()

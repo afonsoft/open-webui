@@ -65,7 +65,7 @@ public static class AutomationSchedule
 }
 
 /// <summary>Serviço de automações: criação, validação e execução imediata.</summary>
-public class AutomationService(AppDbContext db, ProviderService providers)
+public class AutomationService(AppDbContext db, ProviderService providers, NotificationService notifications)
 {
     /// <summary>Executa a automação agora e registra o run; erros viram run failed.</summary>
     public async Task<AutomationRun> RunNowAsync(
@@ -125,6 +125,11 @@ public class AutomationService(AppDbContext db, ProviderService providers)
         run.FinishedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         db.AutomationRuns.Add(run);
         await db.SaveChangesAsync(ct);
+        if (run.Status == "failed")
+        {
+            await notifications.DispatchAsync("automation.failed",
+                new { automation.Id, automation.Name, error = run.Error }, automation.UserId, ct);
+        }
         return run;
     }
 
