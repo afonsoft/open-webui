@@ -84,6 +84,11 @@ public static class RetrievalEndpoints
         await db.SaveChangesAsync(ct);
 
         var ok = await rag.IndexFileAsync(file, ct);
+        if (!ok)
+        {
+            return Results.BadRequest(
+                new { detail = "Não foi possível indexar — sem texto ou provider de embedding." });
+        }
         await LinkCollectionAsync(request.CollectionId, file.Id, user.Id, db, ct);
         var chunks = await db.EmbeddingChunks.CountAsync(c => c.FileId == file.Id, ct);
         return Results.Ok(new ProcessResponse(file.Id, file.Filename, chunks));
@@ -127,6 +132,11 @@ public static class RetrievalEndpoints
         await db.SaveChangesAsync(ct);
 
         var ok = await rag.IndexFileAsync(file, ct);
+        if (!ok)
+        {
+            return Results.BadRequest(
+                new { detail = "Não foi possível indexar — sem texto ou provider de embedding." });
+        }
         await LinkCollectionAsync(request.CollectionId, file.Id, user.Id, db, ct);
         var chunks = await db.EmbeddingChunks.CountAsync(c => c.FileId == file.Id, ct);
         return Results.Ok(new ProcessResponse(file.Id, file.Filename, chunks));
@@ -166,6 +176,11 @@ public static class RetrievalEndpoints
         await db.SaveChangesAsync(ct);
 
         var ok = await rag.IndexFileAsync(file, ct);
+        if (!ok)
+        {
+            return Results.BadRequest(
+                new { detail = "Não foi possível indexar — sem texto ou provider de embedding." });
+        }
         await LinkCollectionAsync(request.CollectionId, file.Id, user.Id, db, ct);
         var chunks = await db.EmbeddingChunks.CountAsync(c => c.FileId == file.Id, ct);
         return Results.Ok(new ProcessResponse(file.Id, file.Filename, chunks));

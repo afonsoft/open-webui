@@ -660,7 +660,7 @@ public static class ChannelEndpoints
             .GroupBy(r => r.ChannelMessageId)
             .ToDictionary(
                 g => g.Key,
-                g => (List<ChannelReactionResponse>)g
+                g => g
                     .GroupBy(r => r.Emoji)
                     .Select(e => new ChannelReactionResponse(
                         e.Key, e.Count(), e.Select(r => r.UserId).ToList()))
