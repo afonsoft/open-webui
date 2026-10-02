@@ -28,6 +28,12 @@ public class RealtimeService : IAsyncDisposable
     /// <summary>Mensagem atualizada (channelId, messageId, isPinned).</summary>
     public event Action<string, string, bool>? OnMessageUpdate;
 
+    /// <summary>Mensagem de chat editada em outra aba/sessão (chatId, messageId, novo conteúdo).</summary>
+    public event Action<string, string, string>? OnChatMessageUpdated;
+
+    /// <summary>Mensagem de chat deletada em outra aba/sessão (chatId, messageId).</summary>
+    public event Action<string, string>? OnChatMessageDeleted;
+
     /// <summary>Se a conexão com o hub está ativa.</summary>
     public bool Connected => _connection?.State == HubConnectionState.Connected;
 
@@ -67,6 +73,10 @@ public class RealtimeService : IAsyncDisposable
             "reaction", e => OnReaction?.Invoke(e.ChannelId, e.MessageId, e.Reactions));
         _connection.On<MessageUpdateEvent>(
             "message:update", e => OnMessageUpdate?.Invoke(e.ChannelId, e.Id, e.IsPinned));
+        _connection.On<string, string, string>(
+            "message:updated", (c, m, content) => OnChatMessageUpdated?.Invoke(c, m, content));
+        _connection.On<string, string>(
+            "message:deleted", (c, m) => OnChatMessageDeleted?.Invoke(c, m));
 
         try
         {
@@ -75,6 +85,38 @@ public class RealtimeService : IAsyncDisposable
         catch (Exception)
         {
             // Hub indisponível: REST segue funcionando sem realtime.
+        }
+    }
+
+    /// <summary>Entra no grupo de eventos de um chat (edições propagadas em tempo real).</summary>
+    /// <param name="chatId">Chat a acompanhar.</param>
+    public async Task JoinChatAsync(string chatId)
+    {
+        if (Connected)
+        {
+            try
+            {
+                await _connection!.InvokeAsync("JoinChat", chatId);
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
+    /// <summary>Sai do grupo de eventos de um chat.</summary>
+    /// <param name="chatId">Chat a deixar de acompanhar.</param>
+    public async Task LeaveChatAsync(string chatId)
+    {
+        if (Connected)
+        {
+            try
+            {
+                await _connection!.InvokeAsync("LeaveChat", chatId);
+            }
+            catch (Exception)
+            {
+            }
         }
     }
 

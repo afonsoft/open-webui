@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.Data;
 
 namespace OpenWebUI.Api.Hubs;
@@ -22,6 +23,28 @@ public class ChatHub(AppDbContext db) : Hub
 
     /// <summary>Nome do grupo SignalR de um canal.</summary>
     public static string GroupName(string channelId) => $"channel-{channelId}";
+
+    /// <summary>Nome do grupo SignalR de um chat (eventos de edição de mensagens).</summary>
+    public static string ChatGroupName(string chatId) => $"chat-{chatId}";
+
+    /// <summary>Entra no grupo de um chat (dono ou admin) para receber eventos de edição.</summary>
+    /// <param name="chatId">Chat a acompanhar.</param>
+    public async Task JoinChat(string chatId)
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var isAdmin = Context.User?.IsInRole(UserRoles.Admin) == true;
+        var allowed = userId is not null && (isAdmin ||
+            await db.Chats.AnyAsync(c => c.Id == chatId && c.UserId == userId));
+        if (allowed)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, ChatGroupName(chatId));
+        }
+    }
+
+    /// <summary>Sai do grupo de um chat.</summary>
+    /// <param name="chatId">Chat a deixar de acompanhar.</param>
+    public async Task LeaveChat(string chatId) =>
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, ChatGroupName(chatId));
 
     /// <summary>Ids de canais onde o usuário está online.</summary>
     public static IReadOnlyList<string> OnlineUsers(string channelId) =>

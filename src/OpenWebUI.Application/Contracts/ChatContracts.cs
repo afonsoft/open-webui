@@ -1,17 +1,25 @@
 namespace OpenWebUI.Application.Contracts;
 
+/// <summary>Versão anterior de uma mensagem (edição/regeneração preserva o conteúdo).</summary>
+/// <param name="Content">Conteúdo da versão.</param>
+/// <param name="Model">Modelo da versão (somente assistant).</param>
+/// <param name="Timestamp">Instante da versão (epoch seconds).</param>
+public sealed record ChatMessageVersionModel(string Content, string? Model, long Timestamp);
+
 /// <summary>Uma mensagem dentro de um chat (formato OpenAI simplificado).</summary>
 /// <param name="Id">Identificador estável da mensagem.</param>
 /// <param name="Role">Papel: system, user ou assistant.</param>
 /// <param name="Content">Conteúdo textual (Markdown).</param>
 /// <param name="Model">Modelo que gerou a mensagem (somente assistant).</param>
 /// <param name="Timestamp">Instante de criação em UTC (epoch seconds).</param>
+/// <param name="Versions">Versões anteriores da mensagem (edições/regenerações).</param>
 public sealed record ChatMessageModel(
     string Id,
     string Role,
     string Content,
     string? Model,
-    long Timestamp);
+    long Timestamp,
+    IReadOnlyList<ChatMessageVersionModel>? Versions = null);
 
 /// <summary>Resumo de um chat para listagem na barra lateral.</summary>
 /// <param name="Id">Identificador do chat.</param>
@@ -83,3 +91,31 @@ public sealed record MessageUpdateRequest(string Content);
 /// <summary>Corpo de endpoints que retornam somente sucesso/estado.</summary>
 /// <param name="Success">Indica se a operação foi concluída.</param>
 public sealed record StatusResponse(bool Success);
+
+/// <summary>Resumo de um chat para a lista administrativa (inclui o dono).</summary>
+/// <param name="Id">Identificador do chat.</param>
+/// <param name="Title">Título exibido.</param>
+/// <param name="UserId">Id do dono do chat.</param>
+/// <param name="UserName">Nome do dono.</param>
+/// <param name="UserEmail">E-mail do dono.</param>
+/// <param name="MessageCount">Total de mensagens.</param>
+/// <param name="Archived">Se está arquivado.</param>
+/// <param name="CreatedAt">Criação (epoch seconds).</param>
+/// <param name="UpdatedAt">Última atualização (epoch seconds).</param>
+public sealed record AdminChatSummaryResponse(
+    string Id,
+    string Title,
+    string UserId,
+    string UserName,
+    string UserEmail,
+    int MessageCount,
+    bool Archived,
+    long CreatedAt,
+    long UpdatedAt);
+
+/// <summary>Página da listagem administrativa de chats.</summary>
+/// <param name="Items">Chats da página.</param>
+/// <param name="Total">Total de chats que satisfazem o filtro.</param>
+public sealed record AdminChatListResponse(
+    IReadOnlyList<AdminChatSummaryResponse> Items,
+    int Total);

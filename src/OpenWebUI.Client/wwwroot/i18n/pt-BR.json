@@ -430,5 +430,13 @@
   "workspace.reindex_failed": "Falha ao reindexar.",
   "workspace.delete_selected": "Excluir {{count}} selecionada(s)",
   "workspace.confirm_delete_selected": "Excluir as coleções selecionadas?",
-  "workspace.deleted_count": "{{count}} coleção(ões) excluída(s)."
+  "workspace.deleted_count": "{{count}} coleção(ões) excluída(s).",
+  "admin.tab_chats": "Conversas",
+  "admin.search_chats": "Buscar conversas...",
+  "admin.no_chats": "Nenhuma conversa encontrada.",
+  "admin.chats_messages": "{{count}} mensagens",
+  "chat.prev_version": "Versão anterior",
+  "chat.next_version": "Próxima versão",
+  "chat.archived": "arquivado",
+  "common.open": "Abrir"
 }

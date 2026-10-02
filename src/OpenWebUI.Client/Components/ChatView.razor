@@ -6,6 +6,8 @@
 @inject LocalizationService L
 @inject MarkdownService Markdown
 @inject IJSRuntime JS
+@inject RealtimeService Realtime
+@implements IDisposable
 
 <div class="flex flex-col flex-1 h-full w-full min-w-0">
     <div class="sticky top-0 z-30 w-full">
@@ -316,6 +318,9 @@
         _prompts = await Api.GetPromptsAsync();
         _tools = await Api.GetToolsAsync();
         _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
+        Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
+        Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
+        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -394,6 +399,10 @@
         _error = null;
         _followUps = [];
         _attachedFiles.Clear();
+        if (_loadedChatId is not null)
+        {
+            await Realtime.LeaveChatAsync(_loadedChatId);
+        }
         if (ChatId is null)
         {
             _loadedChatId = null;
@@ -414,6 +423,7 @@
             }
 
             _loadedChatId = chat.Id;
+            await Realtime.JoinChatAsync(chat.Id);
             _chatTitle = chat.Title;
             _toolIds = chat.ToolIds.ToHashSet();
             _messages.Clear();
@@ -430,6 +440,49 @@
     }
 
     private void OnModelChanged(string? model) => _model = model;
+
+    private void HandleChatMessageUpdated(string chatId, string messageId, string content)
+    {
+        if (chatId != _loadedChatId)
+        {
+            return;
+        }
+
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index >= 0 && _messages[index].Content != content)
+        {
+            var m = _messages[index];
+            var versions = (m.Versions ?? []).ToList();
+            versions.Add(new ChatMessageVersionModel(m.Content, m.Model, m.Timestamp));
+            _messages[index] = m with { Content = content, Versions = versions };
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleChatMessageDeleted(string chatId, string messageId)
+    {
+        if (chatId != _loadedChatId)
+        {
+            return;
+        }
+
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index >= 0)
+        {
+            _messages.RemoveRange(index, _messages.Count - index);
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Realtime.OnChatMessageUpdated -= HandleChatMessageUpdated;
+        Realtime.OnChatMessageDeleted -= HandleChatMessageDeleted;
+        _cts?.Dispose();
+        _ttsRef?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     private void UsePrompt(PromptResponse prompt)
     {
