@@ -38,7 +38,7 @@
                     <div class="field">
                         <label>@L["settings.language"]</label>
                         <select class="input" value="@L.Language" @onchange="OnLanguageChanged">
-                            @foreach (var (lang, display) in LocalizationService.Languages)
+                            @foreach (var (lang, display) in L.Languages)
                             {
                                 <option value="@lang">@display</option>
                             }

@@ -55,3 +55,9 @@ Sem mudança de contrato — `error_code` aditivo; `GET /i18n/{locale}.json` já
 - [ ] 6+ locales importados e navegáveis.
 - [ ] Erro de auth aparece traduzido no idioma selecionado.
 - [ ] Teste de fallback de chave ausente.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/98
+- Issue: https://github.com/afonsoft/open-webui/issues/88
+- Epic: https://github.com/afonsoft/open-webui/issues/79
