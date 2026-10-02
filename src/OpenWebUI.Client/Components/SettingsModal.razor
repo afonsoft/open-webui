@@ -13,19 +13,20 @@
                 <button class="icon-btn" @onclick="Close">×</button>
             </div>
 
-            <div class="modal-tabs">
-                <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
-                <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
-                <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
-                @if (Auth.CurrentUser?.Role == "admin")
-                {
-                    <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
-                    <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>@L["settings.admin"]</button>
-                }
-                <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>@L["settings.about"]</button>
-            </div>
+            <div class="modal-shell">
+                <div class="modal-tabs">
+                    <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
+                    <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
+                    <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
+                    @if (Auth.CurrentUser?.Role == "admin")
+                    {
+                        <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
+                        <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>@L["settings.admin"]</button>
+                    }
+                    <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>@L["settings.about"]</button>
+                </div>
 
-            <div class="modal-body">
+                <div class="modal-body">
                 @if (_tab == "general")
                 {
                     <div class="field">
@@ -345,6 +346,7 @@
                         <div>.NET 10 · C# 14 · Blazor WebAssembly</div>
                     </div>
                 }
+                </div>
             </div>
         </div>
     </div>
