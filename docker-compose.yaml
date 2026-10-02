@@ -19,6 +19,10 @@ services:
         required: false
     volumes:
       - openwebui:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: ${WEBUI_MEM_LIMIT:-4g}
     restart: unless-stopped
 
 volumes:
