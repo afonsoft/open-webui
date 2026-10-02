@@ -615,6 +615,37 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");
 
+    // ---------------- Gerenciamento de modelos Ollama (passthrough) ----------------
+
+    /// <summary>Lista os modelos instalados na conexão Ollama configurada.</summary>
+    public Task<OllamaTagsResponse?> GetOllamaTagsAsync() =>
+        SendAsync<OllamaTagsResponse>(HttpMethod.Get, "/ollama/api/tags");
+
+    /// <summary>Baixa um modelo no Ollama (aguarda o stream de progresso terminar).</summary>
+    public async Task<bool> PullOllamaModelAsync(string name)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Post, "/ollama/api/pull");
+        request.Content = JsonContent.Create(new { name }, options: JsonOptions);
+        using var response = await http.SendAsync(request,
+            HttpCompletionOption.ResponseHeadersRead);
+        if (!response.IsSuccessStatusCode)
+        {
+            return false;
+        }
+
+        await response.Content.CopyToAsync(Stream.Null);
+        return true;
+    }
+
+    /// <summary>Remove um modelo do Ollama pelo nome.</summary>
+    public async Task<bool> DeleteOllamaModelAsync(string name)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Delete, "/ollama/api/delete");
+        request.Content = JsonContent.Create(new { name }, options: JsonOptions);
+        using var response = await http.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
     // ---------------- Geração de imagens ----------------
 
     /// <summary>Obtém a configuração de geração de imagens (somente admin, chave mascarada).</summary>
@@ -1051,3 +1082,13 @@ public sealed record SharedChatResponse(
 /// <summary>Autor de um chat compartilhado.</summary>
 /// <param name="Name">Nome de exibição.</param>
 public sealed record SharedChatUser(string? Name);
+
+/// <summary>Resposta do /ollama/api/tags (modelos instalados).</summary>
+/// <param name="Models">Modelos presentes na conexão.</param>
+public sealed record OllamaTagsResponse(IReadOnlyList<OllamaModelInfo> Models);
+
+/// <summary>Item do /ollama/api/tags.</summary>
+/// <param name="Name">Nome do modelo (ex.: llama3.2:latest).</param>
+/// <param name="Size">Tamanho em bytes.</param>
+/// <param name="ModifiedAt">Última modificação (ISO-8601 do Ollama).</param>
+public sealed record OllamaModelInfo(string? Name, long? Size, string? ModifiedAt);

@@ -194,6 +194,43 @@
                             <div class="field-note">@_saveMessage</div>
                         }
                         <button class="auth-submit" @onclick="SaveConnectionsAsync">@L["common.save"]</button>
+
+                        @if (Auth.CurrentUser?.Role == "admin")
+                        {
+                            <hr />
+                            <div class="field">
+                                <label>@L["settings.ollama_models"]</label>
+                                @if (_ollamaModels is null)
+                                {
+                                    <div class="field-note">@L["common.loading"]</div>
+                                }
+                                else if (_ollamaModels.Count == 0)
+                                {
+                                    <div class="field-note">@L["settings.no_ollama_models"]</div>
+                                }
+                                else
+                                {
+                                    @foreach (var model in _ollamaModels)
+                                    {
+                                        <div class="field" style="display:flex;align-items:center;justify-content:space-between">
+                                            <span>@model.Name</span>
+                                            <button class="button-sm" @onclick="() => DeleteOllamaModelAsync(model)">@L["common.delete"]</button>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                            <div class="field">
+                                <input class="input" @bind="_ollamaPullName"
+                                       placeholder="@L["settings.pull_model_placeholder"]" />
+                            </div>
+                            @if (_ollamaPullMessage is not null)
+                            {
+                                <div class="field-note">@_ollamaPullMessage</div>
+                            }
+                            <button class="auth-submit" disabled="@(_ollamaPulling || string.IsNullOrWhiteSpace(_ollamaPullName))"
+                                    @onclick="PullOllamaModelAsync">
+                                @(_ollamaPulling ? L["settings.pulling"] : L["settings.pull_model"])</button>
+                        }
                     }
                 }
                 else if (_tab == "admin")
@@ -323,6 +360,10 @@
     private string _tab = "general";
     private ConnectionsConfigResponse? _connections;
     private string _ollamaUrls = string.Empty;
+    private List<OllamaModelInfo>? _ollamaModels;
+    private string _ollamaPullName = string.Empty;
+    private bool _ollamaPulling;
+    private string? _ollamaPullMessage;
     private string _openAiUrls = string.Empty;
     private string _openAiKeys = string.Empty;
     private string? _saveMessage;
@@ -407,6 +448,7 @@
             }
 
             var adminConfig = await Api.GetAdminConfigAsync();
+            await LoadOllamaModelsAsync();
             if (adminConfig is not null)
             {
                 _adminWebUiName = adminConfig.WebUiName;
@@ -619,6 +661,34 @@
         if (await Api.DeleteMemoryAsync(memory.Id))
         {
             _memories.Remove(memory);
+        }
+    }
+
+    private async Task LoadOllamaModelsAsync()
+    {
+        var tags = await Api.GetOllamaTagsAsync();
+        _ollamaModels = tags?.Models.ToList() ?? [];
+    }
+
+    private async Task PullOllamaModelAsync()
+    {
+        _ollamaPulling = true;
+        _ollamaPullMessage = null;
+        var ok = await Api.PullOllamaModelAsync(_ollamaPullName.Trim());
+        _ollamaPulling = false;
+        _ollamaPullMessage = ok ? L["settings.model_pulled"] : L["settings.pull_failed"];
+        if (ok)
+        {
+            _ollamaPullName = string.Empty;
+            await LoadOllamaModelsAsync();
+        }
+    }
+
+    private async Task DeleteOllamaModelAsync(OllamaModelInfo model)
+    {
+        if (model.Name is not null && await Api.DeleteOllamaModelAsync(model.Name))
+        {
+            _ollamaModels?.Remove(model);
         }
     }
 
