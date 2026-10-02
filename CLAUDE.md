@@ -76,6 +76,7 @@ tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
 - Não commitar secrets, `.env`, `webui.db` ou bases SQLite.
 - Não editar `wwwroot/css/tailwind.css` manualmente (é gerado).
 - Não usar `UseStaticFiles`/`MapFallbackToFile` para o WASM — usar `app.MapStaticAssets()` (placeholders `#[.{fingerprint}]` só são resolvidos por ele).
+- O boot WASM passa por `js/boot.js` (`autostart="false"`): assets de `_framework` que não sejam `.js` são buscados no espelho sem extensão `GET /framework-assets/{stem}/{ext}` (com `?enc=b64` como fallback anti content-sniffing) para sobreviver a proxies corporativos que bloqueiam `.dat`/`.wasm`.
 
 ## Hard Rules
 

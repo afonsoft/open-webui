@@ -16,7 +16,7 @@ Client ──▶ Application
 - **Domain**: entidades (usuários, chats, mensagens, pastas, arquivos, modelos custom, memórias, notas, avaliações, conexões).
 - **Application**: contratos/DTOs e interfaces de serviços.
 - **Infrastructure**: EF Core + SQLite (`webui.db`, schema evoluído por EF Migrations com baseline de bases legadas), JWT, providers (Ollama, OpenAI-compatível), seed de conexões por env.
-- **Api**: Minimal APIs (`/api/v1/*`, `/api/config`) + hosting do WASM via `MapStaticAssets`.
+- **Api**: Minimal APIs (`/api/v1/*`, `/api/config`) + hosting do WASM via `MapStaticAssets` + espelho `/framework-assets/{stem}/{ext}` (boot resiliente a proxies que bloqueiam `.dat`/`.wasm`).
 - **Client**: Blazor WASM com Tailwind v4 (tema upstream, `.dark` class, Inter).
 
 ## Estrutura de diretórios

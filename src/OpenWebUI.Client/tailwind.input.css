@@ -378,6 +378,20 @@
 	top: 0.5rem;
 }
 
+#blazor-error-ui .error-details-toggle {
+	cursor: pointer;
+	text-decoration: underline;
+	margin-left: 0.5rem;
+}
+
+#blazor-error-ui .error-details {
+	font-size: 0.75rem;
+	max-height: 40vh;
+	overflow: auto;
+	white-space: pre-wrap;
+	margin: 0.5rem 0 0;
+}
+
 .dark #blazor-error-ui {
 	background: var(--color-gray-850);
 	color: var(--color-gray-100);

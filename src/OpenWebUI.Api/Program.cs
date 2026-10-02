@@ -127,8 +127,10 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 // #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).
 app.MapStaticAssets();
 
-// Documento/rotas da SPA sempre revalidam (previne o loop de reload do PWA
-// conhecido no upstream); assets fingerprinted já saem immutable via MapStaticAssets.
+// Documento/rotas da SPA e a cadeia mutável de boot (index.html, boot.js e os
+// loaders não-fingerprinted) sempre revalidam — caso contrário uma cópia antiga
+// em cache continua apontando para fingerprints antigos e o deploy nunca chega
+// ao browser (previne também o loop de reload do PWA conhecido no upstream).
 app.Use(async (context, next) =>
 {
     context.Response.OnStarting(() =>
@@ -138,8 +140,14 @@ app.Use(async (context, next) =>
             context.Request.Method == "GET" &&
             !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
             !path.StartsWith("/ws", StringComparison.OrdinalIgnoreCase) &&
+            !path.StartsWith("/framework-assets/", StringComparison.OrdinalIgnoreCase) &&
             (path == "/" || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
              path.EndsWith("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
+             path.EndsWith("/js/boot.js", StringComparison.OrdinalIgnoreCase) ||
+             path.EndsWith("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
+             path is "/_framework/blazor.webassembly.js"
+                 or "/_framework/dotnet.js"
+                 or "/_framework/dotnet.boot.js" ||
              !path.Contains('.'));
         if (isDocument)
         {
@@ -223,6 +231,7 @@ app.MapConfigEndpoints();
 app.MapAudioEndpoints();
 app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();
+app.MapFrameworkAssetsEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 
 app.MapFallbackToFile("index.html");
