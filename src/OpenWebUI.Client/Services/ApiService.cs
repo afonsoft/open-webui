@@ -905,6 +905,13 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<JwtExpiryConfig?> UpdateJwtExpiryAsync(JwtExpiryConfig config) =>
         SendAsync<JwtExpiryConfig>(HttpMethod.Post, "/api/v1/configs/jwt", config);
 
+    /// <summary>Obtém a config de áudio (admin).</summary>
+    public Task<AudioConfig?> GetAudioConfigAsync() =>
+        SendAsync<AudioConfig>(HttpMethod.Get, "/api/v1/audio/config");
+
+    /// <summary>Atualiza a config de áudio (admin).</summary>
+    public Task<AudioConfig?> UpdateAudioConfigAsync(AudioConfig config) =>
+        SendAsync<AudioConfig>(HttpMethod.Post, "/api/v1/audio/config", config);
     /// <summary>Obtém a config de retrieval (admin).</summary>
     public Task<RetrievalConfig?> GetRetrievalConfigAsync() =>
         SendAsync<RetrievalConfig>(HttpMethod.Get, "/api/v1/retrieval/config");

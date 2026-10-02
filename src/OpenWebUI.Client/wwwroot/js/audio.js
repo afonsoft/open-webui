@@ -1,14 +1,20 @@
-// Áudio do Open WebUI — STT (Web Speech API) e TTS (speechSynthesis).
-// Degrada silenciosamente quando o navegador não suporta.
+// Áudio do Open WebUI — STT (Web Speech API ou /transcriptions server-side)
+// e TTS (speechSynthesis ou /speech server-side). Web Speech é preferida;
+// quando ausente (ou engine=server), cai para os endpoints com MediaRecorder.
 (function () {
 	const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 	let recog = null;
 	let sttRef = null;
 	let accFinal = '';
 	let ttsRef = null;
+	let mediaRec = null;
+	let mediaChunks = [];
+	let ttsAudio = null;
+	let caps = null; // {stt, tts} do servidor — cacheado
 
 	const VOICE_KEY = 'webui.audio.voice';
 	const AUTOSEND_KEY = 'webui.audio.autosend';
+	const ENGINE_KEY = 'webui.audio.engine';
 
 	function cleanForSpeech(text) {
 		return (text || '')
@@ -37,10 +43,123 @@
 		);
 	}
 
+	function engine() {
+		return localStorage.getItem(ENGINE_KEY) || 'auto';
+	}
+
+	function authHeaders() {
+		const token = localStorage.getItem('webui.token');
+		return token ? { Authorization: 'Bearer ' + token } : {};
+	}
+
+	async function serverCaps() {
+		if (caps) return caps;
+		try {
+			const r = await fetch('/api/v1/audio/capabilities', { headers: authHeaders() });
+			caps = r.ok ? await r.json() : { stt: false, tts: false };
+		} catch {
+			caps = { stt: false, tts: false };
+		}
+		return caps;
+	}
+
+	function useServerStt() {
+		const e = engine();
+		return e === 'server' || (e !== 'web-speech' && !SR);
+	}
+
+	function useServerTts() {
+		const e = engine();
+		return e === 'server' || (e !== 'web-speech' && !('speechSynthesis' in window));
+	}
+
+	async function startServerStt(ref) {
+		if (!('MediaRecorder' in window) || !navigator.mediaDevices?.getUserMedia) {
+			return false;
+		}
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			mediaChunks = [];
+			mediaRec = new MediaRecorder(stream);
+			sttRef = ref;
+			mediaRec.ondataavailable = (e) => {
+				if (e.data.size > 0) mediaChunks.push(e.data);
+			};
+			mediaRec.onstop = async () => {
+				stream.getTracks().forEach((t) => t.stop());
+				const d = sttRef;
+				sttRef = null;
+				const blob = new Blob(mediaChunks, { type: mediaRec?.mimeType || 'audio/webm' });
+				mediaRec = null;
+				try {
+					const form = new FormData();
+					const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+					form.append('file', blob, 'gravacao.' + ext);
+					const r = await fetch('/api/v1/audio/transcriptions', {
+						method: 'POST',
+						headers: authHeaders(),
+						body: form,
+					});
+					if (!r.ok) {
+						await d?.invokeMethodAsync('OnSttError', 'server-' + r.status);
+						await d?.invokeMethodAsync('OnSttEnded');
+						return;
+					}
+					const data = await r.json();
+					await d?.invokeMethodAsync('OnSttResult', data.text || '');
+					await d?.invokeMethodAsync('OnSttEnded');
+				} catch {
+					await d?.invokeMethodAsync('OnSttError', 'server-error');
+					await d?.invokeMethodAsync('OnSttEnded');
+				}
+			};
+			mediaRec.start();
+			return true;
+		} catch {
+			sttRef = null;
+			return false;
+		}
+	}
+
+	async function speakServer(text, ref) {
+		ttsRef = ref || null;
+		try {
+			const r = await fetch('/api/v1/audio/speech', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', ...authHeaders() },
+				body: JSON.stringify({ input: cleanForSpeech(text) }),
+			});
+			if (!r.ok) {
+				const d = ttsRef;
+				ttsRef = null;
+				d?.invokeMethodAsync('OnTtsEnded');
+				return false;
+			}
+			const blob = await r.blob();
+			ttsAudio = new Audio(URL.createObjectURL(blob));
+			ttsAudio.onended = ttsAudio.onerror = () => {
+				const d = ttsRef;
+				ttsRef = null;
+				ttsAudio = null;
+				d?.invokeMethodAsync('OnTtsEnded');
+			};
+			await ttsAudio.play();
+			return true;
+		} catch {
+			const d = ttsRef;
+			ttsRef = null;
+			d?.invokeMethodAsync('OnTtsEnded');
+			return false;
+		}
+	}
+
 	window.openwebui = window.openwebui || {};
 	window.openwebui.audio = {
-		sttSupported: () => !!SR,
-		ttsSupported: () => 'speechSynthesis' in window,
+		sttSupported: async () =>
+			(!!SR && !useServerStt()) ||
+			(('MediaRecorder' in window) && (await serverCaps()).stt),
+		ttsSupported: async () =>
+			('speechSynthesis' in window && !useServerTts()) || (await serverCaps()).tts,
 
 		voices: () =>
 			('speechSynthesis' in window ? speechSynthesis.getVoices() : []).map((v) => ({
@@ -52,9 +171,14 @@
 			name ? localStorage.setItem(VOICE_KEY, name) : localStorage.removeItem(VOICE_KEY),
 		getAutoSend: () => localStorage.getItem(AUTOSEND_KEY) === 'true',
 		setAutoSend: (on) => localStorage.setItem(AUTOSEND_KEY, on ? 'true' : 'false'),
+		getEngine: () => engine(),
+		setEngine: (e) => localStorage.setItem(ENGINE_KEY, e || 'auto'),
+		// Invalida o cache de capabilities (config admin mudou).
+		refreshCaps: () => { caps = null; },
 
 		// Inicia o ditado; callbacks no ref: OnSttResult(text), OnSttEnded(), OnSttError(name).
 		startStt: (ref, lang) => {
+			if (useServerStt()) return startServerStt(ref);
 			if (!SR) return false;
 			window.openwebui.audio.stopStt();
 			sttRef = ref;
@@ -96,10 +220,16 @@
 			} catch {
 				/* noop */
 			}
+			try {
+				if (mediaRec && mediaRec.state !== 'inactive') mediaRec.stop();
+			} catch {
+				/* noop */
+			}
 		},
 
 		// Fala o texto; ref opcional recebe OnTtsEnded() ao terminar.
 		speak: (text, ref) => {
+			if (useServerTts()) return speakServer(text, ref);
 			if (!('speechSynthesis' in window)) return false;
 			speechSynthesis.cancel();
 			ttsRef = ref || null;
@@ -123,7 +253,15 @@
 			} catch {
 				/* noop */
 			}
+			try {
+				ttsAudio?.pause();
+				ttsAudio = null;
+			} catch {
+				/* noop */
+			}
 		},
-		isSpeaking: () => 'speechSynthesis' in window && speechSynthesis.speaking,
+		isSpeaking: () =>
+			('speechSynthesis' in window && speechSynthesis.speaking) ||
+			(ttsAudio !== null && !ttsAudio.paused),
 	};
 })();
