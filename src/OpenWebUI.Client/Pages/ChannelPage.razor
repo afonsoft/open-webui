@@ -219,8 +219,8 @@
         {
             return;
         }
-        var users = await Api.GetUsersAsync();
-        var user = users.FirstOrDefault(u =>
+        var users = await Api.GetUsersAsync(query: email.Trim());
+        var user = users.Users.FirstOrDefault(u =>
             u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
         if (user is not null)
         {

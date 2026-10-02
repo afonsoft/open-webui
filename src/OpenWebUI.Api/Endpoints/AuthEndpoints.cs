@@ -68,6 +68,7 @@ public static class AuthEndpoints
             Name = request.Name.Trim(),
             Email = email,
             Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
+            PermissionsJson = GroupPermissions.FullJson,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -117,6 +118,8 @@ public static class AuthEndpoints
             return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador." });
         }
 
+        user.LastActiveAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
         return await IssueAuthResponseAsync(user, tokens, config, ct);
     }
 
@@ -145,6 +148,7 @@ public static class AuthEndpoints
                 Name = identity.Name ?? ldapEmail,
                 Email = ldapEmail,
                 Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
+                PermissionsJson = GroupPermissions.FullJson,
                 PasswordHash = string.Empty, // autenticação delegada ao LDAP
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -378,6 +382,7 @@ public static class AuthEndpoints
         var id = http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return id is null ? null : await db.Users.FindAsync([id], ct);
     }
+
 
     internal static UserResponse ToResponse(User user) =>
         new(user.Id, user.Name, user.Email, user.Role, user.ProfileImageUrl, user.Timezone);

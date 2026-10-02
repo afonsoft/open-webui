@@ -314,5 +314,7 @@
   "notes.edit": "Edit note",
   "workspace.params_json": "Params (JSON, optional):",
   "workspace.tool_url": "Execution URL (HTTP POST):",
-  "workspace.tool_spec": "Tool spec (JSON):"
+  "workspace.tool_spec": "Tool spec (JSON):",
+  "admin.search_users": "Search by name or email…",
+  "admin.all_roles": "All roles"
 }
