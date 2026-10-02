@@ -5,6 +5,7 @@ using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
 
 namespace OpenWebUI.Api.Endpoints;
 
@@ -16,7 +17,16 @@ public static class ApiEndpoints
     /// <summary>Mapeia as rotas de modelos, completions e configuração.</summary>
     public static void MapApiEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/health", () => Results.Ok(new { status = true }));
+        // Healthcheck para balanceador: verifica DB e storage.
+        app.MapGet("/health", async (AppDbContext db, IFileStorage storage, CancellationToken ct) =>
+        {
+            var dbOk = await db.Database.CanConnectAsync(ct);
+            var storageOk = await storage.PingAsync(ct);
+            var ok = dbOk && storageOk;
+            return ok
+                ? Results.Ok(new { status = true, database = "up", storage = storage.Provider })
+                : Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        });
         app.MapGet("/api/version", () => Results.Ok(new VersionResponse(BackendVersion)));
         app.MapGet("/api/version/updates", () =>
             Results.Ok(new VersionUpdateResponse(BackendVersion, BackendVersion)));

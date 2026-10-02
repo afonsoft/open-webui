@@ -7,6 +7,8 @@ using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Infrastructure.Services.Image;
+using OpenWebUI.Infrastructure.Storage;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Application.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,8 +16,27 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=data/openwebui.db";
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    ConfigureDatabase(options, connectionString));
+// Provider EF por env: sqlite (default) ou postgresql (multi-instância).
+var dbProvider = DatabaseProviderSelector.Resolve(
+    builder.Configuration["DATABASE_PROVIDER"] ?? builder.Configuration["DatabaseProvider"]);
+if (dbProvider == DatabaseProviders.Postgresql)
+{
+    builder.Services.AddDbContext<PostgresAppDbContext>(options =>
+        options.UseNpgsql(connectionString));
+    builder.Services.AddScoped<AppDbContext>(sp =>
+        sp.GetRequiredService<PostgresAppDbContext>());
+}
+else
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseSqlite(connectionString));
+}
+
+// Storage de arquivos: local (default) ou S3/MinIO via STORAGE_* envs.
+builder.Services.AddSingleton<IFileStorage>(sp =>
+    StorageFactory.Create(builder.Configuration,
+        Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath,
+            "data", "uploads")));
 
 builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<JwtTokenService>();
@@ -40,7 +61,7 @@ builder.Services.AddOpenApi();
 
 // Inicializa o banco e obtém o segredo JWT antes de configurar a autenticação.
 string jwtSecret;
-using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
+using (var bootstrap = CreateBootstrapContext(dbProvider, connectionString))
 {
     if (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
     {
@@ -93,7 +114,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
-builder.Services.AddSignalR();
+var signalr = builder.Services.AddSignalR();
+// Backplane Redis opcional — multi-instância atrás de balanceador (REDIS_URL).
+var redisUrl = builder.Configuration["REDIS_URL"];
+if (!string.IsNullOrWhiteSpace(redisUrl))
+{
+    signalr.AddStackExchangeRedis(redisUrl);
+}
 
 var app = builder.Build();
 
@@ -215,8 +242,6 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-static void ConfigureDatabase(DbContextOptionsBuilder options, string connectionString) =>
-    options.UseSqlite(connectionString);
 
 /// <summary>
 /// Semeia as conexões com provedores a partir de variáveis de ambiente (mesmos
@@ -258,12 +283,15 @@ static void SeedConnectionsFromEnv(AppDbContext db)
 static List<string> SplitEnvUrls(string? value) =>
     value?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
 
-static DbContextOptions<AppDbContext> CreateDbOptions(string connectionString)
-{
-    var builder = new DbContextOptionsBuilder<AppDbContext>();
-    ConfigureDatabase(builder, connectionString);
-    return builder.Options;
-}
+static AppDbContext CreateBootstrapContext(
+    DatabaseProviders provider, string connectionString) =>
+    provider == DatabaseProviders.Postgresql
+        ? new PostgresAppDbContext(
+            new DbContextOptionsBuilder<PostgresAppDbContext>()
+                .UseNpgsql(connectionString).Options)
+        : new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite(connectionString).Options);
 
 /// <summary>Ponto de entrada para testes de integração com WebApplicationFactory.</summary>
 public partial class Program;

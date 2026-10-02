@@ -1,4 +1,5 @@
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services.Image;
@@ -29,12 +30,13 @@ public class ImageGenerationService(
     /// <param name="n">Quantidade desejada (limitada entre 1 e 4).</param>
     /// <param name="size">Tamanho opcional; quando nulo usa o configurado.</param>
     /// <param name="userId">Dono dos arquivos gerados.</param>
-    /// <param name="uploadDir">Diretório onde os binários são gravados.</param>
+    /// <param name="storage">Storage de arquivos (local ou S3).</param>
     /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Arquivos criados para cada imagem gerada.</returns>
     /// <exception cref="InvalidOperationException">Feature desabilitada ou motor inválido.</exception>
     public async Task<List<FileEntry>> GenerateAsync(
-        string prompt, int n, string? size, string userId, string uploadDir, CancellationToken ct = default)
+        string prompt, int n, string? size, string userId, IFileStorage storage,
+        CancellationToken ct = default)
     {
         var images = await GetConfigAsync(ct);
         if (!images.Enabled || string.IsNullOrWhiteSpace(images.BaseUrl))
@@ -44,7 +46,7 @@ public class ImageGenerationService(
 
         var engine = engineFactory.Resolve(images.Engine);
         var bytes = await engine.GenerateAsync(images, prompt, Math.Clamp(n, 1, 4), size, ct);
-        return await PersistAsync(bytes, userId, uploadDir, ct);
+        return await PersistAsync(bytes, userId, storage, ct);
     }
 
     /// <summary>Edita uma imagem existente do usuário (img2img/edits).</summary>
@@ -52,12 +54,12 @@ public class ImageGenerationService(
     /// <param name="prompt">Instrução de edição.</param>
     /// <param name="size">Tamanho opcional.</param>
     /// <param name="userId">Dono do arquivo.</param>
-    /// <param name="uploadDir">Diretório de uploads.</param>
+    /// <param name="storage">Storage de arquivos (local ou S3).</param>
     /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Arquivo criado com a imagem editada.</returns>
     /// <exception cref="InvalidOperationException">Motor sem suporte ou imagem ausente.</exception>
     public async Task<FileEntry> EditAsync(
-        string imageId, string prompt, string? size, string userId, string uploadDir,
+        string imageId, string prompt, string? size, string userId, IFileStorage storage,
         CancellationToken ct = default)
     {
         var images = await GetConfigAsync(ct);
@@ -73,14 +75,25 @@ public class ImageGenerationService(
         }
 
         var source = db.Files.FirstOrDefault(f => f.Id == imageId && f.UserId == userId);
-        if (source is null || !File.Exists(source.StoragePath))
+        byte[] sourceBytes;
+        try
+        {
+            if (source is null)
+            {
+                throw new InvalidOperationException("Imagem de origem não encontrada.");
+            }
+            await using var sourceStream = await storage.OpenReadAsync(source.StoragePath, ct);
+            using var ms = new MemoryStream();
+            await sourceStream.CopyToAsync(ms, ct);
+            sourceBytes = ms.ToArray();
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             throw new InvalidOperationException("Imagem de origem não encontrada.");
         }
 
-        var sourceBytes = await File.ReadAllBytesAsync(source.StoragePath, ct);
         var edited = await engine.EditAsync(images, sourceBytes, prompt, size, ct);
-        var files = await PersistAsync([edited], userId, uploadDir, ct);
+        var files = await PersistAsync([edited], userId, storage, ct);
         return files[0];
     }
 
@@ -93,17 +106,16 @@ public class ImageGenerationService(
     }
 
     private async Task<List<FileEntry>> PersistAsync(
-        IReadOnlyList<byte[]> images, string userId, string uploadDir, CancellationToken ct)
+        IReadOnlyList<byte[]> images, string userId, IFileStorage storage, CancellationToken ct)
     {
-        Directory.CreateDirectory(uploadDir);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var files = new List<FileEntry>();
         foreach (var bytes in images)
         {
             var id = Guid.NewGuid().ToString();
             var filename = $"generated-{id[..8]}.png";
-            var storagePath = Path.Combine(uploadDir, $"{id}_{filename}");
-            await File.WriteAllBytesAsync(storagePath, bytes, ct);
+            var storagePath = await storage.SaveAsync(
+                userId, id, filename, new MemoryStream(bytes), ct);
 
             var entry = new FileEntry
             {

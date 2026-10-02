@@ -4,7 +4,7 @@ using OpenWebUI.Domain;
 namespace OpenWebUI.Infrastructure.Data;
 
 /// <summary>Contexto EF Core do backend .NET (SQLite por padrão).</summary>
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions options) : DbContext(options)
 {
     /// <summary>Usuários cadastrados.</summary>
     public DbSet<User> Users => Set<User>();

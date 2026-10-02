@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
 
 namespace OpenWebUI.Api.Endpoints;
 
@@ -31,7 +32,7 @@ public static class FileEndpoints
     }
 
     private static async Task<IResult> UploadFileAsync(
-        HttpContext http, AppDbContext db, IWebHostEnvironment env, CancellationToken ct)
+        HttpContext http, AppDbContext db, IFileStorage storage, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -52,22 +53,26 @@ public static class FileEndpoints
         }
 
         var id = Guid.NewGuid().ToString();
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
-        Directory.CreateDirectory(uploadDir);
-
         var safeName = Path.GetFileName(file.FileName);
-        var storagePath = Path.Combine(uploadDir, $"{id}_{safeName}");
 
-        await using (var fs = File.Create(storagePath))
+        string storagePath;
+        try
         {
-            await file.CopyToAsync(fs, ct);
+            await using var input = file.OpenReadStream();
+            storagePath = await storage.SaveAsync(user.Id, id, safeName, input, ct);
+        }
+        catch (Exception)
+        {
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
         }
 
         string? extracted = null;
         var ext = Path.GetExtension(safeName);
         if (TextExtensions.Contains(ext) && file.Length < 5 * 1024 * 1024)
         {
-            extracted = await File.ReadAllTextAsync(storagePath, ct);
+            await using var textStream = file.OpenReadStream();
+            using var reader = new StreamReader(textStream);
+            extracted = await reader.ReadToEndAsync(ct);
             if (extracted.Length > 50_000)
             {
                 extracted = extracted[..50_000];
@@ -120,7 +125,8 @@ public static class FileEndpoints
     }
 
     private static async Task<IResult> GetFileContentAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db, IFileStorage storage,
+        CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var file = await db.Files.AsNoTracking()
@@ -135,19 +141,31 @@ public static class FileEndpoints
             return Results.Ok(new FileContentResponse(file.ExtractedText));
         }
 
-        if (File.Exists(file.StoragePath))
+        try
         {
+            var stream = await storage.OpenReadAsync(file.StoragePath, ct);
             return Results.File(
-                File.OpenRead(file.StoragePath),
+                stream,
                 file.ContentType ?? "application/octet-stream",
                 file.Filename);
         }
-
-        return Results.NotFound();
+        catch (FileNotFoundException)
+        {
+            return Results.NotFound();
+        }
+        catch (Amazon.S3.AmazonS3Exception)
+        {
+            return Results.NotFound();
+        }
+        catch (Exception)
+        {
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
     }
 
     private static async Task<IResult> DeleteFileAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db, IFileStorage storage,
+        CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.UserId == user!.Id, ct);
@@ -156,10 +174,7 @@ public static class FileEndpoints
             return Results.NotFound();
         }
 
-        if (File.Exists(file.StoragePath))
-        {
-            File.Delete(file.StoragePath);
-        }
+        await storage.DeleteAsync(file.StoragePath, ct);
 
         // Deleção do arquivo remove seus chunks vetoriais (regra RAG).
         await db.EmbeddingChunks.Where(c => c.FileId == file.Id)

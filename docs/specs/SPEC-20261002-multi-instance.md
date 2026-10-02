@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-multi-instance` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -86,3 +86,14 @@ Sem endpoints novos — operacional (`/health` enriquecido).
 ## 7. Notas
 
 EF multi-provider: manter migrations em `Migrations/Sqlite/` + `Migrations/Postgres/` ou projeto separado — `[A DEFINIR]` no spike. S3 via `AWSSDK.S3` official.
+
+## 8. Delivered
+
+- **PR**: #78 · **Issue**: #63
+- **Postgres**: `DATABASE_PROVIDER=postgresql` + `ConnectionStrings__Default` → `PostgresAppDbContext` (deriva de `AppDbContext`, mesmo modelo) registrado como `AppDbContext` no DI; migrações separadas em `Migrations/Postgres/` (`InitialPostgres`), filtradas por contexto via atributo `[DbContext]` (decisão do `[A DEFINIR]` — mesma assembly, contexto distinto por provider); sqlite intocado.
+- **Redis backplane**: `REDIS_URL` → `AddSignalR().AddStackExchangeRedis(url)`; ausente → in-process.
+- **`IFileStorage`** (`Application/Interfaces`): `LocalFileStorage` (layout legado `data/uploads/{user}/{id}_{name}` — retrocompatível) e `S3FileStorage` (AWSSDK.S3, chaves `s3://bucket/{user}/{id}_{name}`, `ForcePathStyle` para MinIO, credenciais nunca expostas). `STORAGE_PROVIDER`, `STORAGE_S3_*`. Uploads e imagens geradas passam pelo storage; falha → 502.
+- **`/health`**: verifica `db.Database.CanConnectAsync()` + `storage.PingAsync()` → `{status, database, storage}` ou 503.
+- `docker-compose.postgres.yaml`: app + postgres + redis + minio (+init do bucket) com healthchecks.
+- Testes: `MultiInstanceTests` (6 — selector, migrações anotadas, factory, roundtrip local/S3 com fake, health).
+- Fora de escopo (mantido): MySQL/MSSQL, GCS/Azure, Redis para sessão, manifests K8s.

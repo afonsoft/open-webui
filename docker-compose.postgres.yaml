@@ -1,0 +1,89 @@
+# Open WebUI (.NET) — stack multi-instância (PostgreSQL + Redis + MinIO).
+#
+#   docker compose -f docker-compose.postgres.yaml up -d --build
+#
+# App:      http://localhost:3000 (1 réplica; --scale openwebui=3 para escalar)
+# MinIO UI: http://localhost:9001 (minioadmin/minioadmin)
+#
+# Multi-réplica real atrás de balanceador exige um LB na frente (nginx/traefik)
+# com sticky sessions para SignalR/WebSocket — o backplane Redis sincroniza
+# os eventos entre instâncias.
+
+services:
+  openwebui:
+    build: .
+    image: openwebui-dotnet
+    ports:
+      - "3000:8080"
+    environment:
+      DATABASE_PROVIDER: postgresql
+      ConnectionStrings__Default: Host=postgres;Database=openwebui;Username=openwebui;Password=openwebui
+      REDIS_URL: redis:6379
+      STORAGE_PROVIDER: s3
+      STORAGE_S3_BUCKET: openwebui
+      STORAGE_S3_ENDPOINT: http://minio:9000
+      STORAGE_S3_REGION: us-east-1
+      STORAGE_S3_ACCESS_KEY: minioadmin
+      STORAGE_S3_SECRET_KEY: minioadmin
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: openwebui
+      POSTGRES_USER: openwebui
+      POSTGRES_PASSWORD: openwebui
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwebui"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/openwebui"
+    restart: "no"
+
+volumes:
+  pgdata:
+  miniodata:

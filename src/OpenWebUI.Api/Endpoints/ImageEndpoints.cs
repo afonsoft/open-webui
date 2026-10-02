@@ -1,4 +1,5 @@
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -97,7 +98,7 @@ public static class ImageEndpoints
         HttpContext http,
         ImageGenerationService images,
         AppDbContext db,
-        IWebHostEnvironment env,
+        IFileStorage storage,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -114,11 +115,10 @@ public static class ImageEndpoints
         {
             return Results.StatusCode(StatusCodes.Status501NotImplemented);
         }
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
         try
         {
             var file = await images.EditAsync(
-                request.ImageId, request.Prompt, request.Size, user.Id, uploadDir, ct);
+                request.ImageId, request.Prompt, request.Size, user.Id, storage, ct);
             return Results.Ok(new GeneratedImage($"/api/v1/files/{file.Id}/content"));
         }
         catch (InvalidOperationException)
@@ -140,7 +140,7 @@ public static class ImageEndpoints
         HttpContext http,
         ImageGenerationService images,
         AppDbContext db,
-        IWebHostEnvironment env,
+        IFileStorage storage,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -160,11 +160,10 @@ public static class ImageEndpoints
             return Results.StatusCode(StatusCodes.Status501NotImplemented);
         }
 
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
         try
         {
             var files = await images.GenerateAsync(
-                request.Prompt, request.N ?? 1, request.Size, user.Id, uploadDir, ct);
+                request.Prompt, request.N ?? 1, request.Size, user.Id, storage, ct);
             return Results.Ok(files
                 .Select(f => new GeneratedImage($"/api/v1/files/{f.Id}/content"))
                 .ToList());

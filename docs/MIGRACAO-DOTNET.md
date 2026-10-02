@@ -89,7 +89,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | Área | Escopo upstream |
 |---|---|
 | `utils` (4 eps) | Gravatar, format, litellm config |
-| Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
+| ~~Multi-instância~~ ✅ | Postgres+Redis+S3 migrados (slice multi-instance); fora: GCS/Azure Blob |
 | Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
 | Rate limiting | Limites de uso por usuário/modelo |
 
