@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using OpenWebUI.Domain;
@@ -61,6 +62,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
     DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
     SeedConnectionsFromEnv(bootstrap);
     SeedWhisperUrlFromEnv(bootstrap);
+    SeedAdminUserFromEnv(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)
     {
@@ -286,6 +288,37 @@ static void SeedWhisperUrlFromEnv(AppDbContext db)
                 System.Text.Json.JsonSerializerDefaults.Web)),
         UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
     });
+    db.SaveChanges();
+}
+
+/// <summary>
+/// Cria o usuário admin inicial a partir de <c>ADMIN_EMAIL</c> +
+/// <c>ADMIN_PASSWORD</c> (opcional <c>ADMIN_NAME</c>) somente quando a base
+/// está vazia — equivalente ao primeiro signup virar admin, mas via env.
+/// </summary>
+static void SeedAdminUserFromEnv(AppDbContext db)
+{
+    var email = Environment.GetEnvironmentVariable("ADMIN_EMAIL")?.Trim().ToLowerInvariant();
+    var password = Environment.GetEnvironmentVariable("ADMIN_PASSWORD");
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)
+        || db.Users.Any())
+    {
+        return;
+    }
+
+    var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var name = Environment.GetEnvironmentVariable("ADMIN_NAME");
+    var user = new User
+    {
+        Name = string.IsNullOrWhiteSpace(name) ? "Admin" : name.Trim(),
+        Email = email,
+        Role = UserRoles.Admin,
+        PermissionsJson = "{}",
+        CreatedAt = now,
+        UpdatedAt = now,
+    };
+    user.PasswordHash = new PasswordHasher<User>().HashPassword(user, password);
+    db.Users.Add(user);
     db.SaveChanges();
 }
 

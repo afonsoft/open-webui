@@ -115,7 +115,7 @@ Padrão: **Plan-and-Execute**.
 - Feature: `feature/{Agent}-{YYYYMMDD}-{descricao}` → implementar → testes → PR para `main`.
 - Bug fix: `fix/{descricao}` → reproduzir → corrigir → regressão → PR.
 - Seed de conexões por env: `OLLAMA_BASE_URL(S)`, `OPENAI_API_BASE_URL(S)`, `OPENAI_API_KEY(S)` (`;`-separados, primeiro boot). Lista completa em `.env.exemplo`.
-- Primeiro usuário registrado vira admin.
+- Primeiro usuário registrado vira admin — ou semeado por `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD` quando a base está vazia.
 
 ## Referências
 

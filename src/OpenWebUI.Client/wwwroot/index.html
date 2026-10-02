@@ -10,7 +10,6 @@
 		<link rel="icon" type="image/png" href="favicon.png" />
 		<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 		<link rel="stylesheet" href="css/tailwind.css" />
-		<link href="OpenWebUI.Client.styles.css" rel="stylesheet" />
 		<script>
 			// Aplica o tema antes do primeiro paint, como no upstream.
 			const theme = localStorage.getItem('webui.theme') || 'dark';
@@ -44,6 +43,6 @@
 			<a href="." class="reload">Reload</a>
 			<span class="dismiss">🗙</span>
 		</div>
-		<script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+		<script src="_framework/blazor.webassembly.js"></script>
 	</body>
 </html>
