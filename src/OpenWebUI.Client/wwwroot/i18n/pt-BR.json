@@ -331,5 +331,9 @@
   "admin.add_suggestion": "+ Sugestão",
   "admin.banners": "Banners",
   "admin.banner_title": "Título do banner",
-  "admin.banner_content": "Conteúdo"
+  "admin.banner_content": "Conteúdo",
+  "admin.config_retrieval": "Retrieval",
+  "admin.ret_engine": "Engine de busca web",
+  "admin.ret_hybrid": "Busca híbrida (BM25 + vetorial)",
+  "admin.ret_rerank": "Reordenar top resultados"
 }
