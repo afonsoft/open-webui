@@ -36,6 +36,7 @@ builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<ProviderProxyService>();
 builder.Services.AddScoped<TerminalProxyService>();
+builder.Services.AddSingleton<LocalTerminalSpawner>();
 builder.Services.AddScoped<ScimService>();
 builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<PipelineClientService>();

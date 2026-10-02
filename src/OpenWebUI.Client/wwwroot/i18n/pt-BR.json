@@ -400,6 +400,7 @@
   "admin.terminals": "Servidores de terminal",
   "admin.terminal_name": "Nome do servidor",
   "admin.terminal_key": "Token/senha do servidor",
+  "admin.terminal_local_hint": "Sobe um processo Jupyter local no servidor (Jupyter:LocalCommand).",
   "admin.terminal_add": "Adicionar servidor",
   "admin.sso_saml": "SSO — SAML 2.0",
   "admin.sso_scim": "Provisionamento — SCIM 2.0",

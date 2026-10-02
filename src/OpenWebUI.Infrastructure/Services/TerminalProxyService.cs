@@ -8,9 +8,12 @@ namespace OpenWebUI.Infrastructure.Services;
 /// Proxy autenticado para servidores de terminal/Jupyter configurados pelo
 /// admin (`terminals.servers` em config). Encaminha HTTP (allowlist `/api/*`)
 /// e WebSocket (tunnel bidirecional), injetando a key do servidor sem nunca
-/// expô-la ao cliente.
+/// expô-la ao cliente. Servidores <c>type: "local"</c> são spawnados como
+/// processos filhos via <see cref="LocalTerminalSpawner"/> antes do proxy.
 /// </summary>
-public class TerminalProxyService(IHttpClientFactory httpClientFactory, ConfigService config)
+public class TerminalProxyService(
+    IHttpClientFactory httpClientFactory, ConfigService config,
+    LocalTerminalSpawner spawner)
 {
     /// <summary>Lista os servidores configurados (com key real — uso interno).</summary>
     public async Task<List<TerminalServerConfig>> GetServersAsync(CancellationToken ct = default) =>
@@ -23,6 +26,26 @@ public class TerminalProxyService(IHttpClientFactory httpClientFactory, ConfigSe
     /// <summary>Resolve um servidor pelo id; null quando não existe.</summary>
     public async Task<TerminalServerConfig?> GetServerAsync(string id, CancellationToken ct = default) =>
         (await GetServersAsync(ct)).FirstOrDefault(s => s.Id == id);
+
+    /// <summary>
+    /// Resolve o servidor garantindo que ele está acessível: servidores
+    /// <c>local</c> são spawnados/sob demanda e retornam URL+token reais.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Spawn local falhou.</exception>
+    public async Task<TerminalServerConfig?> ResolveServerAsync(string id, CancellationToken ct = default)
+    {
+        var server = await GetServerAsync(id, ct);
+        if (server is null)
+        {
+            return null;
+        }
+        return server.Type == "local"
+            ? await spawner.EnsureStartedAsync(server, ct)
+            : server;
+    }
+
+    /// <summary>Encerra o processo local de um servidor removido da config.</summary>
+    public void StopLocal(string serverId) => spawner.Stop(serverId);
 
     /// <summary>
     /// Sanitiza o path do proxy: deve ser relativo, dentro de `api/` e sem

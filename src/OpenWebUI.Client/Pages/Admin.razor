@@ -634,7 +634,14 @@
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
                                 <input class="input" @bind="_termName" placeholder="@L["admin.terminal_name"]" />
-                                <input class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
+                                @if (_termType is not "local")
+                                {
+                                    <input class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
+                                }
+                                else
+                                {
+                                    <small class="text-gray-500">@L["admin.terminal_local_hint"]</small>
+                                }
                                 <div class="flex gap-2">
                                     <select class="input" @bind="_termAuth">
                                         <option value="none">none</option>
@@ -644,9 +651,10 @@
                                     <select class="input" @bind="_termType">
                                         <option value="jupyter">jupyter</option>
                                         <option value="pty">pty</option>
+                                        <option value="local">local (spawn)</option>
                                     </select>
                                 </div>
-                                @if (_termAuth is not "none")
+                                @if (_termAuth is not "none" && _termType is not "local")
                                 {
                                     <input class="input" type="password" @bind="_termKey" placeholder="@L["admin.terminal_key"]" />
                                 }
@@ -1044,7 +1052,7 @@
     private async Task SaveTerminalAsync()
     {
         var saved = await Api.SaveTerminalServerAsync(new TerminalServerRequest(
-            _termName.Trim(), _termUrl.Trim(), _termAuth,
+            _termName.Trim(), _termType == "local" ? null : _termUrl.Trim(), _termAuth,
             string.IsNullOrWhiteSpace(_termKey) ? null : _termKey, _termType));
         if (saved is not null)
         {

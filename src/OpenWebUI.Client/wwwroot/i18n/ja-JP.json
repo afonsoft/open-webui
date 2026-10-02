@@ -400,6 +400,7 @@
   "admin.terminals": "Terminal servers",
   "admin.terminal_name": "Server name",
   "admin.terminal_key": "Server token/password",
+  "admin.terminal_local_hint": "サーバーで Jupyter プロセスをします（Jupyter:LocalCommand）。",
   "admin.terminal_add": "Add server",
   "admin.sso_saml": "SSO — SAML 2.0",
   "admin.sso_scim": "Provisioning — SCIM 2.0",
