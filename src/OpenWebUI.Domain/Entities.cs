@@ -63,6 +63,40 @@ public class ApiKey
     public long UpdatedAt { get; set; }
 }
 
+/// <summary>Batalha de arena: duas respostas anônimas de modelos sorteados aguardando voto.</summary>
+public class ArenaBattle
+{
+    /// <summary>Identificador único (GUID interno).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Usuário que disparou a batalha.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Id do modelo arena usado.</summary>
+    public string ArenaModelId { get; set; } = string.Empty;
+
+    /// <summary>Modelo real da resposta A (revelado após o voto).</summary>
+    public string ModelA { get; set; } = string.Empty;
+
+    /// <summary>Modelo real da resposta B (revelado após o voto).</summary>
+    public string ModelB { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo da resposta A.</summary>
+    public string ResponseA { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo da resposta B.</summary>
+    public string ResponseB { get; set; } = string.Empty;
+
+    /// <summary>Vencedor: "a", "b", "tie" ou "both_bad"; null até o voto.</summary>
+    public string? Winner { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Momento do voto (epoch seconds); null até votar.</summary>
+    public long? VotedAt { get; set; }
+}
+
 /// <summary>Conversa pertencente a um usuário.</summary>
 public class Chat
 {
@@ -240,8 +274,14 @@ public class ModelEntry
     /// <summary>Nome público exibido no seletor de modelos.</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Modelo base usado na completion (id do provedor).</summary>
-    public string BaseModelId { get; set; } = string.Empty;
+    /// <summary>Modelo base usado na completion (id do provedor); null em modelos arena.</summary>
+    public string? BaseModelId { get; set; }
+
+    /// <summary>Metadados do modelo em JSON (ex.: {"arena": true, "model_ids": [...]}).</summary>
+    public string? MetaJson { get; set; }
+
+    /// <summary>Access grants (user/group/* × read/write) em JSON; null = visibilidade padrão.</summary>
+    public string? AccessGrantsJson { get; set; }
 
     /// <summary>System prompt aplicado antes das mensagens do usuário.</summary>
     public string? SystemPrompt { get; set; }

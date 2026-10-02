@@ -30,6 +30,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Modelos personalizados do workspace.</summary>
     public DbSet<ModelEntry> ModelEntries => Set<ModelEntry>();
 
+    /// <summary>Batalhas de arena com voto pendente ou registrado.</summary>
+    public DbSet<ArenaBattle> ArenaBattles => Set<ArenaBattle>();
+
     /// <summary>Memórias persistentes dos usuários.</summary>
     public DbSet<MemoryEntry> Memories => Set<MemoryEntry>();
 

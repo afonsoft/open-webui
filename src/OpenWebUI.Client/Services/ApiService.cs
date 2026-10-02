@@ -771,6 +771,17 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<JwtExpiryConfig?> UpdateJwtExpiryAsync(JwtExpiryConfig config) =>
         SendAsync<JwtExpiryConfig>(HttpMethod.Post, "/api/v1/configs/jwt", config);
 
+    /// <summary>Registra o voto de uma batalha de arena e revela os modelos.</summary>
+    public Task<ArenaFeedbackResponse?> VoteArenaAsync(string battleId, string winner) =>
+        SendAsync<ArenaFeedbackResponse>(HttpMethod.Post,
+            "/api/v1/evaluations/arena/feedback",
+            new ArenaFeedbackRequest(battleId, winner));
+
+    /// <summary>Leaderboard de arena (ELO) — admin.</summary>
+    public async Task<List<LeaderboardEntryResponse>> GetLeaderboardAsync() =>
+        await SendAsync<List<LeaderboardEntryResponse>>(
+            HttpMethod.Get, "/api/v1/evaluations/leaderboard") ?? [];
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }
 
