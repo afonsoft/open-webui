@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -19,7 +20,8 @@ public static class FileEndpoints
     /// <summary>Mapeia as rotas de arquivos.</summary>
     public static RouteGroupBuilder MapFileEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/files").RequireAuthorization();
+        var group = app.MapGroup("/api/v1/files").RequireAuthorization()
+            .RequirePermission(PermissionService.WorkspaceFiles);
 
         group.MapPost("/", UploadFileAsync).DisableAntiforgery();
         group.MapGet("/", ListFilesAsync);

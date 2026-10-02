@@ -441,6 +441,8 @@
   "admin.perm_off": "off",
   "admin.group_domains": "Group domains",
   "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):",
+  "admin.perm_public_chats": "Public chats",
+  "admin.perm_chat_controls": "Chat controls",
   "workspace.share_community": "Share to community",
   "errors.invalid_fields": "Please enter name, e-mail and password.",
   "errors.email_taken": "E-mail already registered.",

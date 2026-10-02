@@ -838,15 +838,15 @@
     private string? _permUserId;
     private Dictionary<string, bool?> _permValues = new();
 
-    private static readonly (string Key, string Label)[] PermFlags =
+    private (string Key, string Label)[] PermFlags =>
     [
-        ("workspace.models", "Модели"),
-        ("workspace.prompts", "Промпты"),
-        ("workspace.knowledge", "Знания"),
-        ("workspace.tools", "Инструменты"),
-        ("workspace.files", "Файлы"),
-        ("sharing.public_chats", "Публичные чаты"),
-        ("chat.controls", "Управление чатом"),
+        ("workspace.models", L["workspace.models"]),
+        ("workspace.prompts", L["workspace.prompts"]),
+        ("workspace.knowledge", L["workspace.knowledge"]),
+        ("workspace.tools", "Tools"),
+        ("workspace.files", L["workspace.files"]),
+        ("sharing.public_chats", L["admin.perm_public_chats"]),
+        ("chat.controls", L["admin.perm_chat_controls"]),
     ];
     private AdminChatListResponse? _adminChats;
     private int _chatsPage = 1;

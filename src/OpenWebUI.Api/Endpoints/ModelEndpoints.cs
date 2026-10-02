@@ -17,17 +17,25 @@ public static class ModelEndpoints
     {
         var group = app.MapGroup("/api/v1/models").RequireAuthorization();
 
+        // Leitura fica aberta (chat precisa listar modelos para todos os usuários);
+        // workspace.models gateia só a gestão no workspace.
         group.MapGet("/", ListModelsAsync);
         group.MapGet("/list", ListModelsAsync);
-        group.MapPost("/create", CreateModelAsync);
+        group.MapPost("/create", CreateModelAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
         group.MapGet("/model", GetModelByQueryAsync);
-        group.MapPost("/model/update", UpdateModelAsync);
-        group.MapPost("/model/delete", DeleteModelAsync);
-        group.MapPost("/model/toggle", ToggleModelAsync);
+        group.MapPost("/model/update", UpdateModelAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
+        group.MapPost("/model/delete", DeleteModelAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
+        group.MapPost("/model/toggle", ToggleModelAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
         group.MapGet("/model/access", GetAccessAsync);
-        group.MapPost("/model/access/update", UpdateAccessAsync);
+        group.MapPost("/model/access/update", UpdateAccessAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
         group.MapGet("/export", ExportModelsAsync);
-        group.MapPost("/import", ImportModelsAsync);
+        group.MapPost("/import", ImportModelsAsync)
+            .RequirePermission(PermissionService.WorkspaceModels);
 
         return group;
     }

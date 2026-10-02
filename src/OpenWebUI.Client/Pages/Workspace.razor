@@ -5,6 +5,7 @@
 @page "/workspace/knowledge"
 @page "/workspace/tools"
 @page "/workspace/skills"
+@implements IDisposable
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -168,33 +169,6 @@
             }
         </div>
     }
-    else
-    {
-        <div class="card-list">
-            <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/prompts/create")'>@L["workspace.new_prompt"]</button>
-            </div>
-            @foreach (var prompt in _prompts)
-            {
-                <div class="card-row">
-                    <div class="card-main">
-                        <div class="card-title">/@prompt.Command — @prompt.Title</div>
-                        <div class="card-sub card-pre">@prompt.Content</div>
-                    </div>
-                    <div class="card-actions">
-                        <button class="msg-action" title="@L["workspace.share_community"]"
-                                @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
-                    </div>
-                </div>
-            }
-            @if (_prompts.Count == 0)
-            {
-                <div class="sidebar-empty">@L["workspace.no_prompts"]</div>
-            }
-        </div>
-    }
     else if (Section == "skills")
     {
         <div class="card-list">
@@ -231,6 +205,33 @@
             @if (_skills.Count == 0)
             {
                 <div class="sidebar-empty">@L["workspace.no_skills"]</div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/prompts/create")'>@L["workspace.new_prompt"]</button>
+            </div>
+            @foreach (var prompt in _prompts)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">/@prompt.Command — @prompt.Title</div>
+                        <div class="card-sub card-pre">@prompt.Content</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" title="@L["workspace.share_community"]"
+                                @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
+                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
+                        <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_prompts.Count == 0)
+            {
+                <div class="sidebar-empty">@L["workspace.no_prompts"]</div>
             }
         </div>
     }
@@ -272,12 +273,21 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Mesma instância serve /workspace/{seção}: sem escutar LocationChanged
+        // a troca de aba atualiza a URL mas não re-renderiza o conteúdo.
+        Nav.LocationChanged += OnLocationChanged;
         _prompts = await Api.GetPromptsAsync();
         _models = await Api.GetCustomModelsAsync();
         _files = await Api.GetFilesAsync();
         _knowledge = await Api.GetKnowledgeAsync();
         _skills = await Api.GetSkillsAsync() ?? [];
     }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>Desinscreve do LocationChanged ao sair da página.</summary>
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 
     private void EditSkill(SkillResponse skill)
     {

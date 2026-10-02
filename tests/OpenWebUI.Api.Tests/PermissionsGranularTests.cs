@@ -178,6 +178,38 @@ public class PermissionsGranularTests
         Assert.That(list!.All(g => g.Members.All(m => m.UserId != user.User.Id)), Is.True);
     }
 
+    // ----------------- Enforcement nos endpoints -----------------
+
+    [Test, Order(8)]
+    public async Task Permissao_Negada_Bloqueia_Endpoints_Workspace()
+    {
+        var user = await SignUpAsync("U8", "u8@perm.local");
+        UseToken(_admin.Token);
+        var put = await _client.PutAsJsonAsync(
+            $"/api/v1/users/{user.User.Id}/permissions",
+            JsonObj("""{"workspace":{"knowledge":false}}""").RootElement);
+        Assert.That(put.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        UseToken(user.Token);
+        Assert.That((await _client.GetAsync("/api/v1/knowledge")).StatusCode,
+            Is.EqualTo(HttpStatusCode.Forbidden));
+        Assert.That((await _client.PostAsJsonAsync("/api/v1/knowledge",
+                new CreateKnowledgeRequest("x", null))).StatusCode,
+            Is.EqualTo(HttpStatusCode.Forbidden));
+
+        UseToken(_admin.Token);
+        Assert.That((await _client.GetAsync("/api/v1/knowledge")).StatusCode,
+            Is.EqualTo(HttpStatusCode.OK));
+
+        // Re-habilitando, o acesso volta.
+        await _client.PutAsJsonAsync(
+            $"/api/v1/users/{user.User.Id}/permissions",
+            JsonObj("""{"workspace":{"knowledge":true}}""").RootElement);
+        UseToken(user.Token);
+        Assert.That((await _client.GetAsync("/api/v1/knowledge")).StatusCode,
+            Is.EqualTo(HttpStatusCode.OK));
+    }
+
     [Test, Order(7)]
     public async Task Grupo_Update_Domains_Substitui()
     {

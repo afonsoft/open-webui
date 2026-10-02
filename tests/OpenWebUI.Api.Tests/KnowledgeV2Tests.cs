@@ -263,4 +263,23 @@ public class KnowledgeV2Tests
             new BatchKnowledgeRequest(["x"]));
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
+
+    [Test, Order(8)]
+    public async Task List_FileCount_RefleteArquivosVinculados()
+    {
+        _embedOk = true;
+        UseToken(_admin.Token);
+        var fileId = await UploadTextFileAsync("fc.txt", "conteúdo para contar");
+        var collection = await CreateCollectionAsync("col-filecount");
+
+        var list0 = await _client.GetFromJsonAsync<List<KnowledgeResponse>>("/api/v1/knowledge");
+        Assert.That(list0!.First(c => c.Id == collection.Id).FileCount, Is.EqualTo(0));
+
+        var added = await _client.PostAsJsonAsync(
+            $"/api/v1/knowledge/{collection.Id}/file/add", new AddKnowledgeFileRequest(fileId));
+        Assert.That(added.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var list1 = await _client.GetFromJsonAsync<List<KnowledgeResponse>>("/api/v1/knowledge");
+        Assert.That(list1!.First(c => c.Id == collection.Id).FileCount, Is.EqualTo(1));
+    }
 }

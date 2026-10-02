@@ -13,7 +13,8 @@ public static class WorkspaceEndpoints
     /// <summary>Mapeia as rotas de workspace.</summary>
     public static void MapWorkspaceEndpoints(this IEndpointRouteBuilder app)
     {
-        var prompts = app.MapGroup("/api/v1/prompts").RequireAuthorization();
+        var prompts = app.MapGroup("/api/v1/prompts").RequireAuthorization()
+            .RequirePermission(PermissionService.WorkspacePrompts);
         prompts.MapGet("/", ListPromptsAsync);
         prompts.MapGet("/list", ListPromptsAsync);
         prompts.MapPost("/create", CreatePromptAsync);
