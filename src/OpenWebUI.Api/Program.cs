@@ -29,6 +29,8 @@ builder.Services.AddScoped<RagService>();
 builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
+builder.Services.AddScoped<WebLoaderService>();
+builder.Services.AddScoped<WebSearchService>();
 builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<ProviderProxyService>();
@@ -210,6 +212,7 @@ app.MapChannelEndpoints();
 app.MapImageEndpoints();
 app.MapAutomationEndpoints();
 app.MapConfigEndpoints();
+app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();
 app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
 

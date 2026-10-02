@@ -246,7 +246,7 @@
             else
             {
                 <div class="flex gap-1 mb-3">
-                    @foreach (var sub in new[] { "general", "models", "features" })
+                    @foreach (var sub in new[] { "general", "models", "features", "retrieval" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -646,6 +646,16 @@
     private bool _flagFolders;
     private bool _flagMemories;
     private string? _configMessage;
+    private string _retEngine = "none";
+    private string? _retSearxng;
+    private string? _retBrave;
+    private string? _retTavily;
+    private int _retTopK = 5;
+    private int _retChunkSize = 1000;
+    private int _retOverlap = 100;
+    private bool _retHybrid;
+    private double _retWeight = 0.5;
+    private bool _retRerank;
 
     private const int FeedbackPageSize = 20;
     private int FeedbackPages => _feedbacks is null ? 0
@@ -696,6 +706,20 @@
         _toggleDirect = codeExec?.DirectConnections ?? false;
         _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
         _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
+        var ret = await Api.GetRetrievalConfigAsync();
+        if (ret is not null)
+        {
+            _retEngine = ret.Engine;
+            _retSearxng = ret.SearxngBaseUrl;
+            _retBrave = ret.BraveApiKey;
+            _retTavily = ret.TavilyApiKey;
+            _retTopK = ret.TopK;
+            _retChunkSize = ret.ChunkSize;
+            _retOverlap = ret.ChunkOverlap;
+            _retHybrid = ret.Hybrid;
+            _retWeight = ret.HybridWeight;
+            _retRerank = ret.Rerank;
+        }
         _terminals = await Api.GetTerminalServersAsync() ?? [];
         var saml = await Api.GetSamlConfigAsync();
         _samlEnabled = saml?.Enabled ?? false;
@@ -882,6 +906,15 @@
         {
             _banners.Remove(banner);
         }
+    }
+
+    private async Task SaveRetrievalAsync()
+    {
+        var updated = await Api.UpdateRetrievalConfigAsync(new RetrievalConfig(
+            _retEngine, _retSearxng, _retBrave, _retTavily,
+            _retTopK, _retChunkSize, _retOverlap,
+            _retHybrid, _retWeight, _retRerank));
+        _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
 
     private async Task SaveFeaturesAsync()

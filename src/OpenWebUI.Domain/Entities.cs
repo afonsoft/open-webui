@@ -255,6 +255,9 @@ public class FileEntry
     /// <summary>Texto extraído do arquivo (somente formatos de texto suportados).</summary>
     public string? ExtractedText { get; set; }
 
+    /// <summary>URL de origem quando o arquivo veio de process/url|youtube.</summary>
+    public string? SourceUrl { get; set; }
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 

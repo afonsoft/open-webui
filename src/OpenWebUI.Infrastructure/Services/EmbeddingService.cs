@@ -18,7 +18,7 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
     /// <summary>Gera o embedding de um texto ou null se nenhum provider atende.</summary>
     /// <param name="text">Texto a embeddar.</param>
     /// <param name="ct">Cancelamento.</param>
-    public async Task<float[]?> EmbedAsync(string text, CancellationToken ct = default)
+    public virtual async Task<float[]?> EmbedAsync(string text, CancellationToken ct = default)
     {
         var connections = await config.GetConnectionsAsync(ct);
         var http = httpClientFactory.CreateClient("ai-providers");
