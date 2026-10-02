@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-terminals` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -78,11 +78,20 @@ tests/OpenWebUI.Api.Tests/TerminalEndpointsTests.cs
 
 ## 6. Critérios de Aceite
 
-- [ ] Proxy repassa GET/POST ao mock Jupyter.
-- [ ] WS tunnel ecoa frames (mock ws server).
-- [ ] Path traversal bloqueado.
-- [ ] Testes NUnit + (se viável) teste de WS.
+- [x] Proxy repassa GET/POST ao mock Jupyter.
+- [x] WS tunnel ecoa frames (mock ws server).
+- [x] Path traversal bloqueado.
+- [x] Testes NUnit + (se viável) teste de WS.
 
 ## 7. Notas
 
 Implementar proxy manual com `HttpClient`+`WebSocket` ou adotar YARP — recomendo YARP (mesma lib do agent-harness `/vscode`) se dependência aceitável.
+
+## 8. Delivered
+
+- **Decisão YARP**: não adotado — adicionaria dependência + `IProxyConfigProvider` dinâmico para um único padrão de rota; proxy manual com HttpClient/`ClientWebSocket` cobre o escopo com ~250 linhas (o agent-harness usou YARP por ser um subtree inteiro de aplicação).
+- `TerminalServerConfig` persistido em `terminals.servers` via ConfigService (sem migration): `{id,name,url,auth_type(none|token|password),key,type(jupyter|pty)}`; key nunca serializada (resposta expõe `has_key`; `********` preserva no update).
+- `TerminalProxyService`: `SanitizePath` (só `api/*`, sem `..`/`%`), `ForwardAsync` (streaming, 502 quando fora), `TunnelAsync` (ClientWebSocket + pump bidirecional, idle 10min, sub-protocolo propagado, key no header upstream).
+- `TerminalEndpoints`: `GET /api/v1/terminals/` (lista sem key) + `/config` admin (GET/POST/DELETE) + catch-all `/{id}/{**path}` (HTTP ou WS conforme upgrade). `UseWebSockets` habilitado; `access_token` query aceito no path `/api/v1/terminals` (mesmo padrão do `/ws` SignalR).
+- Cliente: `codeexec.js` — engine `jupyter` habilitada + servidor cadastrado → Python executa via kernel real (POST /api/kernels → WS channels execute_request → stream/error/idle → DELETE kernel); fallback Pyodide se kernel falhar. Admin → Configurações: lista + formulário de terminal servers.
+- Testes: `TerminalEndpointsTests` (5 casos — CRUD admin + sem key exposta, GET/POST proxied com auth injetada, traversal/404/502, **túnel WS real** com Kestrel echo).

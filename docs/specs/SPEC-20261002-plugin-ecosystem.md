@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-plugin-ecosystem` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -88,3 +88,15 @@ tests/OpenWebUI.Api.Tests/PluginEcosystemTests.cs
 ## 7. Notas
 
 Decisão registrada: **não executar código de usuário no processo** (diferente do upstream Python) — extensibilidade via pipelines externos e tools HTTP já existentes. Revisitar se houver demanda por sandbox (ex.: subprocess isolado).
+
+## 8. Delivered
+
+- **PR**: #77 · **Issue**: #62
+- **Skills** (`/api/v1/skills/`): CRUD owner-scoped (admin vê todas); conteúdo injetado no system prompt quando anexada ao modelo custom via `MetaJson.skill_ids`; aba Skills no workspace (edição inline — desvio documentado das rotas dedicadas do SPEC, mesmo resultado).
+- **Functions** (`/api/v1/functions/`): registry admin-only de `filter|pipe|action` com `ManifestJson` + `ValvesJson`; toggle `/{id}/toggle`; `/{id}/valves` valida JSON. Execução delegada a pipelines (decisão da SPEC: zero código arbitrário no servidor .NET).
+- **Pipelines** (`/api/v1/pipelines/`): servidores externos (name/url/key mascarada, `********` preserva); `GET /list` agrega pipes de todos (tolerante a servidor fora — ignora na listagem).
+- **Roteamento**: `pipeline:{id}` em `/api/chat/completions` → `FindServerForPipeAsync` resolve o servidor → POST `{url}/chat/completions` com `{model,messages,stream,valves}` → passthrough do corpo (SSE). Pipe inexistente → 404; servidor fora → 502. Pipes aparecem em `/api/models` como `pipeline:{id}`.
+- Valves: `{fn_id: {...}}` de todas as functions ativas é mesclado no corpo enviado ao pipeline.
+- Entidades como migration `PluginEcosystem` em `Entities.cs` (convenção do repo sobre o file-layout do SPEC).
+- Fora de escopo (mantido): execução de Python/Roslyn, hot-reload, inlet/outlet filters como middleware, community openwebui.com.
+- Testes: `PluginEcosystemTests` (9 — skills CRUD/isolamento, injeção no system prompt via mock Ollama, functions admin 403/CRUD/toggle/valves/tipo inválido, pipelines registro/descoberta/roteamento/404/502).

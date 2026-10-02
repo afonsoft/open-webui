@@ -82,7 +82,8 @@ public static class ApiEndpoints
     }
 
     private static async Task<IResult> ListAllModelsAsync(
-        HttpContext http, ProviderService providers, AppDbContext db, CancellationToken ct)
+        HttpContext http, ProviderService providers, AppDbContext db,
+        PipelineClientService pipelines, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var models = await providers.ListModelsAsync(ct);
@@ -100,6 +101,18 @@ public static class ApiEndpoints
             }
         }
 
+        // Pipes de servidores de pipelines registrados (expostos como pipeline:{id}).
+        var servers = await db.PipelineServers.AsNoTracking().ToListAsync(ct);
+        foreach (var server in servers)
+        {
+            var pipes = await pipelines.ListPipesAsync(server, ct);
+            if (pipes is not null)
+            {
+                models.AddRange(pipes.Select(
+                    p => new ModelInfo($"pipeline:{p.Id}", p.Name, "pipeline", "openwebui")));
+            }
+        }
+
         return Results.Ok(new ModelListResponse(models));
     }
 
@@ -111,6 +124,7 @@ public static class ApiEndpoints
         ProviderService providers,
         RagService rag,
         ToolExecutor toolExecutor,
+        PipelineClientService pipelines,
         CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
@@ -125,6 +139,13 @@ public static class ApiEndpoints
         }
 
         await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
+
+        // Modelos pipeline:{id} são roteados ao servidor de pipelines externo.
+        if (request.Model.StartsWith("pipeline:", StringComparison.Ordinal))
+        {
+            await RoutePipelineAsync(request, http, db, pipelines, writer, ct);
+            return;
+        }
 
         // Modelos arena geram duas respostas anonimizadas de concorrentes sorteados.
         var arenaModel = request.Model.StartsWith("arena:", StringComparison.Ordinal)
@@ -289,6 +310,75 @@ public static class ApiEndpoints
         return true;
     }
 
+    /// <summary>
+    /// Roteia uma completion `pipeline:{id}` ao servidor de pipelines que
+    /// hospeda o pipe: 404 quando nenhum servidor conhece o id, 502 quando o
+    /// servidor falha, e passthrough do corpo upstream (SSE) no sucesso.
+    /// Valves das functions ativas são enviadas no corpo (`valves`).
+    /// </summary>
+    private static async Task RoutePipelineAsync(
+        ChatCompletionRequest request,
+        HttpContext http,
+        AppDbContext db,
+        PipelineClientService pipelines,
+        StreamWriter writer,
+        CancellationToken ct)
+    {
+        var pipeId = request.Model["pipeline:".Length..];
+        var server = await pipelines.FindServerForPipeAsync(pipeId, ct);
+        if (server is null)
+        {
+            http.Response.StatusCode = 404;
+            await writer.WriteLineAsync(
+                JsonSerializer.Serialize(new { error = $"Pipe '{pipeId}' não encontrado." }));
+            await writer.FlushAsync();
+            return;
+        }
+
+        // Valves de functions ativas — enviadas ao servidor como {"valves": {id: {...}}}.
+        var functions = await db.Functions.AsNoTracking()
+            .Where(f => f.Active && f.ValvesJson != null)
+            .Select(f => new { f.Id, f.ValvesJson }).ToListAsync(ct);
+        string? valvesJson = null;
+        if (functions.Count > 0)
+        {
+            var map = new Dictionary<string, JsonElement>();
+            foreach (var f in functions)
+            {
+                try
+                {
+                    map[f.Id] = JsonSerializer.Deserialize<JsonElement>(f.ValvesJson!);
+                }
+                catch (JsonException)
+                {
+                }
+            }
+
+            valvesJson = JsonSerializer.Serialize(map);
+        }
+
+        var body = JsonSerializer.Serialize(new
+        {
+            model = pipeId,
+            messages = request.Messages,
+            stream = request.Stream,
+        });
+        var proxied = await pipelines.RouteCompletionAsync(server, body, valvesJson, ct);
+        if (proxied.Response is null)
+        {
+            http.Response.StatusCode = proxied.StatusCode;
+            await writer.WriteLineAsync(
+                JsonSerializer.Serialize(new { error = $"Falha no servidor de pipelines: {proxied.Error}" }));
+            await writer.FlushAsync();
+            return;
+        }
+
+        using var upstream = proxied.Response;
+        http.Response.StatusCode = (int)upstream.StatusCode;
+        await upstream.Content.CopyToAsync(http.Response.Body, ct);
+        await writer.FlushAsync();
+    }
+
     private static Task WriteArenaErrorAsync(StreamWriter writer, string message) =>
         WriteSseErrorAsync(writer, message);
 
@@ -396,6 +486,28 @@ public static class ApiEndpoints
                 catch (JsonException)
                 {
                 }
+            }
+        }
+
+        // 1.5. Skills anexadas ao modelo custom (MetaJson.skill_ids) → system prompt.
+        if (customModel?.MetaJson is not null)
+        {
+            try
+            {
+                using var meta = JsonDocument.Parse(customModel.MetaJson);
+                if (meta.RootElement.TryGetProperty("skill_ids", out var skillIds)
+                    && skillIds.ValueKind == JsonValueKind.Array)
+                {
+                    var ids = skillIds.EnumerateArray()
+                        .Select(e => e.GetString()).Where(s => s is not null).ToList();
+                    var contents = await db.Skills.AsNoTracking()
+                        .Where(s => ids.Contains(s.Id) && s.IsActive)
+                        .Select(s => s.Content).ToListAsync(ct);
+                    systemParts.AddRange(contents.Where(c => !string.IsNullOrWhiteSpace(c)));
+                }
+            }
+            catch (JsonException)
+            {
             }
         }
 

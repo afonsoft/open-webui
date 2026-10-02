@@ -117,6 +117,30 @@
                         </div>
                     </div>
 
+                    <hr class="modal-sep" />
+
+                    <div class="field">
+                        <label>@L["settings.webhook_url"]</label>
+                        <input class="input" @bind="_webhookUrl" placeholder="https://…" />
+                    </div>
+                    <div class="field">
+                        <label>@L["settings.webhook_events"]</label>
+                        @foreach (var ev in WebhookEvents)
+                        {
+                            <label class="check"><input type="checkbox" checked="@_webhookEvents.Contains(ev)" @onchange="e => ToggleWebhookEvent(ev, e)" /> @ev</label>
+                        }
+                    </div>
+                    <label class="check"><input type="checkbox" @bind="_webhookEnabled" /> @L["settings.webhook_enabled"]</label>
+                    <div class="field-actions">
+                        <button class="msg-action" @onclick="SaveWebhookAsync">@L["common.save"]</button>
+                        <button class="msg-action" @onclick="TestWebhookAsync" disabled="@string.IsNullOrWhiteSpace(_webhookUrl)">@L["settings.webhook_test"]</button>
+                        <button class="msg-action" @onclick="DeleteWebhookAsync" disabled="@(_webhook is null)">@L["settings.webhook_remove"]</button>
+                    </div>
+                    @if (_webhookMessage is not null)
+                    {
+                        <div class="field-note">@_webhookMessage</div>
+                    }
+
                     @if (_accountMessage is not null)
                     {
                         <div class="field-note">@_accountMessage</div>
@@ -242,6 +266,30 @@
                                 @(_imagesTesting ? L["settings.images_testing"] : L["settings.images_test"])
                             </button>
                         }
+                        <hr class="modal-sep" />
+                        <div class="field"><strong>@L["settings.webhook_admin_section"]</strong></div>
+                        <div class="field">
+                            <label>@L["settings.webhook_url"]</label>
+                            <input class="input" @bind="_adminWebhookUrl" placeholder="https://…" />
+                        </div>
+                        <div class="field">
+                            <label>@L["settings.webhook_events"]</label>
+                            @foreach (var ev in WebhookEvents)
+                            {
+                                <label class="check"><input type="checkbox" checked="@_adminWebhookEvents.Contains(ev)" @onchange="e => ToggleAdminWebhookEvent(ev, e)" /> @ev</label>
+                            }
+                        </div>
+                        <label class="check"><input type="checkbox" @bind="_adminWebhookEnabled" /> @L["settings.webhook_enabled"]</label>
+                        <div class="field-actions">
+                            <button class="msg-action" @onclick="SaveAdminWebhookAsync">@L["common.save"]</button>
+                            <button class="msg-action" @onclick="TestAdminWebhookAsync" disabled="@string.IsNullOrWhiteSpace(_adminWebhookUrl)">@L["settings.webhook_test"]</button>
+                            <button class="msg-action" @onclick="DeleteAdminWebhookAsync" disabled="@(_adminWebhook is null)">@L["settings.webhook_remove"]</button>
+                        </div>
+                        @if (_adminWebhookMessage is not null)
+                        {
+                            <div class="field-note">@_adminWebhookMessage</div>
+                        }
+
                         @if (_adminMessage is not null)
                         {
                             <div class="field-note">@_adminMessage</div>
@@ -311,6 +359,21 @@
     private List<string> _imageEngines = ["openai", "a1111", "gemini", "comfyui"];
     private string? _adminMessage;
 
+    private NotificationWebhookResponse? _webhook;
+    private string _webhookUrl = string.Empty;
+    private HashSet<string> _webhookEvents = [];
+    private bool _webhookEnabled = true;
+    private string? _webhookMessage;
+
+    private NotificationWebhookResponse? _adminWebhook;
+    private string _adminWebhookUrl = string.Empty;
+    private HashSet<string> _adminWebhookEvents = [];
+    private bool _adminWebhookEnabled = true;
+    private string? _adminWebhookMessage;
+
+    private static readonly string[] WebhookEvents =
+        ["user.pending", "user.approved", "automation.failed", "channel.mention"];
+
     protected override async Task OnParametersSetAsync()
     {
         if (!IsOpen)
@@ -323,6 +386,14 @@
         _profileImage = Auth.CurrentUser?.ProfileImageUrl ?? string.Empty;
         _apiKeyInfo = await Api.GetApiKeyAsync();
         _memories = await Api.GetMemoriesAsync();
+
+        _webhook = await Api.GetWebhookAsync();
+        if (_webhook is not null)
+        {
+            _webhookUrl = _webhook.Url;
+            _webhookEvents = _webhook.Events.ToHashSet();
+            _webhookEnabled = _webhook.Enabled;
+        }
         await LoadAudioSettingsAsync();
 
         if (Auth.CurrentUser?.Role == "admin")
@@ -359,8 +430,82 @@
                     _imagesEngineParams = images.EngineParams;
                 }
 
+                _adminWebhook = await Api.GetAdminWebhookAsync();
+                if (_adminWebhook is not null)
+                {
+                    _adminWebhookUrl = _adminWebhook.Url;
+                    _adminWebhookEvents = _adminWebhook.Events.ToHashSet();
+                    _adminWebhookEnabled = _adminWebhook.Enabled;
+                }
+
                 _adminLoaded = true;
             }
+        }
+    }
+
+    private void ToggleWebhookEvent(string ev, ChangeEventArgs e)
+    {
+        if (e.Value is true) _webhookEvents.Add(ev); else _webhookEvents.Remove(ev);
+    }
+
+    private void ToggleAdminWebhookEvent(string ev, ChangeEventArgs e)
+    {
+        if (e.Value is true) _adminWebhookEvents.Add(ev); else _adminWebhookEvents.Remove(ev);
+    }
+
+    private async Task SaveWebhookAsync()
+    {
+        var saved = await Api.SaveWebhookAsync(new NotificationWebhookRequest(
+            _webhookUrl.Trim(), _webhookEvents.ToList(), _webhookEnabled));
+        _webhook = saved;
+        _webhookMessage = saved is null ? L["settings.save_failed"] : L["settings.saved"];
+    }
+
+    private async Task TestWebhookAsync()
+    {
+        var result = await Api.TestWebhookAsync();
+        _webhookMessage = result is null
+            ? L["settings.save_failed"]
+            : result.Ok ? L["settings.webhook_test_ok"] : $"{L["settings.webhook_test_fail"]} ({result.StatusCode})";
+    }
+
+    private async Task DeleteWebhookAsync()
+    {
+        if (await Api.DeleteWebhookAsync())
+        {
+            _webhook = null;
+            _webhookUrl = string.Empty;
+            _webhookEvents = [];
+            _webhookEnabled = true;
+            _webhookMessage = L["settings.webhook_removed"];
+        }
+    }
+
+    private async Task SaveAdminWebhookAsync()
+    {
+        var saved = await Api.SaveAdminWebhookAsync(new NotificationWebhookRequest(
+            _adminWebhookUrl.Trim(), _adminWebhookEvents.ToList(), _adminWebhookEnabled));
+        _adminWebhook = saved;
+        _adminWebhookMessage = saved is null ? L["settings.save_failed"] : L["settings.saved"];
+    }
+
+    private async Task TestAdminWebhookAsync()
+    {
+        var result = await Api.TestAdminWebhookAsync();
+        _adminWebhookMessage = result is null
+            ? L["settings.save_failed"]
+            : result.Ok ? L["settings.webhook_test_ok"] : $"{L["settings.webhook_test_fail"]} ({result.StatusCode})";
+    }
+
+    private async Task DeleteAdminWebhookAsync()
+    {
+        if (await Api.DeleteAdminWebhookAsync())
+        {
+            _adminWebhook = null;
+            _adminWebhookUrl = string.Empty;
+            _adminWebhookEvents = [];
+            _adminWebhookEnabled = true;
+            _adminWebhookMessage = L["settings.webhook_removed"];
         }
     }
 

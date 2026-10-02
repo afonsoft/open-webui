@@ -839,3 +839,113 @@ public class CalendarEvent
     /// <summary>Última atualização (epoch seconds).</summary>
     public long UpdatedAt { get; set; }
 }
+
+/// <summary>Webhook de notificação: por usuário (OwnerId) ou global/admin (OwnerId nulo).</summary>
+public class NotificationWebhook
+{
+    /// <summary>Identificador único.</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do webhook; nulo = webhook global do admin.</summary>
+    public string? OwnerId { get; set; }
+
+    /// <summary>URL de destino (http/https).</summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Eventos habilitados, em CSV (ex.: "user.pending,automation.failed").</summary>
+    public string Events { get; set; } = string.Empty;
+
+    /// <summary>Segredo HMAC usado para assinar payloads (nunca retornado).</summary>
+    public string Secret { get; set; } = string.Empty;
+
+    /// <summary>Se o webhook está habilitado.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Criação (unix s).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Skill do workspace — conteúdo de instrução anexável a modelos custom
+/// (MetaJson.skill_ids) e injetado no system prompt.</summary>
+public class Skill
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da skill.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Nome de exibição.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Descrição exibida na UI.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Conteúdo markdown/instrução injetado no system prompt.</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Se a skill está habilitada.</summary>
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Function do ecossistema de plugins — registro com manifest; a
+/// execução é delegada a pipelines externos (nenhum código arbitrário roda
+/// no servidor .NET).</summary>
+public class Function
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da function (admin que a registrou).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Nome de exibição.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Tipo da function: filter, pipe ou action.</summary>
+    public string Type { get; set; } = "filter";
+
+    /// <summary>Manifest da function (JSON): metadados, schema de valves, etc.</summary>
+    public string ManifestJson { get; set; } = "{}";
+
+    /// <summary>Valores de valves configurados (JSON; nunca expostos com secrets).</summary>
+    public string? ValvesJson { get; set; }
+
+    /// <summary>Se a function está ativa.</summary>
+    public bool Active { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Servidor de pipelines externo — hospeda pipes expostos como
+/// modelos `pipeline:{id}` no seletor.</summary>
+public class PipelineServer
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Nome de exibição.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>URL base do servidor (ex.: http://pipelines:9099).</summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Chave de API (Bearer) — nunca retornada pela API.</summary>
+    public string? Key { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}

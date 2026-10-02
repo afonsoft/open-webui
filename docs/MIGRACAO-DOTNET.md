@@ -50,11 +50,15 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `folders`, `memories`, `notes`, `prompts` | CRUD completo |
 | `tasks` — LLM | Título, follow-ups, tags automáticas |
 | `tools` — HTTP | Function calling com loop server-side (máx. 5), URL nunca exposta |
+| `functions`/`pipelines`/`skills` | Registry admin de functions (manifest+valves), servidores de pipelines externos (pipes como `pipeline:{id}`), skills anexáveis a modelos (slice plugin-ecosystem) |
 | `images` — OpenAI Images | Geração + config admin + botão no chat |
 | `configs` — core | Conexões (chaves mascaradas), admin config, feature flags, export/import |
 | `analytics` | Dashboard admin-only |
+| `notifications` (7 eps) | Webhooks user/global, eventos (`user.pending`, `user.approved`, `automation.failed`), HMAC `X-Webhook-Signature`, `/test`, campo em Settings |
 | `automations` | Agendas (interval/daily/weekly UTC) + runs + run-now + visão calendário |
 | OAuth/OIDC + LDAP | Google/GitHub/Microsoft/OIDC + bind LDAP (slice auth-sso-rbac) |
+| SAML 2.0 | SP-initiated (HTTP-POST): metadata, login redirect, ACS com validação de assinatura/issuer/audience + JIT user (slice enterprise-sso) |
+| `scim` | Users CRUD + Groups + ServiceProviderConfig + filtro `userName eq`, token dedicado (`scim.token`), `active=false` → desativa |
 | EF Migrations | `DatabaseMigrator` + baseline de `webui.db` legadas |
 | Docker | Dockerfile multi-stage + compose (+ ollama opcional) |
 
@@ -62,35 +66,29 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 | Área | Feito | Falta |
 |---|---|---|
-| `retrieval` (17 eps) | Embeddings + busca vetorial | `/process/{file,text,url,youtube,web}` (web loaders), `/process/web/search` (12 engines: SearXNG/Google/Bing/Brave/Tavily/Kagi/DDG/Exa/Jina…), reranking, hybrid BM25, engines de extração de conteúdo, reset de db/uploads |
-| `channels` (28 eps) | Canais em grupo + realtime | Canais DM, threads/replies, reações, unread counts, mensagens pinadas, access grants |
-| `users` (26 eps) | Perfil/admin | User settings (estado UI persistido), sessões ativas, permissões default, busca/paginação |
+| `retrieval` (17 eps) | Embeddings + busca vetorial + `/process/{file,text,url,youtube}` + `/process/web/search` (searxng/duckduckgo/tavily/brave) + híbrido BM25 + reset db/uploads | Demais engines de busca (8), reranking por provider, engines de extração de conteúdo |
+| `channels` (28 eps) | Canais em grupo + realtime + DM + threads + reações + unread + pins | Access grants por canal |
+| `users` (26 eps) | Perfil/admin + user settings + sessões OAuth + busca/paginação/filtros | Permissões granulares por usuário (hoje por grupo) |
 | `chats` (50 eps) | Core completo | Versões/diff de mensagens, chat-events realtime, lista admin de todos os chats |
 | `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, access grants por item, reindex, batch ops |
 | `tools` (15 eps) | Tools HTTP | Tools em código (execução server-side), valves/user settings por tool |
-| `images` (6 eps) | OpenAI Images | Engines ComfyUI/A1111/Gemini, edição/variações |
-| `audio` (6 eps) | Web Speech client-side | `POST /audio/speech` (TTS remoto), `/transcriptions` (Whisper/Deepgram STT), `/voices`, `/models` |
-| `calendar` (13 eps) | Visão mensal de runs de automations | Calendário real: múltiplos calendários, events CRUD, busca, access grants |
+| `ollama`/`openai` passthrough | `/ollama/api/{tags,version,show,chat,generate,embed}` + `/openai/{models,chat/completions,embeddings}` (+ variantes indexadas) | `pull/create/delete/copy` + `blobs/*` (gerenciamento de modelos), audio/images via passthrough |
+| `images` (6 eps) | Engines plugáveis: OpenAI, A1111, Gemini, ComfyUI + `/edit` + `/config/engines` + `/config/test` | Variações avançadas por engine |
+| `audio` (6 eps) | `POST /audio/speech` (TTS OpenAI-compatible), `POST /transcriptions` (STT openai/deepgram), `/voices`, `/models`, `/capabilities`, fallback Web Speech | Whisper local, engines TTS extras (ElevenLabs/Azure) |
+| `calendar` (13 eps) | Visão mensal + calendários reais (CRUD) + events CRUD + access grants | Busca de eventos, múltiplos calendários com cores |
 | `configs` (25 eps) | Conexões/flags/admin | Banners, default models/suggestions, code-execution config, audio/image/retrieval config completa, OAuth/LDAP toggles, direct connections |
 | `groups` (11 eps) | Flags workspace/sharing | Domínios allowlist, permissões granulares por feature |
-| `models` (16 eps) | Custom models | Arena models, access grants por modelo, model filters |
-| `evaluations` (15 eps) | Feedbacks | Leaderboard/arena, export |
+| `models` (16 eps) | Custom models + arena + access grants (user/group/*) | Model filters |
+| `evaluations` (15 eps) | Feedbacks + leaderboard ELO + arena battles | Export |
 | `notes` (12 eps) | CRUD | Colaboração realtime (yjs), access grants |
+| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local, PTY no host (por segurança, só proxy externo) |
 | `i18n` | pt-BR/en-US sem reload | ~30 locales do upstream; backend não traduzido |
 
 ### Pendente ⬜
 
 | Área | Escopo upstream |
 |---|---|
-| `functions` (17 eps) | Pipes/Filters/Valves — plugins de código custom do admin |
-| `pipelines` (8 eps) | Framework Pipelines (inlet/outlet filters) |
-| `scim` (15 eps) | Provisionamento SCIM 2.0 |
-| `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
-| `terminals` (1 ep + ws) | Terminal server-side / Jupyter (proxy + WS) |
-| `notifications` (7 eps) | Webhooks de notificação |
-| `ollama` (45 eps) + `openai` (15 eps) | Routers de passthrough gerenciados (`/ollama/*`, `/openai/*` — pull/delete/copy/blobs/embeddings etc.) |
 | `utils` (4 eps) | Gravatar, format, litellm config |
-| SAML | SSO enterprise (OAuth/LDAP já cobertos) |
 | Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
 | Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
 | Rate limiting | Limites de uso por usuário/modelo |
@@ -109,7 +107,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `/automations`, `/automations/{id}` | `/automations` | 🟡 detalhe |
 | `/calendar` | `/calendar` | ✅ |
 | `/folders/{id}` | sidebar | 🟡 rota dedicada |
-| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | — | ⬜ dependem de functions/skills |
+| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | `/workspace/skills` (aba) + admin Functions/Pipelines | 🟡 edição inline |
 | `/watch` | — | ⬜ |
 
 ## Decisões de design
