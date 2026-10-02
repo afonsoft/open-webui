@@ -2,8 +2,10 @@ namespace OpenWebUI.Application.Contracts;
 
 /// <summary>
 /// Configuração de áudio server-side (admin). Engines suportadas:
-/// <c>openai</c> (API compatível /audio/*) e <c>deepgram</c> (STT).
-/// Providers locais (whisper.cpp, kokoro) ficam fora de escopo.
+/// STT <c>openai</c>, <c>deepgram</c> e <c>whisper</c> (servidor
+/// faster-whisper externo, API OpenAI-compatível); TTS <c>openai</c>,
+/// <c>transformers</c> (openedai-speech), <c>elevenlabs</c> e <c>azure</c>.
+/// Providers embutidos no processo (whisper.cpp, kokoro) ficam fora de escopo.
 /// </summary>
 public sealed record AudioConfig(
     string SttEngine,
@@ -14,11 +16,12 @@ public sealed record AudioConfig(
     string? TtsBaseUrl,
     string? TtsApiKey,
     string? TtsModel,
-    string? TtsVoice)
+    string? TtsVoice,
+    string? AzureRegion)
 {
     /// <summary>Config padrão — tudo desabilitado.</summary>
     public static readonly AudioConfig Default = new(
-        "none", null, null, null, "none", null, null, null, null);
+        "none", null, null, null, "none", null, null, null, null, null);
 
     /// <summary>Mascara as chaves para respostas GET.</summary>
     public AudioConfig Masked() => this with
@@ -29,11 +32,21 @@ public sealed record AudioConfig(
 
     /// <summary>STT configurada (engine + base URL).</summary>
     public bool SttEnabled =>
-        SttEngine is "openai" or "deepgram" && !string.IsNullOrWhiteSpace(SttBaseUrl);
+        SttEngine is "openai" or "deepgram" or "whisper"
+        && !string.IsNullOrWhiteSpace(SttBaseUrl);
 
-    /// <summary>TTS configurado (engine + base URL).</summary>
-    public bool TtsEnabled =>
-        TtsEngine == "openai" && !string.IsNullOrWhiteSpace(TtsBaseUrl);
+    /// <summary>TTS configurado conforme os campos que cada engine exige.</summary>
+    public bool TtsEnabled => TtsEngine switch
+    {
+        "openai" or "transformers" => !string.IsNullOrWhiteSpace(TtsBaseUrl),
+        // ElevenLabs: base URL opcional (default api.elevenlabs.io), chave exigida.
+        "elevenlabs" => !string.IsNullOrWhiteSpace(TtsApiKey),
+        // Azure: região ou URL completa + chave de assinatura.
+        "azure" => !string.IsNullOrWhiteSpace(TtsApiKey)
+            && (!string.IsNullOrWhiteSpace(TtsBaseUrl)
+                || !string.IsNullOrWhiteSpace(AzureRegion)),
+        _ => false,
+    };
 }
 
 /// <summary>Requisição de TTS.</summary>

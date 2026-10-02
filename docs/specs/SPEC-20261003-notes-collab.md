@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-notes-collab` |
 | Ticket | Issue #85 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -55,3 +55,13 @@ Hub `/ws` grupo `note:{id}`: `note:join`, `note:update` {ops|text,version}, `not
 - [ ] Duas sessões editam a mesma nota com propag. automática.
 - [ ] Grant read-only não consegue publicar ops (server rejeita).
 - [ ] Testes de hub com 2 conexões SignalR cliente.
+
+## Delivered
+
+| Item | Link |
+| --- | --- |
+| PR | https://github.com/afonsoft/open-webui/pull/105 |
+| Issue | https://github.com/afonsoft/open-webui/issues/85 |
+| Epic | https://github.com/afonsoft/open-webui/issues/79 |
+
+Spike `[A DEFINIR]` (yjs vs nativo): decidido por implementação nativa SignalR com last-write-wins por `UpdatedAt` — yjs exigiria runtime JS no servidor, fora do stack .NET-only.

@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Api.Hubs;
 
@@ -13,13 +15,20 @@ namespace OpenWebUI.Api.Hubs;
 /// aos membros conectados. JWT chega via query access_token no handshake.
 /// </summary>
 [Authorize]
-public class ChatHub(AppDbContext db) : Hub
+public class ChatHub(AppDbContext db, AccessControlService access) : Hub
 {
     /// <summary>Conexões ativas por usuário (multi-aba).</summary>
     private static readonly ConcurrentDictionary<string, int> ConnectionsPerUser = new();
 
     /// <summary>Usuários online por canal.</summary>
     private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> Presence = new();
+
+    /// <summary>Presença/cursores por nota: noteId → connectionId → entrada de awareness.</summary>
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, NotePresenceEntry>> NotePresenceMap = new();
+
+    /// <summary>Paleta de cores de cursores remotos (índice via hash do userId).</summary>
+    private static readonly string[] CollabPalette =
+        ["#e0533d", "#2f81f7", "#3fb950", "#d29922", "#a371f7", "#f778ba", "#39c5cf", "#ffa657"];
 
     /// <summary>Nome do grupo SignalR de um canal.</summary>
     public static string GroupName(string channelId) => $"channel-{channelId}";
@@ -90,6 +99,15 @@ public class ChatHub(AppDbContext db) : Hub
     /// <inheritdoc />
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        // Remove a conexão dos rosters de notas colaborativas.
+        foreach (var (noteId, members) in NotePresenceMap)
+        {
+            if (members.TryRemove(Context.ConnectionId, out _))
+            {
+                await BroadcastNotePresence(noteId);
+            }
+        }
+
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is not null)
         {
@@ -139,4 +157,126 @@ public class ChatHub(AppDbContext db) : Hub
         await Clients.OthersInGroup(GroupName(channelId))
             .SendAsync("user:typing", channelId, userId, name);
     }
+
+    /// <summary>Nome do grupo SignalR de uma nota colaborativa.</summary>
+    /// <param name="noteId">Nota compartilhada.</param>
+    public static string NoteGroupName(string noteId) => $"note:{noteId}";
+
+    /// <summary>
+    /// Entra no grupo de uma nota (exige leitura). Registra awareness e
+    /// propaga o roster atualizado ao grupo.
+    /// </summary>
+    /// <param name="noteId">Nota a acompanhar.</param>
+    public async Task JoinNote(string noteId)
+    {
+        var user = await CurrentUserAsync();
+        var note = await db.Notes.AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == noteId);
+        if (user is null || note is null
+            || await access.LevelAsync(user, note.UserId, note.AccessGrantsJson)
+                is AccessControlService.None)
+        {
+            return;
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, NoteGroupName(noteId));
+        var members = NotePresenceMap.GetOrAdd(
+            noteId, _ => new ConcurrentDictionary<string, NotePresenceEntry>());
+        members[Context.ConnectionId] = new NotePresenceEntry(
+            user.Id, user.Name, CursorColor(user.Id), 0);
+        await BroadcastNotePresence(noteId);
+    }
+
+    /// <summary>Sai do grupo de uma nota e propaga o roster.</summary>
+    /// <param name="noteId">Nota a deixar.</param>
+    public async Task LeaveNote(string noteId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, NoteGroupName(noteId));
+        if (NotePresenceMap.TryGetValue(noteId, out var members)
+            && members.TryRemove(Context.ConnectionId, out _))
+        {
+            await BroadcastNotePresence(noteId);
+        }
+    }
+
+    /// <summary>
+    /// Aplica uma edição colaborativa (texto completo + versão vista).
+    /// Last-write-wins: versão defasada ou sem write grant → rejeita com o
+    /// estado atual; aceita → persiste e propaga aos demais do grupo.
+    /// </summary>
+    /// <param name="noteId">Nota editada.</param>
+    /// <param name="text">Conteúdo completo proposto.</param>
+    /// <param name="version"><c>UpdatedAt</c> que o cliente viu por último.</param>
+    /// <returns>Nova versão (UpdatedAt) quando aceita; -1 quando rejeitada.</returns>
+    public async Task<long> NoteUpdate(string noteId, string text, long version)
+    {
+        var user = await CurrentUserAsync();
+        var note = await db.Notes.FirstOrDefaultAsync(n => n.Id == noteId);
+        if (user is null || note is null)
+        {
+            return -1;
+        }
+
+        var level = await access.LevelAsync(user, note.UserId, note.AccessGrantsJson);
+        var stale = note.UpdatedAt != version;
+        if (level is not AccessControlService.Write || stale)
+        {
+            await Clients.Caller.SendAsync(
+                "note:rejected", noteId, note.Content, note.UpdatedAt);
+            return -1;
+        }
+
+        note.Content = text;
+        note.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync();
+        await Clients.OthersInGroup(NoteGroupName(noteId))
+            .SendAsync("note:update", noteId, user.Id, text, note.UpdatedAt);
+        return note.UpdatedAt;
+    }
+
+    /// <summary>Propaga a posição de cursor do usuário aos demais do grupo.</summary>
+    /// <param name="noteId">Nota em edição.</param>
+    /// <param name="cursor">Offset do cursor no texto.</param>
+    public async Task NotePresence(string noteId, int cursor)
+    {
+        if (NotePresenceMap.TryGetValue(noteId, out var members)
+            && members.TryGetValue(Context.ConnectionId, out var entry))
+        {
+            members[Context.ConnectionId] = entry with { Cursor = cursor };
+            await Clients.OthersInGroup(NoteGroupName(noteId))
+                .SendAsync("note:cursor", noteId, entry.UserId, entry.Name,
+                    entry.Color, cursor);
+        }
+    }
+
+    private async Task BroadcastNotePresence(string noteId)
+    {
+        var roster = NotePresenceMap.TryGetValue(noteId, out var members)
+            ? members.Values.DistinctBy(m => m.UserId).ToArray()
+            : [];
+        await Clients.Group(NoteGroupName(noteId))
+            .SendAsync("note:presence", noteId, roster);
+    }
+
+    private static string CursorColor(string userId)
+    {
+        var hash = userId.Aggregate(17, (acc, c) => acc * 31 + c);
+        return CollabPalette[Math.Abs(hash) % CollabPalette.Length];
+    }
+
+    private async Task<User?> CurrentUserAsync()
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        return userId is null
+            ? null
+            : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+    }
+
+    /// <summary>Entrada de awareness de uma nota (roster + cursor).</summary>
+    /// <param name="UserId">Usuário.</param>
+    /// <param name="Name">Nome de exibição.</param>
+    /// <param name="Color">Cor do cursor/presença.</param>
+    /// <param name="Cursor">Offset do cursor no texto.</param>
+    public sealed record NotePresenceEntry(
+        string UserId, string Name, string Color, int Cursor);
 }

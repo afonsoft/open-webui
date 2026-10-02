@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text;
 using System.Net.Http.Json;
 using System.Text.Json;
 using OpenWebUI.Application.Contracts;
@@ -7,7 +8,9 @@ namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>
 /// STT/TTS via providers HTTP: OpenAI-compatible (/audio/speech,
-/// /audio/transcriptions, /audio/voices, /audio/models) e Deepgram (STT).
+/// /audio/transcriptions, /audio/voices, /audio/models), Deepgram (STT),
+/// whisper externo (faster-whisper-server, OpenAI-compatível),
+/// ElevenLabs e Azure Speech (TTS).
 /// Sem provider configurado lança <see cref="AudioDisabledException"/> → 501.
 /// Chaves ficam no servidor; o áudio do usuário não é persistido.
 /// </summary>
@@ -46,18 +49,12 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
 
         var http = httpFactory.CreateClient(nameof(AudioService));
         http.Timeout = TimeSpan.FromSeconds(60);
-        using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"{cfg.TtsBaseUrl!.TrimEnd('/')}/audio/speech");
-        if (!string.IsNullOrEmpty(cfg.TtsApiKey))
+        using var request = cfg.TtsEngine switch
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.TtsApiKey);
-        }
-        request.Content = JsonContent.Create(new
-        {
-            model = model ?? cfg.TtsModel ?? "tts-1",
-            voice = voice ?? cfg.TtsVoice ?? "alloy",
-            input,
-        }, options: JsonOptions);
+            "elevenlabs" => ElevenLabsRequest(cfg, input, voice, model),
+            "azure" => AzureRequest(cfg, input, voice),
+            _ => OpenAiSpeechRequest(cfg, input, voice, model),
+        };
 
         using var response = await http.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
@@ -69,6 +66,98 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
         return new SpeechResult(
             await response.Content.ReadAsByteArrayAsync(ct),
             response.Content.Headers.ContentType?.ToString() ?? "audio/mpeg");
+    }
+
+    /// <summary>POST {base}/audio/speech — OpenAI e transformers (openedai-speech).</summary>
+    private static HttpRequestMessage OpenAiSpeechRequest(
+        AudioConfig cfg, string input, string? voice, string? model)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post,
+            $"{cfg.TtsBaseUrl!.TrimEnd('/')}/audio/speech");
+        if (!string.IsNullOrEmpty(cfg.TtsApiKey))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.TtsApiKey);
+        }
+        request.Content = JsonContent.Create(new
+        {
+            model = model ?? cfg.TtsModel ?? "tts-1",
+            voice = voice ?? cfg.TtsVoice ?? "alloy",
+            input,
+        }, options: JsonOptions);
+        return request;
+    }
+
+    /// <summary>POST {base}/v1/text-to-speech/{voice} com xi-api-key.</summary>
+    private static HttpRequestMessage ElevenLabsRequest(
+        AudioConfig cfg, string input, string? voice, string? model)
+    {
+        var voiceId = voice ?? cfg.TtsVoice
+            ?? throw new AudioDisabledException("ElevenLabs exige voice_id configurado.");
+        var request = new HttpRequestMessage(HttpMethod.Post,
+            $"{ElevenLabsBase(cfg)}/v1/text-to-speech/{Uri.EscapeDataString(voiceId)}");
+        request.Headers.TryAddWithoutValidation("xi-api-key", cfg.TtsApiKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("audio/mpeg"));
+        request.Content = JsonContent.Create(new
+        {
+            text = input,
+            model_id = model ?? cfg.TtsModel ?? "eleven_multilingual_v2",
+        }, options: JsonOptions);
+        return request;
+    }
+
+    /// <summary>POST {base}/cognitiveservices/v1 — SSML + Ocp-Apim-Subscription-Key.</summary>
+    private static HttpRequestMessage AzureRequest(
+        AudioConfig cfg, string input, string? voice)
+    {
+        var voiceName = voice ?? cfg.TtsVoice ?? "en-US-AriaNeural";
+        var ssml =
+            "<speak version='1.0' xml:lang='en-US'>" +
+            $"<voice xml:lang='en-US' name='{voiceName}'>" +
+            $"{System.Security.SecurityElement.Escape(input)}</voice></speak>";
+        var request = new HttpRequestMessage(HttpMethod.Post,
+            $"{AzureBase(cfg)}/cognitiveservices/v1");
+        request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", cfg.TtsApiKey);
+        request.Headers.TryAddWithoutValidation(
+            "X-Microsoft-OutputFormat", "audio-16khz-128kbitrate-mono-mp3");
+        request.Headers.TryAddWithoutValidation("User-Agent", "open-webui");
+        request.Content = new StringContent(ssml, Encoding.UTF8, "application/ssml+xml");
+        return request;
+    }
+
+    private static string ElevenLabsBase(AudioConfig cfg) =>
+        string.IsNullOrWhiteSpace(cfg.TtsBaseUrl)
+            ? "https://api.elevenlabs.io"
+            : cfg.TtsBaseUrl.TrimEnd('/');
+
+    private static string AzureBase(AudioConfig cfg) =>
+        !string.IsNullOrWhiteSpace(cfg.TtsBaseUrl)
+            ? cfg.TtsBaseUrl.TrimEnd('/')
+            : $"https://{cfg.AzureRegion}.tts.speech.microsoft.com";
+
+    /// <summary>Aplica o header de auth correto da engine (Bearer, Token ou chaves próprias).</summary>
+    private static void AddAuthHeader(HttpRequestMessage request, AudioConfig cfg, bool isStt)
+    {
+        var key = isStt ? cfg.SttApiKey : cfg.TtsApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+        var engine = isStt ? cfg.SttEngine : cfg.TtsEngine;
+        switch (engine)
+        {
+            case "elevenlabs":
+                request.Headers.TryAddWithoutValidation("xi-api-key", key);
+                break;
+            case "azure":
+                request.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", key);
+                break;
+            case "deepgram":
+                request.Headers.Authorization = new AuthenticationHeaderValue("Token", key);
+                break;
+            default:
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+                break;
+        }
     }
 
     /// <summary>
@@ -89,7 +178,8 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
         }
 
         var http = httpFactory.CreateClient(nameof(AudioService));
-        http.Timeout = TimeSpan.FromSeconds(120);
+        // whisper externo: SPEC pede 60s; demais engines seguem em 120s.
+        http.Timeout = TimeSpan.FromSeconds(cfg.SttEngine == "whisper" ? 60 : 120);
         using var form = new MultipartFormDataContent();
         var file = new StreamContent(stream);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
@@ -140,7 +230,7 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
         return string.Empty;
     }
 
-    /// <summary>Lista vozes do provider TTS (GET /audio/voices).</summary>
+    /// <summary>Lista vozes do provider TTS, no endpoint próprio de cada engine.</summary>
     /// <param name="ct">Cancelamento.</param>
     public async Task<JsonElement> GetVoicesAsync(CancellationToken ct = default)
     {
@@ -151,38 +241,43 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
         }
 
         var http = httpFactory.CreateClient(nameof(AudioService));
-        using var request = new HttpRequestMessage(HttpMethod.Get,
-            $"{cfg.TtsBaseUrl!.TrimEnd('/')}/audio/voices");
-        if (!string.IsNullOrEmpty(cfg.TtsApiKey))
+        using var request = cfg.TtsEngine switch
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.TtsApiKey);
-        }
+            "elevenlabs" => new HttpRequestMessage(HttpMethod.Get,
+                $"{ElevenLabsBase(cfg)}/v1/voices"),
+            "azure" => new HttpRequestMessage(HttpMethod.Get,
+                $"{AzureBase(cfg)}/cognitiveservices/voices/list"),
+            _ => new HttpRequestMessage(HttpMethod.Get,
+                $"{cfg.TtsBaseUrl!.TrimEnd('/')}/audio/voices"),
+        };
+        AddAuthHeader(request, cfg, isStt: false);
         using var response = await http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
     }
 
-    /// <summary>Lista modelos do provider STT (GET /models — padrão OpenAI).</summary>
+    /// <summary>Lista modelos do provider (GET /models — OpenAI/whisper; /v1/models — ElevenLabs).</summary>
     /// <param name="ct">Cancelamento.</param>
     public async Task<JsonElement> GetModelsAsync(CancellationToken ct = default)
     {
         var cfg = await GetConfigAsync(ct);
-        var baseUrl = cfg.SttEnabled ? cfg.SttBaseUrl
-            : cfg.TtsEnabled ? cfg.TtsBaseUrl
-            : null;
-        var key = cfg.SttEnabled ? cfg.SttApiKey : cfg.TtsApiKey;
-        if (baseUrl is null)
+        string? url = cfg.SttEnabled
+            ? $"{cfg.SttBaseUrl!.TrimEnd('/')}/models"
+            : cfg.TtsEngine switch
+            {
+                "elevenlabs" when cfg.TtsEnabled => $"{ElevenLabsBase(cfg)}/v1/models",
+                "openai" or "transformers" when cfg.TtsEnabled =>
+                    $"{cfg.TtsBaseUrl!.TrimEnd('/')}/models",
+                _ => null,
+            };
+        if (url is null)
         {
             throw new AudioDisabledException("Áudio desabilitado — configure um provider.");
         }
 
         var http = httpFactory.CreateClient(nameof(AudioService));
-        using var request = new HttpRequestMessage(HttpMethod.Get,
-            $"{baseUrl.TrimEnd('/')}/models");
-        if (!string.IsNullOrEmpty(key))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-        }
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        AddAuthHeader(request, cfg, isStt: cfg.SttEnabled);
         using var response = await http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
