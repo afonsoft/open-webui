@@ -440,5 +440,12 @@
   "errors.wrong_password": "当前密码不正确。",
   "errors.weak_password": "新密码至少需要 4 个字符。",
   "errors.api_keys_disabled": "API 密钥已禁用。",
-  "workspace.share_community": "分享到社区"
+  "workspace.share_community": "分享到社区",
+  "settings.ollama_models": "Installed Ollama models",
+  "settings.no_ollama_models": "No models installed",
+  "settings.pull_model": "Pull model",
+  "settings.pull_model_placeholder": "e.g. llama3.2:latest",
+  "settings.pulling": "Pulling…",
+  "settings.model_pulled": "Model pulled successfully.",
+  "settings.pull_failed": "Failed to pull the model."
 }

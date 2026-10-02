@@ -440,5 +440,12 @@
   "errors.wrong_password": "Mot de passe actuel incorrect.",
   "errors.weak_password": "Le nouveau mot de passe doit contenir au moins 4 caractères.",
   "errors.api_keys_disabled": "Les clés API sont désactivées.",
-  "workspace.share_community": "Partager dans la communauté"
+  "workspace.share_community": "Partager dans la communauté",
+  "settings.ollama_models": "Installed Ollama models",
+  "settings.no_ollama_models": "No models installed",
+  "settings.pull_model": "Pull model",
+  "settings.pull_model_placeholder": "e.g. llama3.2:latest",
+  "settings.pulling": "Pulling…",
+  "settings.model_pulled": "Model pulled successfully.",
+  "settings.pull_failed": "Failed to pull the model."
 }
