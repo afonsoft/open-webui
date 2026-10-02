@@ -7,13 +7,51 @@
 <div class="page">
     <div class="page-header">
         <h1 class="page-title">@MonthTitle()</h1>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
+            <div class="flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden text-xs">
+                <button class="px-3 py-1.5 @(_layer == "events" ? "bg-gray-200 dark:bg-gray-700" : "")"
+                        @onclick='() => SetLayer("events")'>@L["calendar.events"]</button>
+                <button class="px-3 py-1.5 @(_layer == "automations" ? "bg-gray-200 dark:bg-gray-700" : "")"
+                        @onclick='() => SetLayer("automations")'>@L["calendar.automations"]</button>
+            </div>
             <button class="msg-action" @onclick="() => ChangeMonthAsync(-1)">@L["admin.prev"]</button>
             <button class="msg-action" @onclick="() => ChangeMonthAsync(1)">@L["admin.next"]</button>
         </div>
     </div>
 
-    @if (_runs is null)
+    @if (_layer == "events")
+    {
+        <div class="card-list mb-4">
+            <div class="card-row">
+                <div class="card-main">
+                    <div class="card-title">@L["calendar.new_event"]</div>
+                    <div class="flex flex-wrap gap-2 mt-2 items-center">
+                        @if (_calendars.Count == 0)
+                        {
+                            <input class="input w-48" placeholder="@L["calendar.calendar_name"]"
+                                   @bind="_newCalendarName" />
+                        }
+                        else
+                        {
+                            <select class="input w-48" @bind="_eventCalendarId">
+                                @foreach (var c in _calendars)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        }
+                        <input class="input w-56" placeholder="@L["calendar.event_title"]" @bind="_eventTitle" />
+                        <input class="input w-40" type="date" @bind="_eventDate" />
+                        <button class="primary-btn" @onclick="CreateEventAsync" disabled="@_savingEvent">
+                            @L["common.create"]
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_loading)
     {
         <div class="sidebar-empty">@L["common.loading"]</div>
     }
@@ -37,6 +75,7 @@
                     var day = cell.Day;
                     var runs = RunsOn(day);
                     var scheduled = ScheduledOn(day);
+                    var events = EventsOn(day);
                     var selected = _selectedDay == day;
                     <button class="h-20 rounded-xl border text-left p-1.5 text-sm align-top transition
                             @(selected ? "border-gray-400 dark:border-gray-500" : "border-gray-200 dark:border-gray-800")
@@ -51,11 +90,15 @@
                             }
                         </div>
                         <div class="mt-1 flex flex-wrap gap-1">
-                            @if (runs.Count > 0)
+                            @if (_layer == "events" && events.Count > 0)
+                            {
+                                <span class="size-2 rounded-full bg-purple-500"></span>
+                            }
+                            @if (_layer == "automations" && runs.Count > 0)
                             {
                                 <span class="size-2 rounded-full @(runs.Any(r => r.Status != "ok") ? "bg-red-500" : "bg-green-500")"></span>
                             }
-                            @if (scheduled.Count > 0)
+                            @if (_layer == "automations" && scheduled.Count > 0)
                             {
                                 <span class="size-2 rounded-full bg-gray-400 dark:bg-gray-500"></span>
                             }
@@ -69,45 +112,79 @@
         {
             <div class="card-list mt-4">
                 <div class="card-title px-3 pt-2">@DayTitle(_selectedDay.Value)</div>
-                @if (RunsOn(_selectedDay.Value).Count == 0 && ScheduledOn(_selectedDay.Value).Count == 0)
+                @if (_layer == "events")
                 {
-                    <div class="sidebar-empty">@L["calendar.no_events"]</div>
+                    var events = EventsOn(_selectedDay.Value);
+                    @if (events.Count == 0)
+                    {
+                        <div class="sidebar-empty">@L["calendar.no_events"]</div>
+                    }
+                    else
+                    {
+                        @foreach (var e in events)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@e.Title</div>
+                                    <div class="card-sub">
+                                        @FormatTime(e.StartTs) — @FormatTime(e.EndTs)
+                                        @if (!string.IsNullOrWhiteSpace(e.Notes))
+                                        {
+                                            <span> · @e.Notes</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" @onclick="() => DeleteEventAsync(e.Id)">
+                                        @L["common.delete"]
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
                 }
                 else
                 {
-                    @foreach (var s in ScheduledOn(_selectedDay.Value))
+                    @if (RunsOn(_selectedDay.Value).Count == 0 && ScheduledOn(_selectedDay.Value).Count == 0)
                     {
-                        <div class="card-row">
-                            <div class="card-main">
-                                <div class="card-title">@s.Name</div>
-                                <div class="card-sub">@L["calendar.scheduled"] · @s.ModelId</div>
-                            </div>
-                        </div>
+                        <div class="sidebar-empty">@L["calendar.no_events"]</div>
                     }
-                    @foreach (var r in RunsOn(_selectedDay.Value))
+                    else
                     {
-                        <div class="card-row">
-                            <div class="card-main">
-                                <div class="card-title">@r.AutomationName</div>
-                                <div class="card-sub">
-                                    @FormatTime(r.StartedAt)
-                                    @if (r.Status == "ok")
-                                    {
-                                        <span class="text-green-500">✓</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-red-500">✗ @r.Error</span>
-                                    }
+                        @foreach (var s in ScheduledOn(_selectedDay.Value))
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@s.Name</div>
+                                    <div class="card-sub">@L["calendar.scheduled"] · @s.ModelId</div>
                                 </div>
                             </div>
-                            @if (r.ChatId is not null)
-                            {
-                                <div class="card-actions">
-                                    <a class="msg-action underline" href="/c/@r.ChatId">@L["automations.open_chat"]</a>
+                        }
+                        @foreach (var r in RunsOn(_selectedDay.Value))
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@r.AutomationName</div>
+                                    <div class="card-sub">
+                                        @FormatTime(r.StartedAt)
+                                        @if (r.Status == "ok")
+                                        {
+                                            <span class="text-green-500">✓</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-red-500">✗ @r.Error</span>
+                                        }
+                                    </div>
                                 </div>
-                            }
-                        </div>
+                                @if (r.ChatId is not null)
+                                {
+                                    <div class="card-actions">
+                                        <a class="msg-action underline" href="/c/@r.ChatId">@L["automations.open_chat"]</a>
+                                    </div>
+                                }
+                            </div>
+                        }
                     }
                 }
             </div>
@@ -119,8 +196,17 @@
     private int _year;
     private int _month;
     private int? _selectedDay;
+    private string _layer = "events";
+    private bool _loading = true;
     private List<AutomationRunResponse>? _runs;
     private List<AutomationResponse> _automations = [];
+    private List<CalendarResponse> _calendars = [];
+    private List<CalendarEventResponse> _events = [];
+    private string _newCalendarName = "Meu calendário";
+    private string? _eventCalendarId;
+    private string _eventTitle = string.Empty;
+    private DateTime _eventDate = DateTime.Today;
+    private bool _savingEvent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -130,14 +216,24 @@
         await LoadAsync();
     }
 
+    private void SetLayer(string layer)
+    {
+        _layer = layer;
+    }
+
     private async Task LoadAsync()
     {
-        _runs = null;
+        _loading = true;
         var first = new DateTimeOffset(new DateTime(_year, _month, 1));
         var last = first.AddMonths(1).AddSeconds(-1);
+        var from = first.ToUnixTimeSeconds();
+        var to = last.ToUnixTimeSeconds();
+        _calendars = await Api.GetCalendarsAsync();
+        _eventCalendarId = _calendars.FirstOrDefault()?.Id;
+        _events = await Api.GetCalendarEventsAsync(from, to);
         _automations = await Api.GetAutomationsAsync();
-        _runs = await Api.GetAutomationRunsInRangeAsync(
-            first.ToUnixTimeSeconds(), last.ToUnixTimeSeconds());
+        _runs = await Api.GetAutomationRunsInRangeAsync(from, to);
+        _loading = false;
     }
 
     private async Task ChangeMonthAsync(int delta)
@@ -151,6 +247,55 @@
 
     private void SelectDay(int day) => _selectedDay = _selectedDay == day ? null : day;
 
+    private async Task CreateEventAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_eventTitle))
+        {
+            return;
+        }
+
+        _savingEvent = true;
+        try
+        {
+            var calendarId = _eventCalendarId;
+            if (calendarId is null)
+            {
+                var created = await Api.CreateCalendarAsync(
+                    string.IsNullOrWhiteSpace(_newCalendarName) ? "Meu calendário" : _newCalendarName.Trim(),
+                    null);
+                if (created is null)
+                {
+                    return;
+                }
+                _calendars.Add(created);
+                calendarId = created.Id;
+                _eventCalendarId = created.Id;
+            }
+
+            var start = new DateTimeOffset(
+                DateTime.SpecifyKind(_eventDate.Date.AddHours(9), DateTimeKind.Local)).ToUnixTimeSeconds();
+            var ev = await Api.CreateCalendarEventAsync(
+                calendarId, _eventTitle.Trim(), start, start + 3600);
+            if (ev is not null)
+            {
+                _events.Add(ev);
+                _eventTitle = string.Empty;
+            }
+        }
+        finally
+        {
+            _savingEvent = false;
+        }
+    }
+
+    private async Task DeleteEventAsync(string eventId)
+    {
+        if (await Api.DeleteCalendarEventAsync(eventId))
+        {
+            _events = _events.Where(e => e.Id != eventId).ToList();
+        }
+    }
+
     private List<AutomationRunResponse> RunsOn(int day) => _runs?
         .Where(r => DateTimeOffset.FromUnixTimeSeconds(r.StartedAt).LocalDateTime.Day == day &&
                     DateTimeOffset.FromUnixTimeSeconds(r.StartedAt).LocalDateTime.Month == _month)
@@ -161,6 +306,12 @@
                     LocalDate(a.NextRunAt.Value).Day == day &&
                     LocalDate(a.NextRunAt.Value).Month == _month &&
                     LocalDate(a.NextRunAt.Value).Year == _year)
+        .ToList();
+
+    private List<CalendarEventResponse> EventsOn(int day) => _events
+        .Where(e => LocalDate(e.StartTs).Day == day &&
+                    LocalDate(e.StartTs).Month == _month &&
+                    LocalDate(e.StartTs).Year == _year)
         .ToList();
 
     private IEnumerable<(int Day, bool Today)> Cells()
@@ -183,14 +334,12 @@
 
     private string MonthTitle()
     {
-        var names = L["calendar.months"].Split(',');
-        var name = _month is >= 1 and <= 12 && names.Length >= _month
-            ? names[_month - 1]
-            : _month.ToString();
-        return $"{name} {_year}";
+        var key = $"calendar.m{_month}";
+        return $"{L[key]} {_year}";
     }
 
-    private string DayTitle(int day) => $"{day:D2}/{_month:D2}/{_year}";
+    private string DayTitle(int day) =>
+        $"{day} {L[$"calendar.m{_month}"].ToString().ToLowerInvariant()}";
 
     private static string FormatTime(long epoch) =>
         DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("HH:mm");

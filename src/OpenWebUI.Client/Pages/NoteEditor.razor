@@ -44,6 +44,10 @@
                     <button class="auth-submit" @onclick="SaveAsync">@L["common.save"]</button>
                 </div>
             </div>
+            @if (Id is not null)
+            {
+                <ShareDialog Entity="notes" ItemId="@Id" />
+            }
         </div>
     }
 </div>

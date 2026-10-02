@@ -27,6 +27,8 @@ public static class ChannelEndpoints
         channels.MapPost("/{id}/members", AddMembersAsync);
         channels.MapDelete("/{id}/members/{userId}", RemoveMemberAsync);
         channels.MapPost("/dm", CreateDmAsync);
+        channels.MapGet("/{id}/access", GetAccessAsync);
+        channels.MapPost("/{id}/access/update", UpdateAccessAsync);
         channels.MapPost("/{id}/read", MarkReadAsync);
         channels.MapGet("/{id}/messages/{mid}/replies", ListRepliesAsync);
         channels.MapPost("/{id}/messages/{mid}/reactions/{emoji}", AddReactionAsync);
@@ -37,7 +39,7 @@ public static class ChannelEndpoints
     }
 
     private static async Task<IResult> ListChannelsAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, AccessControlService access, CancellationToken ct)
     {
         var user = await CurrentUserAsync(http, db, ct);
         if (user is null)
@@ -45,9 +47,17 @@ public static class ChannelEndpoints
             return Results.Unauthorized();
         }
 
-        var channels = await db.Channels.AsNoTracking()
-            .Where(c => c.Members.Any(m => m.UserId == user.Id))
+        var all = await db.Channels.AsNoTracking()
+            .Include(c => c.Members)
+            .ThenInclude(m => m.User)
             .OrderByDescending(c => c.UpdatedAt)
+            .ToListAsync(ct);
+        var groups = await access.GetGroupIdsAsync(user.Id, ct);
+
+        var channels = all
+            .Where(c => c.Members.Any(m => m.UserId == user.Id)
+                || access.LevelByGrants(user, c.AccessGrantsJson, groups)
+                    is not AccessControlService.None)
             .Select(c => new
             {
                 c.Id,
@@ -55,14 +65,15 @@ public static class ChannelEndpoints
                 c.Description,
                 c.Type,
                 c.CreatedAt,
-                MemberCount = c.Members.Count(),
-                MyRole = c.Members.Where(m => m.UserId == user.Id).Select(m => m.Role).First(),
-                MyLastRead = c.Members.Where(m => m.UserId == user.Id).Select(m => m.LastReadAt).First(),
+                MemberCount = c.Members.Count,
+                MyRole = c.Members.FirstOrDefault(m => m.UserId == user.Id)?.Role ?? "viewer",
+                MyLastRead = c.Members.Where(m => m.UserId == user.Id)
+                    .Select(m => m.LastReadAt).FirstOrDefault(),
                 OtherNames = c.Type == "dm"
                     ? c.Members.Where(m => m.UserId != user.Id).Select(m => m.User!.Name)
                     : null,
             })
-            .ToListAsync(ct);
+            .ToList();
 
         var unreadByChannel = new Dictionary<string, int>();
         foreach (var c in channels)
@@ -148,7 +159,7 @@ public static class ChannelEndpoints
                 (m, u) => new ChannelMemberResponse(u.Id, u.Name, u.ProfileImageUrl, m.Role))
             .ToListAsync(ct);
 
-        var myRole = membership.First(m => m.UserId == user.Id).Role;
+        var myRole = membership.FirstOrDefault(m => m.UserId == user.Id)?.Role ?? "viewer";
         return Results.Ok(new ChannelDetailResponse(
             channel.Id, channel.Name, channel.Description, channel.Type,
             myRole, channel.CreatedAt, membership));
@@ -258,6 +269,13 @@ public static class ChannelEndpoints
         if (user is null)
         {
             return Results.Unauthorized();
+        }
+        // Leitores via grant (viewer) não postam — é preciso ser membro.
+        if (channel is not null
+            && !await db.ChannelMembers.AnyAsync(
+                m => m.ChannelId == id && m.UserId == user.Id, ct))
+        {
+            return Results.Forbid();
         }
         if (channel is null)
         {
@@ -751,14 +769,19 @@ public static class ChannelEndpoints
             return (null, null);
         }
 
-        var isMember = await db.ChannelMembers
-            .AnyAsync(m => m.ChannelId == channelId && m.UserId == user.Id, ct);
-        if (!isMember)
+        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        if (channel is null)
         {
             return (user, null);
         }
 
-        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        var isMember = await db.ChannelMembers
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == user.Id, ct);
+        if (!isMember && !await HasGrantAsync(http, db, user, channel, ct))
+        {
+            return (user, null);
+        }
+
         return (user, channel);
     }
 
@@ -774,8 +797,64 @@ public static class ChannelEndpoints
         var role = await db.ChannelMembers
             .Where(m => m.ChannelId == channelId && m.UserId == user.Id)
             .Select(m => m.Role)
-            .FirstAsync(ct);
+            .FirstOrDefaultAsync(ct);
         return (user, channel, role);
+    }
+
+    private static async Task<IResult> GetAccessAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await CurrentUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var channel = await db.Channels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (channel is null || (channel.CreatedByUserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        return Results.Ok(new { access_grants = AccessControlService.Parse(channel.AccessGrantsJson) });
+    }
+
+    private static async Task<IResult> UpdateAccessAsync(
+        string id, [FromBody] AccessUpdateRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await CurrentUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (channel is null || (channel.CreatedByUserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+        if (request.AccessGrants.Any(g =>
+                g.PrincipalType is not ("user" or "group")
+                || string.IsNullOrWhiteSpace(g.PrincipalId)
+                || g.Permission is not ("read" or "write")))
+        {
+            return Results.BadRequest(new { detail = "Grant inválido." });
+        }
+
+        channel.AccessGrantsJson = AccessControlService.Serialize(request.AccessGrants);
+        channel.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true, access_grants = request.AccessGrants });
+    }
+
+    /// <summary>Verdadeiro se o usuário tem pelo menos leitura via access_grants do canal.</summary>
+    private static async Task<bool> HasGrantAsync(
+        HttpContext http, AppDbContext db, User user, Channel channel, CancellationToken ct)
+    {
+        var access = http.RequestServices.GetRequiredService<AccessControlService>();
+        return await access.LevelByGrantsAsync(user, channel.AccessGrantsJson, ct)
+            is not AccessControlService.None;
     }
 
     private static bool IsChannelAdmin(User user, string? role) =>

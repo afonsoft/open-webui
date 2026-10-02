@@ -339,6 +339,9 @@ public class Note
     /// <summary>Conteúdo em Markdown.</summary>
     public string Content { get; set; } = string.Empty;
 
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 
@@ -467,6 +470,9 @@ public class KnowledgeCollection
     /// <summary>Descrição opcional.</summary>
     public string? Description { get; set; }
 
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
     /// <summary>Arquivos vinculados.</summary>
     public List<KnowledgeFile> Files { get; set; } = [];
 
@@ -577,6 +583,9 @@ public class Channel
 
     /// <summary>Última atualização (epoch seconds).</summary>
     public long UpdatedAt { get; set; }
+
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}] (ex.: leitura pública "*").</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
 
     /// <summary>Membros do canal.</summary>
     public List<ChannelMember> Members { get; set; } = [];
@@ -763,6 +772,69 @@ public class Banner
 
     /// <summary>Criação (epoch seconds; usado para ordenar).</summary>
     public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+}
+
+
+/// <summary>Calendário do usuário (colaborativo via grants).</summary>
+public class Calendar
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do calendário.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Nome.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Cor em hex (ex.: #3b82f6).</summary>
+    public string? Color { get; set; }
+
+    /// <summary>Grants de acesso JSON [{principal_type, principal_id, permission}].</summary>
+    public string AccessGrantsJson { get; set; } = "[]";
+
+    /// <summary>Eventos do calendário.</summary>
+    public List<CalendarEvent> Events { get; set; } = [];
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Evento de um calendário.</summary>
+public class CalendarEvent
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Calendário dono do evento.</summary>
+    public string CalendarId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o calendário.</summary>
+    public Calendar? Calendar { get; set; }
+
+    /// <summary>Título.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Início (epoch seconds).</summary>
+    public long StartTs { get; set; }
+
+    /// <summary>Fim (epoch seconds).</summary>
+    public long EndTs { get; set; }
+
+    /// <summary>Cor opcional em hex.</summary>
+    public string? Color { get; set; }
+
+    /// <summary>Notas/descrição opcional.</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
 }
 
 /// <summary>Webhook de notificação: por usuário (OwnerId) ou global/admin (OwnerId nulo).</summary>

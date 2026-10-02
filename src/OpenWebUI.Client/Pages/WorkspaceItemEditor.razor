@@ -148,6 +148,10 @@
                     <button class="auth-submit" @onclick="SaveAsync">@L["common.save"]</button>
                 </div>
             </div>
+            @if (Id is not null && ShareEntity is not null)
+            {
+                <ShareDialog Entity="@ShareEntity" ItemId="@Id" />
+            }
         </div>
     }
 </div>
@@ -155,6 +159,13 @@
 @code {
     [Parameter] public string? Kind { get; set; }
     [Parameter] public string? Id { get; set; }
+
+    private string? ShareEntity => Kind switch
+    {
+        "knowledge" => "knowledge",
+        "models" => "models",
+        _ => null,
+    };
 
     private bool IsCreate => Id is null;
     private bool _loading = true;
