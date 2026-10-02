@@ -29,6 +29,7 @@ builder.Services.AddScoped<RagService>();
 builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -178,6 +179,7 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
+app.MapNotificationEndpoints();
 app.MapChatEndpoints();
 app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();

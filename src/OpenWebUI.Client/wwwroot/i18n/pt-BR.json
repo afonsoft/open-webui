@@ -361,5 +361,14 @@
   "settings.images_test": "Testar conexão",
   "settings.images_testing": "Testando…",
   "settings.images_test_ok": "Conexão bem-sucedida",
-  "settings.images_test_fail": "Falha na conexão"
+  "settings.images_test_fail": "Falha na conexão",
+  "settings.webhook_url": "URL do webhook",
+  "settings.webhook_events": "Eventos",
+  "settings.webhook_enabled": "Webhook ativo",
+  "settings.webhook_test": "Testar",
+  "settings.webhook_remove": "Remover",
+  "settings.webhook_removed": "Webhook removido.",
+  "settings.webhook_test_ok": "Teste entregue ao destino.",
+  "settings.webhook_test_fail": "Destino respondeu erro",
+  "settings.webhook_admin_section": "Webhook global de notificações"
 }

@@ -361,5 +361,14 @@
   "settings.images_test": "Test connection",
   "settings.images_testing": "Testing…",
   "settings.images_test_ok": "Connection successful",
-  "settings.images_test_fail": "Connection failed"
+  "settings.images_test_fail": "Connection failed",
+  "settings.webhook_url": "Webhook URL",
+  "settings.webhook_events": "Events",
+  "settings.webhook_enabled": "Webhook enabled",
+  "settings.webhook_test": "Test",
+  "settings.webhook_remove": "Remove",
+  "settings.webhook_removed": "Webhook removed.",
+  "settings.webhook_test_ok": "Test delivered to destination.",
+  "settings.webhook_test_fail": "Destination responded with an error",
+  "settings.webhook_admin_section": "Global notifications webhook"
 }

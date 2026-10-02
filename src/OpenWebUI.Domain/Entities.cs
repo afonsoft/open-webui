@@ -764,3 +764,28 @@ public class Banner
     /// <summary>Criação (epoch seconds; usado para ordenar).</summary>
     public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 }
+
+/// <summary>Webhook de notificação: por usuário (OwnerId) ou global/admin (OwnerId nulo).</summary>
+public class NotificationWebhook
+{
+    /// <summary>Identificador único.</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do webhook; nulo = webhook global do admin.</summary>
+    public string? OwnerId { get; set; }
+
+    /// <summary>URL de destino (http/https).</summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Eventos habilitados, em CSV (ex.: "user.pending,automation.failed").</summary>
+    public string Events { get; set; } = string.Empty;
+
+    /// <summary>Segredo HMAC usado para assinar payloads (nunca retornado).</summary>
+    public string Secret { get; set; } = string.Empty;
+
+    /// <summary>Se o webhook está habilitado.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Criação (unix s).</summary>
+    public long CreatedAt { get; set; }
+}

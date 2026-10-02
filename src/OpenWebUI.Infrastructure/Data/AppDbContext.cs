@@ -86,6 +86,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Banners administrativos.</summary>
     public DbSet<Banner> Banners => Set<Banner>();
 
+    /// <summary>Webhooks de notificação (por usuário ou globais).</summary>
+    public DbSet<NotificationWebhook> NotificationWebhooks => Set<NotificationWebhook>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

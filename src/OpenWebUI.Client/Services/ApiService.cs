@@ -446,6 +446,46 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ApiKeyInfoResponse?> GetApiKeyAsync() =>
         SendAsync<ApiKeyInfoResponse>(HttpMethod.Get, "/api/v1/auths/api_key");
 
+    /// <summary>Obtém o webhook de notificação do usuário.</summary>
+    public Task<NotificationWebhookResponse?> GetWebhookAsync() =>
+        SendAsync<NotificationWebhookResponse>(HttpMethod.Get, "/api/v1/notifications/webhook");
+
+    /// <summary>Salva o webhook de notificação do usuário.</summary>
+    public Task<NotificationWebhookResponse?> SaveWebhookAsync(NotificationWebhookRequest request) =>
+        SendAsync<NotificationWebhookResponse>(HttpMethod.Post, "/api/v1/notifications/webhook", request);
+
+    /// <summary>Remove o webhook de notificação do usuário.</summary>
+    public async Task<bool> DeleteWebhookAsync()
+    {
+        using var request = auth.CreateRequest(HttpMethod.Delete, "/api/v1/notifications/webhook");
+        using var response = await http.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Dispara um evento de teste para o webhook do usuário.</summary>
+    public Task<WebhookTestResponse?> TestWebhookAsync() =>
+        SendAsync<WebhookTestResponse>(HttpMethod.Post, "/api/v1/notifications/webhook/test");
+
+    /// <summary>Obtém o webhook global (somente admin).</summary>
+    public Task<NotificationWebhookResponse?> GetAdminWebhookAsync() =>
+        SendAsync<NotificationWebhookResponse>(HttpMethod.Get, "/api/v1/notifications/admin/webhook");
+
+    /// <summary>Salva o webhook global (somente admin).</summary>
+    public Task<NotificationWebhookResponse?> SaveAdminWebhookAsync(NotificationWebhookRequest request) =>
+        SendAsync<NotificationWebhookResponse>(HttpMethod.Post, "/api/v1/notifications/admin/webhook", request);
+
+    /// <summary>Remove o webhook global (somente admin).</summary>
+    public async Task<bool> DeleteAdminWebhookAsync()
+    {
+        using var request = auth.CreateRequest(HttpMethod.Delete, "/api/v1/notifications/admin/webhook");
+        using var response = await http.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Dispara um evento de teste para o webhook global (somente admin).</summary>
+    public Task<WebhookTestResponse?> TestAdminWebhookAsync() =>
+        SendAsync<WebhookTestResponse>(HttpMethod.Post, "/api/v1/notifications/admin/webhook/test");
+
     /// <summary>Revoga a chave de API do usuário.</summary>
     public async Task<bool> DeleteApiKeyAsync()
     {
