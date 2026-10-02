@@ -42,6 +42,10 @@ public static class ConfigEndpoints
         group.MapGet("/jwt", GetJwtExpiryAsync);
         group.MapPost("/jwt", UpdateJwtExpiryAsync);
 
+        group.MapGet("/ratelimit", GetRateLimitAsync);
+        group.MapPost("/ratelimit", UpdateRateLimitAsync);
+        group.MapPost("/ratelimit/reset", ResetLoginLockoutAsync);
+
         return group;
     }
 
@@ -265,5 +269,40 @@ public static class ConfigEndpoints
         }
         await config.SetAsync("webui.jwt.expires_in", request.ExpiresIn.Trim(), ct);
         return Results.Ok(request);
+    }
+
+    // ---------------- Rate limiting ----------------
+
+    private static async Task<IResult> GetRateLimitAsync(ConfigService config, CancellationToken ct) =>
+        Results.Ok(await config.GetAsync("ratelimit", RateLimitConfig.Default, ct));
+
+    private static async Task<IResult> UpdateRateLimitAsync(
+        RateLimitConfig request, HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        if (!IsAdmin(http))
+        {
+            return Results.Forbid();
+        }
+        var sanitized = request with
+        {
+            PermitLimit = Math.Clamp(request.PermitLimit, 1, 100_000),
+            WindowSeconds = Math.Clamp(request.WindowSeconds, 1, 86_400),
+            LoginMaxFailures = Math.Clamp(request.LoginMaxFailures, 1, 1_000),
+            LoginLockoutSeconds = Math.Clamp(request.LoginLockoutSeconds, 10, 86_400),
+        };
+        await config.SetAsync("ratelimit", sanitized, ct);
+        return Results.Ok(sanitized);
+    }
+
+    private static Task<IResult> ResetLoginLockoutAsync(
+        LoginLockoutResetRequest request, HttpContext http, RateLimitService limits)
+    {
+        if (!IsAdmin(http) || string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Task.FromResult<IResult>(
+                !IsAdmin(http) ? Results.Forbid() : Results.BadRequest(new { detail = "E-mail obrigatório." }));
+        }
+        var removed = limits.ResetLoginByEmail(request.Email.Trim().ToLowerInvariant());
+        return Task.FromResult<IResult>(Results.Ok(new { status = true, removed }));
     }
 }

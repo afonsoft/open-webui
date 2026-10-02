@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-rate-limiting` |
 | Ticket | Issue #90 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -56,3 +56,9 @@ Respostas `429`/`423` documentadas; `GET|POST /api/v1/configs/ratelimit` (admin)
 - [ ] 6ª tentativa de login falha com 423/429 após lockout.
 - [ ] Completions limitadas com Retry-After quando habilitado.
 - [ ] Testes NUnit: lockout, janela de rate limit, desabilitado default.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/93
+- Issue: https://github.com/afonsoft/open-webui/issues/90
+- Epic: https://github.com/afonsoft/open-webui/issues/79

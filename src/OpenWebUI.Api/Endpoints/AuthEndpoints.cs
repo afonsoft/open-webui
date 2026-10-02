@@ -91,9 +91,11 @@ public static class AuthEndpoints
 
     private static async Task<IResult> SignInAsync(
         SignInRequest request,
+        HttpContext http,
         AppDbContext db,
         ConfigService config,
         JwtTokenService tokens,
+        RateLimitService limits,
         CancellationToken ct)
     {
         var adminConfig = await config.GetAdminConfigAsync(ct);
@@ -103,17 +105,27 @@ public static class AuthEndpoints
         }
 
         var email = request.Email.Trim().ToLowerInvariant();
+        var rateConfig = await config.GetAsync("ratelimit", RateLimitConfig.Default, ct);
+        var lockKey = $"{email}|{http.Connection.RemoteIpAddress}";
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (limits.IsLoginLocked(lockKey, rateConfig, now))
+        {
+            return Results.Json(
+                new { detail = "Muitas tentativas de login. Tente novamente mais tarde." },
+                statusCode: 429);
+        }
+
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
         if (user is null)
         {
-            return await TryLdapSignInAsync(request, email, db, config, tokens, ct);
+            return await TryLdapSignInAsync(request, email, db, config, tokens, limits, lockKey, rateConfig, ct);
         }
 
         var result = new PasswordHasher<User>().VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
         {
             // RF-002: fallback LDAP quando habilitado — falha de bind retorna erro genérico.
-            return await TryLdapSignInAsync(request, email, db, config, tokens, ct);
+            return await TryLdapSignInAsync(request, email, db, config, tokens, limits, lockKey, rateConfig, ct);
         }
 
         if (user.Role == UserRoles.Pending)
@@ -122,6 +134,7 @@ public static class AuthEndpoints
         }
 
         user.LastActiveAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        limits.ResetLogin(lockKey);
         await db.SaveChangesAsync(ct);
         return await IssueAuthResponseAsync(user, tokens, config, ct);
     }
@@ -130,11 +143,14 @@ public static class AuthEndpoints
 
     private static async Task<IResult> TryLdapSignInAsync(
         SignInRequest request, string email, AppDbContext db,
-        ConfigService config, JwtTokenService tokens, CancellationToken ct)
+        ConfigService config, JwtTokenService tokens,
+        RateLimitService limits, string lockKey, RateLimitConfig rateConfig,
+        CancellationToken ct)
     {
         var identity = await LdapService.TryBindAsync(request.Email, request.Password, ct);
         if (identity is null)
         {
+            limits.RecordLoginFailure(lockKey, rateConfig, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             return Results.BadRequest(new { detail = "Credenciais inválidas." });
         }
 
@@ -165,6 +181,7 @@ public static class AuthEndpoints
             return Results.BadRequest(new { detail = "Conta aguardando aprovação do administrador." });
         }
 
+        limits.ResetLogin(lockKey);
         return await IssueAuthResponseAsync(user, tokens, config, ct);
     }
 

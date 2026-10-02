@@ -39,6 +39,7 @@ builder.Services.AddScoped<TerminalProxyService>();
 builder.Services.AddScoped<ScimService>();
 builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<PipelineClientService>();
+builder.Services.AddSingleton<RateLimitService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
