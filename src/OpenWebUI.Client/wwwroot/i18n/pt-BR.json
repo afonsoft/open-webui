@@ -430,5 +430,14 @@
   "chat.prev_version": "Versão anterior",
   "chat.next_version": "Próxima versão",
   "chat.archived": "arquivado",
-  "common.open": "Abrir"
+  "common.open": "Abrir",
+  "errors.invalid_fields": "Preencha nome, e-mail e senha.",
+  "errors.email_taken": "E-mail já cadastrado.",
+  "errors.login_form_disabled": "Formulário de login desabilitado.",
+  "errors.login_locked": "Muitas tentativas de login. Tente novamente mais tarde.",
+  "errors.pending_approval": "Conta aguardando aprovação do administrador.",
+  "errors.invalid_credentials": "Credenciais inválidas.",
+  "errors.wrong_password": "Senha atual incorreta.",
+  "errors.weak_password": "A nova senha precisa de ao menos 4 caracteres.",
+  "errors.api_keys_disabled": "Chaves de API desabilitadas."
 }

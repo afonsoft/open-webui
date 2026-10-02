@@ -222,4 +222,30 @@ public class AuthAdminTests
             new SignInRequest("local@authadmin.local", "senha123"));
         Assert.That(rightPass.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
+
+    [Test, Order(11)]
+    public async Task Signin_CredenciaisInvalidas_RetornaErrorCode()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auths/signin",
+            new SignInRequest("local@authadmin.local", "errada"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.That(body.GetProperty("error_code").GetString(), Is.EqualTo("invalid_credentials"));
+    }
+
+    [Test, Order(12)]
+    public async Task Signup_EmailDuplicado_RetornaErrorCode()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auths/signup",
+            new SignUpRequest("Dup", "local@authadmin.local", "senha123"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.That(body.GetProperty("error_code").GetString(), Is.EqualTo("email_taken"));
+    }
 }
