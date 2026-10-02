@@ -440,5 +440,13 @@
   "errors.wrong_password": "Aktuelles Passwort falsch.",
   "errors.weak_password": "Das neue Passwort muss mindestens 4 Zeichen haben.",
   "errors.api_keys_disabled": "API-Schlüssel sind deaktiviert.",
-  "workspace.share_community": "In der Community teilen"
+  "workspace.share_community": "In der Community teilen",
+  "settings.ollama_models": "Installed Ollama models",
+  "settings.no_ollama_models": "No models installed",
+  "settings.pull_model": "Pull model",
+  "settings.pull_model_placeholder": "e.g. llama3.2:latest",
+  "settings.pulling": "Pulling…",
+  "settings.model_pulled": "Model pulled successfully.",
+  "settings.pull_failed": "Failed to pull the model.",
+  "notes.cursor_at": "Zeichen {{pos}}"
 }

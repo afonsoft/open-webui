@@ -23,6 +23,9 @@ public class AudioEndpointsTests
     private string _mockBaseUrl = null!;
     private string _dbPath = null!;
     private AuthResponse _admin = null!;
+    private volatile string? _seenXiKey;
+    private volatile string? _seenAzureKey;
+    private volatile string? _seenSsmlBody;
 
     private static readonly byte[] FakeMp3 = [0x49, 0x44, 0x33, 0x01, 0x02, 0x03];
 
@@ -136,7 +139,39 @@ public class AudioEndpointsTests
                     ctx.Response.ContentType = "application/json";
                     await ctx.Response.OutputStream.WriteAsync(models);
                     break;
+                case "/v1/voices":
+                    var elVoices = Encoding.UTF8.GetBytes(
+                        "{\"voices\":[{\"voice_id\":\"rachel\"},{\"voice_id\":\"adam\"}]}");
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "application/json";
+                    await ctx.Response.OutputStream.WriteAsync(elVoices);
+                    break;
+                case "/cognitiveservices/voices/list":
+                    var azVoices = Encoding.UTF8.GetBytes(
+                        "[{\"Name\":\"pt-BR-FranciscaNeural\"},{\"Name\":\"en-US-AriaNeural\"}]");
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "application/json";
+                    await ctx.Response.OutputStream.WriteAsync(azVoices);
+                    break;
+                case "/cognitiveservices/v1":
+                    _seenAzureKey = ctx.Request.Headers["Ocp-Apim-Subscription-Key"];
+                    using (var reader = new StreamReader(ctx.Request.InputStream))
+                    {
+                        _seenSsmlBody = await reader.ReadToEndAsync();
+                    }
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "audio/mpeg";
+                    await ctx.Response.OutputStream.WriteAsync(FakeMp3);
+                    break;
                 default:
+                    if (path.StartsWith("/v1/text-to-speech/", StringComparison.Ordinal))
+                    {
+                        _seenXiKey = ctx.Request.Headers["xi-api-key"];
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "audio/mpeg";
+                        await ctx.Response.OutputStream.WriteAsync(FakeMp3);
+                        break;
+                    }
                     ctx.Response.StatusCode = 404;
                     break;
             }
@@ -276,5 +311,155 @@ public class AudioEndpointsTests
             Assert.That(get.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
             Assert.That(post.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
         });
+    }
+
+    [Test, Order(10)]
+    public async Task Whisper_SttExterno_Transcreve()
+    {
+        UseToken(_admin.Token);
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
+        {
+            sttEngine = "whisper",
+            sttBaseUrl = _mockBaseUrl,
+            sttApiKey = (string?)null,
+            sttModel = "Systran/faster-whisper-small",
+            ttsEngine = "openai",
+            ttsBaseUrl = _mockBaseUrl,
+            ttsApiKey = "segredo-tts",
+            ttsModel = "tts-1",
+            ttsVoice = "alloy",
+            azureRegion = (string?)null,
+        });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await update.Content.ReadAsStringAsync());
+
+        using var form = new MultipartFormDataContent();
+        form.Add(new ByteArrayContent([1, 2, 3, 4]), "file", "voz.wav");
+        var response = await _client.PostAsync("/api/v1/audio/transcriptions", form);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.That(body.GetProperty("text").GetString(), Is.EqualTo("transcrição mockada"));
+    }
+
+    [Test, Order(11)]
+    public async Task ElevenLabs_Tts_RetornaAudioComXiApiKey()
+    {
+        UseToken(_admin.Token);
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
+        {
+            sttEngine = "whisper",
+            sttBaseUrl = _mockBaseUrl,
+            sttApiKey = (string?)null,
+            sttModel = "whisper-1",
+            ttsEngine = "elevenlabs",
+            ttsBaseUrl = _mockBaseUrl,
+            ttsApiKey = "segredo-11l",
+            ttsModel = "eleven_multilingual_v2",
+            ttsVoice = "rachel",
+            azureRegion = (string?)null,
+        });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await update.Content.ReadAsStringAsync());
+
+        var response = await _client.PostAsJsonAsync("/api/v1/audio/speech",
+            new { input = "olá mundo" });
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("audio/mpeg"));
+            Assert.That(_seenXiKey, Is.EqualTo("segredo-11l"));
+        });
+
+        var voices = await _client.GetFromJsonAsync<JsonElement>("/api/v1/audio/voices");
+        Assert.That(voices.GetProperty("voices").GetArrayLength(), Is.EqualTo(2));
+    }
+
+    [Test, Order(12)]
+    public async Task Azure_Tts_EnviaSsmlEChaveDeAssinatura()
+    {
+        UseToken(_admin.Token);
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
+        {
+            sttEngine = "whisper",
+            sttBaseUrl = _mockBaseUrl,
+            sttApiKey = (string?)null,
+            sttModel = "whisper-1",
+            ttsEngine = "azure",
+            ttsBaseUrl = _mockBaseUrl,
+            ttsApiKey = "segredo-azure",
+            ttsModel = (string?)null,
+            ttsVoice = "pt-BR-FranciscaNeural",
+            azureRegion = "brazilsouth",
+        });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await update.Content.ReadAsStringAsync());
+
+        var response = await _client.PostAsJsonAsync("/api/v1/audio/speech",
+            new { input = "olá mundo" });
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        Assert.Multiple(() =>
+        {
+            Assert.That(_seenAzureKey, Is.EqualTo("segredo-azure"));
+            Assert.That(_seenSsmlBody, Does.Contain("pt-BR-FranciscaNeural"));
+            Assert.That(_seenSsmlBody, Does.Contain("olá mundo"));
+        });
+    }
+
+    [Test, Order(13)]
+    public async Task Azure_SomenteRegiao_HabilitaTtsECapabilitiesMostramEngines()
+    {
+        UseToken(_admin.Token);
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
+        {
+            sttEngine = "whisper",
+            sttBaseUrl = _mockBaseUrl,
+            sttApiKey = (string?)null,
+            sttModel = "whisper-1",
+            ttsEngine = "azure",
+            ttsBaseUrl = (string?)null,
+            ttsApiKey = "segredo-azure",
+            ttsModel = (string?)null,
+            ttsVoice = "pt-BR-FranciscaNeural",
+            azureRegion = "brazilsouth",
+        });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await update.Content.ReadAsStringAsync());
+
+        var caps = await _client.GetFromJsonAsync<JsonElement>("/api/v1/audio/capabilities");
+        Assert.Multiple(() =>
+        {
+            Assert.That(caps.GetProperty("stt").GetBoolean(), Is.True);
+            Assert.That(caps.GetProperty("tts").GetBoolean(), Is.True);
+            Assert.That(caps.GetProperty("sttEngine").GetString(), Is.EqualTo("whisper"));
+            Assert.That(caps.GetProperty("ttsEngine").GetString(), Is.EqualTo("azure"));
+        });
+    }
+
+    [Test, Order(14)]
+    public async Task Config_EngineInvalida_Retorna400()
+    {
+        UseToken(_admin.Token);
+
+        var response = await _client.PostAsJsonAsync("/api/v1/audio/config", new
+        {
+            sttEngine = "banana",
+            sttBaseUrl = (string?)null,
+            sttApiKey = (string?)null,
+            sttModel = (string?)null,
+            ttsEngine = "openai",
+            ttsBaseUrl = (string?)null,
+            ttsApiKey = (string?)null,
+            ttsModel = (string?)null,
+            ttsVoice = (string?)null,
+            azureRegion = (string?)null,
+        });
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 }

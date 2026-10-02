@@ -58,6 +58,7 @@ using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
 
     DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
     SeedConnectionsFromEnv(bootstrap);
+    SeedWhisperUrlFromEnv(bootstrap);
     var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
     if (entry is null)
     {
@@ -259,6 +260,28 @@ static void SeedConnectionsFromEnv(AppDbContext db)
         Key = "connections",
         ValueJson = System.Text.Json.JsonSerializer.Serialize(
             new ConnectionsConfig(ollama, openAi, openAiKeys)),
+        UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+    });
+    db.SaveChanges();
+}
+
+/// <summary>WHISPER_URL configura a engine STT whisper (faster-whisper-server) no primeiro boot.</summary>
+static void SeedWhisperUrlFromEnv(AppDbContext db)
+{
+    var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL");
+    if (string.IsNullOrWhiteSpace(whisperUrl)
+        || db.ConfigEntries.Find("audio.config") is not null)
+    {
+        return;
+    }
+
+    var config = AudioConfig.Default with { SttEngine = "whisper", SttBaseUrl = whisperUrl };
+    db.ConfigEntries.Add(new ConfigEntry
+    {
+        Key = "audio.config",
+        ValueJson = System.Text.Json.JsonSerializer.Serialize(
+            config, new System.Text.Json.JsonSerializerOptions(
+                System.Text.Json.JsonSerializerDefaults.Web)),
         UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
     });
     db.SaveChanges();

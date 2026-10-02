@@ -1,8 +1,12 @@
 @page "/notes/new"
 @page "/notes/{Id}"
+@implements IAsyncDisposable
 @inject ApiService Api
+@inject AuthService Auth
+@inject RealtimeService Realtime
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject IJSRuntime JS
 
 <PageTitle>@_title — Open WebUI</PageTitle>
 
@@ -22,6 +26,17 @@
     }
     else
     {
+        @if (_collaborators.Count > 0)
+        {
+            <div class="flex flex-wrap gap-2 mb-3">
+                @foreach (var c in _collaborators.Values)
+                {
+                    <span class="text-xs px-2 py-1 rounded-full text-white" style="background:@c.Color">
+                        ● @c.Name
+                    </span>
+                }
+            </div>
+        }
         <div class="card-list">
             <div class="card-row">
                 <div class="card-main w-full">
@@ -32,9 +47,17 @@
                         </div>
                         <div class="field">
                             <label>@L["common.content"]</label>
-                            <textarea class="input" rows="14" @bind="_content"></textarea>
+                            <textarea id="note-content" class="input" rows="14"
+                                @bind="_content" @bind:event="oninput" @bind:after="OnContentInput"
+                                @onkeyup="SendCaretAsync" @onclick="SendCaretAsync"></textarea>
                         </div>
                     </div>
+                    @foreach (var cursor in _remoteCursors.Values)
+                    {
+                        <div class="text-xs mt-1" style="color:@cursor.Color">
+                            ▌@cursor.Name — @L.T("notes.cursor_at", ("pos", cursor.Position.ToString()))
+                        </div>
+                    }
                     @if (_error is not null)
                     {
                         <div class="text-sm text-red-500 mt-2">@_error</div>
@@ -62,6 +85,14 @@
     private string? _error;
     private string _title => Id is null ? L["notes.new"] : L["notes.edit"];
 
+    private long _version;
+    private int _sendGen;
+    private bool _applyingRemote;
+    private readonly Dictionary<string, RealtimeService.NotePresenceInfo> _collaborators = new();
+    private readonly Dictionary<string, RemoteCursor> _remoteCursors = new();
+
+    private sealed record RemoteCursor(string Name, string Color, int Position);
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -77,9 +108,107 @@
             {
                 _name = note.Title;
                 _content = note.Content;
+                _version = note.UpdatedAt;
             }
         }
         _loading = false;
+        if (Id is not null && !_notFound)
+        {
+            await StartCollabAsync(Id);
+        }
+    }
+
+    private async Task StartCollabAsync(string noteId)
+    {
+        Realtime.OnNoteUpdate += HandleRemoteUpdate;
+        Realtime.OnNoteRejected += HandleRejected;
+        Realtime.OnNotePresence += HandlePresence;
+        Realtime.OnNoteCursor += HandleCursor;
+        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
+        await Realtime.JoinNoteAsync(noteId);
+    }
+
+    private async Task OnContentInput()
+    {
+        if (_applyingRemote || Id is null)
+        {
+            return;
+        }
+        var gen = ++_sendGen;
+        await Task.Delay(400);
+        if (gen != _sendGen || _applyingRemote || Id is null)
+        {
+            return;
+        }
+        var newVersion = await Realtime.SendNoteUpdateAsync(Id, _content, _version);
+        if (newVersion > 0)
+        {
+            _version = newVersion;
+        }
+    }
+
+    private async Task SendCaretAsync()
+    {
+        if (Id is null || !Realtime.Connected)
+        {
+            return;
+        }
+        var caret = await JS.InvokeAsync<int>("openwebui.collab.caret", "note-content");
+        await Realtime.SendNotePresenceAsync(Id, caret);
+    }
+
+    private void HandleRemoteUpdate(string noteId, string userId, string text, long version)
+    {
+        if (noteId != Id || userId == Auth.CurrentUser?.Id)
+        {
+            return;
+        }
+        _applyingRemote = true;
+        _content = text;
+        _version = version;
+        _applyingRemote = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleRejected(string noteId, string text, long version)
+    {
+        if (noteId != Id)
+        {
+            return;
+        }
+        _applyingRemote = true;
+        _content = text;
+        _version = version;
+        _applyingRemote = false;
+        _sendGen++; // cancela envio pendente com versão defasada
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandlePresence(string noteId, List<RealtimeService.NotePresenceInfo> roster)
+    {
+        if (noteId != Id)
+        {
+            return;
+        }
+        _collaborators.Clear();
+        foreach (var entry in roster)
+        {
+            if (entry.UserId != Auth.CurrentUser?.Id)
+            {
+                _collaborators[entry.UserId] = entry;
+            }
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleCursor(string noteId, string userId, string name, string color, int cursor)
+    {
+        if (noteId != Id || userId == Auth.CurrentUser?.Id)
+        {
+            return;
+        }
+        _remoteCursors[userId] = new RemoteCursor(name, color, cursor);
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task SaveAsync()
@@ -99,4 +228,17 @@
     }
 
     private void GoBack() => Nav.NavigateTo("/notes");
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        Realtime.OnNoteUpdate -= HandleRemoteUpdate;
+        Realtime.OnNoteRejected -= HandleRejected;
+        Realtime.OnNotePresence -= HandlePresence;
+        Realtime.OnNoteCursor -= HandleCursor;
+        if (Id is not null)
+        {
+            await Realtime.LeaveNoteAsync(Id);
+        }
+    }
 }
