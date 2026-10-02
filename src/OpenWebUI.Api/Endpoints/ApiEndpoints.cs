@@ -94,7 +94,10 @@ public static class ApiEndpoints
 
         foreach (var entry in custom)
         {
-            models.Add(new ModelInfo(entry.Id, entry.Name, "custom", "openwebui"));
+            if (await ModelEndpoints.HasModelAccessAsync(user!, entry, db, ct))
+            {
+                models.Add(new ModelInfo(entry.Id, entry.Name, "custom", "openwebui"));
+            }
         }
 
         return Results.Ok(new ModelListResponse(models));
@@ -121,9 +124,20 @@ public static class ApiEndpoints
             return;
         }
 
+        await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
+
+        // Modelos arena geram duas respostas anonimizadas de concorrentes sorteados.
+        var arenaModel = request.Model.StartsWith("arena:", StringComparison.Ordinal)
+            ? request.Model["arena:".Length..]
+            : request.Model;
+        if (await TryRunArenaAsync(
+            request, arenaModel, user, db, config, rag, providers, writer, ct))
+        {
+            return;
+        }
+
         var effective = await EnrichRequestAsync(request, user, db, config, rag, ct);
 
-        await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
         try
         {
             var tools = request.ToolIds is { Count: > 0 }
@@ -180,6 +194,112 @@ public static class ApiEndpoints
             await writer.WriteLineAsync();
             await writer.FlushAsync();
         }
+    }
+
+    /// <summary>
+    /// Executa uma batalha de arena quando o modelo pedido é do tipo arena:
+    /// sorteia 2 concorrentes do MetaJson, completa ambos e emite um payload
+    /// {"arena": {battle_id, responses:[{label, content}]}} no SSE.
+    /// Retorna true quando tratou a requisição (mesmo em erro já serializado).
+    /// </summary>
+    private static async Task<bool> TryRunArenaAsync(
+        ChatCompletionRequest request,
+        string modelKey,
+        User user,
+        AppDbContext db,
+        ConfigService config,
+        RagService rag,
+        ProviderService providers,
+        StreamWriter writer,
+        CancellationToken ct)
+    {
+        var arenaEntry = await db.ModelEntries.AsNoTracking()
+            .FirstOrDefaultAsync(
+                m => m.IsActive && (m.Id == modelKey || m.Name == modelKey)
+                    && (m.UserId == user.Id || m.UserId == "public"), ct);
+        var arena = arenaEntry is null ? null : ModelEndpoints.ParseArenaMeta(arenaEntry.MetaJson);
+        if (arena is null)
+        {
+            return request.Model.StartsWith("arena:", StringComparison.Ordinal);
+        }
+        if (!await ModelEndpoints.HasModelAccessAsync(user, arenaEntry!, db, ct))
+        {
+            await WriteArenaErrorAsync(writer, "Acesso negado ao modelo arena.");
+            return true;
+        }
+
+        var competitors = arena.Value.ModelIds
+            .OrderBy(_ => Random.Shared.Next())
+            .Take(2)
+            .ToList();
+        if (competitors.Count < 2)
+        {
+            await WriteArenaErrorAsync(writer, "Modelo arena sem concorrentes suficientes.");
+            return true;
+        }
+
+        var responses = new List<string>(2);
+        try
+        {
+            foreach (var competitor in competitors)
+            {
+                var effective = await EnrichRequestAsync(
+                    request with { Model = competitor, Stream = false },
+                    user, db, config, rag, ct);
+                responses.Add(await providers.CompleteAsync(effective, ct));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+        {
+            await WriteArenaErrorAsync(writer, $"Falha ao gerar respostas da arena: {ex.Message}");
+            return true;
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var battle = new ArenaBattle
+        {
+            UserId = user.Id,
+            ArenaModelId = arenaEntry!.Id,
+            ModelA = competitors[0],
+            ModelB = competitors[1],
+            ResponseA = responses[0],
+            ResponseB = responses[1],
+            CreatedAt = now,
+        };
+        db.ArenaBattles.Add(battle);
+        await db.SaveChangesAsync(ct);
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            arena = new
+            {
+                battle_id = battle.Id,
+                responses = new[]
+                {
+                    new { label = "A", content = responses[0] },
+                    new { label = "B", content = responses[1] },
+                },
+            },
+        });
+        await writer.WriteLineAsync($"data: {payload}");
+        await writer.WriteLineAsync();
+        await writer.WriteLineAsync("data: [DONE]");
+        await writer.WriteLineAsync();
+        await writer.FlushAsync();
+        return true;
+    }
+
+    private static Task WriteArenaErrorAsync(StreamWriter writer, string message) =>
+        WriteSseErrorAsync(writer, message);
+
+    private static async Task WriteSseErrorAsync(StreamWriter writer, string message)
+    {
+        var error = JsonSerializer.Serialize(new { error = message });
+        await writer.WriteLineAsync($"data: {error}");
+        await writer.WriteLineAsync();
+        await writer.WriteLineAsync("data: [DONE]");
+        await writer.WriteLineAsync();
+        await writer.FlushAsync();
     }
 
     /// <summary>
@@ -242,9 +362,17 @@ public static class ApiEndpoints
             .FirstOrDefaultAsync(
                 m => m.IsActive && (m.Id == model || m.Name == model)
                     && (m.UserId == user.Id || m.UserId == "public"), ct);
+        if (customModel is not null
+            && !await ModelEndpoints.HasModelAccessAsync(user, customModel, db, ct))
+        {
+            customModel = null;
+        }
         if (customModel is not null)
         {
-            model = customModel.BaseModelId;
+            if (!string.IsNullOrWhiteSpace(customModel.BaseModelId))
+            {
+                model = customModel.BaseModelId;
+            }
             if (!string.IsNullOrWhiteSpace(customModel.SystemPrompt))
             {
                 systemParts.Add(customModel.SystemPrompt);

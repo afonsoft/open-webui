@@ -1,18 +1,17 @@
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services.Image;
 
 namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>
-/// Gera imagens a partir de um prompt chamando um provedor compatível com a
-/// API OpenAI Images (<c>POST /images/generations</c>) e persiste os binários
-/// como arquivos do usuário (<see cref="FileEntry"/>).
+/// Orquestra a geração/edição de imagens delegando ao motor configurado
+/// (<see cref="ImageEngineFactory"/>) e persiste os binários como arquivos
+/// do usuário (<see cref="FileEntry"/>).
 /// </summary>
-public class ImageGenerationService(IHttpClientFactory httpClientFactory, ConfigService config, AppDbContext db)
+public class ImageGenerationService(
+    ImageEngineFactory engineFactory, ConfigService config, AppDbContext db)
 {
     /// <summary>Configuração ativa de geração de imagens.</summary>
     /// <param name="ct">Token de cancelamento.</param>
@@ -25,9 +24,7 @@ public class ImageGenerationService(IHttpClientFactory httpClientFactory, Config
     public Task SetConfigAsync(ImagesConfig images, CancellationToken ct = default) =>
         config.SetAsync("images.config", images, ct);
 
-    /// <summary>
-    /// Gera imagens com o provedor configurado e grava os arquivos em disco.
-    /// </summary>
+    /// <summary>Gera imagens com o motor configurado e grava os arquivos em disco.</summary>
     /// <param name="prompt">Descrição da imagem.</param>
     /// <param name="n">Quantidade desejada (limitada entre 1 e 4).</param>
     /// <param name="size">Tamanho opcional; quando nulo usa o configurado.</param>
@@ -35,7 +32,7 @@ public class ImageGenerationService(IHttpClientFactory httpClientFactory, Config
     /// <param name="uploadDir">Diretório onde os binários são gravados.</param>
     /// <param name="ct">Token de cancelamento.</param>
     /// <returns>Arquivos criados para cada imagem gerada.</returns>
-    /// <exception cref="InvalidOperationException">Feature desabilitada ou sem URL configurada.</exception>
+    /// <exception cref="InvalidOperationException">Feature desabilitada ou motor inválido.</exception>
     public async Task<List<FileEntry>> GenerateAsync(
         string prompt, int n, string? size, string userId, string uploadDir, CancellationToken ct = default)
     {
@@ -45,50 +42,64 @@ public class ImageGenerationService(IHttpClientFactory httpClientFactory, Config
             throw new InvalidOperationException("Geração de imagens desabilitada.");
         }
 
-        n = Math.Clamp(n, 1, 4);
-        var payload = new JsonObject
+        var engine = engineFactory.Resolve(images.Engine);
+        var bytes = await engine.GenerateAsync(images, prompt, Math.Clamp(n, 1, 4), size, ct);
+        return await PersistAsync(bytes, userId, uploadDir, ct);
+    }
+
+    /// <summary>Edita uma imagem existente do usuário (img2img/edits).</summary>
+    /// <param name="imageId">Id do arquivo de origem (image/*) pertencente ao usuário.</param>
+    /// <param name="prompt">Instrução de edição.</param>
+    /// <param name="size">Tamanho opcional.</param>
+    /// <param name="userId">Dono do arquivo.</param>
+    /// <param name="uploadDir">Diretório de uploads.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    /// <returns>Arquivo criado com a imagem editada.</returns>
+    /// <exception cref="InvalidOperationException">Motor sem suporte ou imagem ausente.</exception>
+    public async Task<FileEntry> EditAsync(
+        string imageId, string prompt, string? size, string userId, string uploadDir,
+        CancellationToken ct = default)
+    {
+        var images = await GetConfigAsync(ct);
+        if (!images.Enabled || string.IsNullOrWhiteSpace(images.BaseUrl))
         {
-            ["model"] = images.Model,
-            ["prompt"] = prompt,
-            ["n"] = n,
-            ["size"] = string.IsNullOrWhiteSpace(size) ? images.Size : size,
-        };
-        // dall-e aceita response_format; gpt-image-1 sempre retorna b64_json.
-        if (images.Model.StartsWith("dall-e", StringComparison.OrdinalIgnoreCase))
-        {
-            payload["response_format"] = "b64_json";
+            throw new InvalidOperationException("Geração de imagens desabilitada.");
         }
 
-        var url = $"{images.BaseUrl.TrimEnd('/')}/images/generations";
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        var engine = engineFactory.Resolve(images.Engine);
+        if (!engine.SupportsEdit)
         {
-            Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
-        };
-        if (!string.IsNullOrEmpty(images.ApiKey))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", images.ApiKey);
+            throw new InvalidOperationException($"O motor '{engine.Name}' não suporta edição de imagem.");
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(images.TimeoutSeconds, 5, 600)));
-        using var response = await httpClientFactory.CreateClient().SendAsync(request, timeout.Token);
-        response.EnsureSuccessStatusCode();
+        var source = db.Files.FirstOrDefault(f => f.Id == imageId && f.UserId == userId);
+        if (source is null || !File.Exists(source.StoragePath))
+        {
+            throw new InvalidOperationException("Imagem de origem não encontrada.");
+        }
 
-        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
-        var data = json?["data"]?.AsArray()
-            ?? throw new InvalidOperationException("Resposta do provedor sem imagens.");
+        var sourceBytes = await File.ReadAllBytesAsync(source.StoragePath, ct);
+        var edited = await engine.EditAsync(images, sourceBytes, prompt, size, ct);
+        var files = await PersistAsync([edited], userId, uploadDir, ct);
+        return files[0];
+    }
 
+    /// <summary>Testa conectividade do motor configurado (admin).</summary>
+    public async Task<(bool Ok, string Detail)> TestAsync(CancellationToken ct = default)
+    {
+        var images = await GetConfigAsync(ct);
+        var engine = engineFactory.Resolve(images.Engine);
+        return await engine.TestAsync(images, ct);
+    }
+
+    private async Task<List<FileEntry>> PersistAsync(
+        IReadOnlyList<byte[]> images, string userId, string uploadDir, CancellationToken ct)
+    {
         Directory.CreateDirectory(uploadDir);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var files = new List<FileEntry>();
-        foreach (var item in data)
+        foreach (var bytes in images)
         {
-            var bytes = await ResolveImageBytesAsync(item, timeout.Token);
-            if (bytes is null)
-            {
-                continue;
-            }
-
             var id = Guid.NewGuid().ToString();
             var filename = $"generated-{id[..8]}.png";
             var storagePath = Path.Combine(uploadDir, $"{id}_{filename}");
@@ -108,23 +119,7 @@ public class ImageGenerationService(IHttpClientFactory httpClientFactory, Config
             db.Files.Add(entry);
             files.Add(entry);
         }
-
         await db.SaveChangesAsync(ct);
         return files;
-    }
-
-    /// <summary>Extrai os bytes da imagem do item de resposta (b64_json ou URL).</summary>
-    private async Task<byte[]?> ResolveImageBytesAsync(JsonNode? item, CancellationToken ct)
-    {
-        var b64 = item?["b64_json"]?.GetValue<string>();
-        if (!string.IsNullOrEmpty(b64))
-        {
-            return Convert.FromBase64String(b64);
-        }
-
-        var imageUrl = item?["url"]?.GetValue<string>();
-        return string.IsNullOrEmpty(imageUrl)
-            ? null
-            : await httpClientFactory.CreateClient().GetByteArrayAsync(imageUrl, ct);
     }
 }

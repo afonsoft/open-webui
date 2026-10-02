@@ -56,13 +56,15 @@ public sealed record FileContentResponse(string Content);
 public sealed record ModelEntryResponse(
     string Id,
     string Name,
-    string BaseModelId,
+    string? BaseModelId,
     string? SystemPrompt,
     string? ParamsJson,
     string? ProfileImageUrl,
     bool IsActive,
     long CreatedAt,
-    long UpdatedAt);
+    long UpdatedAt,
+    string? MetaJson = null,
+    string? AccessGrantsJson = null);
 
 /// <summary>Criação/atualização de modelo personalizado.</summary>
 /// <param name="Name">Nome público.</param>
@@ -71,7 +73,13 @@ public sealed record ModelEntryResponse(
 /// <param name="ParamsJson">Parâmetros de geração em JSON.</param>
 /// <param name="ProfileImageUrl">Imagem do modelo.</param>
 public sealed record ModelEntryUpsertRequest(
-    string Name, string BaseModelId, string? SystemPrompt, string? ParamsJson, string? ProfileImageUrl);
+    string Name,
+    string? BaseModelId,
+    string? SystemPrompt,
+    string? ParamsJson,
+    string? ProfileImageUrl,
+    string? MetaJson = null,
+    string? AccessGrantsJson = null);
 
 /// <summary>Memória persistente do usuário.</summary>
 /// <param name="Id">Identificador.</param>
@@ -140,3 +148,31 @@ public sealed record TaskFollowUpsResponse(IReadOnlyList<string> FollowUps);
 /// <summary>Resposta de geração de tags.</summary>
 /// <param name="Tags">Tags sugeridas.</param>
 public sealed record TaskTagsResponse(IReadOnlyList<string> Tags);
+
+/// <summary>Resposta A/B de uma batalha de arena (payload SSE do completions).</summary>
+/// <param name="Label">"A" ou "B".</param>
+/// <param name="Content">Texto gerado.</param>
+public sealed record ArenaCompletionResponse(string Label, string Content);
+
+/// <summary>Payload de arena emitido no stream de completions.</summary>
+/// <param name="BattleId">Id da batalha criada.</param>
+/// <param name="Responses">Respostas anonimizadas A/B.</param>
+public sealed record ArenaCompletionResult(
+    string BattleId, List<ArenaCompletionResponse> Responses);
+
+/// <summary>Voto numa batalha de arena.</summary>
+/// <param name="BattleId">Batalha votada.</param>
+/// <param name="Winner">"a", "b", "tie" ou "both_bad".</param>
+public sealed record ArenaFeedbackRequest(string BattleId, string Winner);
+
+/// <summary>Resultado do voto com modelos revelados e ratings atualizados.</summary>
+public sealed record ArenaFeedbackResponse(
+    string ModelA, string ModelB, double RatingA, double RatingB);
+
+/// <summary>Entrada do leaderboard de arena.</summary>
+/// <param name="ModelId">Id do modelo avaliado.</param>
+/// <param name="Rating">Rating ELO atual.</param>
+/// <param name="Battles">Total de batalhas votadas.</param>
+/// <param name="Wins">Vitórias (tie conta como 0.5).</param>
+public sealed record LeaderboardEntryResponse(
+    string ModelId, double Rating, int Battles, double Wins);

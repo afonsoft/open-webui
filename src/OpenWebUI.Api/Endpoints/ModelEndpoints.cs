@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
@@ -40,7 +42,16 @@ public static class ModelEndpoints
             .OrderBy(m => m.Name)
             .ToListAsync(ct);
 
-        return Results.Ok(models.Select(ToResponse).ToList());
+        var visible = new List<ModelEntry>();
+        foreach (var m in models)
+        {
+            if (await HasModelAccessAsync(user, m, db, ct))
+            {
+                visible.Add(m);
+            }
+        }
+
+        return Results.Ok(visible.Select(ToResponse).ToList());
     }
 
     private static async Task<IResult> CreateModelAsync(
@@ -55,9 +66,16 @@ public static class ModelEndpoints
             return Results.Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.BaseModelId))
+        var arena = ParseArenaMeta(request.MetaJson);
+        if (string.IsNullOrWhiteSpace(request.Name)
+            || (arena is null && string.IsNullOrWhiteSpace(request.BaseModelId)))
         {
             return Results.BadRequest(new { detail = "Nome e modelo base são obrigatórios." });
+        }
+        if (arena is not null && arena.Value.ModelIds.Count < 2)
+        {
+            return Results.BadRequest(
+                new { detail = "Modelo arena exige ao menos 2 modelos concorrentes." });
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -65,10 +83,13 @@ public static class ModelEndpoints
         {
             UserId = user.Id,
             Name = request.Name.Trim(),
-            BaseModelId = request.BaseModelId.Trim(),
+            BaseModelId = string.IsNullOrWhiteSpace(request.BaseModelId)
+                ? null : request.BaseModelId.Trim(),
             SystemPrompt = request.SystemPrompt,
             ParamsJson = request.ParamsJson,
             ProfileImageUrl = request.ProfileImageUrl,
+            MetaJson = request.MetaJson,
+            AccessGrantsJson = request.AccessGrantsJson,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -106,6 +127,8 @@ public static class ModelEndpoints
         model.SystemPrompt = request.SystemPrompt;
         model.ParamsJson = request.ParamsJson;
         model.ProfileImageUrl = request.ProfileImageUrl;
+        model.MetaJson = request.MetaJson ?? model.MetaJson;
+        model.AccessGrantsJson = request.AccessGrantsJson ?? model.AccessGrantsJson;
         model.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await db.SaveChangesAsync(ct);
 
@@ -186,10 +209,13 @@ public static class ModelEndpoints
             {
                 UserId = user.Id,
                 Name = item.Name.Trim(),
-                BaseModelId = item.BaseModelId.Trim(),
+                BaseModelId = string.IsNullOrWhiteSpace(item.BaseModelId)
+                    ? null : item.BaseModelId.Trim(),
                 SystemPrompt = item.SystemPrompt,
                 ParamsJson = item.ParamsJson,
                 ProfileImageUrl = item.ProfileImageUrl,
+                MetaJson = item.MetaJson,
+                AccessGrantsJson = item.AccessGrantsJson,
                 CreatedAt = now,
                 UpdatedAt = now,
             });
@@ -201,7 +227,90 @@ public static class ModelEndpoints
 
     internal static ModelEntryResponse ToResponse(ModelEntry m) => new(
         m.Id, m.Name, m.BaseModelId, m.SystemPrompt, m.ParamsJson, m.ProfileImageUrl,
-        m.IsActive, m.CreatedAt, m.UpdatedAt);
+        m.IsActive, m.CreatedAt, m.UpdatedAt, m.MetaJson, m.AccessGrantsJson);
+
+    /// <summary>Metadados de modelo arena extraídos do MetaJson.</summary>
+    internal record struct ArenaMeta(bool Arena, List<string> ModelIds);
+
+    /// <summary>Interpreta MetaJson como config arena; null quando não é arena ou inválido.</summary>
+    internal static ArenaMeta? ParseArenaMeta(string? metaJson)
+    {
+        if (string.IsNullOrWhiteSpace(metaJson))
+        {
+            return null;
+        }
+        try
+        {
+            var meta = JsonSerializer.Deserialize<JsonElement>(metaJson);
+            if (!meta.TryGetProperty("arena", out var flag) || flag.ValueKind != JsonValueKind.True)
+            {
+                return null;
+            }
+            var ids = new List<string>();
+            if (meta.TryGetProperty("model_ids", out var arr)
+                && arr.ValueKind == JsonValueKind.Array)
+            {
+                ids = arr.EnumerateArray()
+                    .Where(e => e.ValueKind == JsonValueKind.String)
+                    .Select(e => e.GetString()!)
+                    .Where(idStr => !string.IsNullOrWhiteSpace(idStr))
+                    .ToList();
+            }
+            return new ArenaMeta(true, ids);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Verifica o acesso do usuário a um modelo via AccessGrantsJson.
+    /// Sem grants vale a visibilidade padrão (dono ou "public"); com grants é
+    /// preciso casar principal user/group/* com permission read ou write.
+    /// </summary>
+    internal static async Task<bool> HasModelAccessAsync(
+        User user, ModelEntry model, AppDbContext db, CancellationToken ct)
+    {
+        if (model.UserId == user.Id || user.Role == "admin")
+        {
+            return true;
+        }
+        if (string.IsNullOrWhiteSpace(model.AccessGrantsJson))
+        {
+            return true;
+        }
+
+        List<AccessGrantEntry> grants;
+        try
+        {
+            grants = JsonSerializer.Deserialize<List<AccessGrantEntry>>(model.AccessGrantsJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        if (grants.Count == 0)
+        {
+            return true;
+        }
+
+        var groupIds = (await db.GroupMembers.AsNoTracking()
+            .Where(m => m.UserId == user.Id)
+            .Select(m => m.GroupId)
+            .ToListAsync(ct)).ToHashSet();
+
+        return grants.Any(g =>
+            g.Permission is "read" or "write"
+            && (g.PrincipalType == "*"
+                || (g.PrincipalType == "user" && g.PrincipalId == user.Id)
+                || (g.PrincipalType == "group" && g.PrincipalId is { } gid && groupIds.Contains(gid))));
+    }
+
+    internal sealed record AccessGrantEntry(
+        [property: JsonPropertyName("principal_type")] string PrincipalType,
+        [property: JsonPropertyName("principal_id")] string? PrincipalId,
+        string Permission);
 
     /// <summary>Referência a um modelo por id (toggle/delete).</summary>
     public sealed record ToggleRequest(string Id);
@@ -209,5 +318,6 @@ public static class ModelEndpoints
     /// <summary>Atualização de modelo personalizado.</summary>
     public sealed record ModelUpdateRequest(
         string Id, string? Name, string? BaseModelId, string? SystemPrompt,
-        string? ParamsJson, string? ProfileImageUrl);
+        string? ParamsJson, string? ProfileImageUrl,
+        string? MetaJson = null, string? AccessGrantsJson = null);
 }

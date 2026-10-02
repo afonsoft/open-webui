@@ -89,7 +89,7 @@ public class ChannelEndpointsTests
 
         var posted = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("Olá canal"));
+            new CreateChannelMessageRequest("Olá canal", null));
         Assert.That(posted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         UseToken(_user.Token);
@@ -101,7 +101,7 @@ public class ChannelEndpointsTests
 
         var memberPost = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("Oi admin"));
+            new CreateChannelMessageRequest("Oi admin", null));
         Assert.That(memberPost.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
@@ -116,7 +116,7 @@ public class ChannelEndpointsTests
         UseToken(_user.Token);
         var post = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("não sou membro"));
+            new CreateChannelMessageRequest("não sou membro", null));
         Assert.That(post.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
@@ -129,7 +129,7 @@ public class ChannelEndpointsTests
         var channel = (await created.Content.ReadFromJsonAsync<ChannelResponse>())!;
 
         await _client.PostAsJsonAsync($"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("@modelo-inexistente oi"));
+            new CreateChannelMessageRequest("@modelo-inexistente oi", null));
 
         List<ChannelMessageResponse>? messages = null;
         for (var i = 0; i < 30; i++)

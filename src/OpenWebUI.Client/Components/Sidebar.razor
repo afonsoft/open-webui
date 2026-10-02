@@ -75,8 +75,12 @@ else
                 <div>
                     <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
                         <span>@L["sidebar.channels"]</span>
-                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                title="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
+                        <span>
+                            <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                                    title="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
+                            <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                                    title="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
+                        </span>
                     </div>
                     <div class="flex flex-col">
                         @foreach (var channel in _channels)
@@ -86,7 +90,15 @@ else
                                       @(current
                                           ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
                                           : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
-                               href="/channels/@channel.Id" draggable="false"># @channel.Name</a>
+                               href="/channels/@channel.Id" draggable="false">
+                                <span class="truncate">@(channel.Type == "dm" ? "@" : "#") @channel.Name</span>
+                                @if (channel.UnreadCount > 0 && !current)
+                                {
+                                    <span class="ml-auto rounded-full bg-blue-500 px-1.5 text-[0.65rem] font-medium text-white">
+                                        @channel.UnreadCount
+                                    </span>
+                                }
+                            </a>
                         }
                     </div>
                 </div>
@@ -323,6 +335,28 @@ else
         _pinned = await Api.GetPinnedChatsAsync();
         _folders = await Api.GetFoldersAsync();
         _channels = await Api.GetChannelsAsync();
+    }
+
+    private async Task CreateDmAsync()
+    {
+        var email = await JS.InvokeAsync<string?>("prompt", L["sidebar.prompt_dm_email"]);
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+        var users = await Api.GetUsersAsync(query: email.Trim());
+        var user = users.Users.FirstOrDefault(u =>
+            u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (user is null)
+        {
+            return;
+        }
+        var channel = await Api.CreateDmAsync(user.Id);
+        if (channel is not null)
+        {
+            _channels = await Api.GetChannelsAsync();
+            Nav.NavigateTo($"/channels/{channel.Id}");
+        }
     }
 
     private async Task CreateChannelAsync()
