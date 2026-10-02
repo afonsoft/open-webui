@@ -69,6 +69,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `chats` (50 eps) | Core completo | Versões/diff de mensagens, chat-events realtime, lista admin de todos os chats |
 | `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, access grants por item, reindex, batch ops |
 | `tools` (15 eps) | Tools HTTP | Tools em código (execução server-side), valves/user settings por tool |
+| `ollama`/`openai` passthrough | `/ollama/api/{tags,version,show,chat,generate,embed}` + `/openai/{models,chat/completions,embeddings}` (+ variantes indexadas) | `pull/create/delete/copy` + `blobs/*` (gerenciamento de modelos), audio/images via passthrough |
 | `images` (6 eps) | Engines plugáveis: OpenAI, A1111, Gemini, ComfyUI + `/edit` + `/config/engines` + `/config/test` | Variações avançadas por engine |
 | `audio` (6 eps) | `POST /audio/speech` (TTS OpenAI-compatible), `POST /transcriptions` (STT openai/deepgram), `/voices`, `/models`, `/capabilities`, fallback Web Speech | Whisper local, engines TTS extras (ElevenLabs/Azure) |
 | `calendar` (13 eps) | Visão mensal + calendários reais (CRUD) + events CRUD + access grants | Busca de eventos, múltiplos calendários com cores |
@@ -88,7 +89,6 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `scim` (15 eps) | Provisionamento SCIM 2.0 |
 | `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
 | `terminals` (1 ep + ws) | Terminal server-side / Jupyter (proxy + WS) |
-| `ollama` (45 eps) + `openai` (15 eps) | Routers de passthrough gerenciados (`/ollama/*`, `/openai/*` — pull/delete/copy/blobs/embeddings etc.) |
 | `utils` (4 eps) | Gravatar, format, litellm config |
 | SAML | SSO enterprise (OAuth/LDAP já cobertos) |
 | Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |

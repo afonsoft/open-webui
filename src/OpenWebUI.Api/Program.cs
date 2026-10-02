@@ -30,6 +30,7 @@ builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<ProviderProxyService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -180,6 +181,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapNotificationEndpoints();
+app.MapPassthroughEndpoints();
 app.MapChatEndpoints();
 app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();
