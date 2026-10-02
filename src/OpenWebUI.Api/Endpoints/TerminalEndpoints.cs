@@ -65,12 +65,13 @@ public static class TerminalEndpoints
 
         var request = await JsonSerializer.DeserializeAsync<TerminalServerRequest>(
             http.Request.Body, JsonOptions, ct);
+        var isLocal = string.Equals(request?.Type, "local", StringComparison.OrdinalIgnoreCase);
         if (request is null || string.IsNullOrWhiteSpace(request.Name)
-            || string.IsNullOrWhiteSpace(request.Url)
-            || !Uri.TryCreate(request.Url, UriKind.Absolute, out var uri)
-            || uri.Scheme is not ("http" or "https"))
+            || (!isLocal && (string.IsNullOrWhiteSpace(request.Url)
+                || !Uri.TryCreate(request.Url, UriKind.Absolute, out var uri)
+                || uri.Scheme is not ("http" or "https"))))
         {
-            return Results.BadRequest(new { detail = "name e url http(s) válida são obrigatórios." });
+            return Results.BadRequest(new { detail = "name e url http(s) válida são obrigatórios (url é opcional no type local)." });
         }
 
         if (request.AuthType is not ("none" or "token" or "password"))
@@ -78,9 +79,9 @@ public static class TerminalEndpoints
             return Results.BadRequest(new { detail = "auth_type deve ser none, token ou password." });
         }
 
-        if (request.Type is not ("jupyter" or "pty"))
+        if (request.Type is not ("jupyter" or "pty" or "local"))
         {
-            return Results.BadRequest(new { detail = "type deve ser jupyter ou pty." });
+            return Results.BadRequest(new { detail = "type deve ser jupyter, pty ou local." });
         }
 
         var servers = await terminals.GetServersAsync(ct);
@@ -91,7 +92,8 @@ public static class TerminalEndpoints
             : request.Key;
 
         var server = new TerminalServerConfig(
-            id, request.Name.Trim(), request.Url.Trim(), request.AuthType, key, request.Type);
+            id, request.Name.Trim(), request.Url?.Trim() ?? string.Empty, request.AuthType, key, request.Type);
+        terminals.StopLocal(id); // respawna na próxima requisição com a config nova
         servers.RemoveAll(s => s.Id == id);
         servers.Add(server);
         await terminals.SaveServersAsync(servers, ct);
@@ -116,6 +118,7 @@ public static class TerminalEndpoints
         }
 
         await terminals.SaveServersAsync(servers, ct);
+        terminals.StopLocal(id);
         return Results.Ok(new { ok = true });
     }
 
@@ -129,10 +132,19 @@ public static class TerminalEndpoints
             return Results.NotFound(new { detail = "Path não permitido." });
         }
 
-        var server = await terminals.GetServerAsync(id, ct);
-        if (server is null)
+        TerminalServerConfig server;
+        try
         {
-            return Results.NotFound(new { detail = "Servidor de terminal não encontrado." });
+            var resolved = await terminals.ResolveServerAsync(id, ct);
+            if (resolved is null)
+            {
+                return Results.NotFound(new { detail = "Servidor de terminal não encontrado." });
+            }
+            server = resolved;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Problem(ex.Message, statusCode: 502);
         }
 
         if (http.WebSockets.IsWebSocketRequest)
