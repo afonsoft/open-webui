@@ -78,6 +78,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `models` (16 eps) | Custom models + arena + access grants (user/group/*) | Model filters |
 | `evaluations` (15 eps) | Feedbacks + leaderboard ELO + arena battles | Export |
 | `notes` (12 eps) | CRUD | Colaboração realtime (yjs), access grants |
+| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local, PTY no host (por segurança, só proxy externo) |
 | `i18n` | pt-BR/en-US sem reload | ~30 locales do upstream; backend não traduzido |
 
 ### Pendente ⬜
@@ -88,7 +89,6 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `pipelines` (8 eps) | Framework Pipelines (inlet/outlet filters) |
 | `scim` (15 eps) | Provisionamento SCIM 2.0 |
 | `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
-| `terminals` (1 ep + ws) | Terminal server-side / Jupyter (proxy + WS) |
 | `utils` (4 eps) | Gravatar, format, litellm config |
 | SAML | SSO enterprise (OAuth/LDAP já cobertos) |
 | Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |

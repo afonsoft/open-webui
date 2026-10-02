@@ -486,6 +486,18 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<WebhookTestResponse?> TestAdminWebhookAsync() =>
         SendAsync<WebhookTestResponse>(HttpMethod.Post, "/api/v1/notifications/admin/webhook/test");
 
+    /// <summary>Lista terminal servers configurados.</summary>
+    public Task<List<TerminalServerResponse>?> GetTerminalServersAsync() =>
+        SendAsync<List<TerminalServerResponse>>(HttpMethod.Get, "/api/v1/terminals/");
+
+    /// <summary>Cria/atualiza um terminal server (admin).</summary>
+    public Task<TerminalServerResponse?> SaveTerminalServerAsync(TerminalServerRequest request) =>
+        SendAsync<TerminalServerResponse>(HttpMethod.Post, "/api/v1/terminals/config", request);
+
+    /// <summary>Remove um terminal server (admin).</summary>
+    public Task<bool> DeleteTerminalServerAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminals/config/{id}");
+
     /// <summary>Revoga a chave de API do usuário.</summary>
     public async Task<bool> DeleteApiKeyAsync()
     {

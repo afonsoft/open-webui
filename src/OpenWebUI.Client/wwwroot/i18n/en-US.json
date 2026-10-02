@@ -370,5 +370,9 @@
   "settings.webhook_removed": "Webhook removed.",
   "settings.webhook_test_ok": "Test delivered to destination.",
   "settings.webhook_test_fail": "Destination responded with an error",
-  "settings.webhook_admin_section": "Global notifications webhook"
+  "settings.webhook_admin_section": "Global notifications webhook",
+  "admin.terminals": "Terminal servers",
+  "admin.terminal_name": "Server name",
+  "admin.terminal_key": "Server token/password",
+  "admin.terminal_add": "Add server"
 }

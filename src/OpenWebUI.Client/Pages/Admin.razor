@@ -383,6 +383,45 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main">
+                                <div class="card-title">@L["admin.terminals"]</div>
+                            </div>
+                        </div>
+                        @foreach (var server in _terminals)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@server.Name <span class="role-badge">@server.Type</span></div>
+                                    <div class="card-sub">@server.Url (@server.AuthType)</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action danger" @onclick="() => DeleteTerminalAsync(server)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_termName" placeholder="@L["admin.terminal_name"]" />
+                                <input class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
+                                <div class="flex gap-2">
+                                    <select class="input" @bind="_termAuth">
+                                        <option value="none">none</option>
+                                        <option value="token">token</option>
+                                        <option value="password">password</option>
+                                    </select>
+                                    <select class="input" @bind="_termType">
+                                        <option value="jupyter">jupyter</option>
+                                        <option value="pty">pty</option>
+                                    </select>
+                                </div>
+                                @if (_termAuth is not "none")
+                                {
+                                    <input class="input" type="password" @bind="_termKey" placeholder="@L["admin.terminal_key"]" />
+                                }
+                                <button class="auth-submit" @onclick="SaveTerminalAsync">@L["admin.terminal_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
                                 <div class="card-title">@L["admin.flags_readonly"]</div>
                                 <div class="card-sub">
                                     notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
@@ -479,6 +518,12 @@
     private bool _toggleDirect;
     private bool _enginePyodide = true;
     private bool _engineJupyter;
+    private List<TerminalServerResponse> _terminals = [];
+    private string _termName = "";
+    private string _termUrl = "";
+    private string _termAuth = "token";
+    private string _termType = "jupyter";
+    private string? _termKey;
     private bool _flagSignup;
     private bool _flagLoginForm;
     private bool _flagApiKeys;
@@ -536,6 +581,28 @@
         _toggleDirect = codeExec?.DirectConnections ?? false;
         _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
         _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
+        _terminals = await Api.GetTerminalServersAsync() ?? [];
+    }
+
+    private async Task SaveTerminalAsync()
+    {
+        var saved = await Api.SaveTerminalServerAsync(new TerminalServerRequest(
+            _termName.Trim(), _termUrl.Trim(), _termAuth,
+            string.IsNullOrWhiteSpace(_termKey) ? null : _termKey, _termType));
+        if (saved is not null)
+        {
+            _termName = string.Empty;
+            _termUrl = string.Empty;
+            _termKey = null;
+            _terminals = await Api.GetTerminalServersAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task DeleteTerminalAsync(TerminalServerResponse server)
+    {
+        await Api.DeleteTerminalServerAsync(server.Id);
+        _terminals.RemoveAll(t => t.Id == server.Id);
     }
 
     private async Task SaveFlagsAsync()

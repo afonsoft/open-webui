@@ -187,6 +187,16 @@ window.openwebui.codeExec = (function () {
 	}
 
 	async function runPython(code, panel) {
+		const jupyter = await jupyterServer();
+		if (jupyter) {
+			try {
+				return await runJupyter(code, jupyter, panel);
+			} catch (err) {
+				// Kernel indisponível: cai para Pyodide como antes.
+				panel.textContent =
+					'Jupyter indisponível (' + (err && err.message ? err.message : err) + ') — usando Pyodide…';
+			}
+		}
 		const worker = await ensurePyWorker();
 		panel.textContent = 'Executando…';
 		return new Promise(function (resolve) {
@@ -206,6 +216,128 @@ window.openwebui.codeExec = (function () {
 			};
 			worker.addEventListener('message', handler);
 			worker.postMessage({ type: 'run', code: code });
+		});
+	}
+
+	// ---------------- Python (kernel Jupyter via proxy) ----------------
+	// Admin habilita "jupyter" em code_execution e cadastra o servidor em
+	// /api/v1/terminals/config; o proxy injeta a key do servidor no upstream.
+
+	let _jupyter = undefined; // undefined = ainda não consultado
+
+	function authToken() {
+		try {
+			return JSON.parse(localStorage.getItem('webui.token') || 'null');
+		} catch (e) {
+			return null;
+		}
+	}
+
+	async function jupyterServer() {
+		if (_jupyter !== undefined) {
+			return _jupyter;
+		}
+		const token = authToken();
+		if (!token) {
+			return (_jupyter = null);
+		}
+		const headers = { Authorization: 'Bearer ' + token };
+		try {
+			const cfg = await fetch('/api/v1/configs/code_execution', { headers: headers })
+				.then(function (r) { return r.ok ? r.json() : null; });
+			if (!cfg || (cfg.engines || []).indexOf('jupyter') === -1) {
+				return (_jupyter = null);
+			}
+			const servers = await fetch('/api/v1/terminals/', { headers: headers })
+				.then(function (r) { return r.ok ? r.json() : []; });
+			_jupyter = servers && servers.length ? servers[0] : null;
+		} catch (e) {
+			_jupyter = null;
+		}
+		return _jupyter;
+	}
+
+	async function runJupyter(code, server, panel) {
+		const token = authToken();
+		const base = '/api/v1/terminals/' + encodeURIComponent(server.id);
+		const headers = {
+			Authorization: 'Bearer ' + token,
+			'Content-Type': 'application/json'
+		};
+
+		panel.textContent = 'Criando kernel (' + server.name + ')…';
+		const kernel = await fetch(base + '/api/kernels', {
+			method: 'POST', headers: headers, body: '{}'
+		}).then(function (r) {
+			if (!r.ok) throw new Error('kernel não criado (' + r.status + ')');
+			return r.json();
+		});
+
+		try {
+			panel.textContent = 'Executando…';
+			const wsBase = base.replace(/^http/, location.protocol === 'https:' ? 'wss' : 'ws');
+			const ws = new WebSocket(
+				location.origin.replace(/^http/, location.protocol === 'https:' ? 'wss' : 'ws') +
+				wsBase + '/api/kernels/' + kernel.id + '/channels?access_token=' +
+				encodeURIComponent(token));
+			return await executeOnKernel(ws, code);
+		} finally {
+			try {
+				await fetch(base + '/api/kernels/' + kernel.id, { method: 'DELETE', headers: headers });
+			} catch (e) { /* best-effort */ }
+		}
+	}
+
+	function executeOnKernel(ws, code) {
+		return new Promise(function (resolve, reject) {
+			const msgId = 'exec-' + Math.random().toString(36).slice(2);
+			const session = 'webui-' + Math.random().toString(36).slice(2);
+			const out = { stdout: '', stderr: '' };
+			const timer = setTimeout(function () {
+				ws.close();
+				resolve({ stdout: out.stdout, stderr: out.stderr + '\n(execução abortada: timeout)' });
+			}, 30000);
+
+			ws.onopen = function () {
+				ws.send(JSON.stringify({
+					header: {
+						msg_id: msgId, username: 'webui', session: session,
+						msg_type: 'execute_request', version: '5.3'
+					},
+					parent_header: {},
+					metadata: {},
+					channel: 'shell',
+					content: {
+						code: code, silent: false, store_history: true,
+						user_expressions: {}, allow_stdin: false
+					}
+				}));
+			};
+			ws.onerror = function () {
+				clearTimeout(timer);
+				reject(new Error('falha no WebSocket do kernel'));
+			};
+			ws.onmessage = function (e) {
+				let msg;
+				try { msg = JSON.parse(e.data); } catch (err) { return; }
+				const parent = (msg.parent_header || {}).msg_id;
+				if (parent !== msgId) { return; }
+				const type = (msg.header || {}).msg_type;
+				const content = msg.content || {};
+				if (type === 'stream') {
+					if (content.name === 'stderr') { out.stderr += content.text; }
+					else { out.stdout += content.text; }
+				} else if (type === 'error') {
+					out.stderr += (content.traceback || [content.evalue]).join('\n');
+				} else if (type === 'execute_result' || type === 'display_data') {
+					const text = (content.data || {})['text/plain'];
+					if (text) { out.stdout += (Array.isArray(text) ? text.join('') : text) + '\n'; }
+				} else if (type === 'status' && content.execution_state === 'idle') {
+					clearTimeout(timer);
+					ws.close();
+					resolve(out);
+				}
+			};
 		});
 	}
 
