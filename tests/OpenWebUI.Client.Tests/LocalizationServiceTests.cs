@@ -106,6 +106,94 @@ public class LocalizationServiceTests
         Assert.That(service["channel.typing"], Is.EqualTo("{{name}} está digitando…"));
     }
 
+    [Test]
+    public async Task Manifest_CarregaLocalesDisponiveis()
+    {
+        var service = CreateServiceWithManifest(
+            """{"locales":[{"code":"pt-BR","name":"Português"},{"code":"en-US","name":"English"},{"code":"es-ES","name":"Español"}]}""");
+        await service.InitializeAsync();
+
+        Assert.That(service.Languages.Select(l => l.Code),
+            Is.EqualTo(new[] { "pt-BR", "en-US", "es-ES" }));
+    }
+
+    [Test]
+    public async Task Manifest_Invalido_MantemPadrao()
+    {
+        var service = CreateServiceWithManifest("nao-e-json");
+        await service.InitializeAsync();
+
+        Assert.That(service.Languages, Is.EqualTo(LocalizationService.DefaultLanguages));
+    }
+
+    [Test]
+    public async Task FallbackDeChave_UsaEnUsAntesDePtBr()
+    {
+        // Ativo es-ES sem a chave; en-US tem → inglês antes de pt-BR.
+        var dicts = new Dictionary<string, Dictionary<string, string>>
+        {
+            ["pt-BR"] = PtBr,
+            ["en-US"] = EnUs,
+            ["es-ES"] = new Dictionary<string, string> { ["chat.send"] = "Enviar (es)" },
+        };
+        // Manifesto precisa listar es-ES para ApplyAsync aceitar o idioma.
+        var service = CreateServiceWithDicts(dicts,
+            """{"locales":[{"code":"pt-BR","name":"pt"},{"code":"en-US","name":"en"},{"code":"es-ES","name":"es"}]}""");
+        await service.InitializeAsync();
+        await service.SetLanguageAsync("es-ES");
+
+        Assert.That(service["channel.typing"], Is.EqualTo("{{name}} is typing…"));
+    }
+
+    private static LocalizationService CreateServiceWithManifest(string manifestJson)
+    {
+        var http = new HttpClient(new StubHandler((request, _) =>
+        {
+            var file = request.RequestUri!.ToString().Split('/').Last();
+            var content = file == "locales.json"
+                ? manifestJson
+                : JsonSerializer.Serialize(
+                    request.RequestUri!.ToString().Contains("en-US") ? EnUs : PtBr);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(content, Encoding.UTF8, "application/json"),
+            });
+        }))
+        {
+            BaseAddress = new Uri("http://localhost/"),
+        };
+        return new LocalizationService(http, new FakeJs());
+    }
+
+    private static LocalizationService CreateServiceWithDicts(
+        Dictionary<string, Dictionary<string, string>> dicts,
+        string? manifestJson = null)
+    {
+        var http = new HttpClient(new StubHandler((request, _) =>
+        {
+            var file = request.RequestUri!.ToString().Split('/').Last();
+            if (manifestJson is not null && file == "locales.json")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(manifestJson, Encoding.UTF8, "application/json"),
+                });
+            }
+            var lang = file.Replace(".json", "");
+            var body = dicts.TryGetValue(lang, out var dict)
+                ? dict : new Dictionary<string, string>();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"),
+            });
+        }))
+        {
+            BaseAddress = new Uri("http://localhost/"),
+        };
+        return new LocalizationService(http, new FakeJs());
+    }
+
     private static (LocalizationService Service, FakeJs Js) CreateService(
         string? storedLanguage, Dictionary<string, string>? en = null)
     {

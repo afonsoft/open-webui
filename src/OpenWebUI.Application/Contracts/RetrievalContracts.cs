@@ -9,6 +9,7 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="Hybrid">Ativa busca híbrida BM25+vetorial.</param>
 /// <param name="HybridWeight">Peso do componente vetorial (0..1).</param>
 /// <param name="Rerank">Ativa reranking do top-2k.</param>
+/// <param name="RerankEngine">Engine de rerank: local | external.</param>
 public sealed record RetrievalConfig(
     string Engine,
     string? SearxngBaseUrl,
@@ -19,7 +20,21 @@ public sealed record RetrievalConfig(
     int ChunkOverlap,
     bool Hybrid,
     double HybridWeight,
-    bool Rerank)
+    bool Rerank,
+    string? GooglePseApiKey = null,
+    string? GooglePseEngineId = null,
+    string? GooglePseBaseUrl = null,
+    string? JinaApiKey = null,
+    string? JinaBaseUrl = null,
+    string? ExaApiKey = null,
+    string? ExaBaseUrl = null,
+    string? KagiApiKey = null,
+    string? KagiBaseUrl = null,
+    string? PerplexityApiKey = null,
+    string? PerplexityBaseUrl = null,
+    string RerankEngine = "local",
+    string? RerankExternalUrl = null,
+    string? RerankExternalApiKey = null)
 {
     /// <summary>Config padrão (comportamento vetorial atual).</summary>
     public static readonly RetrievalConfig Default = new(
@@ -30,6 +45,12 @@ public sealed record RetrievalConfig(
     {
         BraveApiKey = string.IsNullOrEmpty(BraveApiKey) ? null : "********",
         TavilyApiKey = string.IsNullOrEmpty(TavilyApiKey) ? null : "********",
+        GooglePseApiKey = string.IsNullOrEmpty(GooglePseApiKey) ? null : "********",
+        JinaApiKey = string.IsNullOrEmpty(JinaApiKey) ? null : "********",
+        ExaApiKey = string.IsNullOrEmpty(ExaApiKey) ? null : "********",
+        KagiApiKey = string.IsNullOrEmpty(KagiApiKey) ? null : "********",
+        PerplexityApiKey = string.IsNullOrEmpty(PerplexityApiKey) ? null : "********",
+        RerankExternalApiKey = string.IsNullOrEmpty(RerankExternalApiKey) ? null : "********",
     };
 }
 

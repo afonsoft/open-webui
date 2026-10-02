@@ -43,6 +43,8 @@
                         <div class="card-sub">Base: @model.BaseModelId</div>
                     </div>
                     <div class="card-actions">
+                        <button class="msg-action" title="@L["workspace.share_community"]"
+                                @onclick='() => ShareCommunityAsync("model", model)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/models/{model.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
                             @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
@@ -150,6 +152,8 @@
                         <div class="card-sub">@tool.Description</div>
                     </div>
                     <div class="card-actions">
+                        <button class="msg-action" title="@L["workspace.share_community"]"
+                                @onclick='() => ShareCommunityAsync("tool", tool)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/tools/{tool.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
                             @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
@@ -178,6 +182,8 @@
                         <div class="card-sub card-pre">@prompt.Content</div>
                     </div>
                     <div class="card-actions">
+                        <button class="msg-action" title="@L["workspace.share_community"]"
+                                @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
@@ -252,6 +258,17 @@
     private string _skillName = "";
     private string _skillDesc = "";
     private string _skillContent = "";
+
+    /// <summary>Abre o post da comunidade openwebui.com numa nova aba e envia o item
+    /// serializado via postMessage (mesmo protocolo do upstream). Só dispara pela
+    /// ação explícita do usuário.</summary>
+    private async Task ShareCommunityAsync(string type, object payload)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            payload, new System.Text.Json.JsonSerializerOptions(
+                System.Text.Json.JsonSerializerDefaults.Web));
+        await JS.InvokeAsync<bool>("openwebui.shareCommunity", type, json);
+    }
 
     protected override async Task OnInitializedAsync()
     {

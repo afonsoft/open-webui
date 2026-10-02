@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-retrieval-v2` |
 | Ticket | Issue #84 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -54,3 +54,17 @@ Entregue: searxng/duckduckgo/tavily/brave + híbrido BM25+vetor + rerank por cob
 - [ ] Cada engine nova testada com provider mock.
 - [ ] Rerank externo altera ordem; erro → fallback local.
 - [ ] Config mascarada idem.
+
+## Delivered
+
+- **PR**: https://github.com/afonsoft/open-webui/pull/100
+- **Issue**: https://github.com/afonsoft/open-webui/issues/84
+- **Epic**: https://github.com/afonsoft/open-webui/issues/79
+
+Entregue: 5 engines novas (`google_pse`, `jina`, `exa`, `kagi`, `perplexity`)
+com base URL configurável por engine (permite mocks e endpoints regionais),
+rerank externo `local|external` via POST `{query, documents[]}` → `{scores[]}`
+com fallback automático para o rerank local, whitelist ampliada no endpoint
+de config, merge mascarado das 7 novas chaves, sub-abas Audio e Retrieval
+materializadas no admin (antes dead code) com UI por engine, e i18n das
+labels (pt-BR/en-US).

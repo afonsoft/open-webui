@@ -55,3 +55,9 @@ Hoje permissões vêm do papel (admin/user/pending) + flags de grupo. Upstream p
 - [ ] Override desliga feature para 1 usuário sem afetar o grupo.
 - [ ] Signup com domínio entra no grupo; sem match → fluxo atual.
 - [ ] Testes NUnit cobrindo merge e auto-membership.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/96
+- Issue: https://github.com/afonsoft/open-webui/issues/86
+- Epic: https://github.com/afonsoft/open-webui/issues/79
