@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-chats-advanced` |
 | Ticket | Issue #80 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -61,3 +61,9 @@ Upstream: `/chats/{id}/messages/{mid}` guarda histórico de edições (versions)
 - [ ] Editar mensagem → versão anterior recuperável via endpoint e UI.
 - [ ] Admin lista chats de outros usuários com paginação.
 - [ ] Testes: versions em edição/regeneração, admin list 403 para não-admin.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/94
+- Issue: https://github.com/afonsoft/open-webui/issues/80
+- Epic: https://github.com/afonsoft/open-webui/issues/79

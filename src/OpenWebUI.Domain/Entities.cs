@@ -169,6 +169,9 @@ public class ChatMessage
 
     /// <summary>Criação (epoch seconds).</summary>
     public long Timestamp { get; set; }
+
+    /// <summary>Versões anteriores do conteúdo (JSON: [{content, model, timestamp}]).</summary>
+    public string VersionsJson { get; set; } = "[]";
 }
 
 /// <summary>Entrada chave-valor de configuração persistida (espelha a tabela config do Open WebUI).</summary>
