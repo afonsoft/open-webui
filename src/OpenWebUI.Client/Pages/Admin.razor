@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@using System.Text.Json.Nodes
 
 <PageTitle>@L["page.admin"] — Open WebUI</PageTitle>
 
@@ -89,10 +90,30 @@
                                 }
                                 @if (user.Id != Auth.CurrentUser?.Id)
                                 {
+                                    <button class="msg-action" title="@L["admin.perms"]"
+                                            @onclick="() => TogglePermEditorAsync(user)">🛡</button>
                                     <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
                                 }
                             </div>
                         </div>
+                        @if (_permUserId == user.Id)
+                        {
+                            <div class="card-row">
+                                <div class="flex flex-col gap-1 w-full text-sm py-1">
+                                    <div class="text-xs text-gray-500">@L["admin.perm_hint"]</div>
+                                    @foreach (var (key, label) in PermFlags)
+                                    {
+                                        <div class="flex items-center justify-between py-0.5">
+                                            <span>@label</span>
+                                            <button class="msg-action" @onclick="() => CyclePermAsync(key)">
+                                                @PermLabel(key)
+                                            </button>
+                                        </div>
+                                    }
+                                    <button class="auth-submit" @onclick="SavePermsAsync">@L["common.save"]</button>
+                                </div>
+                            </div>
+                        }
                     }
                     @if (_users.Count == 0)
                     {
@@ -757,6 +778,8 @@
                             </div>
                             <div class="card-actions">
                                 <button class="msg-action" @onclick="() => AddMemberAsync(group)">@L["admin.add_member"]</button>
+                                <button class="msg-action" title="@L["admin.group_domains"]"
+                                        @onclick="() => EditDomainsAsync(group)">🌐</button>
                                 <button class="msg-action" @onclick="() => ToggleSharingAsync(group)">
                                     @(group.Permissions.Sharing?.PublicChats == false ? L["admin.allow_share"] : L["admin.block_share"])
                                 </button>
@@ -786,6 +809,19 @@
     private int UsersTotalPages => Math.Max(1,
         (int)Math.Ceiling(_usersTotal / (double)UsersPerPage));
     private List<GroupResponse>? _groups;
+    private string? _permUserId;
+    private Dictionary<string, bool?> _permValues = new();
+
+    private static readonly (string Key, string Label)[] PermFlags =
+    [
+        ("workspace.models", "Модели"),
+        ("workspace.prompts", "Промпты"),
+        ("workspace.knowledge", "Знания"),
+        ("workspace.tools", "Инструменты"),
+        ("workspace.files", "Файлы"),
+        ("sharing.public_chats", "Публичные чаты"),
+        ("chat.controls", "Управление чатом"),
+    ];
     private AdminChatListResponse? _adminChats;
     private int _chatsPage = 1;
     private string? _chatQuery;
@@ -1312,6 +1348,75 @@
 
         var updated = await Api.AddGroupMembersAsync(group.Id,
             new UpdateGroupMembersRequest([target.Id]));
+        if (updated is not null)
+        {
+            _groups = await Api.GetGroupsAsync();
+        }
+    }
+
+    private string PermLabel(string key) =>
+        _permValues.TryGetValue(key, out var v)
+            ? (v == true ? "✓ " + L["admin.perm_on"] : v == false ? "✗ " + L["admin.perm_off"] : "—")
+            : "—";
+
+    private async Task TogglePermEditorAsync(AdminUserResponse user)
+    {
+        if (_permUserId == user.Id)
+        {
+            _permUserId = null;
+            return;
+        }
+        _permUserId = user.Id;
+        _permValues = new Dictionary<string, bool?>();
+        var json = await Api.GetUserPermissionsAsync(user.Id);
+        if (json is not null)
+        {
+            foreach (var (key, _) in PermFlags)
+            {
+                var parts = key.Split('.');
+                if (json[parts[0]] is JsonObject section
+                    && section[parts[1]] is JsonValue flag
+                    && flag.TryGetValue<bool>(out var b))
+                {
+                    _permValues[key] = b;
+                }
+            }
+        }
+    }
+
+    private void CyclePermAsync(string key)
+    {
+        var cur = _permValues.TryGetValue(key, out var v) ? v : null;
+        _permValues[key] = cur is null ? true : cur == true ? false : (bool?)null;
+    }
+
+    private async Task SavePermsAsync()
+    {
+        if (_permUserId is null) return;
+        var obj = new JsonObject();
+        foreach (var (key, value) in _permValues)
+        {
+            if (value is null) continue;
+            var parts = key.Split('.');
+            if (obj[parts[0]] is not JsonObject section)
+            {
+                section = new JsonObject();
+                obj[parts[0]] = section;
+            }
+            section[parts[1]] = value.Value;
+        }
+        await Api.UpdateUserPermissionsAsync(_permUserId, obj);
+        _permUserId = null;
+    }
+
+    private async Task EditDomainsAsync(GroupResponse group)
+    {
+        var text = await JS.InvokeAsync<string?>("openwebui.prompt",
+            L["admin.prompt_group_domains"], string.Join(", ", group.AllowedDomains));
+        if (text is null) return;
+        var domains = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var updated = await Api.UpdateGroupAsync(group.Id,
+            new UpdateGroupRequest(null, null, null, domains));
         if (updated is not null)
         {
             _groups = await Api.GetGroupsAsync();

@@ -401,6 +401,9 @@ public class Group
     /// <summary>Flags de permissão serializadas como JSON (workspace/sharing/chat).</summary>
     public string PermissionsJson { get; set; } = "{}";
 
+    /// <summary>Domínios de e-mail com membership automático no signup (JSON array).</summary>
+    public string AllowedDomainsJson { get; set; } = "[]";
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 
