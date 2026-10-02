@@ -26,10 +26,20 @@ public static class ChannelEndpoints
         channels.MapPost("/{id}/messages", PostMessageAsync);
         channels.MapPost("/{id}/members", AddMembersAsync);
         channels.MapDelete("/{id}/members/{userId}", RemoveMemberAsync);
+        channels.MapPost("/dm", CreateDmAsync);
+        channels.MapGet("/{id}/access", GetAccessAsync);
+        channels.MapPost("/{id}/access/update", UpdateAccessAsync);
+        channels.MapPost("/{id}/read", MarkReadAsync);
+        channels.MapGet("/{id}/messages/{mid}/replies", ListRepliesAsync);
+        channels.MapPost("/{id}/messages/{mid}/reactions/{emoji}", AddReactionAsync);
+        channels.MapDelete("/{id}/messages/{mid}/reactions/{emoji}", RemoveReactionAsync);
+        channels.MapPost("/{id}/messages/{mid}/pin", PinMessageAsync);
+        channels.MapDelete("/{id}/messages/{mid}/pin", UnpinMessageAsync);
+        channels.MapGet("/{id}/pinned", ListPinnedAsync);
     }
 
     private static async Task<IResult> ListChannelsAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, AccessControlService access, CancellationToken ct)
     {
         var user = await CurrentUserAsync(http, db, ct);
         if (user is null)
@@ -37,9 +47,17 @@ public static class ChannelEndpoints
             return Results.Unauthorized();
         }
 
-        var channels = await db.Channels.AsNoTracking()
-            .Where(c => c.Members.Any(m => m.UserId == user.Id))
+        var all = await db.Channels.AsNoTracking()
+            .Include(c => c.Members)
+            .ThenInclude(m => m.User)
             .OrderByDescending(c => c.UpdatedAt)
+            .ToListAsync(ct);
+        var groups = await access.GetGroupIdsAsync(user.Id, ct);
+
+        var channels = all
+            .Where(c => c.Members.Any(m => m.UserId == user.Id)
+                || access.LevelByGrants(user, c.AccessGrantsJson, groups)
+                    is not AccessControlService.None)
             .Select(c => new
             {
                 c.Id,
@@ -47,13 +65,30 @@ public static class ChannelEndpoints
                 c.Description,
                 c.Type,
                 c.CreatedAt,
-                MemberCount = c.Members.Count(),
-                MyRole = c.Members.Where(m => m.UserId == user.Id).Select(m => m.Role).First(),
+                MemberCount = c.Members.Count,
+                MyRole = c.Members.FirstOrDefault(m => m.UserId == user.Id)?.Role ?? "viewer",
+                MyLastRead = c.Members.Where(m => m.UserId == user.Id)
+                    .Select(m => m.LastReadAt).FirstOrDefault(),
+                OtherNames = c.Type == "dm"
+                    ? c.Members.Where(m => m.UserId != user.Id).Select(m => m.User!.Name)
+                    : null,
             })
-            .ToListAsync(ct);
+            .ToList();
+
+        var unreadByChannel = new Dictionary<string, int>();
+        foreach (var c in channels)
+        {
+            unreadByChannel[c.Id] = await db.ChannelMessages
+                .CountAsync(m => m.ChannelId == c.Id
+                    && m.CreatedAt > c.MyLastRead
+                    && m.UserId != user.Id, ct);
+        }
 
         return Results.Ok(channels.Select(c => new ChannelResponse(
-            c.Id, c.Name, c.Description, c.Type, c.MemberCount, c.MyRole, c.CreatedAt)));
+            c.Id,
+            c.Type == "dm" ? (c.OtherNames!.FirstOrDefault() ?? c.Name) : c.Name,
+            c.Description, c.Type, c.MemberCount, c.MyRole,
+            unreadByChannel[c.Id], c.CreatedAt)));
     }
 
     private static async Task<IResult> CreateChannelAsync(
@@ -102,7 +137,7 @@ public static class ChannelEndpoints
 
         return Results.Ok(new ChannelResponse(
             channel.Id, channel.Name, channel.Description, channel.Type,
-            channel.Members.Count, "admin", channel.CreatedAt));
+            channel.Members.Count, "admin", 0, channel.CreatedAt));
     }
 
     private static async Task<IResult> GetChannelAsync(
@@ -124,7 +159,7 @@ public static class ChannelEndpoints
                 (m, u) => new ChannelMemberResponse(u.Id, u.Name, u.ProfileImageUrl, m.Role))
             .ToListAsync(ct);
 
-        var myRole = membership.First(m => m.UserId == user.Id).Role;
+        var myRole = membership.FirstOrDefault(m => m.UserId == user.Id)?.Role ?? "viewer";
         return Results.Ok(new ChannelDetailResponse(
             channel.Id, channel.Name, channel.Description, channel.Type,
             myRole, channel.CreatedAt, membership));
@@ -198,18 +233,30 @@ public static class ChannelEndpoints
         }
 
         var messages = await db.ChannelMessages.AsNoTracking()
-            .Where(m => m.ChannelId == id)
+            .Where(m => m.ChannelId == id && m.ParentId == null)
             .OrderBy(m => m.CreatedAt)
             .Skip(Math.Max(0, skip))
             .Take(take is > 0 and <= 200 ? take : 50)
-            .Select(m => new ChannelMessageResponse(
-                m.Id, m.ChannelId, m.UserId, m.ModelId,
-                m.UserId == null ? m.ModelId ?? "modelo" : m.User!.Name,
+            .Select(m => new
+            {
+                m.Id,
+                m.ChannelId,
+                m.UserId,
+                m.ModelId,
+                AuthorName = m.UserId == null ? m.ModelId ?? "modelo" : m.User!.Name,
                 m.User!.ProfileImageUrl,
-                m.Content, m.CreatedAt))
+                m.Content,
+                m.IsPinned,
+                m.CreatedAt,
+                ReplyCount = db.ChannelMessages.Count(r => r.ParentId == m.Id),
+            })
             .ToListAsync(ct);
 
-        return Results.Ok(messages);
+        var reactions = await LoadReactionsAsync(db, messages.Select(m => m.Id), ct);
+        return Results.Ok(messages.Select(m => new ChannelMessageResponse(
+            m.Id, m.ChannelId, m.UserId, m.ModelId, m.AuthorName,
+            m.ProfileImageUrl, m.Content, null, m.ReplyCount, m.IsPinned,
+            reactions.GetValueOrDefault(m.Id, []), m.CreatedAt)));
     }
 
     private static async Task<IResult> PostMessageAsync(
@@ -223,6 +270,13 @@ public static class ChannelEndpoints
         {
             return Results.Unauthorized();
         }
+        // Leitores via grant (viewer) não postam — é preciso ser membro.
+        if (channel is not null
+            && !await db.ChannelMembers.AnyAsync(
+                m => m.ChannelId == id && m.UserId == user.Id, ct))
+        {
+            return Results.Forbid();
+        }
         if (channel is null)
         {
             return Results.NotFound(new { detail = "Canal não encontrado." });
@@ -232,11 +286,24 @@ public static class ChannelEndpoints
             return Results.BadRequest(new { detail = "Conteúdo é obrigatório." });
         }
 
+        string? parentId = null;
+        if (!string.IsNullOrWhiteSpace(request.ParentId))
+        {
+            var exists = await db.ChannelMessages.AnyAsync(
+                m => m.Id == request.ParentId && m.ChannelId == id, ct);
+            if (!exists)
+            {
+                return Results.BadRequest(new { detail = "Mensagem pai não encontrada." });
+            }
+            parentId = request.ParentId;
+        }
+
         var message = new ChannelMessage
         {
             ChannelId = id,
             UserId = user.Id,
             Content = request.Content,
+            ParentId = parentId,
             CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
         db.ChannelMessages.Add(message);
@@ -245,7 +312,8 @@ public static class ChannelEndpoints
 
         var response = new ChannelMessageResponse(
             message.Id, id, user.Id, null, user.Name,
-            user.ProfileImageUrl, message.Content, message.CreatedAt);
+            user.ProfileImageUrl, message.Content, parentId, 0, false,
+            [], message.CreatedAt);
         await hub.Clients.Group(ChatHub.GroupName(id))
             .SendAsync("message:new", response, ct);
 
@@ -271,7 +339,7 @@ public static class ChannelEndpoints
         {
             return Results.NotFound(new { detail = "Canal não encontrado." });
         }
-        if (!IsChannelAdmin(user, role))
+        if (!IsChannelAdmin(user, role) || channel.Type == "dm")
         {
             return Results.Forbid();
         }
@@ -307,7 +375,7 @@ public static class ChannelEndpoints
         {
             return Results.NotFound(new { detail = "Canal não encontrado." });
         }
-        if (!IsChannelAdmin(user, role) && user.Id != userId)
+        if ((!IsChannelAdmin(user, role) && user.Id != userId) || channel.Type == "dm")
         {
             return Results.Forbid();
         }
@@ -322,6 +390,281 @@ public static class ChannelEndpoints
         db.ChannelMembers.Remove(member);
         await db.SaveChangesAsync(ct);
         return Results.Ok(new { status = true });
+    }
+
+    /// <summary>Cria ou retorna o DM entre o chamador e outro usuário (2 membros fixos).</summary>
+    private static async Task<IResult> CreateDmAsync(
+        [FromBody] CreateDmRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await CurrentUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var other = await db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId, ct);
+        if (other is null)
+        {
+            return Results.NotFound(new { detail = "Usuário não encontrado." });
+        }
+        if (other.Id == user.Id)
+        {
+            return Results.BadRequest(new { detail = "DM requer outro usuário." });
+        }
+
+        var memberIds = new[] { user.Id, other.Id };
+        var existing = await db.Channels.AsNoTracking()
+            .Where(c => c.Type == "dm"
+                && c.Members.Count == 2
+                && c.Members.All(m => memberIds.Contains(m.UserId)))
+            .FirstOrDefaultAsync(ct);
+        if (existing is not null)
+        {
+            return Results.Ok(new ChannelResponse(
+                existing.Id, other.Name, existing.Description, "dm", 2,
+                "member", 0, existing.CreatedAt));
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var channel = new Channel
+        {
+            Name = "dm",
+            Type = "dm",
+            CreatedByUserId = user.Id,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        foreach (var memberId in memberIds)
+        {
+            channel.Members.Add(new ChannelMember
+            {
+                ChannelId = channel.Id, UserId = memberId, CreatedAt = now,
+            });
+        }
+        db.Channels.Add(channel);
+        await db.SaveChangesAsync(ct);
+
+        return Results.Ok(new ChannelResponse(
+            channel.Id, other.Name, null, "dm", 2, "member", 0, now));
+    }
+
+    /// <summary>Marca o canal como lido para o chamador.</summary>
+    private static async Task<IResult> MarkReadAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, channel) = await LoadMembershipAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (channel is null)
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        var member = await db.ChannelMembers
+            .FirstAsync(m => m.ChannelId == id && m.UserId == user.Id, ct);
+        member.LastReadAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true });
+    }
+
+    /// <summary>Lista as respostas (thread) de uma mensagem.</summary>
+    private static async Task<IResult> ListRepliesAsync(
+        string id, string mid, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, channel) = await LoadMembershipAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (channel is null)
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        var replies = await db.ChannelMessages.AsNoTracking()
+            .Where(m => m.ChannelId == id && m.ParentId == mid)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new
+            {
+                m.Id,
+                m.ChannelId,
+                m.UserId,
+                m.ModelId,
+                AuthorName = m.UserId == null ? m.ModelId ?? "modelo" : m.User!.Name,
+                m.User!.ProfileImageUrl,
+                m.Content,
+                m.IsPinned,
+                m.CreatedAt,
+            })
+            .ToListAsync(ct);
+
+        var reactions = await LoadReactionsAsync(db, replies.Select(r => r.Id), ct);
+        return Results.Ok(replies.Select(m => new ChannelMessageResponse(
+            m.Id, m.ChannelId, m.UserId, m.ModelId, m.AuthorName,
+            m.ProfileImageUrl, m.Content, mid, 0, m.IsPinned,
+            reactions.GetValueOrDefault(m.Id, []), m.CreatedAt)));
+    }
+
+    private static async Task<IResult> ToggleReactionAsync(
+        string id, string mid, string emoji, bool add,
+        HttpContext http, AppDbContext db,
+        IHubContext<ChatHub> hub, CancellationToken ct)
+    {
+        var (user, channel) = await LoadMembershipAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (channel is null)
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+        if (string.IsNullOrWhiteSpace(emoji) || emoji.Length > 32)
+        {
+            return Results.BadRequest(new { detail = "Emoji inválido." });
+        }
+
+        var messageExists = await db.ChannelMessages
+            .AnyAsync(m => m.Id == mid && m.ChannelId == id, ct);
+        if (!messageExists)
+        {
+            return Results.NotFound(new { detail = "Mensagem não encontrada." });
+        }
+
+        var existing = await db.ChannelMessageReactions.FirstOrDefaultAsync(
+            r => r.ChannelMessageId == mid && r.UserId == user.Id && r.Emoji == emoji, ct);
+        if (add && existing is null)
+        {
+            db.ChannelMessageReactions.Add(new ChannelMessageReaction
+            {
+                ChannelMessageId = mid,
+                UserId = user.Id,
+                Emoji = emoji,
+                CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            });
+        }
+        else if (!add && existing is not null)
+        {
+            db.ChannelMessageReactions.Remove(existing);
+        }
+        await db.SaveChangesAsync(ct);
+
+        var reactions = await LoadReactionsAsync(db, [mid], ct);
+        var aggregate = reactions.GetValueOrDefault(mid, []);
+        await hub.Clients.Group(ChatHub.GroupName(id))
+            .SendAsync("reaction", new { channel_id = id, message_id = mid, reactions = aggregate }, ct);
+        return Results.Ok(aggregate);
+    }
+
+    private static Task<IResult> AddReactionAsync(
+        string id, string mid, string emoji,
+        HttpContext http, AppDbContext db, IHubContext<ChatHub> hub, CancellationToken ct) =>
+        ToggleReactionAsync(id, mid, emoji, true, http, db, hub, ct);
+
+    private static Task<IResult> RemoveReactionAsync(
+        string id, string mid, string emoji,
+        HttpContext http, AppDbContext db, IHubContext<ChatHub> hub, CancellationToken ct) =>
+        ToggleReactionAsync(id, mid, emoji, false, http, db, hub, ct);
+
+    private static async Task<IResult> SetPinnedAsync(
+        string id, string mid, bool pinned,
+        HttpContext http, AppDbContext db,
+        IHubContext<ChatHub> hub, CancellationToken ct)
+    {
+        var (user, channel) = await LoadMembershipAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (channel is null)
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        var message = await db.ChannelMessages
+            .FirstOrDefaultAsync(m => m.Id == mid && m.ChannelId == id, ct);
+        if (message is null)
+        {
+            return Results.NotFound(new { detail = "Mensagem não encontrada." });
+        }
+
+        message.IsPinned = pinned;
+        await db.SaveChangesAsync(ct);
+        await hub.Clients.Group(ChatHub.GroupName(id))
+            .SendAsync("message:update", new { channel_id = id, id = mid, is_pinned = pinned }, ct);
+        return Results.Ok(new { status = true, is_pinned = pinned });
+    }
+
+    private static Task<IResult> PinMessageAsync(
+        string id, string mid,
+        HttpContext http, AppDbContext db, IHubContext<ChatHub> hub, CancellationToken ct) =>
+        SetPinnedAsync(id, mid, true, http, db, hub, ct);
+
+    private static Task<IResult> UnpinMessageAsync(
+        string id, string mid,
+        HttpContext http, AppDbContext db, IHubContext<ChatHub> hub, CancellationToken ct) =>
+        SetPinnedAsync(id, mid, false, http, db, hub, ct);
+
+    /// <summary>Lista mensagens fixadas do canal.</summary>
+    private static async Task<IResult> ListPinnedAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, channel) = await LoadMembershipAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (channel is null)
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        var pinned = await db.ChannelMessages.AsNoTracking()
+            .Where(m => m.ChannelId == id && m.IsPinned)
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => new
+            {
+                m.Id,
+                m.ChannelId,
+                m.UserId,
+                m.ModelId,
+                AuthorName = m.UserId == null ? m.ModelId ?? "modelo" : m.User!.Name,
+                m.User!.ProfileImageUrl,
+                m.Content,
+                m.ParentId,
+                m.CreatedAt,
+            })
+            .ToListAsync(ct);
+
+        var reactions = await LoadReactionsAsync(db, pinned.Select(m => m.Id), ct);
+        return Results.Ok(pinned.Select(m => new ChannelMessageResponse(
+            m.Id, m.ChannelId, m.UserId, m.ModelId, m.AuthorName,
+            m.ProfileImageUrl, m.Content, m.ParentId, 0, true,
+            reactions.GetValueOrDefault(m.Id, []), m.CreatedAt)));
+    }
+
+    /// <summary>Reações agregadas por emoji para um conjunto de mensagens.</summary>
+    private static async Task<Dictionary<string, List<ChannelReactionResponse>>> LoadReactionsAsync(
+        AppDbContext db, IEnumerable<string> messageIds, CancellationToken ct)
+    {
+        var ids = messageIds.ToList();
+        var rows = await db.ChannelMessageReactions.AsNoTracking()
+            .Where(r => ids.Contains(r.ChannelMessageId))
+            .Select(r => new { r.ChannelMessageId, r.Emoji, r.UserId })
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(r => r.ChannelMessageId)
+            .ToDictionary(
+                g => g.Key,
+                g => (List<ChannelReactionResponse>)g
+                    .GroupBy(r => r.Emoji)
+                    .Select(e => new ChannelReactionResponse(
+                        e.Key, e.Count(), e.Select(r => r.UserId).ToList()))
+                    .ToList());
     }
 
     /// <summary>Extrai o identificador de modelo da primeira menção @modelo.</summary>
@@ -385,7 +728,8 @@ public static class ChannelEndpoints
             "message:new",
             new ChannelMessageResponse(
                 message.Id, channelId, null, resolvedModel,
-                resolvedModel ?? "modelo", null, content, message.CreatedAt),
+                resolvedModel ?? "modelo", null, content, null, 0, false,
+                [], message.CreatedAt),
             ct);
     }
 
@@ -425,14 +769,19 @@ public static class ChannelEndpoints
             return (null, null);
         }
 
-        var isMember = await db.ChannelMembers
-            .AnyAsync(m => m.ChannelId == channelId && m.UserId == user.Id, ct);
-        if (!isMember)
+        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        if (channel is null)
         {
             return (user, null);
         }
 
-        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        var isMember = await db.ChannelMembers
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == user.Id, ct);
+        if (!isMember && !await HasGrantAsync(http, db, user, channel, ct))
+        {
+            return (user, null);
+        }
+
         return (user, channel);
     }
 
@@ -448,8 +797,64 @@ public static class ChannelEndpoints
         var role = await db.ChannelMembers
             .Where(m => m.ChannelId == channelId && m.UserId == user.Id)
             .Select(m => m.Role)
-            .FirstAsync(ct);
+            .FirstOrDefaultAsync(ct);
         return (user, channel, role);
+    }
+
+    private static async Task<IResult> GetAccessAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await CurrentUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var channel = await db.Channels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (channel is null || (channel.CreatedByUserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+
+        return Results.Ok(new { access_grants = AccessControlService.Parse(channel.AccessGrantsJson) });
+    }
+
+    private static async Task<IResult> UpdateAccessAsync(
+        string id, [FromBody] AccessUpdateRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await CurrentUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (channel is null || (channel.CreatedByUserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Canal não encontrado." });
+        }
+        if (request.AccessGrants.Any(g =>
+                g.PrincipalType is not ("user" or "group")
+                || string.IsNullOrWhiteSpace(g.PrincipalId)
+                || g.Permission is not ("read" or "write")))
+        {
+            return Results.BadRequest(new { detail = "Grant inválido." });
+        }
+
+        channel.AccessGrantsJson = AccessControlService.Serialize(request.AccessGrants);
+        channel.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true, access_grants = request.AccessGrants });
+    }
+
+    /// <summary>Verdadeiro se o usuário tem pelo menos leitura via access_grants do canal.</summary>
+    private static async Task<bool> HasGrantAsync(
+        HttpContext http, AppDbContext db, User user, Channel channel, CancellationToken ct)
+    {
+        var access = http.RequestServices.GetRequiredService<AccessControlService>();
+        return await access.LevelByGrantsAsync(user, channel.AccessGrantsJson, ct)
+            is not AccessControlService.None;
     }
 
     private static bool IsChannelAdmin(User user, string? role) =>

@@ -65,6 +65,18 @@
                                 <textarea class="input font-mono text-sm" rows="4"
                                           placeholder="{&quot;temperature&quot;: 0.7}" @bind="_mParams"></textarea>
                             </div>
+                            <div class="field">
+                                <label>@L["workspace.meta_json"]</label>
+                                <textarea class="input font-mono text-sm" rows="3"
+                                          placeholder="{&quot;arena&quot;: true, &quot;model_ids&quot;: [&quot;a&quot;, &quot;b&quot;]}"
+                                          @bind="_mMeta"></textarea>
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.grants_json"]</label>
+                                <textarea class="input font-mono text-sm" rows="3"
+                                          placeholder="[{&quot;principal_type&quot;: &quot;*&quot;, &quot;permission&quot;: &quot;read&quot;}]"
+                                          @bind="_mGrants"></textarea>
+                            </div>
                         }
                         else if (Kind == "tools")
                         {
@@ -136,6 +148,10 @@
                     <button class="auth-submit" @onclick="SaveAsync">@L["common.save"]</button>
                 </div>
             </div>
+            @if (Id is not null && ShareEntity is not null)
+            {
+                <ShareDialog Entity="@ShareEntity" ItemId="@Id" />
+            }
         </div>
     }
 </div>
@@ -143,6 +159,13 @@
 @code {
     [Parameter] public string? Kind { get; set; }
     [Parameter] public string? Id { get; set; }
+
+    private string? ShareEntity => Kind switch
+    {
+        "knowledge" => "knowledge",
+        "models" => "models",
+        _ => null,
+    };
 
     private bool IsCreate => Id is null;
     private bool _loading = true;
@@ -160,6 +183,8 @@
 
     private string _pCommand = "", _pTitle = "", _pContent = "";
     private string _mName = "", _mBase = "", _mSystem = "", _mParams = "";
+    private string _mMeta = string.Empty;
+    private string _mGrants = string.Empty;
     private string _tName = "", _tDesc = "", _tUrl = "", _tSpec = "";
     private bool _tEnabled = true;
     private string _kName = "", _kDesc = "", _addFileId = "";
@@ -199,8 +224,9 @@
                 case "models":
                     _model = await Api.GetCustomModelAsync(Id);
                     if (_model is null) { _notFound = true; break; }
-                    _mName = _model.Name; _mBase = _model.BaseModelId;
+                    _mName = _model.Name; _mBase = _model.BaseModelId ?? "";
                     _mSystem = _model.SystemPrompt ?? ""; _mParams = _model.ParamsJson ?? "";
+                    _mMeta = _model.MetaJson ?? ""; _mGrants = _model.AccessGrantsJson ?? "";
                     break;
                 case "tools":
                     _tool = (await Api.GetToolsAsync()).FirstOrDefault(t => t.Id == Id);
@@ -236,10 +262,15 @@
                     _pCommand.Trim().TrimStart('/'), _pTitle.Trim(), _pContent)) is not null,
             "models" => IsCreate
                 ? await Api.CreateCustomModelAsync(new ModelEntryUpsertRequest(
-                    _mName.Trim(), _mBase, _mSystem, string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, null)) is not null
+                    _mName.Trim(), _mBase, _mSystem,
+                    string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, null,
+                    string.IsNullOrWhiteSpace(_mMeta) ? null : _mMeta,
+                    string.IsNullOrWhiteSpace(_mGrants) ? null : _mGrants)) is not null
                 : await Api.UpdateCustomModelAsync(Id!, new ModelEntryUpsertRequest(
                     _mName.Trim(), _mBase, _mSystem,
-                    string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, _model?.ProfileImageUrl)) is not null,
+                    string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, _model?.ProfileImageUrl,
+                    string.IsNullOrWhiteSpace(_mMeta) ? null : _mMeta,
+                    string.IsNullOrWhiteSpace(_mGrants) ? null : _mGrants)) is not null,
             "tools" => IsCreate
                 ? await Api.CreateToolAsync(new ToolUpsertRequest(
                     _tName.Trim(), _tDesc, _tSpec, _tUrl.Trim())) is not null

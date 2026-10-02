@@ -25,6 +25,8 @@
                     @onclick='() => SetTab("analytics")'>Analytics</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("evaluations")'>@L["admin.tab_evaluations"]</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "leaderboard" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("leaderboard")'>@L["admin.tab_leaderboard"]</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("config")'>@L["admin.tab_config"]</button>
         </div>
@@ -202,6 +204,39 @@
                 </div>
             }
         }
+        else if (_tab == "leaderboard")
+        {
+            if (_leaderboard is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else if (_leaderboard.Count == 0)
+            {
+                <div class="sidebar-empty">@L["admin.no_leaderboard"]</div>
+            }
+            else
+            {
+                <div class="card-list">
+                    <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <span>@L["admin.col_model"]</span>
+                        <span>@L["admin.col_rating_elo"]</span>
+                        <span>@L["admin.col_battles"]</span>
+                        <span>@L["admin.col_wins"]</span>
+                    </div>
+                    @foreach (var entry in _leaderboard)
+                    {
+                        <div class="card-row">
+                            <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 w-full text-sm">
+                                <span class="truncate">@entry.ModelId</span>
+                                <span>@entry.Rating.ToString("F0")</span>
+                                <span>@entry.Battles</span>
+                                <span>@(entry.Wins % 1 == 0 ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
         else if (_tab == "config")
         {
             if (_adminConfig is null || _appConfig is null)
@@ -211,7 +246,7 @@
             else
             {
                 <div class="flex gap-1 mb-3">
-                    @foreach (var sub in new[] { "general", "models", "features", "audio" })
+                    @foreach (var sub in new[] { "general", "models", "features", "audio", "retrieval" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -424,6 +459,7 @@
     private List<GroupResponse>? _groups;
     private AnalyticsResponse? _analytics;
     private List<AdminFeedbackResponse>? _feedbacks;
+    private List<LeaderboardEntryResponse>? _leaderboard;
     private AdminConfig? _adminConfig;
     private AppConfigResponse? _appConfig;
     private string _tab = "users";
@@ -459,6 +495,16 @@
     private string? _ttsKey;
     private string? _ttsModel;
     private string? _ttsVoice;
+    private string _retEngine = "none";
+    private string? _retSearxng;
+    private string? _retBrave;
+    private string? _retTavily;
+    private int _retTopK = 5;
+    private int _retChunkSize = 1000;
+    private int _retOverlap = 100;
+    private bool _retHybrid;
+    private double _retWeight = 0.5;
+    private bool _retRerank;
 
     private const int FeedbackPageSize = 20;
     private int FeedbackPages => _feedbacks is null ? 0
@@ -483,6 +529,7 @@
         _groups = await Api.GetGroupsAsync();
         _analytics = await Api.GetAnalyticsAsync(30);
         _feedbacks = await Api.GetAllFeedbacksAsync();
+        _leaderboard = await Api.GetLeaderboardAsync();
         _adminConfig = await Api.GetAdminConfigAsync();
         _appConfig = await Api.GetAppConfigAsync();
         if (_adminConfig is not null)
@@ -520,6 +567,20 @@
             _ttsKey = audio.TtsApiKey;
             _ttsModel = audio.TtsModel;
             _ttsVoice = audio.TtsVoice;
+        }
+        var ret = await Api.GetRetrievalConfigAsync();
+        if (ret is not null)
+        {
+            _retEngine = ret.Engine;
+            _retSearxng = ret.SearxngBaseUrl;
+            _retBrave = ret.BraveApiKey;
+            _retTavily = ret.TavilyApiKey;
+            _retTopK = ret.TopK;
+            _retChunkSize = ret.ChunkSize;
+            _retOverlap = ret.ChunkOverlap;
+            _retHybrid = ret.Hybrid;
+            _retWeight = ret.HybridWeight;
+            _retRerank = ret.Rerank;
         }
     }
 
@@ -604,6 +665,14 @@
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
         await JS.InvokeVoidAsync("openwebui.audio.refreshCaps");
     }
+    private async Task SaveRetrievalAsync()
+    {
+        var updated = await Api.UpdateRetrievalConfigAsync(new RetrievalConfig(
+            _retEngine, _retSearxng, _retBrave, _retTavily,
+            _retTopK, _retChunkSize, _retOverlap,
+            _retHybrid, _retWeight, _retRerank));
+        _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
 
     private async Task SaveFeaturesAsync()
     {
@@ -620,7 +689,8 @@
 
     protected override void OnParametersSet()
     {
-        _tab = Tab is "users" or "groups" or "analytics" or "evaluations" or "config"
+        _tab = Tab is "users" or "groups" or "analytics" or "evaluations"
+            or "leaderboard" or "config"
             ? Tab
             : "users";
     }

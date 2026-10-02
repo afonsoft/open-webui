@@ -622,7 +622,7 @@ public class EndpointEdgeTests
 
         UseToken(_adminToken);
         var saved = await _client.PostAsJsonAsync("/api/v1/images/config",
-            new ImagesConfig(true, "openai", " ", "", "gpt-image-1", "1024x1024", 30));
+            new ImagesConfig(true, "openai", " ", "", "gpt-image-1", "1024x1024", 30, "{}"));
         Assert.That(saved.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         try
         {

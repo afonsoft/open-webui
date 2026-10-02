@@ -12,6 +12,8 @@ namespace OpenWebUI.Client.Services;
 /// </summary>
 public class ChatStreamService(HttpClient http, AuthService auth)
 {
+    /// <summary>Resultado de arena da última requisição (payload {"arena": ...}), quando houver.</summary>
+    public ArenaCompletionResult? LastArenaResult { get; private set; }
     /// <summary>
     /// Envia a requisição e produz os deltas de texto conforme chegam.
     /// Erros do servidor são produzidos como exceção na enumeração.
@@ -22,6 +24,8 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         ChatCompletionRequest request,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        LastArenaResult = null;
+
         using var httpRequest = auth.CreateRequest(HttpMethod.Post, "/api/chat/completions");
         httpRequest.SetBrowserResponseStreamingEnabled(true);
         httpRequest.Content = JsonContent.Create(request);
@@ -60,6 +64,17 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                 var node = JsonNode.Parse(payload);
                 error = node?["error"]?.GetValue<string>();
                 delta = node?["choices"]?[0]?["delta"]?["content"]?.GetValue<string>();
+                var arena = node?["arena"];
+                if (arena is not null)
+                {
+                    LastArenaResult = new ArenaCompletionResult(
+                        arena["battle_id"]?.GetValue<string>() ?? string.Empty,
+                        (arena["responses"] as JsonArray ?? [])
+                            .Select(r => new ArenaCompletionResponse(
+                                r?["label"]?.GetValue<string>() ?? "?",
+                                r?["content"]?.GetValue<string>() ?? string.Empty))
+                            .ToList());
+                }
             }
             catch (JsonException)
             {

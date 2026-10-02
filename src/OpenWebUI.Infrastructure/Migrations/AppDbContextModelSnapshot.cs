@@ -45,6 +45,49 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.ToTable("ApiKeys");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.ArenaBattle", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArenaModelId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ModelA")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModelB")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseA")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseB")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("VotedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Winner")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ArenaBattles");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.Automation", b =>
                 {
                     b.Property<string>("Id")
@@ -160,9 +203,82 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.ToTable("Banners");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.Calendar", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccessGrantsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Calendars");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.CalendarEvent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CalendarId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EndTs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartTs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalendarId");
+
+                    b.ToTable("CalendarEvents");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.Channel", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccessGrantsJson")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<long>("CreatedAt")
@@ -202,6 +318,9 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("LastReadAt")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -229,7 +348,13 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ModelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParentId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
@@ -242,6 +367,33 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.HasIndex("ChannelId", "CreatedAt");
 
                     b.ToTable("ChannelMessages");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.ChannelMessageReaction", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChannelMessageId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelMessageId");
+
+                    b.ToTable("ChannelMessageReactions");
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.Chat", b =>
@@ -443,6 +595,9 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<long>("Size")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SourceUrl")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StoragePath")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -547,6 +702,10 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AccessGrantsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -627,8 +786,10 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AccessGrantsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("BaseModelId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<long>("CreatedAt")
@@ -636,6 +797,9 @@ namespace OpenWebUI.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("MetaJson")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -670,6 +834,10 @@ namespace OpenWebUI.Infrastructure.Migrations
             modelBuilder.Entity("OpenWebUI.Domain.Note", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccessGrantsJson")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Content")
@@ -879,6 +1047,17 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Navigation("Automation");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.CalendarEvent", b =>
+                {
+                    b.HasOne("OpenWebUI.Domain.Calendar", "Calendar")
+                        .WithMany("Events")
+                        .HasForeignKey("CalendarId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Calendar");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.ChannelMember", b =>
                 {
                     b.HasOne("OpenWebUI.Domain.Channel", "Channel")
@@ -914,6 +1093,17 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Navigation("Channel");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.ChannelMessageReaction", b =>
+                {
+                    b.HasOne("OpenWebUI.Domain.ChannelMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("ChannelMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.Chat", b =>
@@ -1004,6 +1194,11 @@ namespace OpenWebUI.Infrastructure.Migrations
             modelBuilder.Entity("OpenWebUI.Domain.Automation", b =>
                 {
                     b.Navigation("Runs");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.Calendar", b =>
+                {
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.Channel", b =>
