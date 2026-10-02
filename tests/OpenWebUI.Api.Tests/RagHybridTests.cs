@@ -143,8 +143,10 @@ public class RagHybridTests
     public async Task Rerank_Externo_ReordenaPorScoresDoProvider()
     {
         await using var db = await CreateContextAsync();
+        // Embeddings distintos: cosseno(alfa)=1.0 > cosseno(beta)~0.99 garante
+        // ranked=[alfa,beta] — os scores do provider são posicionais.
         db.EmbeddingChunks.AddRange(
-            Chunk("f1", 0, "alfa", [0.9f, 0.1f]),
+            Chunk("f1", 0, "alfa", [1f, 0f]),
             Chunk("f1", 1, "beta", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
@@ -171,7 +173,7 @@ public class RagHybridTests
     {
         await using var db = await CreateContextAsync();
         db.EmbeddingChunks.AddRange(
-            Chunk("f1", 0, "delta", [0.9f, 0.1f]),
+            Chunk("f1", 0, "delta", [1f, 0f]),
             Chunk("f1", 1, "alfa beta gama", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
