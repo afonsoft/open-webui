@@ -447,5 +447,6 @@
   "settings.pull_model_placeholder": "e.g. llama3.2:latest",
   "settings.pulling": "Pulling…",
   "settings.model_pulled": "Model pulled successfully.",
-  "settings.pull_failed": "Failed to pull the model."
+  "settings.pull_failed": "Failed to pull the model.",
+  "notes.cursor_at": "carácter {{pos}}"
 }

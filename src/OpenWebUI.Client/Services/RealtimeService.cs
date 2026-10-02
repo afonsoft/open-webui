@@ -34,6 +34,18 @@ public class RealtimeService : IAsyncDisposable
     /// <summary>Mensagem de chat deletada em outra aba/sessão (chatId, messageId).</summary>
     public event Action<string, string>? OnChatMessageDeleted;
 
+    /// <summary>Edição remota de nota aceita (noteId, userId, texto, nova versão).</summary>
+    public event Action<string, string, string, long>? OnNoteUpdate;
+
+    /// <summary>Edição local rejeitada (noteId, texto atual, versão atual) — resincronizar.</summary>
+    public event Action<string, string, long>? OnNoteRejected;
+
+    /// <summary>Roster de awareness da nota (noteId, entradas).</summary>
+    public event Action<string, List<NotePresenceInfo>>? OnNotePresence;
+
+    /// <summary>Cursor remoto em movimento (noteId, userId, name, color, offset).</summary>
+    public event Action<string, string, string, string, int>? OnNoteCursor;
+
     /// <summary>Se a conexão com o hub está ativa.</summary>
     public bool Connected => _connection?.State == HubConnectionState.Connected;
 
@@ -77,6 +89,14 @@ public class RealtimeService : IAsyncDisposable
             "message:updated", (c, m, content) => OnChatMessageUpdated?.Invoke(c, m, content));
         _connection.On<string, string>(
             "message:deleted", (c, m) => OnChatMessageDeleted?.Invoke(c, m));
+        _connection.On<string, string, string, long>(
+            "note:update", (n, u, t, v) => OnNoteUpdate?.Invoke(n, u, t, v));
+        _connection.On<string, string, long>(
+            "note:rejected", (n, t, v) => OnNoteRejected?.Invoke(n, t, v));
+        _connection.On<string, List<NotePresenceInfo>>(
+            "note:presence", (n, roster) => OnNotePresence?.Invoke(n, roster));
+        _connection.On<string, string, string, string, int>(
+            "note:cursor", (n, u, name, color, c) => OnNoteCursor?.Invoke(n, u, name, color, c));
 
         try
         {
@@ -120,6 +140,57 @@ public class RealtimeService : IAsyncDisposable
         }
     }
 
+    /// <summary>Entra no grupo de colaboração de uma nota.</summary>
+    /// <param name="noteId">Nota a acompanhar.</param>
+    public Task JoinNoteAsync(string noteId) => TryInvokeAsync("JoinNote", noteId);
+
+    /// <summary>Sai do grupo de colaboração de uma nota.</summary>
+    /// <param name="noteId">Nota a deixar.</param>
+    public Task LeaveNoteAsync(string noteId) => TryInvokeAsync("LeaveNote", noteId);
+
+    /// <summary>
+    /// Envia uma edição colaborativa (texto + versão vista).
+    /// </summary>
+    /// <param name="noteId">Nota editada.</param>
+    /// <param name="text">Conteúdo completo proposto.</param>
+    /// <param name="version"><c>UpdatedAt</c> visto por último.</param>
+    /// <returns>Nova versão aceita pelo servidor; -1 quando rejeitada/sem conexão.</returns>
+    public async Task<long> SendNoteUpdateAsync(string noteId, string text, long version)
+    {
+        if (!Connected)
+        {
+            return -1;
+        }
+        try
+        {
+            return await _connection!.InvokeAsync<long>("NoteUpdate", noteId, text, version);
+        }
+        catch (Exception)
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>Propaga a posição do cursor local ao grupo da nota.</summary>
+    /// <param name="noteId">Nota em edição.</param>
+    /// <param name="cursor">Offset do cursor no texto.</param>
+    public Task SendNotePresenceAsync(string noteId, int cursor) =>
+        TryInvokeAsync("NotePresence", noteId, cursor);
+
+    private async Task TryInvokeAsync(string method, params object?[] args)
+    {
+        if (Connected)
+        {
+            try
+            {
+                await _connection!.InvokeAsync(method, args);
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
     /// <summary>Envia indicador de digitação ao canal.</summary>
     /// <param name="channelId">Canal alvo.</param>
     public async Task SendTypingAsync(string channelId)
@@ -145,6 +216,17 @@ public class RealtimeService : IAsyncDisposable
         [property: System.Text.Json.Serialization.JsonPropertyName("channel_id")] string ChannelId,
         string Id,
         [property: System.Text.Json.Serialization.JsonPropertyName("is_pinned")] bool IsPinned);
+
+    /// <summary>Entrada de awareness de uma nota (roster do hub).</summary>
+    /// <param name="UserId">Usuário.</param>
+    /// <param name="Name">Nome de exibição.</param>
+    /// <param name="Color">Cor do cursor/presença.</param>
+    /// <param name="Cursor">Offset do cursor no texto.</param>
+    public sealed record NotePresenceInfo(
+        [property: System.Text.Json.Serialization.JsonPropertyName("userId")] string UserId,
+        [property: System.Text.Json.Serialization.JsonPropertyName("name")] string Name,
+        [property: System.Text.Json.Serialization.JsonPropertyName("color")] string Color,
+        [property: System.Text.Json.Serialization.JsonPropertyName("cursor")] int Cursor);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
