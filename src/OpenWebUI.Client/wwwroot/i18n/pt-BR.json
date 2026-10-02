@@ -443,5 +443,12 @@
   "errors.api_keys_disabled": "Chaves de API desabilitadas.",
   "admin.stt_engine": "Engine de STT",
   "admin.tts_engine": "Engine de TTS",
-  "admin.search_engine": "Engine de busca web"
+  "admin.search_engine": "Engine de busca web",
+  "settings.ollama_models": "Modelos Ollama instalados",
+  "settings.no_ollama_models": "Nenhum modelo instalado",
+  "settings.pull_model": "Baixar modelo",
+  "settings.pull_model_placeholder": "Ex.: llama3.2:latest",
+  "settings.pulling": "Baixando…",
+  "settings.model_pulled": "Modelo baixado com sucesso.",
+  "settings.pull_failed": "Falha ao baixar o modelo."
 }

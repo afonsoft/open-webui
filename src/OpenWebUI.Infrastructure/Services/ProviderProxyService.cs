@@ -15,12 +15,15 @@ public class ProviderProxyService(IHttpClientFactory httpClientFactory, ConfigSe
     private static readonly HashSet<string> OllamaAllowed = new(StringComparer.OrdinalIgnoreCase)
     {
         "api/tags:GET", "api/version:GET", "api/show:POST", "api/chat:POST",
-        "api/generate:POST", "api/embed:POST",
+        "api/generate:POST", "api/embed:POST", "api/pull:POST", "api/create:POST",
+        "api/delete:DELETE", "api/copy:POST",
+        "api/blobs/*:GET", "api/blobs/*:HEAD", "api/blobs/*:POST",
     };
 
     private static readonly HashSet<string> OpenAiAllowed = new(StringComparer.OrdinalIgnoreCase)
     {
         "models:GET", "chat/completions:POST", "embeddings:POST",
+        "audio/speech:POST", "audio/transcriptions:POST", "images/generations:POST",
     };
 
     /// <summary>
@@ -40,7 +43,12 @@ public class ProviderProxyService(IHttpClientFactory httpClientFactory, ConfigSe
         byte[]? body, string? contentType, string? queryString, CancellationToken ct)
     {
         var allowed = provider == "ollama" ? OllamaAllowed : OpenAiAllowed;
-        if (!allowed.Contains($"{path}:{method.Method}"))
+        var key = $"{path}:{method.Method}";
+        var ok = allowed.Contains(key) || allowed.Any(entry =>
+            entry.Split('*') is [var prefix, var suffix]
+            && key.StartsWith(prefix, StringComparison.Ordinal)
+            && key.EndsWith(suffix, StringComparison.Ordinal));
+        if (!ok)
         {
             return new ProxiedResponse(404, null, "Endpoint não suportado pelo proxy.");
         }

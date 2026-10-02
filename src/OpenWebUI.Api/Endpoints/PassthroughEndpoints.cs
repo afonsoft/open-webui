@@ -24,6 +24,20 @@ public static class PassthroughEndpoints
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/generate", null));
         ollama.MapPost("/api/embed",
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/embed", null));
+        ollama.MapPost("/api/pull",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/pull", null));
+        ollama.MapPost("/api/create",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/create", null));
+        ollama.MapDelete("/api/delete",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/delete", null));
+        ollama.MapPost("/api/copy",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/copy", null));
+        ollama.MapMethods("/api/blobs/{digest}", ["GET", "HEAD"],
+            (HttpContext http, string digest, ProviderProxyService proxy) =>
+                ProxyBlob(http, proxy, digest));
+        ollama.MapPost("/api/blobs/{digest}",
+            (HttpContext http, string digest, ProviderProxyService proxy) =>
+                ProxyBlob(http, proxy, digest, maxUpload: MaxBlobUpload));
 
         // Variantes indexadas: /ollama/{idx}/api/* usa a conexão de índice idx.
         var ollamaIndexed = app.MapGroup("/ollama/{idx:int}").RequireAuthorization();
@@ -39,12 +53,48 @@ public static class PassthroughEndpoints
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "chat/completions", null));
         openai.MapPost("/embeddings",
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "embeddings", null));
+        openai.MapPost("/audio/speech",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "audio/speech", null));
+        openai.MapPost("/audio/transcriptions",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "audio/transcriptions", null));
+        openai.MapPost("/images/generations",
+            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "images/generations", null));
 
         var openaiIndexed = app.MapGroup("/openai/{idx:int}").RequireAuthorization();
+        openaiIndexed.MapPost("/audio/speech",
+            (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "audio/speech", idx));
+        openaiIndexed.MapPost("/images/generations",
+            (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "images/generations", idx));
         openaiIndexed.MapGet("/models",
             (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "models", idx));
         openaiIndexed.MapPost("/chat/completions",
             (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "chat/completions", idx));
+    }
+
+    /// <summary>Limite do upload de blob (512 MB, alinhado ao upstream).</summary>
+    private const long MaxBlobUpload = 512L * 1024 * 1024;
+
+    /// <summary>Regex do digest de blob aceito pelo Ollama (sha256 + 64 hex).</summary>
+    private static readonly System.Text.RegularExpressions.Regex BlobDigest =
+        new(@"^sha256:[0-9a-fA-F]{64}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>Valida o digest e o limite de upload antes de proxear blobs.</summary>
+    private static Task<IResult> ProxyBlob(
+        HttpContext http, ProviderProxyService proxy, string digest, long? maxUpload = null)
+    {
+        if (!BlobDigest.IsMatch(digest))
+        {
+            return Task.FromResult<IResult>(
+                Results.BadRequest(new { detail = "Digest inválido (sha256:<hex64>)." }));
+        }
+
+        if (maxUpload is not null)
+        {
+            http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>()
+                ?.MaxRequestBodySize = maxUpload.Value;
+        }
+
+        return Proxy(http, proxy, "ollama", $"api/blobs/{digest}", null);
     }
 
     /// <summary>Lê o body inbound, delega ao serviço e converte o resultado em IResult.</summary>

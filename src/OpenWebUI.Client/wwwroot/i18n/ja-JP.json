@@ -440,5 +440,12 @@
   "errors.wrong_password": "現在のパスワードが正しくありません。",
   "errors.weak_password": "新しいパスワードは4文字以上必要です。",
   "errors.api_keys_disabled": "APIキーは無効です。",
-  "workspace.share_community": "コミュニティに共有"
+  "workspace.share_community": "コミュニティに共有",
+  "settings.ollama_models": "Installed Ollama models",
+  "settings.no_ollama_models": "No models installed",
+  "settings.pull_model": "Pull model",
+  "settings.pull_model_placeholder": "e.g. llama3.2:latest",
+  "settings.pulling": "Pulling…",
+  "settings.model_pulled": "Model pulled successfully.",
+  "settings.pull_failed": "Failed to pull the model."
 }
