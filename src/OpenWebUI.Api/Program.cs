@@ -27,6 +27,7 @@ builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<EmbeddingService>();
 builder.Services.AddScoped<RagService>();
 builder.Services.AddScoped<ToolExecutor>();
+builder.Services.AddScoped<PythonToolExecutor>();
 builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
 builder.Services.AddScoped<AudioService>();

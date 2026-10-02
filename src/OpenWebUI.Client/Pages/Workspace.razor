@@ -436,7 +436,7 @@
     private async Task ToggleToolAsync(ToolResponse tool)
     {
         var updated = await Api.UpdateToolAsync(tool.Id,
-            new ToolUpsertRequest(tool.Name, tool.Description, tool.SpecJson, null, !tool.Enabled));
+            new ToolUpsertRequest(tool.Name, tool.Description, tool.SpecJson, null, null, !tool.Enabled));
         if (updated is not null)
         {
             var index = _tools.FindIndex(t => t.Id == tool.Id);

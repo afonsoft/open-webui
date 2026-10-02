@@ -535,7 +535,7 @@ public class EmbeddingChunk
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 }
-/// <summary>Tool externa invocável pelo modelo (function calling via HTTP).</summary>
+/// <summary>Tool externa invocável pelo modelo (function calling via HTTP ou código Python).</summary>
 public class Tool
 {
     /// <summary>Identificador único (GUID).</summary>
@@ -558,6 +558,13 @@ public class Tool
 
     /// <summary>Endpoint HTTP POST que executa a tool (server-side, nunca exposto).</summary>
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Fonte Python da tool (convenção do upstream: <c>class Tools</c> com
+    /// métodos públicos chamáveis). Quando preenchida, a execução roda em
+    /// subprocess Python em vez de HTTP — com os privilégios do servidor.
+    /// </summary>
+    public string? Code { get; set; }
 
     /// <summary>Se a tool está habilitada.</summary>
     public bool Enabled { get; set; } = true;

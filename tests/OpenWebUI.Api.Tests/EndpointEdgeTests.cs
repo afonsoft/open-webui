@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OpenWebUI.Api.Endpoints;
@@ -674,11 +675,14 @@ public class EndpointEdgeTests
         public HttpClient CreateClient(string name) => new();
     }
 
+    private static PythonToolExecutor NewPythonExecutor() =>
+        new(new ConfigurationBuilder().Build());
+
     [Test, Order(24)]
     public async Task Executor_ToolDesconhecida_OuSpecQuebrada_RetornaErro()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor());
         var tools = new List<Tool>
         {
             NewTool("outra", $"{_mockBaseUrl}/tool-ok"),
@@ -696,7 +700,7 @@ public class EndpointEdgeTests
     public async Task Executor_UrlInacessivel_OuCancelada_RetornaErro()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor());
         var tools = new List<Tool> { NewTool("minha_tool", "http://localhost:1/x") };
 
         var down = await executor.ExecuteAsync(tools, "minha_tool", "{}");
@@ -712,7 +716,7 @@ public class EndpointEdgeTests
     public async Task Executor_Respostas_TextoErroETruncamento()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor());
         var tools = new List<Tool>
         {
             NewTool("minha_tool", $"{_mockBaseUrl}/tool-ok"),
@@ -735,7 +739,7 @@ public class EndpointEdgeTests
     public async Task Executor_LoadEnabled_FiltraVaziasDesabilitadasEAlheias()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor());
 
         var empty = await executor.LoadEnabledAsync("u1", []);
         Assert.That(empty, Is.Empty);

@@ -7,9 +7,14 @@ namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>
 /// Executa tools registradas via HTTP POST server-side (URL nunca exposta
-/// ao cliente). Timeout de 30s; erro vira resultado de erro para o modelo.
+/// ao cliente) ou, quando a tool tem <see cref="Tool.Code"/>, em subprocess
+/// Python (<see cref="PythonToolExecutor"/>, convenção class Tools do upstream).
+/// Timeout de 30s; erro vira resultado de erro para o modelo.
 /// </summary>
-public class ToolExecutor(AppDbContext db, IHttpClientFactory httpClientFactory)
+public class ToolExecutor(
+    AppDbContext db,
+    IHttpClientFactory httpClientFactory,
+    PythonToolExecutor pythonExecutor)
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private const int MaxOutputChars = 4000;
@@ -46,6 +51,11 @@ public class ToolExecutor(AppDbContext db, IHttpClientFactory httpClientFactory)
         if (tool is null)
         {
             return $"Erro: tool '{functionName}' não está habilitada neste chat.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(tool.Code))
+        {
+            return await pythonExecutor.ExecuteAsync(tool, functionName, argumentsJson, ct);
         }
 
         try
