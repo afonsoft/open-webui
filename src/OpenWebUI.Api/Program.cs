@@ -31,6 +31,10 @@ builder.Services.AddSingleton<ImageEngineFactory>();
 builder.Services.AddScoped<ImageGenerationService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<ProviderProxyService>();
+builder.Services.AddScoped<TerminalProxyService>();
+builder.Services.AddScoped<ScimService>();
+builder.Services.AddScoped<SamlService>();
+builder.Services.AddScoped<PipelineClientService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -79,7 +83,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             {
                 var token = context.Request.Query["access_token"];
                 if (!string.IsNullOrEmpty(token) &&
-                    context.HttpContext.Request.Path.StartsWithSegments("/ws"))
+                    (context.HttpContext.Request.Path.StartsWithSegments("/ws") ||
+                     context.HttpContext.Request.Path.StartsWithSegments("/api/v1/terminals")))
                 {
                     context.Token = token;
                 }
@@ -178,10 +183,15 @@ app.Use(async (context, next) =>
 });
 
 app.UseAuthorization();
+app.UseWebSockets();
 
 app.MapAuthEndpoints();
 app.MapNotificationEndpoints();
 app.MapPassthroughEndpoints();
+app.MapTerminalEndpoints();
+app.MapScimEndpoints();
+app.MapSamlEndpoints();
+app.MapPluginEndpoints();
 app.MapChatEndpoints();
 app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();

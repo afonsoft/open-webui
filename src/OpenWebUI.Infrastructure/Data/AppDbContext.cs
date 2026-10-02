@@ -89,6 +89,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Webhooks de notificação (por usuário ou globais).</summary>
     public DbSet<NotificationWebhook> NotificationWebhooks => Set<NotificationWebhook>();
 
+    /// <summary>Skills do workspace.</summary>
+    public DbSet<Skill> Skills => Set<Skill>();
+
+    /// <summary>Functions do ecossistema de plugins.</summary>
+    public DbSet<Function> Functions => Set<Function>();
+
+    /// <summary>Servidores de pipelines externos.</summary>
+    public DbSet<PipelineServer> PipelineServers => Set<PipelineServer>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
