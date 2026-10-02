@@ -46,3 +46,13 @@ public sealed record UpdateKnowledgeRequest(string? Name, string? Description);
 /// <summary>Vínculo de arquivo a uma coleção.</summary>
 /// <param name="FileId">Arquivo já enviado via /api/v1/files.</param>
 public sealed record AddKnowledgeFileRequest(string FileId);
+
+/// <summary>Operação em lote sobre coleções de knowledge.</summary>
+/// <param name="Ids">Ids das coleções alvo.</param>
+public sealed record BatchKnowledgeRequest(IReadOnlyList<string> Ids);
+
+/// <summary>Resultado de uma reindexação de coleção.</summary>
+/// <param name="Status">True quando todos os arquivos reindexaram.</param>
+/// <param name="Indexed">Arquivos reindexados com sucesso.</param>
+/// <param name="Failed">Arquivos que falharam (provider de embedding).</param>
+public sealed record ReindexKnowledgeResponse(bool Status, int Indexed, int Failed);

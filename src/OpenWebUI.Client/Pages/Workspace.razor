@@ -85,6 +85,16 @@
         <div class="card-list">
             <div class="card-row">
                 <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/knowledge/create")'>@L["workspace.new_collection"]</button>
+                @if (_selectedKnowledge.Count > 0)
+                {
+                    <button class="msg-action danger" @onclick="BatchDeleteKnowledgeAsync">
+                        @L.T("workspace.delete_selected", ("count", _selectedKnowledge.Count.ToString()))
+                    </button>
+                }
+                @if (!string.IsNullOrEmpty(_knowledgeStatus))
+                {
+                    <span class="text-sm text-gray-500 dark:text-gray-400 self-center">@_knowledgeStatus</span>
+                }
             </div>
             @foreach (var item in _knowledge)
             {
@@ -113,7 +123,12 @@
                             @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
                         </button>
                         <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">@L["workspace.add_file"]</button>
+                        <button class="msg-action" title="@L["workspace.reindex"]"
+                                @onclick="() => ReindexKnowledgeAsync(item)">↻</button>
                         <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
+                        <input type="checkbox" class="ml-1 cursor-pointer"
+                               checked="@_selectedKnowledge.Contains(item.Id)"
+                               @onchange="() => ToggleKnowledgeSelection(item.Id)" />
                     </div>
                 </div>
             }
@@ -235,6 +250,8 @@
     private List<FileResponse> _files = [];
     private List<KnowledgeResponse> _knowledge = [];
     private KnowledgeDetailResponse? _knowledgeDetail;
+    private readonly HashSet<string> _selectedKnowledge = [];
+    private string? _knowledgeStatus;
     private List<ToolResponse> _tools = [];
     private List<SkillResponse> _skills = [];
     private string? _skillEditId;
@@ -320,6 +337,37 @@
             _knowledgeDetail = await Api.GetKnowledgeDetailAsync(item.Id);
             _knowledge = await Api.GetKnowledgeAsync();
         }
+    }
+
+    private void ToggleKnowledgeSelection(string id)
+    {
+        if (!_selectedKnowledge.Remove(id))
+        {
+            _selectedKnowledge.Add(id);
+        }
+    }
+
+    private async Task ReindexKnowledgeAsync(KnowledgeResponse item)
+    {
+        _knowledgeStatus = L["workspace.reindexing"];
+        var result = await Api.ReindexKnowledgeAsync(item.Id);
+        _knowledgeStatus = result is null
+            ? L["workspace.reindex_failed"]
+            : result.Status
+                ? L.T("workspace.reindexed", ("count", result.Indexed.ToString()))
+                : L.T("workspace.reindex_partial", ("ok", result.Indexed.ToString()), ("fail", result.Failed.ToString()));
+    }
+
+    private async Task BatchDeleteKnowledgeAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L["workspace.confirm_delete_selected"]))
+        {
+            return;
+        }
+        var deleted = await Api.BatchDeleteKnowledgeAsync(_selectedKnowledge.ToList());
+        _knowledge.RemoveAll(k => _selectedKnowledge.Contains(k.Id));
+        _selectedKnowledge.Clear();
+        _knowledgeStatus = L.T("workspace.deleted_count", ("count", deleted.ToString()));
     }
 
     private async Task RemoveKnowledgeFileAsync(KnowledgeFileResponse kf)
