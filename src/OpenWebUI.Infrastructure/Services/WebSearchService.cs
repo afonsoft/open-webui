@@ -7,7 +7,8 @@ namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>
 /// Web search via engine configurada em <c>retrieval.config</c>:
-/// searxng (self-hosted), duckduckgo (instant answer), tavily e brave (API key).
+/// searxng (self-hosted), duckduckgo (instant answer), tavily, brave,
+/// google_pse, jina, exa, kagi e perplexity (API key).
 /// Chaves nunca são retornadas — apenas usadas no request à engine.
 /// </summary>
 public class WebSearchService(IHttpClientFactory httpFactory, ConfigService config)
@@ -34,6 +35,11 @@ public class WebSearchService(IHttpClientFactory httpFactory, ConfigService conf
             "duckduckgo" => await DuckDuckGoAsync(client, query, count, ct),
             "tavily" => await TavilyAsync(client, cfg, query, count, ct),
             "brave" => await BraveAsync(client, cfg, query, count, ct),
+            "google_pse" => await GooglePseAsync(client, cfg, query, count, ct),
+            "jina" => await JinaAsync(client, cfg, query, count, ct),
+            "exa" => await ExaAsync(client, cfg, query, count, ct),
+            "kagi" => await KagiAsync(client, cfg, query, count, ct),
+            "perplexity" => await PerplexityAsync(client, cfg, query, count, ct),
             _ => null,
         };
     }
@@ -155,6 +161,167 @@ public class WebSearchService(IHttpClientFactory httpFactory, ConfigService conf
                     item.TryGetProperty("title", out var t) ? t.GetString() ?? string.Empty : string.Empty,
                     item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
                     item.TryGetProperty("description", out var d) ? d.GetString() ?? string.Empty : string.Empty));
+            }
+        }
+        return results;
+    }
+
+    private static async Task<List<WebSearchResult>> GooglePseAsync(
+        HttpClient client, RetrievalConfig cfg, string query, int count, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cfg.GooglePseApiKey) || string.IsNullOrEmpty(cfg.GooglePseEngineId))
+        {
+            return [];
+        }
+
+        var baseUrl = (cfg.GooglePseBaseUrl ?? "https://www.googleapis.com").TrimEnd('/');
+        var url = $"{baseUrl}/customsearch/v1?key={Uri.EscapeDataString(cfg.GooglePseApiKey)}"
+            + $"&cx={Uri.EscapeDataString(cfg.GooglePseEngineId)}"
+            + $"&q={Uri.EscapeDataString(query)}&num={count}";
+        var doc = await client.GetFromJsonAsync<JsonElement>(url, JsonOptions, ct);
+        var results = new List<WebSearchResult>();
+        if (doc.TryGetProperty("items", out var items))
+        {
+            foreach (var item in items.EnumerateArray().Take(count))
+            {
+                results.Add(new WebSearchResult(
+                    item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("link", out var l) ? l.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("snippet", out var s) ? s.GetString() ?? string.Empty : string.Empty));
+            }
+        }
+        return results;
+    }
+
+    private static async Task<List<WebSearchResult>> JinaAsync(
+        HttpClient client, RetrievalConfig cfg, string query, int count, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cfg.JinaApiKey))
+        {
+            return [];
+        }
+
+        var baseUrl = (cfg.JinaBaseUrl ?? "https://s.jina.ai").TrimEnd('/');
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, $"{baseUrl}?q={Uri.EscapeDataString(query)}");
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {cfg.JinaApiKey}");
+        var response = await client.SendAsync(request, ct);
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
+
+        var results = new List<WebSearchResult>();
+        if (doc.TryGetProperty("data", out var items))
+        {
+            foreach (var item in items.EnumerateArray().Take(count))
+            {
+                results.Add(new WebSearchResult(
+                    item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("description", out var d) ? d.GetString() ?? string.Empty
+                        : item.TryGetProperty("content", out var c) ? c.GetString() ?? string.Empty : string.Empty));
+            }
+        }
+        return results;
+    }
+
+    private static async Task<List<WebSearchResult>> ExaAsync(
+        HttpClient client, RetrievalConfig cfg, string query, int count, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cfg.ExaApiKey))
+        {
+            return [];
+        }
+
+        var baseUrl = (cfg.ExaBaseUrl ?? "https://api.exa.ai").TrimEnd('/');
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/search");
+        request.Headers.TryAddWithoutValidation("x-api-key", cfg.ExaApiKey);
+        request.Content = JsonContent.Create(
+            new { query, numResults = count, contents = new { text = true } }, options: JsonOptions);
+        var response = await client.SendAsync(request, ct);
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
+
+        var results = new List<WebSearchResult>();
+        if (doc.TryGetProperty("results", out var items))
+        {
+            foreach (var item in items.EnumerateArray().Take(count))
+            {
+                var snippet = item.TryGetProperty("text", out var tx) ? tx.GetString() ?? string.Empty
+                    : item.TryGetProperty("summary", out var su) ? su.GetString() ?? string.Empty : string.Empty;
+                results.Add(new WebSearchResult(
+                    item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
+                    snippet.Length > 500 ? snippet[..500] : snippet));
+            }
+        }
+        return results;
+    }
+
+    private static async Task<List<WebSearchResult>> KagiAsync(
+        HttpClient client, RetrievalConfig cfg, string query, int count, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cfg.KagiApiKey))
+        {
+            return [];
+        }
+
+        var baseUrl = (cfg.KagiBaseUrl ?? "https://kagi.com").TrimEnd('/');
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, $"{baseUrl}/api/v0/search?q={Uri.EscapeDataString(query)}&limit={count}");
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bot {cfg.KagiApiKey}");
+        var response = await client.SendAsync(request, ct);
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
+
+        var results = new List<WebSearchResult>();
+        if (doc.TryGetProperty("data", out var items))
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                // t=0 é resultado de busca; outros tipos (related) são ignorados.
+                if (item.TryGetProperty("t", out var t) && t.GetInt32() == 0)
+                {
+                    results.Add(new WebSearchResult(
+                        item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
+                        item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
+                        item.TryGetProperty("snippet", out var s) ? s.GetString() ?? string.Empty : string.Empty));
+                }
+            }
+        }
+        return results.Take(count).ToList();
+    }
+
+    private static async Task<List<WebSearchResult>> PerplexityAsync(
+        HttpClient client, RetrievalConfig cfg, string query, int count, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cfg.PerplexityApiKey))
+        {
+            return [];
+        }
+
+        var baseUrl = (cfg.PerplexityBaseUrl ?? "https://api.perplexity.ai").TrimEnd('/');
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions");
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {cfg.PerplexityApiKey}");
+        request.Content = JsonContent.Create(
+            new
+            {
+                model = "sonar",
+                messages = new[] { new { role = "user", content = query } },
+            }, options: JsonOptions);
+        var response = await client.SendAsync(request, ct);
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions, ct);
+
+        // Upstream: perplexity devolve citações — cada URL vira um resultado.
+        var results = new List<WebSearchResult>();
+        if (doc.TryGetProperty("citations", out var citations))
+        {
+            foreach (var cite in citations.EnumerateArray().Take(count))
+            {
+                var link = cite.GetString();
+                if (string.IsNullOrEmpty(link))
+                {
+                    continue;
+                }
+
+                var title = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : link;
+                results.Add(new WebSearchResult(title, link, string.Empty));
             }
         }
         return results;

@@ -439,5 +439,8 @@
   "errors.invalid_credentials": "Invalid credentials.",
   "errors.wrong_password": "Incorrect current password.",
   "errors.weak_password": "New password must be at least 4 characters.",
-  "errors.api_keys_disabled": "API keys are disabled."
+  "errors.api_keys_disabled": "API keys are disabled.",
+  "admin.stt_engine": "STT engine",
+  "admin.tts_engine": "TTS engine",
+  "admin.search_engine": "Web search engine"
 }
