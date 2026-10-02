@@ -732,6 +732,56 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<JwtExpiryConfig?> UpdateJwtExpiryAsync(JwtExpiryConfig config) =>
         SendAsync<JwtExpiryConfig>(HttpMethod.Post, "/api/v1/configs/jwt", config);
 
+    // ---------- Access grants + calendários ----------
+
+    private sealed record AccessGrantsResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("access_grants")]
+        List<AccessGrant> AccessGrants);
+
+    /// <summary>Obtém os grants de acesso de um recurso (somente dono/admin).</summary>
+    public async Task<List<AccessGrant>?> GetAccessGrantsAsync(string entity, string id)
+    {
+        var response = await SendAsync<AccessGrantsResponse>(HttpMethod.Get,
+            $"/api/v1/{entity}/{id}/access");
+        return response?.AccessGrants;
+    }
+
+    /// <summary>Atualiza os grants de acesso de um recurso (knowledge|notes|models|calendars).</summary>
+    public async Task<bool> UpdateAccessGrantsAsync(string entity, string id, List<AccessGrant> grants) =>
+        await SendStatusAsync(HttpMethod.Post, $"/api/v1/{entity}/{id}/access/update",
+            new AccessUpdateRequest(grants));
+
+    /// <summary>Lista calendários visíveis (próprios + compartilhados).</summary>
+    public async Task<List<CalendarResponse>> GetCalendarsAsync() =>
+        await SendAsync<List<CalendarResponse>>(HttpMethod.Get, "/api/v1/calendars/") ?? [];
+
+    /// <summary>Cria um calendário.</summary>
+    public Task<CalendarResponse?> CreateCalendarAsync(string name, string? color) =>
+        SendAsync<CalendarResponse>(HttpMethod.Post, "/api/v1/calendars/",
+            new CreateCalendarRequest(name, color));
+
+    /// <summary>Exclui um calendário (somente dono/admin).</summary>
+    public async Task<bool> DeleteCalendarAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/calendars/{id}");
+
+    /// <summary>Lista eventos de todos os calendários visíveis num intervalo.</summary>
+    public async Task<List<CalendarEventResponse>> GetCalendarEventsAsync(long? from = null, long? to = null)
+    {
+        var q = from is not null || to is not null ? $"?from={from}&to={to}" : string.Empty;
+        return await SendAsync<List<CalendarEventResponse>>(HttpMethod.Get,
+            $"/api/v1/calendars/events{q}") ?? [];
+    }
+
+    /// <summary>Cria um evento num calendário.</summary>
+    public Task<CalendarEventResponse?> CreateCalendarEventAsync(
+        string calendarId, string title, long startTs, long endTs, string? color = null, string? notes = null) =>
+        SendAsync<CalendarEventResponse>(HttpMethod.Post, "/api/v1/calendars/events",
+            new CreateEventRequest(calendarId, title, startTs, endTs, color, notes));
+
+    /// <summary>Exclui um evento.</summary>
+    public async Task<bool> DeleteCalendarEventAsync(string eventId) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/calendars/events/{eventId}");
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }
 
@@ -755,6 +805,7 @@ public class FolderWithChats
 
     /// <summary>Se a pasta está expandida na UI.</summary>
     public bool Expanded { get; set; } = true;
+
 }
 
 /// <summary>Chat compartilhado publicamente.</summary>

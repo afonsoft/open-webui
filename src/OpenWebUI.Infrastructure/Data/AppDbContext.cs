@@ -80,6 +80,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Banners administrativos.</summary>
     public DbSet<Banner> Banners => Set<Banner>();
 
+    /// <summary>Calendários.</summary>
+    public DbSet<Calendar> Calendars => Set<Calendar>();
+
+    /// <summary>Eventos de calendário.</summary>
+    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

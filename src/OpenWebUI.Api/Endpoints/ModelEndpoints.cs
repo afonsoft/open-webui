@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -27,7 +29,7 @@ public static class ModelEndpoints
     }
 
     private static async Task<IResult> ListModelsAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, AccessControlService access, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -35,10 +37,13 @@ public static class ModelEndpoints
             return Results.Unauthorized();
         }
 
-        var models = await db.ModelEntries.AsNoTracking()
-            .Where(m => m.UserId == user.Id || m.UserId == "public")
+        var all = await db.ModelEntries.AsNoTracking()
             .OrderBy(m => m.Name)
             .ToListAsync(ct);
+        var groups = await access.GetGroupIdsAsync(user.Id, ct);
+        var models = all.Where(m =>
+            m.UserId == "public"
+            || access.Level(user, m.UserId, m.AccessGrantsJson, groups) is not AccessControlService.None);
 
         return Results.Ok(models.Select(ToResponse).ToList());
     }
@@ -79,24 +84,32 @@ public static class ModelEndpoints
     }
 
     private static async Task<IResult> GetModelByQueryAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct, string? id = null)
+        HttpContext http, AppDbContext db, AccessControlService access,
+        CancellationToken ct, string? id = null)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var model = await db.ModelEntries.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == id && (m.UserId == user!.Id || m.UserId == "public"), ct);
-        return model is null ? Results.NotFound() : Results.Ok(ToResponse(model));
+            .FirstOrDefaultAsync(m => m.Id == id, ct);
+        var readable = model is not null
+            && (model.UserId == "public"
+                || await access.LevelAsync(user!, model.UserId, model.AccessGrantsJson, ct)
+                    is not AccessControlService.None);
+        return readable ? Results.Ok(ToResponse(model!)) : Results.NotFound();
     }
 
     private static async Task<IResult> UpdateModelAsync(
         ModelUpdateRequest request,
         HttpContext http,
         AppDbContext db,
+        AccessControlService access,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var model = await db.ModelEntries
-            .FirstOrDefaultAsync(m => m.Id == request.Id && m.UserId == user!.Id, ct);
-        if (model is null)
+            .FirstOrDefaultAsync(m => m.Id == request.Id, ct);
+        if (model is null
+            || await access.LevelAsync(user!, model.UserId, model.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound();
         }
@@ -116,12 +129,15 @@ public static class ModelEndpoints
         ToggleRequest request,
         HttpContext http,
         AppDbContext db,
+        AccessControlService access,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var model = await db.ModelEntries
-            .FirstOrDefaultAsync(m => m.Id == request.Id && m.UserId == user!.Id, ct);
-        if (model is null)
+            .FirstOrDefaultAsync(m => m.Id == request.Id, ct);
+        if (model is null
+            || await access.LevelAsync(user!, model.UserId, model.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound();
         }
@@ -136,12 +152,15 @@ public static class ModelEndpoints
         ToggleRequest request,
         HttpContext http,
         AppDbContext db,
+        AccessControlService access,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var model = await db.ModelEntries
-            .FirstOrDefaultAsync(m => m.Id == request.Id && m.UserId == user!.Id, ct);
-        if (model is null)
+            .FirstOrDefaultAsync(m => m.Id == request.Id, ct);
+        if (model is null
+            || await access.LevelAsync(user!, model.UserId, model.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound();
         }
@@ -210,4 +229,47 @@ public static class ModelEndpoints
     public sealed record ModelUpdateRequest(
         string Id, string? Name, string? BaseModelId, string? SystemPrompt,
         string? ParamsJson, string? ProfileImageUrl);
+
+    private static async Task<IResult> GetAccessAsync(
+        string id,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var model = await db.ModelEntries.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, ct);
+        if (model is null || (model.UserId != user!.Id && user!.Role != UserRoles.Admin))
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(new { access_grants = AccessControlService.Parse(model.AccessGrantsJson) });
+    }
+
+    private static async Task<IResult> UpdateAccessAsync(
+        string id,
+        [FromBody] AccessUpdateRequest request,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var model = await db.ModelEntries.FirstOrDefaultAsync(m => m.Id == id, ct);
+        if (model is null || (model.UserId != user!.Id && user!.Role != UserRoles.Admin))
+        {
+            return Results.NotFound();
+        }
+        if (request.AccessGrants.Any(g =>
+                g.PrincipalType is not ("user" or "group")
+                || string.IsNullOrWhiteSpace(g.PrincipalId)
+                || g.Permission is not ("read" or "write")))
+        {
+            return Results.BadRequest(new { detail = "Grant inválido." });
+        }
+
+        model.AccessGrantsJson = AccessControlService.Serialize(request.AccessGrants);
+        model.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true, access_grants = request.AccessGrants });
+    }
 }

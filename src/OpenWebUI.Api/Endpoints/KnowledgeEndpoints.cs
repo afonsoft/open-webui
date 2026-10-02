@@ -21,10 +21,12 @@ public static class KnowledgeEndpoints
         knowledge.MapDelete("/{id}", DeleteAsync);
         knowledge.MapPost("/{id}/files", AddFileAsync);
         knowledge.MapDelete("/{id}/files/{fileId}", RemoveFileAsync);
+        knowledge.MapPost("/{id}/access/update", UpdateAccessAsync);
+        knowledge.MapGet("/{id}/access", GetAccessAsync);
     }
 
     private static async Task<IResult> ListAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, AccessControlService access, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -32,12 +34,15 @@ public static class KnowledgeEndpoints
             return Results.Unauthorized();
         }
 
-        var collections = await db.KnowledgeCollections.AsNoTracking()
-            .Where(k => k.UserId == user.Id)
+        var all = await db.KnowledgeCollections.AsNoTracking()
             .OrderBy(k => k.Name)
+            .ToListAsync(ct);
+        var groups = await access.GetGroupIdsAsync(user.Id, ct);
+        var collections = access
+            .FilterReadable(user, all, groups, k => k.UserId, k => k.AccessGrantsJson)
             .Select(k => new KnowledgeResponse(
                 k.Id, k.Name, k.Description, k.Files.Count(), k.CreatedAt))
-            .ToListAsync(ct);
+            .ToList();
         return Results.Ok(collections);
     }
 
@@ -80,14 +85,17 @@ public static class KnowledgeEndpoints
     }
 
     private static async Task<IResult> GetAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db,
+        AccessControlService access, CancellationToken ct)
     {
         var (user, collection) = await LoadAsync(http, id, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
-        if (collection is null)
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is AccessControlService.None)
         {
             return Results.NotFound(new { detail = "Coleção não encontrada." });
         }
@@ -105,14 +113,17 @@ public static class KnowledgeEndpoints
 
     private static async Task<IResult> UpdateAsync(
         string id, [FromBody] UpdateKnowledgeRequest request,
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db,
+        AccessControlService access, CancellationToken ct)
     {
         var (user, collection) = await LoadAsync(http, id, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
-        if (collection is null)
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound(new { detail = "Coleção não encontrada." });
         }
@@ -138,14 +149,17 @@ public static class KnowledgeEndpoints
     }
 
     private static async Task<IResult> DeleteAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db,
+        AccessControlService access, CancellationToken ct)
     {
         var (user, collection) = await LoadAsync(http, id, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
-        if (collection is null)
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound(new { detail = "Coleção não encontrada." });
         }
@@ -157,14 +171,17 @@ public static class KnowledgeEndpoints
 
     private static async Task<IResult> AddFileAsync(
         string id, [FromBody] AddKnowledgeFileRequest request,
-        HttpContext http, AppDbContext db, RagService rag, CancellationToken ct)
+        HttpContext http, AppDbContext db, RagService rag,
+        AccessControlService access, CancellationToken ct)
     {
         var (user, collection) = await LoadAsync(http, id, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
-        if (collection is null)
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound(new { detail = "Coleção não encontrada." });
         }
@@ -197,14 +214,17 @@ public static class KnowledgeEndpoints
 
     private static async Task<IResult> RemoveFileAsync(
         string id, string fileId,
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db,
+        AccessControlService access, CancellationToken ct)
     {
         var (user, collection) = await LoadAsync(http, id, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
-        if (collection is null)
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
         {
             return Results.NotFound(new { detail = "Coleção não encontrada." });
         }
@@ -231,7 +251,55 @@ public static class KnowledgeEndpoints
         }
 
         var collection = await db.KnowledgeCollections.FirstOrDefaultAsync(
-            k => k.Id == id && k.UserId == user.Id, ct);
+            k => k.Id == id, ct);
         return (user, collection);
+    }
+
+    private static async Task<IResult> UpdateAccessAsync(
+        string id, [FromBody] AccessUpdateRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null
+            || (collection.UserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+        if (request.AccessGrants.Any(g =>
+                g.PrincipalType is not ("user" or "group")
+                || string.IsNullOrWhiteSpace(g.PrincipalId)
+                || g.Permission is not ("read" or "write")))
+        {
+            return Results.BadRequest(new { detail = "Grant inválido." });
+        }
+
+        collection.AccessGrantsJson = AccessControlService.Serialize(request.AccessGrants);
+        collection.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { status = true, access_grants = request.AccessGrants });
+    }
+
+    private static async Task<IResult> GetAccessAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null
+            || (collection.UserId != user.Id && user.Role != UserRoles.Admin))
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        return Results.Ok(new
+        {
+            access_grants = AccessControlService.Parse(collection.AccessGrantsJson),
+        });
     }
 }
