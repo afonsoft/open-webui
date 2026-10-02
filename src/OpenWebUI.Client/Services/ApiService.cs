@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Client.Services;
@@ -398,6 +399,14 @@ public class ApiService(HttpClient http, AuthService auth)
         var result = await SendAsync<UsersListResponse>(HttpMethod.Get, uri);
         return new UsersPage(result?.Users.ToList() ?? [], result?.Total ?? 0, result?.Page ?? page);
     }
+
+    /// <summary>Permissões granulares de um usuário (somente admin).</summary>
+    public async Task<JsonObject?> GetUserPermissionsAsync(string id) =>
+        await SendAsync<JsonObject>(HttpMethod.Get, $"/api/v1/users/{id}/permissions");
+
+    /// <summary>Atualiza permissões granulares de um usuário (somente admin).</summary>
+    public Task<UserResponse?> UpdateUserPermissionsAsync(string id, JsonObject permissions) =>
+        SendAsync<UserResponse>(HttpMethod.Put, $"/api/v1/users/{id}/permissions", permissions);
 
     /// <summary>Atualiza um usuário (somente admin).</summary>
     public Task<UserResponse?> UpdateUserAsync(string id, AdminUpdateUserRequest request) =>
