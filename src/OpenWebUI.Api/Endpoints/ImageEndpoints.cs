@@ -2,6 +2,7 @@ using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
+using OpenWebUI.Infrastructure.Services.Image;
 
 namespace OpenWebUI.Api.Endpoints;
 
@@ -15,7 +16,10 @@ public static class ImageEndpoints
 
         group.MapGet("/config", GetConfigAsync);
         group.MapPost("/config", UpdateConfigAsync);
+        group.MapGet("/config/engines", ListEnginesAsync);
+        group.MapPost("/config/test", TestAsync);
         group.MapPost("/generations", GenerateAsync);
+        group.MapPost("/edit", EditAsync);
 
         return group;
     }
@@ -40,7 +44,7 @@ public static class ImageEndpoints
             return Results.Forbid();
         }
 
-        if (!string.Equals(request.Engine, "openai", StringComparison.OrdinalIgnoreCase))
+        if (!ImageEngineFactory.Engines.Contains(request.Engine.ToLowerInvariant()))
         {
             return Results.BadRequest(new { detail = "Motor de imagens não suportado." });
         }
@@ -51,7 +55,7 @@ public static class ImageEndpoints
             : request.ApiKey;
         var updated = request with
         {
-            Engine = "openai",
+            Engine = request.Engine.ToLowerInvariant(),
             ApiKey = apiKey,
             Model = string.IsNullOrWhiteSpace(request.Model) ? current.Model : request.Model,
             Size = string.IsNullOrWhiteSpace(request.Size) ? current.Size : request.Size,
@@ -59,6 +63,76 @@ public static class ImageEndpoints
         };
         await images.SetConfigAsync(updated, ct);
         return Results.Ok(Masked(updated));
+    }
+
+    private static IResult ListEnginesAsync(HttpContext http)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+        return Results.Ok(ImageEngineFactory.Engines);
+    }
+
+    private static async Task<IResult> TestAsync(
+        HttpContext http, ImageGenerationService images, CancellationToken ct)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+        try
+        {
+            var (ok, detail) = await images.TestAsync(ct);
+            return Results.Ok(new ImageTestResponse(ok, detail));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { detail = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> EditAsync(
+        ImageEditRequest request,
+        HttpContext http,
+        ImageGenerationService images,
+        AppDbContext db,
+        IWebHostEnvironment env,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(request.ImageId) || string.IsNullOrWhiteSpace(request.Prompt))
+        {
+            return Results.BadRequest(new { detail = "image_id e prompt obrigatórios." });
+        }
+        var config = await images.GetConfigAsync(ct);
+        if (!config.Enabled || string.IsNullOrWhiteSpace(config.BaseUrl))
+        {
+            return Results.StatusCode(StatusCodes.Status501NotImplemented);
+        }
+        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
+        try
+        {
+            var file = await images.EditAsync(
+                request.ImageId, request.Prompt, request.Size, user.Id, uploadDir, ct);
+            return Results.Ok(new GeneratedImage($"/api/v1/files/{file.Id}/content"));
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.StatusCode(StatusCodes.Status501NotImplemented);
+        }
+        catch (HttpRequestException)
+        {
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return Results.StatusCode(StatusCodes.Status504GatewayTimeout);
+        }
     }
 
     private static async Task<IResult> GenerateAsync(

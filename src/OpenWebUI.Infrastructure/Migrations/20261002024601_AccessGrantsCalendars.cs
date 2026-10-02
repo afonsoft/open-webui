@@ -17,12 +17,6 @@ namespace OpenWebUI.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            migrationBuilder.AddColumn<string>(
-                name: "AccessGrantsJson",
-                table: "ModelEntries",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "AccessGrantsJson",
@@ -99,9 +93,6 @@ namespace OpenWebUI.Infrastructure.Migrations
                 name: "AccessGrantsJson",
                 table: "Notes");
 
-            migrationBuilder.DropColumn(
-                name: "AccessGrantsJson",
-                table: "ModelEntries");
 
             migrationBuilder.DropColumn(
                 name: "AccessGrantsJson",

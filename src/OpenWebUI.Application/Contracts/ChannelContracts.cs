@@ -7,6 +7,7 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="Type">Tipo ("channel").</param>
 /// <param name="MemberCount">Total de membros.</param>
 /// <param name="MyRole">Papel do chamador no canal ("admin"/"member").</param>
+/// <param name="UnreadCount">Mensagens não lidas do chamador.</param>
 /// <param name="CreatedAt">Criação (epoch seconds).</param>
 public sealed record ChannelResponse(
     string Id,
@@ -15,6 +16,7 @@ public sealed record ChannelResponse(
     string Type,
     int MemberCount,
     string MyRole,
+    int UnreadCount,
     long CreatedAt);
 
 /// <summary>Canal com a lista de membros.</summary>
@@ -47,6 +49,10 @@ public sealed record ChannelMemberResponse(
 /// <param name="AuthorName">Nome exibido (usuário ou modelo).</param>
 /// <param name="ProfileImageUrl">Avatar do autor usuário.</param>
 /// <param name="Content">Conteúdo.</param>
+/// <param name="ParentId">Mensagem pai (reply de thread).</param>
+/// <param name="ReplyCount">Respostas na thread (0 em replies).</param>
+/// <param name="IsPinned">Fixada no canal.</param>
+/// <param name="Reactions">Reações agregadas.</param>
 /// <param name="CreatedAt">Criação (epoch seconds).</param>
 public sealed record ChannelMessageResponse(
     string Id,
@@ -56,7 +62,20 @@ public sealed record ChannelMessageResponse(
     string AuthorName,
     string? ProfileImageUrl,
     string Content,
+    string? ParentId,
+    int ReplyCount,
+    bool IsPinned,
+    IReadOnlyList<ChannelReactionResponse> Reactions,
     long CreatedAt);
+
+/// <summary>Reação agregada por emoji.</summary>
+/// <param name="Emoji">Emoji.</param>
+/// <param name="Count">Total de reações.</param>
+/// <param name="UserIds">Usuários que reagiram.</param>
+public sealed record ChannelReactionResponse(
+    string Emoji,
+    int Count,
+    IReadOnlyList<string> UserIds);
 
 /// <summary>Criação de canal.</summary>
 /// <param name="Name">Nome obrigatório.</param>
@@ -76,7 +95,12 @@ public sealed record UpdateChannelRequest(
 
 /// <summary>Nova mensagem de canal.</summary>
 /// <param name="Content">Texto; "@modelo pergunta" invoca o modelo.</param>
-public sealed record CreateChannelMessageRequest(string Content);
+/// <param name="ParentId">Id da mensagem pai quando é reply de thread.</param>
+public sealed record CreateChannelMessageRequest(string Content, string? ParentId);
+
+/// <summary>Abrir (ou criar) DM com outro usuário.</summary>
+/// <param name="UserId">Outro participante.</param>
+public sealed record CreateDmRequest(string UserId);
 
 /// <summary>Inclusão de membros no canal.</summary>
 /// <param name="UserIds">Usuários a adicionar.</param>

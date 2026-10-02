@@ -707,10 +707,6 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AccessGrantsJson")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("BaseModelId")
                         .IsRequired()
                         .HasColumnType("TEXT");

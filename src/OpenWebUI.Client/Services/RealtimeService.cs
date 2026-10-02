@@ -22,6 +22,12 @@ public class RealtimeService : IAsyncDisposable
     /// <summary>Presença atualizada (channelId, userIds online).</summary>
     public event Action<string, string[]>? OnPresence;
 
+    /// <summary>Reações de uma mensagem atualizadas (channelId, messageId, agregado).</summary>
+    public event Action<string, string, List<ChannelReactionResponse>>? OnReaction;
+
+    /// <summary>Mensagem atualizada (channelId, messageId, isPinned).</summary>
+    public event Action<string, string, bool>? OnMessageUpdate;
+
     /// <summary>Se a conexão com o hub está ativa.</summary>
     public bool Connected => _connection?.State == HubConnectionState.Connected;
 
@@ -57,6 +63,10 @@ public class RealtimeService : IAsyncDisposable
             "user:typing", (c, u, n) => OnTyping?.Invoke(c, u, n));
         _connection.On<string, string[]>(
             "presence", (c, users) => OnPresence?.Invoke(c, users));
+        _connection.On<ReactionEvent>(
+            "reaction", e => OnReaction?.Invoke(e.ChannelId, e.MessageId, e.Reactions));
+        _connection.On<MessageUpdateEvent>(
+            "message:update", e => OnMessageUpdate?.Invoke(e.ChannelId, e.Id, e.IsPinned));
 
         try
         {
@@ -83,6 +93,16 @@ public class RealtimeService : IAsyncDisposable
             }
         }
     }
+
+    private sealed record ReactionEvent(
+        [property: System.Text.Json.Serialization.JsonPropertyName("channel_id")] string ChannelId,
+        [property: System.Text.Json.Serialization.JsonPropertyName("message_id")] string MessageId,
+        List<ChannelReactionResponse> Reactions);
+
+    private sealed record MessageUpdateEvent(
+        [property: System.Text.Json.Serialization.JsonPropertyName("channel_id")] string ChannelId,
+        string Id,
+        [property: System.Text.Json.Serialization.JsonPropertyName("is_pinned")] bool IsPinned);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

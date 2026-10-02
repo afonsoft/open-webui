@@ -478,6 +478,15 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ImagesConfig?> UpdateImagesConfigAsync(ImagesConfig config) =>
         SendAsync<ImagesConfig>(HttpMethod.Post, "/api/v1/images/config", config);
 
+    /// <summary>Testa a conectividade do motor de imagens configurado (admin).</summary>
+    public Task<ImageTestResponse?> TestImagesConfigAsync() =>
+        SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/images/config/test");
+
+    /// <summary>Edita uma imagem existente com um prompt (engines com suporte).</summary>
+    public Task<GeneratedImage?> EditImageAsync(string imageId, string prompt, string? size = null) =>
+        SendAsync<GeneratedImage>(HttpMethod.Post, "/api/v1/images/edit",
+            new ImageEditRequest(imageId, prompt, size));
+
     /// <summary>Gera imagens a partir de um prompt; nulo quando falha ou feature off.</summary>
     public Task<List<GeneratedImage>?> GenerateImagesAsync(string prompt, string? size = null) =>
         SendAsync<List<GeneratedImage>>(HttpMethod.Post, "/api/v1/images/generations",
@@ -605,9 +614,48 @@ public class ApiService(HttpClient http, AuthService auth)
             HttpMethod.Get, $"/api/v1/channels/{id}/messages?take=200") ?? [];
 
     /// <summary>Envia mensagem ao canal (retorna a mensagem persistida).</summary>
-    public Task<ChannelMessageResponse?> PostChannelMessageAsync(string id, string content) =>
+    public Task<ChannelMessageResponse?> PostChannelMessageAsync(
+        string id, string content, string? parentId = null) =>
         SendAsync<ChannelMessageResponse>(HttpMethod.Post,
-            $"/api/v1/channels/{id}/messages", new CreateChannelMessageRequest(content));
+            $"/api/v1/channels/{id}/messages",
+            new CreateChannelMessageRequest(content, parentId));
+
+    /// <summary>Cria ou obtém o DM com outro usuário.</summary>
+    public Task<ChannelResponse?> CreateDmAsync(string userId) =>
+        SendAsync<ChannelResponse>(HttpMethod.Post,
+            "/api/v1/channels/dm", new CreateDmRequest(userId));
+
+    /// <summary>Marca o canal como lido.</summary>
+    public Task<bool> MarkChannelReadAsync(string id) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/channels/{id}/read");
+
+    /// <summary>Lista respostas (thread) de uma mensagem.</summary>
+    public async Task<List<ChannelMessageResponse>> GetChannelRepliesAsync(
+        string id, string messageId) =>
+        await SendAsync<List<ChannelMessageResponse>>(
+            HttpMethod.Get, $"/api/v1/channels/{id}/messages/{messageId}/replies") ?? [];
+
+    /// <summary>Adiciona reação; retorna o agregado atualizado.</summary>
+    public async Task<List<ChannelReactionResponse>> AddChannelReactionAsync(
+        string id, string messageId, string emoji) =>
+        await SendAsync<List<ChannelReactionResponse>>(HttpMethod.Post,
+            $"/api/v1/channels/{id}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}") ?? [];
+
+    /// <summary>Remove reação; retorna o agregado atualizado.</summary>
+    public async Task<List<ChannelReactionResponse>> RemoveChannelReactionAsync(
+        string id, string messageId, string emoji) =>
+        await SendAsync<List<ChannelReactionResponse>>(HttpMethod.Delete,
+            $"/api/v1/channels/{id}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}") ?? [];
+
+    /// <summary>Fixa/desfixa mensagem.</summary>
+    public Task<bool> SetChannelMessagePinnedAsync(string id, string messageId, bool pinned) =>
+        SendStatusAsync(pinned ? HttpMethod.Post : HttpMethod.Delete,
+            $"/api/v1/channels/{id}/messages/{messageId}/pin");
+
+    /// <summary>Lista mensagens fixadas.</summary>
+    public async Task<List<ChannelMessageResponse>> GetChannelPinnedAsync(string id) =>
+        await SendAsync<List<ChannelMessageResponse>>(
+            HttpMethod.Get, $"/api/v1/channels/{id}/pinned") ?? [];
 
     /// <summary>Adiciona um usuário ao canal.</summary>
     public Task<bool> AddChannelMemberAsync(string id, string userId) =>
@@ -781,6 +829,19 @@ public class ApiService(HttpClient http, AuthService auth)
     /// <summary>Exclui um evento.</summary>
     public async Task<bool> DeleteCalendarEventAsync(string eventId) =>
         await SendStatusAsync(HttpMethod.Delete, $"/api/v1/calendars/events/{eventId}");
+
+    // ---------- Arena ----------
+
+    /// <summary>Registra o voto de uma batalha de arena e revela os modelos.</summary>
+    public Task<ArenaFeedbackResponse?> VoteArenaAsync(string battleId, string winner) =>
+        SendAsync<ArenaFeedbackResponse>(HttpMethod.Post,
+            "/api/v1/evaluations/arena/feedback",
+            new ArenaFeedbackRequest(battleId, winner));
+
+    /// <summary>Leaderboard de arena (ELO) — admin.</summary>
+    public async Task<List<LeaderboardEntryResponse>> GetLeaderboardAsync() =>
+        await SendAsync<List<LeaderboardEntryResponse>>(
+            HttpMethod.Get, "/api/v1/evaluations/leaderboard") ?? [];
 
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }

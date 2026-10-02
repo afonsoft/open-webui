@@ -4,6 +4,7 @@
 @inject ChatListState ChatList
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject MarkdownService Markdown
 @inject IJSRuntime JS
 
 <div class="flex flex-col flex-1 h-full w-full min-w-0">
@@ -93,6 +94,45 @@
                             OnSpeak="() => SpeakAtAsync(index)" />
                     }
                 </div>
+            }
+
+            @if (_arena is not null)
+            {
+                <div class="my-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    @foreach (var r in _arena.Responses)
+                    {
+                        <div class="rounded-xl border border-gray-100 dark:border-gray-850 px-4 py-3">
+                            <div class="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                @(_arenaFeedback is null
+                                    ? L.T("arena.model_label", ("label", r.Label))
+                                    : r.Label == "A" ? _arenaFeedback.ModelA : _arenaFeedback.ModelB)
+                            </div>
+                            <div class="markdown-body text-sm text-gray-800 dark:text-gray-200">
+                                @((MarkupString)Markdown.ToHtml(r.Content))
+                            </div>
+                        </div>
+                    }
+                </div>
+                @if (_arenaFeedback is null)
+                {
+                    <div class="mb-3 flex flex-wrap gap-2">
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850"
+                                disabled="@_arenaVoting" @onclick='() => VoteArenaAsync("a")'>@L["arena.vote_a"]</button>
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850"
+                                disabled="@_arenaVoting" @onclick='() => VoteArenaAsync("tie")'>@L["arena.vote_tie"]</button>
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850"
+                                disabled="@_arenaVoting" @onclick='() => VoteArenaAsync("both_bad")'>@L["arena.vote_both_bad"]</button>
+                        <button class="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850"
+                                disabled="@_arenaVoting" @onclick='() => VoteArenaAsync("b")'>@L["arena.vote_b"]</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                        @L.T("arena.revealed", ("a", _arenaFeedback.ModelA), ("b", _arenaFeedback.ModelB))
+                        — @_arenaFeedback.RatingA.ToString("F0") / @_arenaFeedback.RatingB.ToString("F0")
+                    </div>
+                }
             }
 
             @if (_error is not null)
@@ -235,6 +275,9 @@
     private List<PromptSuggestion> _suggestions = [];
     private List<PromptResponse> _promptSuggestions = [];
     private List<string> _followUps = [];
+    private ArenaCompletionResult? _arena;
+    private ArenaFeedbackResponse? _arenaFeedback;
+    private bool _arenaVoting;
     private List<ToolResponse> _tools = [];
     private HashSet<string> _toolIds = [];
     private bool _showToolsMenu;
@@ -636,6 +679,8 @@
         var index = _messages.Count - 1;
 
         _streaming = true;
+        _arena = null;
+        _arenaFeedback = null;
         _cts = new CancellationTokenSource();
         var content = new System.Text.StringBuilder();
 
@@ -667,9 +712,49 @@
         }
         finally
         {
+            if (ChatStream.LastArenaResult is { } arenaResult)
+            {
+                _arena = arenaResult;
+            }
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+        }
+    }
+
+    private async Task VoteArenaAsync(string winner)
+    {
+        if (_arena is null || _arenaVoting)
+        {
+            return;
+        }
+        _arenaVoting = true;
+        try
+        {
+            var feedback = await Api.VoteArenaAsync(_arena.BattleId, winner);
+            if (feedback is not null)
+            {
+                _arenaFeedback = feedback;
+                var winnerModel = winner switch
+                {
+                    "a" => feedback.ModelA,
+                    "b" => feedback.ModelB,
+                    _ => null,
+                };
+                var label = winnerModel is null
+                    ? L[winner == "tie" ? "arena.result_tie" : "arena.result_both_bad"]
+                    : L.T("arena.result_winner", ("model", winnerModel));
+                var index = _messages.Count - 1;
+                if (index >= 0 && _messages[index].Role == "assistant")
+                {
+                    _messages[index] = _messages[index] with { Content = label };
+                }
+                await PersistAsync();
+            }
+        }
+        finally
+        {
+            _arenaVoting = false;
         }
     }
 

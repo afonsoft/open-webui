@@ -189,7 +189,7 @@ public class AccessGrantsTests
         Assert.That(get.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         var post = await _client.PostAsJsonAsync($"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("oi"));
+            new CreateChannelMessageRequest("oi", null));
         Assert.That(post.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 

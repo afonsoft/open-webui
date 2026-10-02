@@ -245,13 +245,13 @@ public class ChannelMembersTests
         // Conteúdo vazio/em branco → 400.
         var empty = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("   "));
+            new CreateChannelMessageRequest("   ", null));
         Assert.That(empty.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
         // Post válido retorna a mensagem com autor.
         var posted = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("Primeira mensagem"));
+            new CreateChannelMessageRequest("Primeira mensagem", null));
         Assert.That(posted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var message = (await posted.Content.ReadFromJsonAsync<ChannelMessageResponse>())!;
         Assert.Multiple(() =>
@@ -263,7 +263,7 @@ public class ChannelMembersTests
 
         // Paginação: skip/take são respeitados.
         await _client.PostAsJsonAsync($"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("Segunda mensagem"));
+            new CreateChannelMessageRequest("Segunda mensagem", null));
         var page = await _client.GetFromJsonAsync<List<ChannelMessageResponse>>(
             $"/api/v1/channels/{channel.Id}/messages?skip=1&take=1");
         Assert.That(page, Has.Count.EqualTo(1));
@@ -281,7 +281,7 @@ public class ChannelMembersTests
 
         var posted = await _client.PostAsJsonAsync(
             $"/api/v1/channels/{channel.Id}/messages",
-            new CreateChannelMessageRequest("@fake:1 qual é a resposta?"));
+            new CreateChannelMessageRequest("@fake:1 qual é a resposta?", null));
         Assert.That(posted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         // ReplyWithModelAsync roda em background: aguarda a resposta do mock.

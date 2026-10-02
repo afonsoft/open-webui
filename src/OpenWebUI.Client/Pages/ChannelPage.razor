@@ -10,110 +10,216 @@
 
 <PageTitle>@(_channel?.Name ?? L["channel.title_default"]) — Open WebUI</PageTitle>
 
-<div class="flex flex-col flex-1 h-full w-full min-w-0">
-    <div class="sticky top-0 z-30 w-full">
-        <div class="flex items-center w-full pl-1.5 pr-1">
-            <div class="flex-1 mt-0.5 py-0.5 pl-1">
-                <div class="text-[0.9375rem] font-medium text-gray-800 dark:text-gray-200">
-                    # @(_channel?.Name ?? "…")
-                </div>
-            </div>
-            <div class="flex flex-none items-center gap-2 self-center">
-                @if (_online.Count > 0)
-                {
-                    <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span class="size-1.5 rounded-full bg-green-500"></span>@L.T("channel.online", ("count", _online.Count.ToString()))
-                    </span>
-                }
-                @if (_channel?.MyRole == "admin" || Auth.CurrentUser?.Role == "admin")
-                {
-                    <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
-                            title="@L["channel.add_member"]" @onclick="AddMemberAsync">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
-                    </button>
-                }
-            </div>
-        </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto scrollbar-hidden">
-        <div class="mx-auto w-full max-w-4xl px-4 pb-6">
-            @if (_channel is null && _loaded)
-            {
-                <div class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-                    @L["channel.not_found"]
-                </div>
-            }
-            else if (_messages.Count == 0 && _loaded)
-            {
-                <div class="py-16 text-center">
-                    <div class="text-lg text-gray-700 dark:text-gray-200"># @_channel?.Name</div>
-                    <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        @L["channel.start"]
+<div class="flex flex-1 h-full w-full min-w-0">
+    <div class="flex flex-col flex-1 h-full min-w-0">
+        <div class="sticky top-0 z-30 w-full">
+            <div class="flex items-center w-full pl-1.5 pr-1">
+                <div class="flex-1 mt-0.5 py-0.5 pl-1">
+                    <div class="text-[0.9375rem] font-medium text-gray-800 dark:text-gray-200">
+                        @(_channel?.Type == "dm" ? "@" : "#") @(_channel?.Name ?? "…")
                     </div>
                 </div>
-            }
-            else
-            {
-                <div class="flex flex-col gap-5 py-4">
-                    @foreach (var msg in _messages)
+                <div class="flex flex-none items-center gap-2 self-center">
+                    @if (_online.Count > 0)
                     {
-                        <div class="flex w-full gap-3">
-                            <div class="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[0.65rem] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                                @Initials(msg.AuthorName)
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                    @msg.AuthorName
-                                </div>
-                                <div class="markdown-body mt-0.5 text-sm text-gray-800 dark:text-gray-200">
-                                    @((MarkupString)Markdown.ToHtml(msg.Content))
-                                </div>
-                            </div>
-                        </div>
+                        <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span class="size-1.5 rounded-full bg-green-500"></span>@L.T("channel.online", ("count", _online.Count.ToString()))
+                        </span>
                     }
-                    @if (_typing is not null)
+                    <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                            title="@L["channel.pinned"]" @onclick="TogglePinnedAsync">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg>
+                    </button>
+                    @if (_channel?.Type != "dm" && (_channel?.MyRole == "admin" || Auth.CurrentUser?.Role == "admin"))
                     {
-                        <div class="text-xs italic text-gray-400 dark:text-gray-500">
-                            @L.T("channel.typing", ("name", _typing ?? ""))
-                        </div>
+                        <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                                title="@L["channel.add_member"]" @onclick="AddMemberAsync">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>
+                        </button>
                     }
                 </div>
-            }
+            </div>
         </div>
-    </div>
 
-    <div class="w-full px-4 pb-4">
-        <div class="mx-auto max-w-4xl">
-            <div class="flex items-end gap-2 rounded-3xl border border-gray-100 bg-white px-4 py-2.5 dark:border-gray-850 dark:bg-gray-900">
-                <textarea
-                    class="max-h-40 flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
-                    rows="1" placeholder="@L.T("channel.placeholder", ("name", _channel?.Name ?? "canal"))"
-                    @bind="_draft" @bind:event="oninput" @onkeydown="OnKeyDown"
-                    disabled="@(_channel is null)"></textarea>
-                <button
-                    class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
-                    disabled="@(string.IsNullOrWhiteSpace(_draft) || _channel is null)"
-                    @onclick="SendAsync">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
-                </button>
+        @if (_showPinned && _pinned.Count > 0)
+        {
+            <div class="border-b border-gray-100 dark:border-gray-850 px-4 py-2">
+                @foreach (var p in _pinned)
+                {
+                    <div class="flex items-center gap-2 py-0.5 text-xs text-gray-600 dark:text-gray-300">
+                        <span class="shrink-0">📌</span>
+                        <span class="font-medium shrink-0">@p.AuthorName</span>
+                        <span class="truncate">@p.Content</span>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="flex-1 overflow-y-auto scrollbar-hidden">
+            <div class="mx-auto w-full max-w-4xl px-4 pb-6">
+                @if (_channel is null && _loaded)
+                {
+                    <div class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+                        @L["channel.not_found"]
+                    </div>
+                }
+                else if (_messages.Count == 0 && _loaded)
+                {
+                    <div class="py-16 text-center">
+                        <div class="text-lg text-gray-700 dark:text-gray-200"># @_channel?.Name</div>
+                        <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            @L["channel.start"]
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="flex flex-col gap-5 py-4">
+                        @foreach (var msg in _messages)
+                        {
+                            <div class="group flex w-full gap-3">
+                                <div class="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[0.65rem] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                    @Initials(msg.AuthorName)
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        @msg.AuthorName
+                                        @if (msg.IsPinned)
+                                        {
+                                            <span title="@L["channel.pinned"]">📌</span>
+                                        }
+                                        <span class="invisible ml-auto flex gap-1 group-hover:visible">
+                                            @foreach (var emoji in QuickEmojis)
+                                            {
+                                                <button class="cursor-pointer opacity-60 hover:opacity-100"
+                                                        @onclick="() => ToggleReactionAsync(msg, emoji)">@emoji</button>
+                                            }
+                                            <button class="cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                                    title="@L["channel.reply"]" @onclick="() => OpenThreadAsync(msg)">↩</button>
+                                            <button class="cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                                    title="@L["channel.pin"]" @onclick="() => TogglePinAsync(msg)">📌</button>
+                                        </span>
+                                    </div>
+                                    <div class="markdown-body mt-0.5 text-sm text-gray-800 dark:text-gray-200">
+                                        @((MarkupString)Markdown.ToHtml(msg.Content))
+                                    </div>
+                                    @if (msg.Reactions.Count > 0)
+                                    {
+                                        <div class="mt-1 flex flex-wrap gap-1">
+                                            @foreach (var r in msg.Reactions)
+                                            {
+                                                <button class="cursor-pointer rounded-full border px-1.5 py-0.5 text-xs transition
+                                                               @(r.UserIds.Contains(Auth.CurrentUser?.Id ?? "")
+                                                                   ? "border-blue-400 bg-blue-50 text-blue-600 dark:border-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
+                                                                   : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300")"
+                                                        @onclick="() => ToggleReactionAsync(msg, r.Emoji)">
+                                                    @r.Emoji @r.Count
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    @if (msg.ReplyCount > 0)
+                                    {
+                                        <button class="mt-1 cursor-pointer text-xs text-blue-500 hover:underline"
+                                                @onclick="() => OpenThreadAsync(msg)">
+                                            @L.T("channel.replies", ("count", msg.ReplyCount.ToString()))
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (_typing is not null)
+                        {
+                            <div class="text-xs italic text-gray-400 dark:text-gray-500">
+                                @L.T("channel.typing", ("name", _typing ?? ""))
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="w-full px-4 pb-4">
+            <div class="mx-auto max-w-4xl">
+                <div class="flex items-end gap-2 rounded-3xl border border-gray-100 bg-white px-4 py-2.5 dark:border-gray-850 dark:bg-gray-900">
+                    <textarea
+                        class="max-h-40 flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+                        rows="1" placeholder="@L.T("channel.placeholder", ("name", _channel?.Name ?? "canal"))"
+                        @bind="_draft" @bind:event="oninput" @onkeydown="OnKeyDown"
+                        disabled="@(_channel is null)"></textarea>
+                    <button
+                        class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
+                        disabled="@(string.IsNullOrWhiteSpace(_draft) || _channel is null)"
+                        @onclick="SendAsync">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
+    @if (_thread is not null)
+    {
+        <div class="flex w-80 shrink-0 flex-col border-l border-gray-100 dark:border-gray-850">
+            <div class="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-gray-850">
+                <div class="text-sm font-medium text-gray-800 dark:text-gray-200">@L["channel.thread"]</div>
+                <button class="cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        @onclick="() => _thread = null">✕</button>
+            </div>
+            <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-850">
+                <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">@_thread.AuthorName</div>
+                <div class="markdown-body mt-0.5 text-sm text-gray-800 dark:text-gray-200">
+                    @((MarkupString)Markdown.ToHtml(_thread.Content))
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto scrollbar-hidden px-3 py-2">
+                @foreach (var reply in _replies)
+                {
+                    <div class="mb-3">
+                        <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">@reply.AuthorName</div>
+                        <div class="markdown-body mt-0.5 text-sm text-gray-800 dark:text-gray-200">
+                            @((MarkupString)Markdown.ToHtml(reply.Content))
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="border-t border-gray-100 p-2 dark:border-gray-850">
+                <div class="flex items-end gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 dark:border-gray-850 dark:bg-gray-900">
+                    <textarea
+                        class="max-h-32 flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+                        rows="1" placeholder="@L["channel.reply_placeholder"]"
+                        @bind="_replyDraft" @bind:event="oninput" @onkeydown="OnReplyKeyDown"></textarea>
+                    <button
+                        class="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
+                        disabled="@(string.IsNullOrWhiteSpace(_replyDraft))"
+                        @onclick="SendReplyAsync">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     /// <summary>Id do canal na rota.</summary>
     [Parameter] public string Id { get; set; } = string.Empty;
 
+    private static readonly string[] QuickEmojis = ["👍", "❤️", "😂"];
+
     private ChannelDetailResponse? _channel;
     private List<ChannelMessageResponse> _messages = [];
+    private List<ChannelMessageResponse> _pinned = [];
     private readonly HashSet<string> _seen = [];
     private HashSet<string> _online = [];
     private string? _typing;
     private string _draft = string.Empty;
     private bool _loaded;
     private string? _lastId;
+    private bool _showPinned;
+    private ChannelMessageResponse? _thread;
+    private List<ChannelMessageResponse> _replies = [];
+    private string _replyDraft = string.Empty;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -121,6 +227,8 @@
         Realtime.OnMessage += HandleMessage;
         Realtime.OnTyping += HandleTyping;
         Realtime.OnPresence += HandlePresence;
+        Realtime.OnReaction += HandleReaction;
+        Realtime.OnMessageUpdate += HandleMessageUpdate;
         await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
     }
 
@@ -137,6 +245,7 @@
         _seen.Clear();
         _online = [];
         _typing = null;
+        _thread = null;
 
         _channel = await Api.GetChannelAsync(Id);
         _messages = await Api.GetChannelMessagesAsync(Id);
@@ -144,17 +253,76 @@
         {
             _seen.Add(m.Id);
         }
+        if (_channel is not null)
+        {
+            await Api.MarkChannelReadAsync(Id);
+        }
         _loaded = true;
     }
 
     private void HandleMessage(ChannelMessageResponse message)
     {
-        if (message.ChannelId == Id && _seen.Add(message.Id))
+        if (message.ChannelId != Id)
+        {
+            return;
+        }
+        if (message.ParentId is not null)
+        {
+            if (_thread?.Id == message.ParentId && _seen.Add(message.Id))
+            {
+                _replies.Add(message);
+            }
+            BumpReplyCount(message.ParentId);
+        }
+        else if (_seen.Add(message.Id))
         {
             _messages.Add(message);
             _typing = null;
-            InvokeAsync(StateHasChanged);
         }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void BumpReplyCount(string parentId)
+    {
+        var index = _messages.FindIndex(m => m.Id == parentId);
+        if (index >= 0)
+        {
+            var m = _messages[index];
+            _messages[index] = m with { ReplyCount = m.ReplyCount + 1 };
+        }
+    }
+
+    private void HandleReaction(string channelId, string messageId, List<ChannelReactionResponse> reactions)
+    {
+        if (channelId != Id)
+        {
+            return;
+        }
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index >= 0)
+        {
+            _messages[index] = _messages[index] with { Reactions = reactions };
+        }
+        var replyIndex = _replies.FindIndex(m => m.Id == messageId);
+        if (replyIndex >= 0)
+        {
+            _replies[replyIndex] = _replies[replyIndex] with { Reactions = reactions };
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleMessageUpdate(string channelId, string messageId, bool isPinned)
+    {
+        if (channelId != Id)
+        {
+            return;
+        }
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index >= 0)
+        {
+            _messages[index] = _messages[index] with { IsPinned = isPinned };
+        }
+        InvokeAsync(StateHasChanged);
     }
 
     private void HandleTyping(string channelId, string userId, string name)
@@ -200,6 +368,80 @@
         }
     }
 
+    private async Task SendReplyAsync()
+    {
+        var content = _replyDraft.Trim();
+        if (content.Length == 0 || _thread is null)
+        {
+            return;
+        }
+        _replyDraft = string.Empty;
+
+        var sent = await Api.PostChannelMessageAsync(Id, content, _thread.Id);
+        if (sent is not null && _seen.Add(sent.Id))
+        {
+            _replies.Add(sent);
+            BumpReplyCount(_thread.Id);
+        }
+    }
+
+    private async Task OpenThreadAsync(ChannelMessageResponse msg)
+    {
+        _thread = msg;
+        _replyDraft = string.Empty;
+        _replies = await Api.GetChannelRepliesAsync(Id, msg.Id);
+        foreach (var r in _replies)
+        {
+            _seen.Add(r.Id);
+        }
+    }
+
+    private async Task ToggleReactionAsync(ChannelMessageResponse msg, string emoji)
+    {
+        var mine = msg.Reactions
+            .FirstOrDefault(r => r.Emoji == emoji)
+            ?.UserIds.Contains(Auth.CurrentUser?.Id ?? "") == true;
+        var updated = mine
+            ? await Api.RemoveChannelReactionAsync(Id, msg.Id, emoji)
+            : await Api.AddChannelReactionAsync(Id, msg.Id, emoji);
+        ApplyReactions(msg.Id, updated);
+    }
+
+    private void ApplyReactions(string messageId, List<ChannelReactionResponse> reactions)
+    {
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index >= 0)
+        {
+            _messages[index] = _messages[index] with { Reactions = reactions };
+        }
+        var replyIndex = _replies.FindIndex(m => m.Id == messageId);
+        if (replyIndex >= 0)
+        {
+            _replies[replyIndex] = _replies[replyIndex] with { Reactions = reactions };
+        }
+    }
+
+    private async Task TogglePinAsync(ChannelMessageResponse msg)
+    {
+        if (await Api.SetChannelMessagePinnedAsync(Id, msg.Id, !msg.IsPinned))
+        {
+            var index = _messages.FindIndex(m => m.Id == msg.Id);
+            if (index >= 0)
+            {
+                _messages[index] = _messages[index] with { IsPinned = !msg.IsPinned };
+            }
+        }
+    }
+
+    private async Task TogglePinnedAsync()
+    {
+        _showPinned = !_showPinned;
+        if (_showPinned)
+        {
+            _pinned = await Api.GetChannelPinnedAsync(Id);
+        }
+    }
+
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
@@ -209,6 +451,14 @@
         else
         {
             _ = Realtime.SendTypingAsync(Id);
+        }
+    }
+
+    private async Task OnReplyKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendReplyAsync();
         }
     }
 
@@ -241,5 +491,7 @@
         Realtime.OnMessage -= HandleMessage;
         Realtime.OnTyping -= HandleTyping;
         Realtime.OnPresence -= HandlePresence;
+        Realtime.OnReaction -= HandleReaction;
+        Realtime.OnMessageUpdate -= HandleMessageUpdate;
     }
 }
