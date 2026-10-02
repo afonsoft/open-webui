@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-ollama-management` |
 | Ticket | Issue #82 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -57,3 +57,9 @@ Espelho upstream: `/ollama/api/{pull,create,delete,copy}`, `/ollama/api/blobs/{d
 - [ ] Pull com progresso visível (SSE/NDJSON repassado).
 - [ ] Blobs upload/download roundtrip.
 - [ ] Testes com HttpListener mock: pull stream, delete, blob roundtrip, 502 em host morto.
+
+## Delivered
+
+- Issue: https://github.com/afonsoft/open-webui/issues/82
+- Epic: https://github.com/afonsoft/open-webui/issues/79
+- PR: https://github.com/afonsoft/open-webui/pull/103
