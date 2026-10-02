@@ -28,9 +28,9 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 | Superfície | Upstream | Coberto | Gap |
 |---|---|---|---|
-| Routers (grupos de endpoints) | 33 | ~24 ✅ / ~7 🟡 parcial / ~2 ⬜ | ver tabela |
+| Routers (grupos de endpoints) | 33 | ~31 ✅ / ~2 🟡 decisão documentada / 0 ⬜ | ver tabela |
 | Rotas de página | 47 | ~46 | falta apenas edição inline de functions (admin) |
-| Engines de integração | ~15 (embeddings, busca web, imagens, TTS, extração) | ~4 | engines alternativas por família |
+| Engines de integração | ~15 | ~14 | variações avançadas por engine |
 
 ## Paridade por área (router upstream → .NET)
 
@@ -44,7 +44,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `models` — custom | CRUD workspace, system prompt + params, toggle |
 | `evaluations` — feedbacks | 👍/👎 + lista admin paginada + export + arena battles + leaderboard ELO |
 | `files` — upload/serve | Extração de texto, `data/uploads/{user}/` fora do wwwroot |
-| `knowledge` — RAG | Coleções, itens, embeddings (Ollama/OpenAI), retrieval por cosseno |
+| `knowledge` — RAG | Coleções, itens, embeddings (Ollama/OpenAI), retrieval por cosseno + `file/add`, `reindex`, `batch/delete` |
 | `channels` — grupo + DM | SignalR `/ws`: `message:new`, `typing`, `presence`, `@modelo` invoca provider; DMs, threads, reações, lidos, pins, access grants por canal |
 | `groups` — RBAC | CRUD + membros + flags workspace/sharing/chat |
 | `folders`, `memories`, `notes`, `prompts` | CRUD completo |
@@ -64,32 +64,28 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | EF Migrations | `DatabaseMigrator` + baseline de `webui.db` legadas |
 | Docker | Dockerfile multi-stage + compose (+ ollama opcional) |
 
-### Parcial 🟡
+### Parcial 🟡 (decisões documentadas)
 
-| Área | Feito | Falta |
+| Área | Feito | Residual |
 |---|---|---|
-| `retrieval` (17 eps) | Embeddings + busca vetorial + `/process/{file,text,url,youtube}` + `/process/web/search` (searxng/duckduckgo/tavily/brave) + híbrido BM25 + reset db/uploads | Demais engines de busca (8), reranking por provider, engines de extração de conteúdo |
-| `users` (26 eps) | Perfil/admin + user settings + sessões OAuth + busca/paginação/filtros | Permissões granulares por usuário (hoje por grupo) |
-| `chats` (50 eps) | Core completo | Versões/diff de mensagens, chat-events realtime, lista admin de todos os chats |
-| `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, reindex, batch ops |
-| `tools` (15 eps) | Tools HTTP | Valves/user settings por tool (tools em código: decisão documentada no plugin-ecosystem) |
-| `ollama`/`openai` passthrough | `/ollama/api/{tags,version,show,chat,generate,embed}` + `/openai/{models,chat/completions,embeddings}` (+ variantes indexadas) | `pull/create/delete/copy` + `blobs/*` (gerenciamento de modelos), audio/images via passthrough |
-| `images` (6 eps) | Engines plugáveis: OpenAI, A1111, Gemini, ComfyUI + `/edit` + `/config/engines` + `/config/test` | Variações avançadas por engine |
-| `audio` (6 eps) | `POST /audio/speech` (TTS OpenAI-compatible), `POST /transcriptions` (STT openai/deepgram), `/voices`, `/models`, `/capabilities`, fallback Web Speech | Whisper local, engines TTS extras (ElevenLabs/Azure) |
-| `configs` (25 eps) | Conexões/flags/admin | OAuth/LDAP toggles, direct connections, configs finas restantes por domínio |
-| `groups` (11 eps) | Flags workspace/sharing | Domínios allowlist, permissões granulares por feature |
-| `models` (16 eps) | Custom models + arena + access grants (user/group/*) | Model filters |
-| `notes` (12 eps) | CRUD | Colaboração realtime (yjs) |
-| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local, PTY no host — decisão documentada: só proxy externo |
-| `i18n` | pt-BR/en-US sem reload | ~30 locales do upstream; backend não traduzido |
+| `tools` (15 eps) | Tools HTTP com loop server-side | Tools/functions em código arbitrário — decisão do plugin-ecosystem: .NET não executa código do usuário; filters são declarativos |
+| `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local / PTY no host — decisão documentada: só proxy externo |
 
-### Pendente ⬜
+### Fase 3 entregue (Epic #79)
 
-| Área | Escopo upstream |
+| Área | Entrega |
 |---|---|
-| `utils` (4 eps) | Gravatar, code format, litellm config |
-| Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
-| Rate limiting | Limites de uso por usuário/modelo |
+| `chats` avançado | Versões de mensagens, chat-events realtime, lista admin de todos os chats |
+| `knowledge` v2 | `file/add`, `reindex`, `batch/delete` |
+| `ollama` gerenciamento | `pull/create/delete/copy` + `blobs/*` + passthrough de mídia |
+| `audio` engines | Whisper externo (STT), ElevenLabs e Azure (TTS) |
+| `retrieval` v2 | Engines de busca restantes + rerank por provider externo |
+| `notes` collab | Edição colaborativa SignalR (LWW por `UpdatedAt`, presença, cursores) |
+| `permissions` | Override por usuário vence grupo + domínios de grupo com auto-membership |
+| `models` filters | `system_inject`, `params_override`, `regex_redact` (inlet/outlet), `max_tokens_cap` |
+| `i18n` | 8 locales (pt-BR, en-US, es, fr, de, it, ja, zh) + manifesto + `error_code` traduzido |
+| `utils` | Gravatar (SHA256 idêntico ao upstream), code format, share openwebui.com |
+| Rate limiting | Lockout de login + token-bucket em completions |
 
 ## Rotas de página (frontend)
 
