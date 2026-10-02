@@ -454,5 +454,8 @@
   "errors.invalid_credentials": "Credenciais inválidas.",
   "errors.wrong_password": "Senha atual incorreta.",
   "errors.weak_password": "A nova senha precisa de ao menos 4 caracteres.",
-  "errors.api_keys_disabled": "Chaves de API desabilitadas."
+  "errors.api_keys_disabled": "Chaves de API desabilitadas.",
+  "admin.stt_engine": "Engine de STT",
+  "admin.tts_engine": "Engine de TTS",
+  "admin.search_engine": "Engine de busca web"
 }

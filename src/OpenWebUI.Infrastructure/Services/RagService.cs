@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,9 @@ namespace OpenWebUI.Infrastructure.Services;
 /// Sem provider de embedding, RetrieveAsync retorna null e o chamador usa
 /// o fallback de texto integral.
 /// </summary>
-public class RagService(AppDbContext db, EmbeddingService embeddings, ConfigService config)
+public class RagService(
+    AppDbContext db, EmbeddingService embeddings, ConfigService config,
+    IHttpClientFactory httpFactory)
 {
     /// <summary>Tamanho máximo do chunk em caracteres.</summary>
     public int ChunkSize { get; set; } = 1000;
@@ -137,7 +140,9 @@ public class RagService(AppDbContext db, EmbeddingService embeddings, ConfigServ
 
         if (cfg.Rerank)
         {
-            ranked = Rerank(query, ranked);
+            ranked = cfg.RerankEngine == "external"
+                ? await ExternalRerankAsync(query, ranked, cfg, ct)
+                : Rerank(query, ranked);
         }
 
         return BuildContext(ranked, cfg.TopK);
@@ -232,6 +237,59 @@ public class RagService(AppDbContext db, EmbeddingService embeddings, ConfigServ
             })
             .OrderByDescending(s => s.score)
             .ToList();
+    }
+
+    /// <summary>
+    /// Rerank por provider externo: POST {query, documents[]} no endpoint
+    /// configurado esperando {scores[]} alinhados aos documentos. Qualquer
+    /// falha (URL ausente, HTTP, payload inesperado) cai no rerank local.
+    /// </summary>
+    private async Task<List<(EmbeddingChunk chunk, double score)>> ExternalRerankAsync(
+        string query, List<(EmbeddingChunk chunk, double score)> ranked,
+        RetrievalConfig cfg, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(cfg.RerankExternalUrl))
+        {
+            return Rerank(query, ranked);
+        }
+
+        try
+        {
+            var client = httpFactory.CreateClient(nameof(RagService));
+            client.Timeout = TimeSpan.FromSeconds(15);
+            using var request = new HttpRequestMessage(HttpMethod.Post, cfg.RerankExternalUrl);
+            if (!string.IsNullOrEmpty(cfg.RerankExternalApiKey))
+            {
+                request.Headers.TryAddWithoutValidation(
+                    "Authorization", $"Bearer {cfg.RerankExternalApiKey}");
+            }
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(new
+                {
+                    query,
+                    documents = ranked.Select(r => r.chunk.Text).ToArray(),
+                }, JsonSerializerOptions.Web),
+                Encoding.UTF8, "application/json");
+            var response = await client.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            var doc = await response.Content.ReadFromJsonAsync<JsonElement>(
+                JsonSerializerOptions.Web, ct);
+
+            if (doc.TryGetProperty("scores", out var scores)
+                && scores.GetArrayLength() == ranked.Count)
+            {
+                return ranked
+                    .Select((r, i) => (r.chunk, score: scores[i].GetDouble()))
+                    .OrderByDescending(p => p.score)
+                    .ToList();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // fallback para o rerank local em qualquer falha do provider
+        }
+
+        return Rerank(query, ranked);
     }
 
     private IAsyncEnumerable<EmbeddingChunk> ScopedChunks(

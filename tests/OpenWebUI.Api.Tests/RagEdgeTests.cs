@@ -39,7 +39,7 @@ public class RagEdgeTests
     }
 
     private RagService NewRag(AppDbContext db) =>
-        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db)), new ConfigService(db));
+        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db)), new ConfigService(db), new StubHttpClientFactory());
 
     private sealed class StubHttpClientFactory : IHttpClientFactory
     {
