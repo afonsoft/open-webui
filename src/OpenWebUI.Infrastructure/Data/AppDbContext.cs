@@ -77,6 +77,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
+    /// <summary>Banners administrativos.</summary>
+    public DbSet<Banner> Banners => Set<Banner>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

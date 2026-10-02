@@ -42,6 +42,7 @@ public static class ApiEndpoints
     {
         var adminConfig = await config.GetAdminConfigAsync(ct);
         var imagesConfig = await images.GetConfigAsync(ct);
+        var modelsConfig = await ConfigEndpoints.GetModelsConfigInternalAsync(config, ct);
 
         return Results.Ok(new AppConfigResponse(
             Status: true,
@@ -62,7 +63,8 @@ public static class ApiEndpoints
                 EnableImageGeneration: imagesConfig.Enabled,
                 EnableCodeExecution: true,
                 EnableCommunitySharing: true),
-            DefaultPromptSuggestions: [],
+            DefaultModels: modelsConfig.DefaultModels,
+            DefaultPromptSuggestions: modelsConfig.PromptSuggestions,
             OAuthProviders: OAuthProviderCatalog.ConfiguredProviders()));
     }
 

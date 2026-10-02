@@ -210,44 +210,155 @@
             }
             else
             {
-                <div class="card-list">
-                    <div class="card-row">
-                        <div class="card-main">
-                            <div class="card-title">@L["admin.flags_editable"]</div>
-                            <div class="card-sub">@L["admin.flags_editable_hint"]</div>
+                <div class="flex gap-1 mb-3">
+                    @foreach (var sub in new[] { "general", "models", "features" })
+                    {
+                        <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                                @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
+                    }
+                </div>
+
+                @if (_configTab == "general")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="check"><input type="checkbox" @bind="_flagSignup" /> @L["settings.allow_signup"]</label>
+                                <label class="check"><input type="checkbox" @bind="_flagLoginForm" /> @L["settings.allow_password_login"]</label>
+                                <label class="check"><input type="checkbox" @bind="_flagApiKeys" /> @L["settings.allow_api_keys"]</label>
+                                <label class="check"><input type="checkbox" @bind="_flagRating" /> @L["settings.enable_rating"]</label>
+                                <label class="check"><input type="checkbox" @bind="_flagFolders" /> @L["settings.enable_folders"]</label>
+                                <label class="check"><input type="checkbox" @bind="_flagMemories" /> @L["settings.enable_memories"]</label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.webui_name"]</label>
+                                <input class="input" @bind="_webUiName" />
+                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1">@L["admin.default_role"]</label>
+                                <select class="input w-40" @bind="_defaultRole">
+                                    <option value="pending">pending</option>
+                                    <option value="user">user</option>
+                                    <option value="admin">admin</option>
+                                </select>
+                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1">@L["admin.jwt_expires"]</label>
+                                <input class="input w-40" @bind="_jwtExpiresIn" placeholder="7d" />
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_configMessage is not null)
+                            {
+                                <div class="field-note">@_configMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveFlagsAsync">@L["common.save"]</button>
                         </div>
                     </div>
-                    <div class="card-row">
-                        <div class="flex flex-col gap-2 w-full text-sm py-1">
-                            <label class="check"><input type="checkbox" @bind="_flagSignup" /> @L["settings.allow_signup"]</label>
-                            <label class="check"><input type="checkbox" @bind="_flagLoginForm" /> @L["settings.allow_password_login"]</label>
-                            <label class="check"><input type="checkbox" @bind="_flagApiKeys" /> @L["settings.allow_api_keys"]</label>
-                            <label class="check"><input type="checkbox" @bind="_flagRating" /> @L["settings.enable_rating"]</label>
-                            <label class="check"><input type="checkbox" @bind="_flagFolders" /> @L["settings.enable_folders"]</label>
-                            <label class="check"><input type="checkbox" @bind="_flagMemories" /> @L["settings.enable_memories"]</label>
+                }
+                else if (_configTab == "models")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.default_models"]</label>
+                                <input class="input" @bind="_defaultModelsText"
+                                       placeholder="llama3, gpt-4o" />
+                            </div>
                         </div>
-                    </div>
-                    <div class="card-row">
-                        @if (_configMessage is not null)
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.suggestions"]</div>
+                                <div class="card-sub">@L["admin.suggestions_hint"]</div>
+                            </div>
+                        </div>
+                        @foreach (var suggestion in _suggestions.ToList())
                         {
-                            <div class="field-note">@_configMessage</div>
+                            <div class="card-row">
+                                <div class="card-main w-full flex gap-2">
+                                    <input class="input w-40" @bind="suggestion.Title" placeholder="@L["admin.suggestion_title"]" />
+                                    <input class="input flex-1" @bind="suggestion.Content" placeholder="@L["admin.suggestion_content"]" />
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action danger" @onclick="() => _suggestions.Remove(suggestion)">🗑</button>
+                                </div>
+                            </div>
                         }
-                        <button class="auth-submit" @onclick="SaveFlagsAsync">@L["common.save"]</button>
+                        <div class="card-row">
+                            <button class="msg-action" @onclick="AddSuggestion">@L["admin.add_suggestion"]</button>
+                            @if (_configMessage is not null)
+                            {
+                                <div class="field-note">@_configMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveModelsConfigAsync">@L["common.save"]</button>
+                        </div>
                     </div>
-                    <div class="card-row">
-                        <div class="card-main">
-                            <div class="card-title">@L["admin.flags_readonly"]</div>
-                            <div class="card-sub">
-                                notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
-                                channels: @FlagBadge(_appConfig.Features.EnableChannels) ·
-                                web search: @FlagBadge(_appConfig.Features.EnableWebSearch) ·
-                                images: @FlagBadge(_appConfig.Features.EnableImageGeneration) ·
-                                code exec: @FlagBadge(_appConfig.Features.EnableCodeExecution) ·
-                                sharing: @FlagBadge(_appConfig.Features.EnableCommunitySharing)
+
+                    <div class="card-list mt-4">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.banners"]</div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-wrap gap-2 items-center">
+                                <select class="input w-28" @bind="_bannerType">
+                                    <option value="info">info</option>
+                                    <option value="warning">warning</option>
+                                    <option value="error">error</option>
+                                    <option value="success">success</option>
+                                </select>
+                                <input class="input w-48" @bind="_bannerTitle" placeholder="@L["admin.banner_title"]" />
+                                <input class="input flex-1" @bind="_bannerContent" placeholder="@L["admin.banner_content"]" />
+                                <button class="auth-submit" @onclick="SaveBannerAsync">
+                                    @(_editingBannerId is null ? L["common.new"] : L["common.save"])
+                                </button>
+                            </div>
+                        </div>
+                        @foreach (var banner in _banners)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@banner.Title <span class="role-badge">@banner.Type</span></div>
+                                    <div class="card-sub">@banner.Content</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" @onclick="() => EditBanner(banner)">✎</button>
+                                    <button class="msg-action danger" @onclick="() => DeleteBannerAsync(banner)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="check"><input type="checkbox" @bind="_toggleChannels" /> channels</label>
+                                <label class="check"><input type="checkbox" @bind="_toggleDirect" /> direct_connections</label>
+                                <label class="check"><input type="checkbox" @bind="_enginePyodide" /> code exec: pyodide</label>
+                                <label class="check"><input type="checkbox" @bind="_engineJupyter" /> code exec: jupyter</label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_configMessage is not null)
+                            {
+                                <div class="field-note">@_configMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveFeaturesAsync">@L["common.save"]</button>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.flags_readonly"]</div>
+                                <div class="card-sub">
+                                    notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
+                                    web search: @FlagBadge(_appConfig.Features.EnableWebSearch) ·
+                                    images: @FlagBadge(_appConfig.Features.EnableImageGeneration) ·
+                                    sharing: @FlagBadge(_appConfig.Features.EnableCommunitySharing)
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                }
             }
         }
         else
@@ -317,6 +428,21 @@
     private AppConfigResponse? _appConfig;
     private string _tab = "users";
     private int _fbPage;
+    private string _configTab = "general";
+    private string _webUiName = "";
+    private string _defaultRole = "pending";
+    private string _jwtExpiresIn = "7d";
+    private string _defaultModelsText = "";
+    private List<PromptSuggestion> _suggestions = [];
+    private List<BannerResponse> _banners = [];
+    private string _bannerType = "info";
+    private string _bannerTitle = "";
+    private string _bannerContent = "";
+    private string? _editingBannerId;
+    private bool _toggleChannels = true;
+    private bool _toggleDirect;
+    private bool _enginePyodide = true;
+    private bool _engineJupyter;
     private bool _flagSignup;
     private bool _flagLoginForm;
     private bool _flagApiKeys;
@@ -359,6 +485,20 @@
             _flagFolders = _adminConfig.EnableFolders;
             _flagMemories = _adminConfig.EnableMemories;
         }
+
+        _webUiName = _adminConfig?.WebUiName ?? "";
+        var signup = await Api.GetSignupConfigAsync();
+        _defaultRole = signup?.DefaultUserRole ?? "pending";
+        _jwtExpiresIn = (await Api.GetJwtExpiryAsync())?.ExpiresIn ?? "7d";
+        var models = await Api.GetModelsConfigAsync();
+        _defaultModelsText = string.Join(", ", models?.DefaultModels ?? []);
+        _suggestions = models?.PromptSuggestions?.ToList() ?? [];
+        _banners = await Api.GetBannersAsync();
+        _toggleChannels = await Api.GetFeatureToggleAsync("channels", true);
+        var codeExec = await Api.GetCodeExecutionConfigAsync();
+        _toggleDirect = codeExec?.DirectConnections ?? false;
+        _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
+        _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
     }
 
     private async Task SaveFlagsAsync()
@@ -370,6 +510,8 @@
 
         var updated = await Api.UpdateAppConfigAsync(_adminConfig with
         {
+            WebUiName = _webUiName,
+            DefaultUserRole = _defaultRole,
             EnableSignup = _flagSignup,
             EnableLoginForm = _flagLoginForm,
             EnableApiKeys = _flagApiKeys,
@@ -382,7 +524,65 @@
             _adminConfig = updated;
             _appConfig = await Api.GetAppConfigAsync();
         }
+        var jwtOk = await Api.UpdateJwtExpiryAsync(new JwtExpiryConfig(_jwtExpiresIn)) is not null;
+        _configMessage = updated is null || !jwtOk ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private void AddSuggestion() => _suggestions.Add(new PromptSuggestion());
+
+    private async Task SaveModelsConfigAsync()
+    {
+        var models = _defaultModelsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        var updated = await Api.UpdateModelsConfigAsync(new ModelsConfig(models, _suggestions));
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private void EditBanner(BannerResponse banner)
+    {
+        _editingBannerId = banner.Id;
+        _bannerType = banner.Type;
+        _bannerTitle = banner.Title;
+        _bannerContent = banner.Content;
+    }
+
+    private async Task SaveBannerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_bannerTitle))
+        {
+            return;
+        }
+
+        var request = new BannerRequest(_bannerType, _bannerTitle, _bannerContent, true);
+        if (_editingBannerId is null)
+        {
+            await Api.CreateBannerAsync(request);
+        }
+        else
+        {
+            await Api.UpdateBannerAsync(_editingBannerId, request);
+        }
+        _editingBannerId = null;
+        _bannerTitle = _bannerContent = string.Empty;
+        _banners = await Api.GetBannersAsync();
+    }
+
+    private async Task DeleteBannerAsync(BannerResponse banner)
+    {
+        if (await Api.DeleteBannerAsync(banner.Id))
+        {
+            _banners.Remove(banner);
+        }
+    }
+
+    private async Task SaveFeaturesAsync()
+    {
+        var engines = new List<string>();
+        if (_enginePyodide) engines.Add("pyodide");
+        if (_engineJupyter) engines.Add("jupyter");
+        var ok = await Api.SetFeatureToggleAsync("channels", _toggleChannels)
+            && await Api.UpdateCodeExecutionConfigAsync(
+                new CodeExecutionConfig(engines, _toggleDirect)) is not null;
+        _configMessage = ok ? L["admin.config_saved"] : L["settings.save_failed"];
     }
 
     [Parameter] public string? Tab { get; set; }

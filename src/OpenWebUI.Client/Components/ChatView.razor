@@ -45,9 +45,21 @@
                     <img src="assets/splash-dark.png" alt="" class="size-24 rounded-full mb-4 dark:opacity-90" />
                     <div class="text-2xl font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
                     <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">@L["chat.empty_help"]</div>
-                    @if (_prompts.Count > 0)
+                    @if (_suggestions.Count > 0)
                     {
                         <div class="mt-6 flex flex-wrap justify-center gap-2">
+                            @foreach (var suggestion in _suggestions.Take(4))
+                            {
+                                <button class="rounded-xl border border-gray-100 dark:border-gray-850 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition cursor-pointer"
+                                        @onclick="() => UseSuggestion(suggestion)">
+                                    @suggestion.Title
+                                </button>
+                            }
+                        </div>
+                    }
+                    @if (_prompts.Count > 0)
+                    {
+                        <div class="mt-3 flex flex-wrap justify-center gap-2">
                             @foreach (var prompt in _prompts.Take(4))
                             {
                                 <button class="rounded-xl border border-gray-100 dark:border-gray-850 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 transition cursor-pointer"
@@ -220,6 +232,7 @@
     private readonly List<ChatMessageModel> _messages = [];
     private readonly List<FileResponse> _attachedFiles = [];
     private List<PromptResponse> _prompts = [];
+    private List<PromptSuggestion> _suggestions = [];
     private List<PromptResponse> _promptSuggestions = [];
     private List<string> _followUps = [];
     private List<ToolResponse> _tools = [];
@@ -259,6 +272,7 @@
     {
         _prompts = await Api.GetPromptsAsync();
         _tools = await Api.GetToolsAsync();
+        _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -377,6 +391,11 @@
     private void UsePrompt(PromptResponse prompt)
     {
         _input = prompt.Content;
+    }
+
+    private void UseSuggestion(PromptSuggestion suggestion)
+    {
+        _input = suggestion.Content;
     }
 
     private void SelectPrompt(PromptResponse prompt)

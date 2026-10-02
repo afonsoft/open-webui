@@ -46,7 +46,7 @@ public static class AuthEndpoints
         var anyUser = await db.Users.AnyAsync(ct);
         if (anyUser && !adminConfig.EnableSignup)
         {
-            return Results.BadRequest(new { detail = "Cadastro desabilitado pelo administrador." });
+            return Results.Forbid();
         }
 
         if (string.IsNullOrWhiteSpace(request.Name)

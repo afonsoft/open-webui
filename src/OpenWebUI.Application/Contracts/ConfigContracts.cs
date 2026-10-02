@@ -47,7 +47,8 @@ public sealed record AppConfigResponse(
     string Version,
     string DefaultLocale,
     AppFeatures Features,
-    IReadOnlyList<string> DefaultPromptSuggestions,
+    IReadOnlyList<string> DefaultModels,
+    IReadOnlyList<PromptSuggestion> DefaultPromptSuggestions,
     IReadOnlyList<string> OAuthProviders);
 
 /// <summary>Flags de funcionalidades expostas pelo /api/config.</summary>
@@ -78,3 +79,65 @@ public sealed record AppFeatures(
     bool EnableImageGeneration,
     bool EnableCodeExecution,
     bool EnableCommunitySharing);
+
+/// <summary>Sugestão de prompt exibida no estado vazio do chat.</summary>
+/// <param name="Title">Rótulo da sugestão.</param>
+/// <param name="Content">Texto inserido no input ao clicar.</param>
+public sealed class PromptSuggestion
+{
+    /// <summary>Cria uma sugestão vazia (para binding).</summary>
+    public PromptSuggestion() { }
+
+    /// <summary>Cria uma sugestão com título e conteúdo.</summary>
+    public PromptSuggestion(string title, string content)
+    {
+        Title = title;
+        Content = content;
+    }
+
+    /// <summary>Rótulo da sugestão.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Texto inserido no input ao clicar.</summary>
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>Configuração de modelos padrão e sugestões de prompt.</summary>
+/// <param name="DefaultModels">Ids de modelos selecionados por padrão (ordenados).</param>
+/// <param name="PromptSuggestions">Sugestões exibidas no chat vazio.</param>
+public sealed record ModelsConfig(
+    List<string> DefaultModels,
+    List<PromptSuggestion> PromptSuggestions)
+{
+    /// <summary>Configuração vazia (sem defaults).</summary>
+    public static readonly ModelsConfig Empty = new([], []);
+}
+
+/// <summary>Resposta de um banner.</summary>
+public sealed record BannerResponse(
+    string Id, string Type, string Title, string Content, bool Dismissible, long Timestamp);
+
+/// <summary>Criação/atualização de banner.</summary>
+/// <param name="Type">info | warning | error | success.</param>
+/// <param name="Title">Título.</param>
+/// <param name="Content">Conteúdo.</param>
+/// <param name="Dismissible">Se pode ser dispensado (default true).</param>
+public sealed record BannerRequest(string Type, string Title, string Content, bool? Dismissible = null);
+
+/// <summary>Toggle booleano genérico de feature.</summary>
+/// <param name="Enabled">Se a feature está habilitada.</param>
+public sealed record FeatureToggle(bool Enabled);
+
+/// <summary>Configuração de cadastro.</summary>
+/// <param name="EnableSignup">Cadastro aberto.</param>
+/// <param name="DefaultUserRole">Papel de novos usuários (pending/user/admin).</param>
+public sealed record SignupConfig(bool EnableSignup, string DefaultUserRole);
+
+/// <summary>Configuração de execução de código.</summary>
+/// <param name="Engines">Engines habilitados (pyodide, jupyter).</param>
+/// <param name="DirectConnections">Se conexões diretas do cliente estão habilitadas.</param>
+public sealed record CodeExecutionConfig(List<string> Engines, bool DirectConnections);
+
+/// <summary>Configuração de expiração do JWT.</summary>
+/// <param name="ExpiresIn">Duração textual (ex.: "7d", "24h", "30m") ou segundos.</param>
+public sealed record JwtExpiryConfig(string ExpiresIn);
