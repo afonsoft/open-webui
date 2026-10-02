@@ -20,6 +20,9 @@ public static class KnowledgeEndpoints
         knowledge.MapPut("/{id}", UpdateAsync);
         knowledge.MapDelete("/{id}", DeleteAsync);
         knowledge.MapPost("/{id}/files", AddFileAsync);
+        knowledge.MapPost("/{id}/file/add", AddFileAsync);
+        knowledge.MapPost("/{id}/reindex", ReindexAsync);
+        knowledge.MapPost("/batch/delete", BatchDeleteAsync);
         knowledge.MapDelete("/{id}/files/{fileId}", RemoveFileAsync);
         knowledge.MapPost("/{id}/access/update", UpdateAccessAsync);
         knowledge.MapGet("/{id}/access", GetAccessAsync);
@@ -167,6 +170,78 @@ public static class KnowledgeEndpoints
         db.KnowledgeCollections.Remove(collection);
         await db.SaveChangesAsync(ct);
         return Results.Ok(new { status = true });
+    }
+
+    private static async Task<IResult> ReindexAsync(
+        string id, HttpContext http, AppDbContext db, RagService rag,
+        AccessControlService access, CancellationToken ct)
+    {
+        var (user, collection) = await LoadAsync(http, id, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (collection is null
+            || await access.LevelAsync(user, collection.UserId, collection.AccessGrantsJson, ct)
+                is not AccessControlService.Write)
+        {
+            return Results.NotFound(new { detail = "Coleção não encontrada." });
+        }
+
+        var fileIds = await db.KnowledgeFiles
+            .Where(f => f.CollectionId == id)
+            .Select(f => f.FileId)
+            .ToListAsync(ct);
+        var files = await db.Files.Where(f => fileIds.Contains(f.Id)).ToListAsync(ct);
+
+        var indexed = 0;
+        var failed = 0;
+        foreach (var file in files)
+        {
+            if (await rag.IndexFileAsync(file, ct))
+            {
+                indexed++;
+            }
+            else
+            {
+                failed++;
+            }
+        }
+
+        // Falha parcial/total do provider de embedding: 502 com contagem,
+        // espelhando os demais endpoints dependentes de provider externo.
+        if (failed > 0)
+        {
+            return Results.Json(
+                new { status = false, indexed, failed },
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+        return Results.Ok(new { status = true, indexed, failed });
+    }
+
+    private static async Task<IResult> BatchDeleteAsync(
+        [FromBody] BatchKnowledgeRequest request,
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var isAdmin = http.User.IsInRole(UserRoles.Admin);
+        var ids = request.Ids;
+        var owned = await db.KnowledgeCollections
+            .Where(k => ids.Contains(k.Id) && (isAdmin || k.UserId == user.Id))
+            .ToListAsync(ct);
+        if (owned.Count == 0)
+        {
+            return Results.Ok(new { deleted = 0 });
+        }
+
+        db.KnowledgeCollections.RemoveRange(owned);
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { deleted = owned.Count });
     }
 
     private static async Task<IResult> AddFileAsync(

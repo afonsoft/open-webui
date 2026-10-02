@@ -692,6 +692,15 @@ public class ApiService(HttpClient http, AuthService auth)
 
     // ---------------- Knowledge (RAG) ----------------
 
+    /// <summary>Reindexa os arquivos de uma coleção com o provider atual.</summary>
+    public Task<ReindexKnowledgeResponse?> ReindexKnowledgeAsync(string id) =>
+        SendAsync<ReindexKnowledgeResponse>(HttpMethod.Post, $"/api/v1/knowledge/{id}/reindex");
+
+    /// <summary>Remove coleções em lote (somente as do usuário/admin).</summary>
+    public async Task<int> BatchDeleteKnowledgeAsync(IReadOnlyList<string> ids) =>
+        (await SendAsync<DeletedCountResponse>(HttpMethod.Post,
+            "/api/v1/knowledge/batch/delete", new BatchKnowledgeRequest(ids)))?.Deleted ?? 0;
+
     /// <summary>Lista as coleções de knowledge do usuário.</summary>
     public async Task<List<KnowledgeResponse>> GetKnowledgeAsync() =>
         await SendAsync<List<KnowledgeResponse>>(HttpMethod.Get, "/api/v1/knowledge") ?? [];
@@ -1029,3 +1038,6 @@ public sealed record SharedChatResponse(
 /// <summary>Autor de um chat compartilhado.</summary>
 /// <param name="Name">Nome de exibição.</param>
 public sealed record SharedChatUser(string? Name);
+
+/// <summary>Resposta {deleted: n} de operações em lote.</summary>
+public sealed record DeletedCountResponse(int Deleted);

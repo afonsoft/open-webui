@@ -422,5 +422,13 @@
   "admin.pipelines": "Pipeline Servers",
   "admin.pipeline_name": "Name",
   "admin.pipeline_key": "API key (optional)",
-  "admin.pipeline_add": "Add server"
+  "admin.pipeline_add": "Add server",
+  "workspace.reindex": "Reindex",
+  "workspace.reindexing": "Reindexing...",
+  "workspace.reindexed": "{{count}} file(s) reindexed.",
+  "workspace.reindex_partial": "Partial reindex: {{ok}} ok, {{fail}} failed.",
+  "workspace.reindex_failed": "Reindex failed.",
+  "workspace.delete_selected": "Delete {{count}} selected",
+  "workspace.confirm_delete_selected": "Delete the selected collections?",
+  "workspace.deleted_count": "{{count}} collection(s) deleted."
 }
