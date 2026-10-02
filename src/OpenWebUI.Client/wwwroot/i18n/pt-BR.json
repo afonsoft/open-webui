@@ -331,5 +331,13 @@
   "admin.add_suggestion": "+ Sugestão",
   "admin.banners": "Banners",
   "admin.banner_title": "Título do banner",
-  "admin.banner_content": "Conteúdo"
+  "admin.banner_content": "Conteúdo",
+  "sidebar.new_dm": "Nova mensagem direta",
+  "sidebar.prompt_dm_email": "E-mail do usuário:",
+  "channel.pinned": "Mensagens fixadas",
+  "channel.pin": "Fixar mensagem",
+  "channel.reply": "Responder em thread",
+  "channel.thread": "Thread",
+  "channel.replies": "{{count}} respostas",
+  "channel.reply_placeholder": "Responder…"
 }

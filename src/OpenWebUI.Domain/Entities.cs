@@ -563,6 +563,9 @@ public class ChannelMember
     /// <summary>Papel no canal: "admin" (gerencia membros/canal) ou "member".</summary>
     public string Role { get; set; } = "member";
 
+    /// <summary>Última leitura (epoch seconds) — base do unread_count.</summary>
+    public long LastReadAt { get; set; }
+
     /// <summary>Entrada (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 }
@@ -588,8 +591,36 @@ public class ChannelMessage
     /// <summary>Identificador do modelo autor, quando UserId é nulo.</summary>
     public string? ModelId { get; set; }
 
+    /// <summary>Mensagem pai quando é reply de thread (nulo = mensagem raiz).</summary>
+    public string? ParentId { get; set; }
+
+    /// <summary>Mensagem fixada no canal.</summary>
+    public bool IsPinned { get; set; }
+
     /// <summary>Conteúdo em texto/markdown.</summary>
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Reação (emoji) de um usuário a uma mensagem de canal.</summary>
+public class ChannelMessageReaction
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Mensagem alvo.</summary>
+    public string ChannelMessageId { get; set; } = string.Empty;
+
+    /// <summary>Mensagem navegação.</summary>
+    public ChannelMessage? Message { get; set; }
+
+    /// <summary>Usuário que reagiu.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Emoji (ex.: "👍", ":smile:").</summary>
+    public string Emoji { get; set; } = string.Empty;
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }

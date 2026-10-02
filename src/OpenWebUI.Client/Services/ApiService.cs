@@ -605,9 +605,48 @@ public class ApiService(HttpClient http, AuthService auth)
             HttpMethod.Get, $"/api/v1/channels/{id}/messages?take=200") ?? [];
 
     /// <summary>Envia mensagem ao canal (retorna a mensagem persistida).</summary>
-    public Task<ChannelMessageResponse?> PostChannelMessageAsync(string id, string content) =>
+    public Task<ChannelMessageResponse?> PostChannelMessageAsync(
+        string id, string content, string? parentId = null) =>
         SendAsync<ChannelMessageResponse>(HttpMethod.Post,
-            $"/api/v1/channels/{id}/messages", new CreateChannelMessageRequest(content));
+            $"/api/v1/channels/{id}/messages",
+            new CreateChannelMessageRequest(content, parentId));
+
+    /// <summary>Cria ou obtém o DM com outro usuário.</summary>
+    public Task<ChannelResponse?> CreateDmAsync(string userId) =>
+        SendAsync<ChannelResponse>(HttpMethod.Post,
+            "/api/v1/channels/dm", new CreateDmRequest(userId));
+
+    /// <summary>Marca o canal como lido.</summary>
+    public Task<bool> MarkChannelReadAsync(string id) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/channels/{id}/read");
+
+    /// <summary>Lista respostas (thread) de uma mensagem.</summary>
+    public async Task<List<ChannelMessageResponse>> GetChannelRepliesAsync(
+        string id, string messageId) =>
+        await SendAsync<List<ChannelMessageResponse>>(
+            HttpMethod.Get, $"/api/v1/channels/{id}/messages/{messageId}/replies") ?? [];
+
+    /// <summary>Adiciona reação; retorna o agregado atualizado.</summary>
+    public async Task<List<ChannelReactionResponse>> AddChannelReactionAsync(
+        string id, string messageId, string emoji) =>
+        await SendAsync<List<ChannelReactionResponse>>(HttpMethod.Post,
+            $"/api/v1/channels/{id}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}") ?? [];
+
+    /// <summary>Remove reação; retorna o agregado atualizado.</summary>
+    public async Task<List<ChannelReactionResponse>> RemoveChannelReactionAsync(
+        string id, string messageId, string emoji) =>
+        await SendAsync<List<ChannelReactionResponse>>(HttpMethod.Delete,
+            $"/api/v1/channels/{id}/messages/{messageId}/reactions/{Uri.EscapeDataString(emoji)}") ?? [];
+
+    /// <summary>Fixa/desfixa mensagem.</summary>
+    public Task<bool> SetChannelMessagePinnedAsync(string id, string messageId, bool pinned) =>
+        SendStatusAsync(pinned ? HttpMethod.Post : HttpMethod.Delete,
+            $"/api/v1/channels/{id}/messages/{messageId}/pin");
+
+    /// <summary>Lista mensagens fixadas.</summary>
+    public async Task<List<ChannelMessageResponse>> GetChannelPinnedAsync(string id) =>
+        await SendAsync<List<ChannelMessageResponse>>(
+            HttpMethod.Get, $"/api/v1/channels/{id}/pinned") ?? [];
 
     /// <summary>Adiciona um usuário ao canal.</summary>
     public Task<bool> AddChannelMemberAsync(string id, string userId) =>
