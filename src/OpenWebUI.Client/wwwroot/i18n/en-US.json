@@ -379,5 +379,22 @@
   "admin.sso_scim": "Provisioning — SCIM 2.0",
   "admin.sso_enabled": "Enabled",
   "admin.sso_role_attr": "Role attribute (optional)",
-  "admin.scim_token": "SCIM token (dedicated Bearer)"
+  "admin.scim_token": "SCIM token (dedicated Bearer)",
+  "common.active": "active",
+  "common.inactive": "inactive",
+  "workspace.skills": "Skills",
+  "workspace.new_skill": "New skill",
+  "workspace.no_skills": "No skills",
+  "workspace.skill_name": "Name",
+  "workspace.skill_desc": "Description (optional)",
+  "workspace.skill_content": "Content (instruction injected into system prompt)",
+  "admin.functions": "Functions (plugins)",
+  "admin.function_name": "Name",
+  "admin.function_manifest": "Manifest (JSON)",
+  "admin.function_valves": "Valves (JSON, optional)",
+  "admin.function_add": "Add function",
+  "admin.pipelines": "Pipeline Servers",
+  "admin.pipeline_name": "Name",
+  "admin.pipeline_key": "API key (optional)",
+  "admin.pipeline_add": "Add server"
 }

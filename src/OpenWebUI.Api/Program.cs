@@ -34,6 +34,7 @@ builder.Services.AddScoped<ProviderProxyService>();
 builder.Services.AddScoped<TerminalProxyService>();
 builder.Services.AddScoped<ScimService>();
 builder.Services.AddScoped<SamlService>();
+builder.Services.AddScoped<PipelineClientService>();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
@@ -190,6 +191,7 @@ app.MapPassthroughEndpoints();
 app.MapTerminalEndpoints();
 app.MapScimEndpoints();
 app.MapSamlEndpoints();
+app.MapPluginEndpoints();
 app.MapChatEndpoints();
 app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();
