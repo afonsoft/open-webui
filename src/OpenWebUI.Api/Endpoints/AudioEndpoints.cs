@@ -50,7 +50,13 @@ public static class AudioEndpoints
         }
 
         var cfg = await audio.GetConfigAsync(ct);
-        return Results.Ok(new { stt = cfg.SttEnabled, tts = cfg.TtsEnabled });
+        return Results.Ok(new
+        {
+            stt = cfg.SttEnabled,
+            tts = cfg.TtsEnabled,
+            sttEngine = cfg.SttEnabled ? cfg.SttEngine : null,
+            ttsEngine = cfg.TtsEnabled ? cfg.TtsEngine : null,
+        });
     }
 
     private static async Task<IResult> UpdateConfigAsync(
@@ -62,8 +68,9 @@ public static class AudioEndpoints
             return Results.Forbid();
         }
 
-        var valid = request.SttEngine is "none" or "openai" or "deepgram"
-            && request.TtsEngine is "none" or "openai";
+        var valid = request.SttEngine is "none" or "openai" or "deepgram" or "whisper" or "web-speech"
+            && request.TtsEngine is "none" or "openai" or "elevenlabs" or "azure"
+                or "transformers" or "web-speech";
         if (!valid)
         {
             return Results.BadRequest(new { detail = "Engine de áudio inválida." });
