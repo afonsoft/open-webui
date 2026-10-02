@@ -147,14 +147,14 @@ public class ConfigV2Tests
         var key = apiKey.GetProperty("apiKey").GetString()!;
 
         // Funciona antes de desabilitar.
-        var before = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auths/");
+        using var before = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auths/");
         before.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         var beforeResponse = await _client.SendAsync(before);
         Assert.That(beforeResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         await _client.PostAsJsonAsync("/api/v1/configs/api_key", new FeatureToggle(false));
 
-        var after = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auths/");
+        using var after = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auths/");
         after.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         var afterResponse = await _client.SendAsync(after);
         Assert.That(afterResponse.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
