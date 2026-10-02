@@ -450,5 +450,11 @@
   "settings.pull_model_placeholder": "e.g. llama3.2:latest",
   "settings.pulling": "Pulling…",
   "settings.model_pulled": "Model pulled successfully.",
-  "settings.pull_failed": "Failed to pull the model."
+  "settings.pull_failed": "Failed to pull the model.",
+  "admin.perms": "Permissions",
+  "admin.perm_hint": "“—” inherits from group",
+  "admin.perm_on": "on",
+  "admin.perm_off": "off",
+  "admin.group_domains": "Group domains",
+  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):"
 }

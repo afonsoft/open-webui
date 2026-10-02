@@ -37,7 +37,7 @@ public static class GroupEndpoints
             return Results.Unauthorized();
         }
 
-        var query = db.Groups.AsNoTracking();
+        IQueryable<Group> query = db.Groups.AsNoTracking().Include(g => g.Members);
         if (user.Role != UserRoles.Admin)
         {
             query = query.Where(g => g.Members.Any(m => m.UserId == user.Id));
@@ -89,6 +89,7 @@ public static class GroupEndpoints
             Name = request.Name.Trim(),
             Description = request.Description,
             PermissionsJson = Serialize(request.Permissions ?? GroupPermissions.Full),
+            AllowedDomainsJson = SerializeDomains(request.AllowedDomains),
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -121,6 +122,11 @@ public static class GroupEndpoints
         if (request.Permissions is not null)
         {
             group!.PermissionsJson = Serialize(request.Permissions);
+        }
+
+        if (request.AllowedDomains is not null)
+        {
+            group!.AllowedDomainsJson = SerializeDomains(request.AllowedDomains);
         }
 
         group!.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -268,6 +274,7 @@ public static class GroupEndpoints
             group.Name,
             group.Description,
             Deserialize(group.PermissionsJson),
+            DeserializeDomains(group.AllowedDomainsJson),
             group.Members
                 .Where(m => users.ContainsKey(m.UserId))
                 .Select(m => new GroupMemberResponse(
@@ -275,6 +282,23 @@ public static class GroupEndpoints
                 .ToList(),
             group.CreatedAt,
             group.UpdatedAt);
+    }
+
+    private static string SerializeDomains(IReadOnlyList<string>? domains) =>
+        JsonSerializer.Serialize(
+            (domains ?? []).Select(d => d.Trim().ToLowerInvariant())
+                .Where(d => d.Length > 0).Distinct().ToList(), JsonOptions);
+
+    private static List<string> DeserializeDomains(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json, JsonOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     private static string Serialize(GroupPermissions permissions) =>

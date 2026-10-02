@@ -450,5 +450,11 @@
   "settings.pull_model_placeholder": "Ex.: llama3.2:latest",
   "settings.pulling": "Baixando…",
   "settings.model_pulled": "Modelo baixado com sucesso.",
-  "settings.pull_failed": "Falha ao baixar o modelo."
+  "settings.pull_failed": "Falha ao baixar o modelo.",
+  "admin.perms": "Права",
+  "admin.perm_hint": "«—» — наследуется из группы",
+  "admin.perm_on": "вкл",
+  "admin.perm_off": "выкл",
+  "admin.group_domains": "Домены группы",
+  "admin.prompt_group_domains": "Домены через запятую (напр. mail.com, corp.ru):"
 }

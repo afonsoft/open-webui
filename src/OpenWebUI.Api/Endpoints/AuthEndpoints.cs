@@ -69,7 +69,7 @@ public static class AuthEndpoints
             Name = request.Name.Trim(),
             Email = email,
             Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
-            PermissionsJson = GroupPermissions.FullJson,
+            PermissionsJson = "{}",
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -77,6 +77,8 @@ public static class AuthEndpoints
 
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
+
+        await JoinDomainGroupsAsync(email, user.Id, db, ct);
 
         if (user.Role == UserRoles.Pending)
         {
@@ -167,7 +169,7 @@ public static class AuthEndpoints
                 Name = identity.Name ?? ldapEmail,
                 Email = ldapEmail,
                 Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
-                PermissionsJson = GroupPermissions.FullJson,
+                PermissionsJson = "{}",
                 PasswordHash = string.Empty, // autenticação delegada ao LDAP
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -413,5 +415,39 @@ public static class AuthEndpoints
         var adminConfig = await config.GetAdminConfigAsync(ct);
         var (token, expires) = await tokens.CreateTokenAsync(user, ct);
         return Results.Ok(new AuthResponse(token, "Bearer", expires, ToResponse(user)));
+    }
+
+    /// <summary>Vincula o usuário recém-criado aos grupos cujo e-mail bate em allowed_domains.</summary>
+    private static async Task JoinDomainGroupsAsync(
+        string email, string userId, AppDbContext db, CancellationToken ct)
+    {
+        var at = email.LastIndexOf('@');
+        if (at < 0)
+        {
+            return;
+        }
+        var domain = email[(at + 1)..];
+
+        var groups = await db.Groups
+            .Where(g => g.AllowedDomainsJson != "[]")
+            .ToListAsync(ct);
+        foreach (var group in groups)
+        {
+            List<string>? domains;
+            try
+            {
+                domains = System.Text.Json.JsonSerializer.Deserialize<List<string>>(group.AllowedDomainsJson);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                continue;
+            }
+            if (domains?.Any(d => string.Equals(
+                    d.Trim(), domain, StringComparison.OrdinalIgnoreCase)) == true)
+            {
+                db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = userId });
+            }
+        }
+        await db.SaveChangesAsync(ct);
     }
 }

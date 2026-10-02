@@ -51,6 +51,7 @@ public sealed record GroupMemberResponse(string UserId, string Name, string Emai
 /// <param name="Name">Nome.</param>
 /// <param name="Description">Descrição.</param>
 /// <param name="Permissions">Flags de permissão.</param>
+/// <param name="AllowedDomains">Domínios com membership automático no signup.</param>
 /// <param name="Members">Membros.</param>
 /// <param name="CreatedAt">Criação (epoch seconds).</param>
 /// <param name="UpdatedAt">Atualização (epoch seconds).</param>
@@ -59,6 +60,7 @@ public sealed record GroupResponse(
     string Name,
     string? Description,
     GroupPermissions Permissions,
+    IReadOnlyList<string> AllowedDomains,
     IReadOnlyList<GroupMemberResponse> Members,
     long CreatedAt,
     long UpdatedAt);
@@ -70,7 +72,8 @@ public sealed record GroupResponse(
 public sealed record CreateGroupRequest(
     string Name,
     string? Description,
-    GroupPermissions? Permissions);
+    GroupPermissions? Permissions,
+    IReadOnlyList<string>? AllowedDomains = null);
 
 /// <summary>Atualização parcial de grupo.</summary>
 /// <param name="Name">Novo nome (opcional).</param>
@@ -79,7 +82,8 @@ public sealed record CreateGroupRequest(
 public sealed record UpdateGroupRequest(
     string? Name,
     string? Description,
-    GroupPermissions? Permissions);
+    GroupPermissions? Permissions,
+    IReadOnlyList<string>? AllowedDomains = null);
 
 /// <summary>Adição de membros a um grupo.</summary>
 /// <param name="UserIds">Ids dos usuários a adicionar.</param>
