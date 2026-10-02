@@ -50,6 +50,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `folders`, `memories`, `notes`, `prompts` | CRUD completo |
 | `tasks` — LLM | Título, follow-ups, tags automáticas |
 | `tools` — HTTP | Function calling com loop server-side (máx. 5), URL nunca exposta |
+| `functions`/`pipelines`/`skills` | Registry admin de functions (manifest+valves), servidores de pipelines externos (pipes como `pipeline:{id}`), skills anexáveis a modelos (slice plugin-ecosystem) |
 | `images` — OpenAI Images | Geração + config admin + botão no chat |
 | `configs` — core | Conexões (chaves mascaradas), admin config, feature flags, export/import |
 | `analytics` | Dashboard admin-only |
@@ -87,9 +88,6 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 | Área | Escopo upstream |
 |---|---|
-| `functions` (17 eps) | Pipes/Filters/Valves — plugins de código custom do admin |
-| `pipelines` (8 eps) | Framework Pipelines (inlet/outlet filters) |
-| `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
 | `utils` (4 eps) | Gravatar, format, litellm config |
 | Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
 | Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
@@ -109,7 +107,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `/automations`, `/automations/{id}` | `/automations` | 🟡 detalhe |
 | `/calendar` | `/calendar` | ✅ |
 | `/folders/{id}` | sidebar | 🟡 rota dedicada |
-| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | — | ⬜ dependem de functions/skills |
+| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | `/workspace/skills` (aba) + admin Functions/Pipelines | 🟡 edição inline |
 | `/watch` | — | ⬜ |
 
 ## Decisões de design

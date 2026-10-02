@@ -458,6 +458,66 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main">
+                                <div class="card-title">@L["admin.functions"]</div>
+                            </div>
+                        </div>
+                        @foreach (var fn in _functions)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@fn.Name <span class="role-badge">@fn.Type</span></div>
+                                    <div class="card-sub">@(fn.Active ? L["common.active"] : L["common.inactive"])</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" @onclick="() => ToggleFunctionAsync(fn)">
+                                        @(fn.Active ? "⏻" : "▶")
+                                    </button>
+                                    <button class="msg-action danger" @onclick="() => DeleteFunctionAsync(fn)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_fnName" placeholder="@L["admin.function_name"]" />
+                                <select class="input" @bind="_fnType">
+                                    <option value="filter">filter</option>
+                                    <option value="pipe">pipe</option>
+                                    <option value="action">action</option>
+                                </select>
+                                <textarea class="input" rows="2" @bind="_fnManifest"
+                                    placeholder="@L["admin.function_manifest"]"></textarea>
+                                <textarea class="input" rows="2" @bind="_fnValves"
+                                    placeholder="@L["admin.function_valves"]"></textarea>
+                                <button class="auth-submit" @onclick="SaveFunctionAsync">@L["admin.function_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.pipelines"]</div>
+                            </div>
+                        </div>
+                        @foreach (var pipe in _pipelineServers)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title">@pipe.Name</div>
+                                    <div class="card-sub">@pipe.Url @(pipe.HasKey ? "· 🔑" : "")</div>
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action danger" @onclick="() => DeletePipelineServerAsync(pipe)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_pipeName" placeholder="@L["admin.pipeline_name"]" />
+                                <input class="input" @bind="_pipeUrl" placeholder="http://pipelines:9099" />
+                                <input class="input" type="password" @bind="_pipeKey" placeholder="@L["admin.pipeline_key"]" />
+                                <button class="auth-submit" @onclick="SavePipelineServerAsync">@L["admin.pipeline_add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
                                 <div class="card-title">@L["admin.flags_readonly"]</div>
                                 <div class="card-sub">
                                     notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
@@ -565,6 +625,15 @@
     private bool _scimEnabled;
     private string _scimToken = string.Empty;
     private bool _scimHasToken;
+    private List<FunctionResponse> _functions = [];
+    private string _fnName = "";
+    private string _fnType = "filter";
+    private string _fnManifest = "";
+    private string _fnValves = "";
+    private List<PipelineServerResponse> _pipelineServers = [];
+    private string _pipeName = "";
+    private string _pipeUrl = "";
+    private string _pipeKey = "";
     private string _termName = "";
     private string _termUrl = "";
     private string _termAuth = "token";
@@ -638,6 +707,8 @@
         var scim = await Api.GetScimConfigAsync();
         _scimEnabled = scim?.Enabled ?? false;
         _scimHasToken = scim?.HasToken ?? false;
+        _functions = await Api.GetFunctionsAsync() ?? [];
+        _pipelineServers = await Api.GetPipelineServersAsync() ?? [];
     }
 
     private async Task SaveTerminalAsync()
@@ -682,6 +753,62 @@
         _scimHasToken = saved?.HasToken ?? _scimHasToken;
         _scimToken = string.Empty;
         _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task SaveFunctionAsync()
+    {
+        var saved = await Api.CreateFunctionAsync(new FunctionRequest(
+            _fnName.Trim(), _fnType,
+            string.IsNullOrWhiteSpace(_fnManifest) ? null : _fnManifest,
+            string.IsNullOrWhiteSpace(_fnValves) ? null : _fnValves));
+        if (saved is not null)
+        {
+            _fnName = string.Empty;
+            _fnManifest = string.Empty;
+            _fnValves = string.Empty;
+            _functions = await Api.GetFunctionsAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task ToggleFunctionAsync(FunctionResponse fn)
+    {
+        var updated = await Api.ToggleFunctionAsync(fn.Id);
+        if (updated is not null)
+        {
+            var idx = _functions.FindIndex(f => f.Id == fn.Id);
+            if (idx >= 0)
+            {
+                _functions[idx] = updated;
+            }
+        }
+    }
+
+    private async Task DeleteFunctionAsync(FunctionResponse fn)
+    {
+        await Api.DeleteFunctionAsync(fn.Id);
+        _functions.RemoveAll(f => f.Id == fn.Id);
+    }
+
+    private async Task SavePipelineServerAsync()
+    {
+        var saved = await Api.SavePipelineServerAsync(new PipelineServerRequest(
+            _pipeName.Trim(), _pipeUrl.Trim(),
+            string.IsNullOrWhiteSpace(_pipeKey) ? null : _pipeKey));
+        if (saved is not null)
+        {
+            _pipeName = string.Empty;
+            _pipeUrl = string.Empty;
+            _pipeKey = string.Empty;
+            _pipelineServers = await Api.GetPipelineServersAsync() ?? [];
+        }
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task DeletePipelineServerAsync(PipelineServerResponse server)
+    {
+        await Api.DeletePipelineServerAsync(server.Id);
+        _pipelineServers.RemoveAll(s => s.Id == server.Id);
     }
 
     private async Task SaveFlagsAsync()

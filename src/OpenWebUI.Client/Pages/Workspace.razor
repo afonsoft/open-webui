@@ -4,6 +4,7 @@
 @page "/workspace/files"
 @page "/workspace/knowledge"
 @page "/workspace/tools"
+@page "/workspace/skills"
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -24,6 +25,8 @@
                 @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>@L["workspace.knowledge"]</button>
         <button class="modal-tab @(Section == "tools" ? "active" : "")"
                 @onclick='() => Nav.NavigateTo("/workspace/tools")'>Tools</button>
+        <button class="modal-tab @(Section == "skills" ? "active" : "")"
+                @onclick='() => Nav.NavigateTo("/workspace/skills")'>@L["workspace.skills"]</button>
     </div>
 
     @if (Section == "models")
@@ -171,6 +174,45 @@
             }
         </div>
     }
+    else if (Section == "skills")
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <div class="flex flex-col gap-2 w-full text-sm py-1">
+                    <input class="input" @bind="_skillName" placeholder="@L["workspace.skill_name"]" />
+                    <input class="input" @bind="_skillDesc" placeholder="@L["workspace.skill_desc"]" />
+                    <textarea class="input" rows="4" @bind="_skillContent"
+                        placeholder="@L["workspace.skill_content"]"></textarea>
+                    <div class="flex gap-2">
+                        <button class="auth-submit" @onclick="SaveSkillAsync">
+                            @(_skillEditId is null ? L["workspace.new_skill"] : L["common.save"])
+                        </button>
+                        @if (_skillEditId is not null)
+                        {
+                            <button class="msg-action" @onclick="ResetSkillForm">@L["common.cancel"]</button>
+                        }
+                    </div>
+                </div>
+            </div>
+            @foreach (var skill in _skills)
+            {
+                <div class="card-row">
+                    <div class="card-main">
+                        <div class="card-title">@skill.Name</div>
+                        <div class="card-sub">@skill.Description</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="msg-action" @onclick="() => EditSkill(skill)">@L["common.edit"]</button>
+                        <button class="msg-action danger" @onclick="() => DeleteSkillAsync(skill)">🗑</button>
+                    </div>
+                </div>
+            }
+            @if (_skills.Count == 0)
+            {
+                <div class="sidebar-empty">@L["workspace.no_skills"]</div>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -179,6 +221,7 @@
         : Nav.Uri.Contains("/workspace/files") ? "files"
         : Nav.Uri.Contains("/workspace/knowledge") ? "knowledge"
         : Nav.Uri.Contains("/workspace/tools") ? "tools"
+        : Nav.Uri.Contains("/workspace/skills") ? "skills"
         : "prompts";
 
     private List<PromptResponse> _prompts = [];
@@ -187,6 +230,11 @@
     private List<KnowledgeResponse> _knowledge = [];
     private KnowledgeDetailResponse? _knowledgeDetail;
     private List<ToolResponse> _tools = [];
+    private List<SkillResponse> _skills = [];
+    private string? _skillEditId;
+    private string _skillName = "";
+    private string _skillDesc = "";
+    private string _skillContent = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -194,6 +242,42 @@
         _models = await Api.GetCustomModelsAsync();
         _files = await Api.GetFilesAsync();
         _knowledge = await Api.GetKnowledgeAsync();
+        _skills = await Api.GetSkillsAsync() ?? [];
+    }
+
+    private void EditSkill(SkillResponse skill)
+    {
+        _skillEditId = skill.Id;
+        _skillName = skill.Name;
+        _skillDesc = skill.Description ?? "";
+        _skillContent = skill.Content;
+    }
+
+    private void ResetSkillForm()
+    {
+        _skillEditId = null;
+        _skillName = "";
+        _skillDesc = "";
+        _skillContent = "";
+    }
+
+    private async Task SaveSkillAsync()
+    {
+        var request = new SkillRequest(_skillName.Trim(), _skillDesc.Trim(), _skillContent);
+        var saved = _skillEditId is null
+            ? await Api.CreateSkillAsync(request)
+            : await Api.UpdateSkillAsync(_skillEditId, request);
+        if (saved is not null)
+        {
+            ResetSkillForm();
+            _skills = await Api.GetSkillsAsync() ?? [];
+        }
+    }
+
+    private async Task DeleteSkillAsync(SkillResponse skill)
+    {
+        await Api.DeleteSkillAsync(skill.Id);
+        _skills.RemoveAll(s => s.Id == skill.Id);
     }
 
     private async Task ToggleKnowledgeDetailAsync(KnowledgeResponse item)

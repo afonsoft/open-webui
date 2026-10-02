@@ -514,6 +514,63 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ScimConfigResponse?> SaveScimConfigAsync(ScimConfigRequest request) =>
         SendAsync<ScimConfigResponse>(HttpMethod.Post, "/api/v1/configs/scim", request);
 
+    /// <summary>Lista skills do usuário (admin vê todas).</summary>
+    public Task<List<SkillResponse>?> GetSkillsAsync() =>
+        SendAsync<List<SkillResponse>>(HttpMethod.Get, "/api/v1/skills/");
+
+    /// <summary>Cria uma skill.</summary>
+    public Task<SkillResponse?> CreateSkillAsync(SkillRequest request) =>
+        SendAsync<SkillResponse>(HttpMethod.Post, "/api/v1/skills/", request);
+
+    /// <summary>Atualiza uma skill.</summary>
+    public Task<SkillResponse?> UpdateSkillAsync(string id, SkillRequest request) =>
+        SendAsync<SkillResponse>(HttpMethod.Post, $"/api/v1/skills/{id}", request);
+
+    /// <summary>Remove uma skill.</summary>
+    public Task<bool> DeleteSkillAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/skills/{id}");
+
+    /// <summary>Lista functions registradas (admin).</summary>
+    public Task<List<FunctionResponse>?> GetFunctionsAsync() =>
+        SendAsync<List<FunctionResponse>>(HttpMethod.Get, "/api/v1/functions/");
+
+    /// <summary>Cria uma function (admin).</summary>
+    public Task<FunctionResponse?> CreateFunctionAsync(FunctionRequest request) =>
+        SendAsync<FunctionResponse>(HttpMethod.Post, "/api/v1/functions/", request);
+
+    /// <summary>Atualiza uma function (admin).</summary>
+    public Task<FunctionResponse?> UpdateFunctionAsync(string id, FunctionRequest request) =>
+        SendAsync<FunctionResponse>(HttpMethod.Post, $"/api/v1/functions/{id}", request);
+
+    /// <summary>Alterna ativação de uma function (admin).</summary>
+    public Task<FunctionResponse?> ToggleFunctionAsync(string id) =>
+        SendAsync<FunctionResponse>(HttpMethod.Post, $"/api/v1/functions/{id}/toggle");
+
+    /// <summary>Salva os valves de uma function (admin).</summary>
+    public Task<FunctionResponse?> SaveFunctionValvesAsync(string id, string valvesJson) =>
+        SendAsync<FunctionResponse>(HttpMethod.Post, $"/api/v1/functions/{id}/valves",
+            new FunctionValvesRequest(valvesJson));
+
+    /// <summary>Remove uma function (admin).</summary>
+    public Task<bool> DeleteFunctionAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/functions/{id}");
+
+    /// <summary>Lista servidores de pipelines (admin).</summary>
+    public Task<List<PipelineServerResponse>?> GetPipelineServersAsync() =>
+        SendAsync<List<PipelineServerResponse>>(HttpMethod.Get, "/api/v1/pipelines/");
+
+    /// <summary>Registra/atualiza um servidor de pipelines (admin).</summary>
+    public Task<PipelineServerResponse?> SavePipelineServerAsync(PipelineServerRequest request) =>
+        SendAsync<PipelineServerResponse>(HttpMethod.Post, "/api/v1/pipelines/", request);
+
+    /// <summary>Remove um servidor de pipelines (admin).</summary>
+    public Task<bool> DeletePipelineServerAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/pipelines/{id}");
+
+    /// <summary>Lista pipes descobertos em todos os servidores.</summary>
+    public Task<List<PipelinePipeResponse>?> GetPipelinePipesAsync() =>
+        SendAsync<List<PipelinePipeResponse>>(HttpMethod.Get, "/api/v1/pipelines/list");
+
     /// <summary>Revoga a chave de API do usuário.</summary>
     public async Task<bool> DeleteApiKeyAsync()
     {
