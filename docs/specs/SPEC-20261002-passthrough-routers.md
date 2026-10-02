@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-passthrough-routers` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -71,11 +71,18 @@ tests/OpenWebUI.Api.Tests/PassthroughTests.cs
 
 ## 6. Critérios de Aceite
 
-- [ ] `/ollama/api/tags` devolve resposta do mock Ollama.
-- [ ] Streaming `/openai/chat/completions` preserva SSE.
-- [ ] Sem provider → `503`; path não permitido → `404`.
-- [ ] Testes NUnit com HttpListener.
+- [x] `/ollama/api/tags` devolve resposta do mock Ollama.
+- [x] Streaming `/openai/chat/completions` preserva SSE.
+- [x] Sem provider → `503`; path não permitido → `404`.
+- [x] Testes NUnit com HttpListener.
 
 ## 7. Notas
 
 Upstream suporta múltiplas conexões indexadas (`/ollama/{idx}/api/*`) — implementar índice opcional na rota se trivial, senão só a primeira conexão (documentar).
+
+## 8. Delivered
+
+- `ProviderProxyService` (Infra, sem dependência de ASP.NET): allowlist de paths (`PATH:METHOD`), resolução de conexão indexada, encaminha body+content-type+query e devolve `ProxiedResponse` (status + resposta upstream em streaming ou erro).
+- `PassthroughEndpoints` (Api): `/ollama/api/{tags,version,show,chat,generate,embed}`, `/openai/{models,chat/completions,embeddings}` + variantes indexadas `/ollama/{idx}/api/{tags,chat}` e `/openai/{idx}/{models,chat/completions}`; `ProxiedResult` copia status/headers/stream (SSE/NDJSON preservados, headers hop-by-hop removidos).
+- Segurança: `Authorization` inbound NUNCA é repassado ao provedor — o cliente autentica no gateway e o servidor injeta a key mascarada da conexão. Sem provider → 503; provider fora → 502; path fora da allowlist → 404; sem auth → 401.
+- Testes: `PassthroughTests` (6 casos com HttpListener único para os dois providers).

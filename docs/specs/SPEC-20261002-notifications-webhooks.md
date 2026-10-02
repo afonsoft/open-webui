@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-notifications-webhooks` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -74,11 +74,21 @@ tests/OpenWebUI.Api.Tests/NotificationEndpointsTests.cs
 
 ## 6. Critérios de Aceite
 
-- [ ] Webhook recebe payload assinado no evento configurado.
-- [ ] Falha do destino não afeta o fluxo originário.
-- [ ] Test endpoint reflete status real do destino.
-- [ ] Testes NUnit com HttpListener.
+- [x] Webhook recebe payload assinado no evento configurado.
+- [x] Falha do destino não afeta o fluxo originário.
+- [x] Test endpoint reflete status real do destino.
+- [x] Testes NUnit com HttpListener.
 
 ## 7. Notas
 
 SSRF: avaliar blocklist de IPs internos (link-local, loopback) — upstream permite, mas recomendo validação com opt-out por config.
+
+## 8. Delivered
+
+- `NotificationWebhook` (OwnerId null = global/admin) + migration `NotificationWebhooks`.
+- `NotificationService`: dispatch best-effort (fire-and-forget, timeout 15s, log de falha), HMAC-SHA256 `X-Webhook-Signature` + `X-Webhook-Event`; segredo nunca retornado.
+- Endpoints `GET|POST|DELETE /api/v1/notifications/webhook`, `POST /webhook/test` e variantes `/admin/*` (admin-only).
+- Eventos: `user.pending` (signup pendente), `user.approved` (update/role saindo de pending), `automation.failed` (run falha no scheduler). `channel.mention` ficou fora — upstream só menciona modelos hoje.
+- Cliente: campo webhook (URL + eventos + enabled + testar/remover) na aba Conta e seção global na aba Admin do Settings, localizado pt-BR/en-US.
+- Testes: `NotificationEndpointsTests` (5 casos com HttpListener real).
+- Nota de implementação: handlers registrados como lambdas com 2+ parâmetros — lambda de 1 parâmetro (`HttpContext`) casa com o overload `RequestDelegate` que descarta o `IResult` (analyzer ASP0016), quebrando silenciosamente os status codes.

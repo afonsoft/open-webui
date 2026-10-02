@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261002-enterprise-sso` |
 | Ticket | Issue a criar via create-issues |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -82,3 +82,17 @@ tests/OpenWebUI.Api.Tests/{ScimTests,SamlTests}.cs
 ## 7. Notas
 
 Spike rápido para escolher lib SAML (ITfoxtec vs Sustainsys) — critério: .NET 10 + manutenção ativa + licença. SCIM shape seguir RFC 7643/7644 mínimo.
+
+## 8. Delivered
+
+- **PR**: #76 · **Issue**: #61
+- SCIM 2.0 (`/scim/v2/`): `ServiceProviderConfig`, `Users` (GET lista com `startIndex`/`count` + filtro `userName eq`, GET/POST/PUT/PATCH/DELETE por id) e `Groups` (listar + criar com membros). Content-type `application/scim+json`, erros no formato SCIM.
+- Auth SCIM: bearer **dedicado** via config `scim.token` (JWT de usuário/admin rejeitado — testado). Toggle `scim.enabled`; desligado → 401.
+- `active=false` (PUT/PATCH `op=replace`) → `role=pending` (não autentica); `active=true` reativa para `user`; admin nunca rebaixado. Create → papel default do admin config, sem senha local.
+- SAML 2.0 SP-initiated (HTTP-POST): `GET /saml/metadata` (EntityDescriptor, `WantAssertionsSigned`), `GET /saml/login` (AuthnRequest DEFLATE+Base64 → redirect IdP), `POST /saml/acs` (form `SAMLResponse` → validação → JIT via `OAuthService.LinkOrCreateAsync("saml", …)` → redirect `/?oauth_token=`).
+- Validação manual via `SignedXml` (BCL `System.Security.Cryptography.Xml` — já no shared framework, sem pacote extra): assinatura contra cert do IdP (PEM ou Base64), issuer, `NotBefore`/`NotOnOrAfter` (±1min) e `AudienceRestriction` (ACS URL ou SP entity id). XML parseado com `DtdProcessing.Prohibit` + `XmlResolver=null` (anti-XXE).
+- Role mapping: config `saml.role_attribute` → valor `admin`/`user` aplica no usuário após JIT.
+- Config admin: `GET|POST /api/v1/configs/{saml,scim}` (admin-only) com cert/token mascarados (`********` preserva) + seções na aba Configurações do admin.
+- **Decisão (spike da SPEC)**: sem lib SAML (ITfoxtec/Sustainsys) — o BCL cobre XML-DSig e o escopo (assertion validada → JIT user) cabe em ~150 linhas auditáveis, evitando dependência com superfície de config maior que o uso.
+- Fora de escopo (mantido): SLO, AuthnRequests assinados, multi-IdP, SCIM bulk/patch complexo, `InResponseTo` (documentado no código).
+- Testes: `ScimTests` (9) + `SamlTests` (7 — assertion assinada com cert self-signed gerado em teste; tampered/issuer/audience → 401; disabled → 404).
