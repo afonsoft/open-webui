@@ -4,6 +4,23 @@ Todas as mudanças notáveis deste projeto são documentadas aqui, seguindo
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/) e
 [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased]
+
+### Added
+
+- Cobertura de testes elevada para **97,4% de linhas / 88,5% de branches**
+  (311 testes de API): suites novas para chats, canais, auth/usuários,
+  workspace, modelos/arquivos/avaliações, tasks, superfície da API, OAuth,
+  automações, permissões e serviços de infraestrutura — incluindo caminhos
+  de erro e borda. `coverlet.runsettings` exclui Client WASM, código gerado
+  OpenAPI e assemblies de teste da medição.
+
+### Fixed
+
+- `AutomationScheduler` não derruba mais o host no shutdown
+  (`OperationCanceledException` tratada como parada graciosa) — PR #43.
+- Warning CS8602 em `AutomationEndpointsTests`.
+
 ## [0.1.0] - 2026-10-01
 
 Primeira entrega completa da migração **Open WebUI → .NET 10 / Blazor WebAssembly**.

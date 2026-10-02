@@ -71,8 +71,20 @@ docker compose up --build
 
 ```bash
 dotnet test OpenWebUI.slnx
-# 63 testes de API + 7 de cliente (NUnit)
+# 311 testes de API + 7 de cliente (NUnit)
+
+# Cobertura (Coverlet, exclui Client WASM, código gerado e assemblies de teste)
+dotnet test tests/OpenWebUI.Api.Tests \
+  --collect:"XPlat Code Coverage" --settings coverlet.runsettings
 ```
+
+| Camada | Linhas | Branches |
+|--------|--------|----------|
+| Domain | 100% | 100% |
+| Application | 100% | 100% |
+| Infrastructure | 96,9% | 92,2% |
+| Api | 96,7% | 83,6% |
+| **Total** | **97,4%** | **88,5%** |
 
 ## Documentação
 
