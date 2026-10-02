@@ -732,6 +732,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<JwtExpiryConfig?> UpdateJwtExpiryAsync(JwtExpiryConfig config) =>
         SendAsync<JwtExpiryConfig>(HttpMethod.Post, "/api/v1/configs/jwt", config);
 
+    /// <summary>Obtém a config de áudio (admin).</summary>
+    public Task<AudioConfig?> GetAudioConfigAsync() =>
+        SendAsync<AudioConfig>(HttpMethod.Get, "/api/v1/audio/config");
+
+    /// <summary>Atualiza a config de áudio (admin).</summary>
+    public Task<AudioConfig?> UpdateAudioConfigAsync(AudioConfig config) =>
+        SendAsync<AudioConfig>(HttpMethod.Post, "/api/v1/audio/config", config);
+
     private sealed record UsersListResponse(List<AdminUserResponse> Users, int Total, int Page = 1);
 }
 

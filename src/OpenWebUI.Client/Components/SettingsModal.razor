@@ -47,6 +47,14 @@
                     @if (_ttsSupported || _sttSupported)
                     {
                         <div class="field">
+                            <label>@L["settings.audio_engine"]</label>
+                            <select class="input" value="@_audioEngine" @onchange="OnAudioEngineChanged">
+                                <option value="auto">@L["settings.audio_engine_auto"]</option>
+                                <option value="web-speech">Web Speech</option>
+                                <option value="server">@L["settings.audio_engine_server"]</option>
+                            </select>
+                        </div>
+                        <div class="field">
                             <label>@L["settings.audio_voice"]</label>
                             <select class="input" value="@_audioVoice" @onchange="OnAudioVoiceChanged" disabled="@(!_ttsSupported)">
                                 <option value="">@L["settings.audio_voice_default"]</option>
@@ -354,6 +362,7 @@
     private bool _sttSupported;
     private bool _audioAutoSend;
     private string _audioVoice = string.Empty;
+    private string _audioEngine = "auto";
     private List<VoiceInfo> _audioVoices = [];
 
     private sealed record VoiceInfo(string Name, string Lang);
@@ -368,8 +377,17 @@
         }
 
         _audioVoice = await JS.InvokeAsync<string>("openwebui.audio.getVoice");
+        _audioEngine = await JS.InvokeAsync<string>("openwebui.audio.getEngine");
         _audioAutoSend = await JS.InvokeAsync<bool>("openwebui.audio.getAutoSend");
         _audioVoices = await JS.InvokeAsync<List<VoiceInfo>>("openwebui.audio.voices");
+    }
+
+    private async Task OnAudioEngineChanged(ChangeEventArgs e)
+    {
+        _audioEngine = e.Value as string ?? "auto";
+        await JS.InvokeVoidAsync("openwebui.audio.setEngine", _audioEngine);
+        _ttsSupported = await JS.InvokeAsync<bool>("openwebui.audio.ttsSupported");
+        _sttSupported = await JS.InvokeAsync<bool>("openwebui.audio.sttSupported");
     }
 
     private async Task OnAudioVoiceChanged(ChangeEventArgs e)

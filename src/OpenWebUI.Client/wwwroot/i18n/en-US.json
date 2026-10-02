@@ -331,5 +331,9 @@
   "admin.add_suggestion": "+ Suggestion",
   "admin.banners": "Banners",
   "admin.banner_title": "Banner title",
-  "admin.banner_content": "Content"
+  "admin.banner_content": "Content",
+  "admin.config_audio": "Audio",
+  "settings.audio_engine": "Voice engine",
+  "settings.audio_engine_auto": "Auto (Web Speech, fallback to server)",
+  "settings.audio_engine_server": "Server (configured provider)"
 }

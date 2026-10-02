@@ -211,7 +211,7 @@
             else
             {
                 <div class="flex gap-1 mb-3">
-                    @foreach (var sub in new[] { "general", "models", "features" })
+                    @foreach (var sub in new[] { "general", "models", "features", "audio" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -450,6 +450,15 @@
     private bool _flagFolders;
     private bool _flagMemories;
     private string? _configMessage;
+    private string _sttEngine = "none";
+    private string? _sttBaseUrl;
+    private string? _sttKey;
+    private string? _sttModel;
+    private string _ttsEngine = "none";
+    private string? _ttsBaseUrl;
+    private string? _ttsKey;
+    private string? _ttsModel;
+    private string? _ttsVoice;
 
     private const int FeedbackPageSize = 20;
     private int FeedbackPages => _feedbacks is null ? 0
@@ -499,6 +508,19 @@
         _toggleDirect = codeExec?.DirectConnections ?? false;
         _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
         _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
+        var audio = await Api.GetAudioConfigAsync();
+        if (audio is not null)
+        {
+            _sttEngine = audio.SttEngine;
+            _sttBaseUrl = audio.SttBaseUrl;
+            _sttKey = audio.SttApiKey;
+            _sttModel = audio.SttModel;
+            _ttsEngine = audio.TtsEngine;
+            _ttsBaseUrl = audio.TtsBaseUrl;
+            _ttsKey = audio.TtsApiKey;
+            _ttsModel = audio.TtsModel;
+            _ttsVoice = audio.TtsVoice;
+        }
     }
 
     private async Task SaveFlagsAsync()
@@ -572,6 +594,15 @@
         {
             _banners.Remove(banner);
         }
+    }
+
+    private async Task SaveAudioAsync()
+    {
+        var updated = await Api.UpdateAudioConfigAsync(new AudioConfig(
+            _sttEngine, _sttBaseUrl, _sttKey, _sttModel,
+            _ttsEngine, _ttsBaseUrl, _ttsKey, _ttsModel, _ttsVoice));
+        _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
+        await JS.InvokeVoidAsync("openwebui.audio.refreshCaps");
     }
 
     private async Task SaveFeaturesAsync()
