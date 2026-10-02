@@ -430,7 +430,7 @@
   "workspace.reindex_failed": "Reindex failed.",
   "workspace.delete_selected": "Delete {{count}} selected",
   "workspace.confirm_delete_selected": "Delete the selected collections?",
-  "workspace.deleted_count": "{{count}} collection(s) deleted."
+  "workspace.deleted_count": "{{count}} collection(s) deleted.",
   "admin.tab_chats": "Chats",
   "admin.search_chats": "Search chats...",
   "admin.no_chats": "No chats found.",
@@ -438,11 +438,11 @@
   "chat.prev_version": "Previous version",
   "chat.next_version": "Next version",
   "chat.archived": "archived",
-  "common.open": "Open"
+  "common.open": "Open",
   "admin.perms": "Permissions",
-  "admin.perm_hint": "“—” inherits from group",
+  "admin.perm_hint": "\u201c\u2014\u201d inherits from group",
   "admin.perm_on": "on",
   "admin.perm_off": "off",
   "admin.group_domains": "Group domains",
-  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):",
+  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):"
 }

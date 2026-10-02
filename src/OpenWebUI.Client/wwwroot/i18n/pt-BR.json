@@ -438,5 +438,11 @@
   "chat.prev_version": "Versão anterior",
   "chat.next_version": "Próxima versão",
   "chat.archived": "arquivado",
-  "common.open": "Abrir"
+  "common.open": "Abrir",
+  "admin.perms": "Права",
+  "admin.perm_hint": "«—» — наследуется из группы",
+  "admin.perm_on": "вкл",
+  "admin.perm_off": "выкл",
+  "admin.group_domains": "Домены группы",
+  "admin.prompt_group_domains": "Домены через запятую (напр. mail.com, corp.ru):"
 }
