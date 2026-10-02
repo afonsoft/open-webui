@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
@@ -41,9 +42,30 @@ public class RagHybridTests
         new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db)),
             new ConfigService(db), new StubHttpClientFactory());
 
-    private sealed class StubHttpClientFactory : IHttpClientFactory
+    private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null)
+        : IHttpClientFactory
     {
-        public HttpClient CreateClient(string name) => new();
+        public HttpClient CreateClient(string name) =>
+            handler is null ? new() : new(handler, disposeHandler: false);
+    }
+
+    /// <summary>Responde {"scores":[0.01,0.99]} a qualquer request.</summary>
+    private sealed class RerankHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"scores\":[0.01,0.99]}"),
+            });
+    }
+
+    /// <summary>Falha toda request (provider indisponível).</summary>
+    private sealed class FailingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("mock indisponível");
     }
 
     private static EmbeddingChunk Chunk(
@@ -126,51 +148,22 @@ public class RagHybridTests
             Chunk("f1", 1, "beta", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        // Mock HttpListener: scores invertidos — o segundo doc vence.
-        using var listener = new System.Net.HttpListener();
-        var port = 0;
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            port = new Random().Next(40000, 60000);
-            listener.Prefixes.Clear();
-            listener.Prefixes.Add($"http://localhost:{port}/");
-            try
-            {
-                listener.Start();
-                break;
-            }
-            catch (System.Net.HttpListenerException)
-            {
-                if (attempt == 19) throw;
-            }
-        }
-        using var cts = new CancellationTokenSource();
-        _ = Task.Run(async () =>
-        {
-            var ctx = await listener.GetContextAsync();
-            var json = "{\"scores\":[0.01,0.99]}";
-            ctx.Response.StatusCode = 200;
-            var buf = System.Text.Encoding.UTF8.GetBytes(json);
-            await ctx.Response.OutputStream.WriteAsync(buf);
-            ctx.Response.Close();
-        });
-
         var config = new ConfigService(db);
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
             Rerank = true,
             RerankEngine = "external",
-            RerankExternalUrl = $"http://localhost:{port}/rerank",
+            RerankExternalUrl = "http://rerank.test/rerank",
             TopK = 2,
         });
 
+        // Handler fake: scores invertidos — o segundo doc vence.
         var rag = new RagService(db, new StubEmbeddingService(), config,
-            new StubHttpClientFactory());
+            new StubHttpClientFactory(new RerankHandler()));
         var context = await rag.RetrieveAsync("u1", "alfa beta", null);
 
         Assert.That(context, Is.Not.Null);
         Assert.That(context!.IndexOf("beta"), Is.LessThan(context.IndexOf("alfa")));
-        listener.Stop();
     }
 
     [Test]
@@ -187,13 +180,13 @@ public class RagHybridTests
         {
             Rerank = true,
             RerankEngine = "external",
-            // porta fechada: provider fora → rerank local por cobertura.
-            RerankExternalUrl = "http://localhost:1/rerank",
+            RerankExternalUrl = "http://rerank.test/rerank",
             TopK = 2,
         });
 
+        // Handler que falha sempre: provider fora → rerank local por cobertura.
         var rag = new RagService(db, new StubEmbeddingService(), config,
-            new StubHttpClientFactory());
+            new StubHttpClientFactory(new FailingHandler()));
         var context = await rag.RetrieveAsync("u1", "alfa beta gama", null);
 
         Assert.That(context, Is.Not.Null);
