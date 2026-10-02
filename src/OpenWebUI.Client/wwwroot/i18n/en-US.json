@@ -422,5 +422,13 @@
   "admin.pipelines": "Pipeline Servers",
   "admin.pipeline_name": "Name",
   "admin.pipeline_key": "API key (optional)",
-  "admin.pipeline_add": "Add server"
+  "admin.pipeline_add": "Add server",
+  "admin.tab_chats": "Chats",
+  "admin.search_chats": "Search chats...",
+  "admin.no_chats": "No chats found.",
+  "admin.chats_messages": "{{count}} messages",
+  "chat.prev_version": "Previous version",
+  "chat.next_version": "Next version",
+  "chat.archived": "archived",
+  "common.open": "Open"
 }

@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using OpenWebUI.Api.Hubs;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -36,6 +38,7 @@ public static class ChatEndpoints
         group.MapGet("/folder/{folderId}", ListChatsAsync);
         group.MapPost("/tags", ListChatsByTagAsync);
 
+        group.MapGet("/all", ListAllChatsAdminAsync);
         group.MapGet("/{id}", GetChatAsync);
         group.MapPost("/{id}", UpdateChatAsync);
         group.MapDelete("/{id}", DeleteChatAsync);
@@ -51,6 +54,7 @@ public static class ChatEndpoints
         group.MapDelete("/{id}/tags", ClearTagsAsync);
         group.MapPost("/{id}/messages/{messageId}", UpdateMessageAsync);
         group.MapDelete("/{id}/messages/{messageId}", DeleteMessageAsync);
+        group.MapGet("/{id}/messages/{messageId}/versions", GetMessageVersionsAsync);
 
         return group;
     }
@@ -230,7 +234,9 @@ public static class ChatEndpoints
             Models = JsonSerializer.Deserialize<List<string>>(chat.ModelsJson, JsonOptions) ?? [],
             Messages = chat.Messages
                 .OrderBy(m => m.Position)
-                .Select(m => new ChatMessageModel(m.Id, m.Role, m.Content, m.Model, m.Timestamp))
+                .Select(m => new ChatMessageModel(
+                m.Id, m.Role, m.Content, m.Model, m.Timestamp,
+                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions)))
                 .ToList(),
             chat.CreatedAt,
             chat.UpdatedAt,
@@ -349,10 +355,22 @@ public static class ChatEndpoints
         {
             chat.ToolIdsJson = JsonSerializer.Serialize(request.ToolIds, JsonOptions);
         }
-        chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        chat.UpdatedAt = now;
 
+        var previous = chat.Messages
+            .ToDictionary(m => m.Id, m => (m.Content, m.Model, m.VersionsJson));
         db.ChatMessages.RemoveRange(chat.Messages);
-        chat.Messages = MapMessages(request.Messages, chat.Id, chat.UpdatedAt);
+        chat.Messages = MapMessages(request.Messages, chat.Id, now);
+        foreach (var m in chat.Messages)
+        {
+            if (previous.TryGetValue(m.Id, out var old))
+            {
+                m.VersionsJson = old.Content == m.Content
+                    ? old.VersionsJson
+                    : PushVersion(old.VersionsJson, old.Content, old.Model, now);
+            }
+        }
 
         await db.SaveChangesAsync(ct);
         return Results.Ok(ToResponse(chat));
@@ -631,6 +649,7 @@ public static class ChatEndpoints
         MessageUpdateRequest request,
         HttpContext http,
         AppDbContext db,
+        IHubContext<ChatHub> hub,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -646,9 +665,17 @@ public static class ChatEndpoints
             return Results.NotFound();
         }
 
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (message.Content != request.Content)
+        {
+            message.VersionsJson = PushVersion(
+                message.VersionsJson, message.Content, message.Model, now);
+        }
         message.Content = request.Content;
-        chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        chat.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
+        await hub.Clients.Group(ChatHub.ChatGroupName(id))
+            .SendAsync("message:updated", id, messageId, request.Content, ct);
         return Results.Ok(ToResponse(chat));
     }
 
@@ -657,6 +684,7 @@ public static class ChatEndpoints
         string messageId,
         HttpContext http,
         AppDbContext db,
+        IHubContext<ChatHub> hub,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -679,7 +707,80 @@ public static class ChatEndpoints
         db.ChatMessages.RemoveRange(toRemove);
         chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await db.SaveChangesAsync(ct);
+        await hub.Clients.Group(ChatHub.ChatGroupName(id))
+            .SendAsync("message:deleted", id, messageId, ct);
         return Results.Ok(ToResponse(chat));
+    }
+
+    private const int MaxVersionsPerMessage = 50;
+
+    /// <summary>Empurra a versão anterior para o histórico (JSON), com limite de 50.</summary>
+    private static string PushVersion(string versionsJson, string content, string? model, long timestamp)
+    {
+        var versions = JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(versionsJson, JsonOptions)
+            ?? [];
+        versions.Add(new ChatMessageVersionModel(content, model, timestamp));
+        if (versions.Count > MaxVersionsPerMessage)
+        {
+            versions.RemoveAt(0);
+        }
+        return JsonSerializer.Serialize(versions, JsonOptions);
+    }
+
+    private static async Task<IResult> ListAllChatsAdminAsync(
+        HttpContext http, AppDbContext db, string? query, int page, CancellationToken ct)
+    {
+        if (!http.User.IsInRole(UserRoles.Admin))
+        {
+            return Results.Forbid();
+        }
+
+        var current = page < 1 ? 1 : page;
+        const int pageSize = 20;
+
+        var chats = db.Chats.AsNoTracking()
+            .Join(db.Users.AsNoTracking(),
+                c => c.UserId,
+                u => u.Id,
+                (c, u) => new { c, u });
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var term = query.Trim().ToLower();
+            chats = chats.Where(x => x.c.Title.ToLower().Contains(term));
+        }
+
+        var total = await chats.CountAsync(ct);
+        var items = await chats
+            .OrderByDescending(x => x.c.UpdatedAt)
+            .Skip((current - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new AdminChatSummaryResponse(
+                x.c.Id, x.c.Title, x.u.Id, x.u.Name, x.u.Email,
+                x.c.Messages.Count, x.c.Archived, x.c.CreatedAt, x.c.UpdatedAt))
+            .ToListAsync(ct);
+
+        return Results.Ok(new AdminChatListResponse(items, total));
+    }
+
+    private static async Task<IResult> GetMessageVersionsAsync(
+        string id,
+        string messageId,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var chat = await LoadChatAsync(id, user?.Id, db, ct);
+        var message = chat?.Messages.FirstOrDefault(m => m.Id == messageId);
+        if (message is null)
+        {
+            return Results.NotFound();
+        }
+
+        var versions = JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(
+            message.VersionsJson, JsonOptions) ?? [];
+        return Results.Ok(versions);
     }
 
     private static List<ChatMessage> MapMessages(
@@ -726,7 +827,9 @@ public static class ChatEndpoints
         JsonSerializer.Deserialize<List<string>>(chat.ModelsJson, JsonOptions) ?? [],
         chat.Messages
             .OrderBy(m => m.Position)
-            .Select(m => new ChatMessageModel(m.Id, m.Role, m.Content, m.Model, m.Timestamp))
+            .Select(m => new ChatMessageModel(
+                m.Id, m.Role, m.Content, m.Model, m.Timestamp,
+                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions)))
             .ToList(),
         chat.Pinned,
         chat.Archived,
