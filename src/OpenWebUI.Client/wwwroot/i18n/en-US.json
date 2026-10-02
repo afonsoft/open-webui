@@ -306,5 +306,13 @@
   "voice.stt_error": "Speech recognition error",
   "settings.audio_voice": "Voice (message reading)",
   "settings.audio_voice_default": "Browser default",
-  "settings.audio_autosend": "Auto-send after dictation"
+  "settings.audio_autosend": "Auto-send after dictation",
+  "common.back": "← Back",
+  "common.new": "New",
+  "common.not_found": "Item not found.",
+  "common.save_failed": "Failed to save. Check the fields and try again.",
+  "notes.edit": "Edit note",
+  "workspace.params_json": "Params (JSON, optional):",
+  "workspace.tool_url": "Execution URL (HTTP POST):",
+  "workspace.tool_spec": "Tool spec (JSON):"
 }

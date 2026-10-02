@@ -30,7 +30,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewModel">@L["workspace.new_model"]</button>
+                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/models/create")'>@L["workspace.new_model"]</button>
             </div>
             @foreach (var model in _models)
             {
@@ -40,7 +40,7 @@
                         <div class="card-sub">Base: @model.BaseModelId</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => EditModel(model)">@L["common.edit"]</button>
+                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/models/{model.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
                             @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
                         </button>
@@ -79,13 +79,13 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewKnowledgeAsync">@L["workspace.new_collection"]</button>
+                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/knowledge/create")'>@L["workspace.new_collection"]</button>
             </div>
             @foreach (var item in _knowledge)
             {
                 <div class="card-row">
                     <div class="card-main">
-                        <div class="card-title"># @item.Name</div>
+                        <div class="card-title"><a class="hover:underline" href="/workspace/knowledge/@item.Id"># @item.Name</a></div>
                         <div class="card-sub">@L.T("workspace.file_count", ("count", item.FileCount.ToString())) — @(item.Description ?? L["admin.no_description"])</div>
                         @if (_knowledgeDetail?.Id == item.Id)
                         {
@@ -122,7 +122,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewTool">@L["workspace.new_tool"]</button>
+                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/tools/create")'>@L["workspace.new_tool"]</button>
             </div>
             @foreach (var tool in _tools)
             {
@@ -132,6 +132,7 @@
                         <div class="card-sub">@tool.Description</div>
                     </div>
                     <div class="card-actions">
+                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/tools/{tool.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
                             @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
                         </button>
@@ -149,7 +150,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick="NewPrompt">@L["workspace.new_prompt"]</button>
+                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/prompts/create")'>@L["workspace.new_prompt"]</button>
             </div>
             @foreach (var prompt in _prompts)
             {
@@ -159,7 +160,7 @@
                         <div class="card-sub card-pre">@prompt.Content</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => EditPrompt(prompt)">@L["common.edit"]</button>
+                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
                 </div>
@@ -193,20 +194,6 @@
         _models = await Api.GetCustomModelsAsync();
         _files = await Api.GetFilesAsync();
         _knowledge = await Api.GetKnowledgeAsync();
-    }
-
-    private async Task NewKnowledgeAsync()
-    {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_collection_name"], "");
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return;
-        }
-        var created = await Api.CreateKnowledgeAsync(name.Trim());
-        if (created is not null)
-        {
-            _knowledge.Add(created);
-        }
     }
 
     private async Task ToggleKnowledgeDetailAsync(KnowledgeResponse item)
@@ -257,101 +244,12 @@
         _tools = await Api.GetToolsAsync();
     }
 
-    private async Task NewPrompt()
-    {
-        var command = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_command"], "");
-        if (string.IsNullOrWhiteSpace(command))
-        {
-            return;
-        }
-
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", "");
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_content"], "");
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return;
-        }
-
-        var created = await Api.CreatePromptAsync(
-            new PromptUpsertRequest(command.Trim().TrimStart('/'), title ?? command, content));
-        if (created is not null)
-        {
-            _prompts.Add(created);
-        }
-    }
-
-    private async Task EditPrompt(PromptResponse prompt)
-    {
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", prompt.Title);
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.content"] + ":", prompt.Content);
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return;
-        }
-
-        var updated = await Api.UpdatePromptAsync(prompt.Id,
-            new PromptUpsertRequest(prompt.Command, title ?? prompt.Title, content));
-        if (updated is not null)
-        {
-            var index = _prompts.FindIndex(p => p.Id == prompt.Id);
-            if (index >= 0)
-            {
-                _prompts[index] = updated;
-            }
-        }
-    }
-
     private async Task DeletePromptAsync(PromptResponse prompt)
     {
         if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_prompt", ("command", prompt.Command)))
             && await Api.DeletePromptAsync(prompt.Id))
         {
             _prompts.Remove(prompt);
-        }
-    }
-
-    private async Task NewModel()
-    {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_model_name"], "");
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return;
-        }
-
-        var baseModel = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_base_model"], "");
-        if (string.IsNullOrWhiteSpace(baseModel))
-        {
-            return;
-        }
-
-        var systemPrompt = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_system"], "");
-
-        var created = await Api.CreateCustomModelAsync(
-            new ModelEntryUpsertRequest(name.Trim(), baseModel.Trim(), systemPrompt, null, null));
-        if (created is not null)
-        {
-            _models.Add(created);
-        }
-    }
-
-    private async Task EditModel(ModelEntryResponse model)
-    {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.name"] + ":", model.Name);
-        var systemPrompt = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_system_plain"], model.SystemPrompt ?? "");
-
-        var updated = await Api.UpdateCustomModelAsync(model.Id,
-            new ModelEntryUpsertRequest(name ?? model.Name, model.BaseModelId,
-                systemPrompt, model.ParamsJson, model.ProfileImageUrl));
-        if (updated is not null)
-        {
-            var index = _models.FindIndex(m => m.Id == model.Id);
-            if (index >= 0)
-            {
-                _models[index] = updated;
-            }
         }
     }
 
@@ -383,39 +281,6 @@
             && await Api.DeleteFileAsync(file.Id))
         {
             _files.Remove(file);
-        }
-    }
-
-    private const string DefaultSpec =
-        "{\"type\":\"function\",\"function\":{\"name\":\"minha_tool\",\"description\":\"Descreva a tool\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}";
-
-    private async Task NewTool()
-    {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["workspace.prompt_tool_name"], "");
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return;
-        }
-        var url = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_tool_url"], "");
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return;
-        }
-        var spec = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_tool_spec"], DefaultSpec);
-        if (string.IsNullOrWhiteSpace(spec))
-        {
-            return;
-        }
-        var description = await JS.InvokeAsync<string?>(
-            "openwebui.prompt", L["workspace.prompt_tool_desc"], "");
-
-        var created = await Api.CreateToolAsync(
-            new ToolUpsertRequest(name.Trim(), description, spec, url.Trim()));
-        if (created is not null)
-        {
-            _tools.Add(created);
         }
     }
 

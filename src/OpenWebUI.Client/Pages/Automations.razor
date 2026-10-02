@@ -103,7 +103,7 @@
                     <div class="card-row">
                         <div class="card-main">
                             <div class="card-title">
-                                @a.Name
+                                <a class="hover:underline" href="/automations/@a.Id">@a.Name</a>
                                 @if (!a.Enabled)
                                 {
                                     <span class="text-xs text-gray-500">(@L["automations.disabled"])</span>

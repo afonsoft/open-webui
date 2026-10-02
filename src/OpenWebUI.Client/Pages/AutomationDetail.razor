@@ -1,0 +1,118 @@
+@page "/automations/{Id}"
+@inject ApiService Api
+@inject NavigationManager Nav
+@inject LocalizationService L
+
+<PageTitle>@(_item?.Name ?? "Automação") — Open WebUI</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">@(_item?.Name ?? L["page.automations"])</h1>
+        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+    </div>
+
+    @if (_notFound)
+    {
+        <div class="sidebar-empty">@L["common.not_found"]</div>
+    }
+    else if (_item is null)
+    {
+        <div class="sidebar-empty">@L["common.loading"]</div>
+    }
+    else
+    {
+        <div class="card-list mb-4">
+            <div class="card-row">
+                <div class="card-main">
+                    <div class="card-title">@_item.ModelId · @ScheduleLabel(_item)</div>
+                    <div class="card-sub card-pre">@_item.Prompt</div>
+                    @if (_item.NextRunAt is not null)
+                    {
+                        <div class="card-sub">@L["automations.next_run"]: @FormatDate(_item.NextRunAt.Value)</div>
+                    }
+                </div>
+                <div class="card-actions">
+                    <button class="msg-action" @onclick="RunNowAsync">@L["automations.run_now"]</button>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="page-title text-base">@L["automations.runs"]</h2>
+        <div class="card-list">
+            @if (_runs is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else if (_runs.Count == 0)
+            {
+                <div class="sidebar-empty">@L["automations.no_runs"]</div>
+            }
+            else
+            {
+                @foreach (var r in _runs)
+                {
+                    <div class="card-row">
+                        <div class="card-main">
+                            <div class="card-sub flex gap-2">
+                                <span>@FormatDate(r.StartedAt)</span>
+                                @if (r.Status == "ok")
+                                {
+                                    <span class="text-green-500">✓</span>
+                                    @if (r.ChatId is not null)
+                                    {
+                                        <a class="underline" href="/c/@r.ChatId">@L["automations.open_chat"]</a>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-red-500">✗ @r.Error</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+
+    private AutomationResponse? _item;
+    private List<AutomationRunResponse>? _runs;
+    private bool _notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is null) { _notFound = true; return; }
+        _item = await Api.GetAutomationAsync(Id);
+        if (_item is null)
+        {
+            _notFound = true;
+            return;
+        }
+        _runs = await Api.GetAutomationRunsAsync(Id);
+    }
+
+    private async Task RunNowAsync()
+    {
+        _runs = null;
+        await Api.RunAutomationNowAsync(Id!);
+        _runs = await Api.GetAutomationRunsAsync(Id!);
+        _item = await Api.GetAutomationAsync(Id!);
+    }
+
+    private void GoBack() => Nav.NavigateTo("/automations");
+
+    private string ScheduleLabel(AutomationResponse a) => a.ScheduleKind switch
+    {
+        "interval" => L["automations.every_minutes"] + $" {a.IntervalMinutes}",
+        "daily" => $"{L["automations.kind_daily"]} {a.TimeOfDay} UTC",
+        "weekly" => $"{L[$"calendar.d{a.Weekday ?? 0}"]} {a.TimeOfDay} UTC",
+        _ => a.ScheduleKind,
+    };
+
+    private static string FormatDate(long epoch) =>
+        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+}

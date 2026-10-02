@@ -1,6 +1,7 @@
 @page "/notes"
 @inject ApiService Api
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @inject LocalizationService L
 
 <PageTitle>@L["page.notes"] — Open WebUI</PageTitle>
@@ -8,7 +9,7 @@
 <div class="page">
     <div class="page-header">
         <h1 class="page-title">@L["page.notes"]</h1>
-        <button class="auth-submit page-new" @onclick="NewNoteAsync">@L["notes.new"]</button>
+        <button class="auth-submit page-new" @onclick='() => Nav.NavigateTo("/notes/new")'>@L["notes.new"]</button>
     </div>
     @if (_notes is null)
     {
@@ -29,7 +30,7 @@
                         <div class="card-sub card-pre">@note.Content</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => EditNoteAsync(note)">@L["common.edit"]</button>
+                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/notes/{note.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action danger" @onclick="() => DeleteNoteAsync(note)">🗑</button>
                     </div>
                 </div>
@@ -44,38 +45,6 @@
     protected override async Task OnInitializedAsync()
     {
         _notes = await Api.GetNotesAsync();
-    }
-
-    private async Task NewNoteAsync()
-    {
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", L["notes.untitled"]);
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.content"] + ":", "");
-        if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(content))
-        {
-            return;
-        }
-
-        var created = await Api.CreateNoteAsync(title ?? L["notes.untitled"], content ?? string.Empty);
-        if (created is not null)
-        {
-            _notes?.Insert(0, created);
-        }
-    }
-
-    private async Task EditNoteAsync(NoteResponse note)
-    {
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.title"] + ":", note.Title);
-        var content = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.content"] + ":", note.Content);
-        var updated = await Api.UpdateNoteAsync(note.Id,
-            title ?? note.Title, content ?? note.Content);
-        if (updated is not null && _notes is not null)
-        {
-            var index = _notes.FindIndex(n => n.Id == note.Id);
-            if (index >= 0)
-            {
-                _notes[index] = updated;
-            }
-        }
     }
 
     private async Task DeleteNoteAsync(NoteResponse note)

@@ -1,0 +1,283 @@
+@page "/workspace/{Kind}/create"
+@page "/workspace/{Kind}/{Id}"
+@inject ApiService Api
+@inject NavigationManager Nav
+@inject LocalizationService L
+
+<PageTitle>@PageTitle — Open WebUI</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">@PageTitle</h1>
+        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+    </div>
+
+    @if (_notFound)
+    {
+        <div class="sidebar-empty">@L["common.not_found"]</div>
+    }
+    else if (_loading)
+    {
+        <div class="sidebar-empty">@L["common.loading"]</div>
+    }
+    else
+    {
+        <div class="card-list">
+            <div class="card-row">
+                <div class="card-main w-full">
+                    <div class="grid gap-3">
+                        @if (Kind == "prompts")
+                        {
+                            <div class="field">
+                                <label>@L["workspace.prompt_command"]</label>
+                                <input class="input" placeholder="meu-comando" @bind="_pCommand" />
+                            </div>
+                            <div class="field">
+                                <label>@L["common.title"]</label>
+                                <input class="input" @bind="_pTitle" />
+                            </div>
+                            <div class="field">
+                                <label>@L["common.content"]</label>
+                                <textarea class="input" rows="8" @bind="_pContent"></textarea>
+                            </div>
+                        }
+                        else if (Kind == "models")
+                        {
+                            <div class="field">
+                                <label>@L["common.name"]</label>
+                                <input class="input" @bind="_mName" />
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.prompt_base_model"]</label>
+                                <select class="input" @bind="_mBase">
+                                    @foreach (var m in _baseModels)
+                                    {
+                                        <option value="@m.Id">@m.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.prompt_system_plain"]</label>
+                                <textarea class="input" rows="6" @bind="_mSystem"></textarea>
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.params_json"]</label>
+                                <textarea class="input font-mono text-sm" rows="4"
+                                          placeholder="{&quot;temperature&quot;: 0.7}" @bind="_mParams"></textarea>
+                            </div>
+                        }
+                        else if (Kind == "tools")
+                        {
+                            <div class="field">
+                                <label>@L["common.name"]</label>
+                                <input class="input" @bind="_tName" />
+                            </div>
+                            <div class="field">
+                                <label>@L["common.description"]</label>
+                                <input class="input" @bind="_tDesc" />
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.tool_url"]</label>
+                                <input class="input" type="url" placeholder="https://…" @bind="_tUrl" />
+                            </div>
+                            <div class="field">
+                                <label>@L["workspace.tool_spec"]</label>
+                                <textarea class="input font-mono text-sm" rows="8" @bind="_tSpec"></textarea>
+                            </div>
+                            <div class="field">
+                                <label class="check"><input type="checkbox" @bind="_tEnabled" /> @L["automations.enabled"]</label>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="field">
+                                <label>@L["common.name"]</label>
+                                <input class="input" @bind="_kName" />
+                            </div>
+                            <div class="field">
+                                <label>@L["common.description"]</label>
+                                <input class="input" @bind="_kDesc" />
+                            </div>
+                            @if (!IsCreate && _knowledge is not null)
+                            {
+                                <div class="field">
+                                    <label>@L["workspace.files"] (@_knowledge.Files.Count)</label>
+                                    <div class="card-sub">
+                                        @foreach (var kf in _knowledge.Files)
+                                        {
+                                            <div>📄 @kf.Filename
+                                                <button class="msg-action danger" @onclick="() => RemoveFileAsync(kf)">×</button>
+                                            </div>
+                                        }
+                                        @if (_knowledge.Files.Count == 0)
+                                        {
+                                            <div>@L["workspace.no_files_yet"]</div>
+                                        }
+                                    </div>
+                                    <select class="input mt-2" @bind="_addFileId">
+                                        <option value="">@L["workspace.add_file"]…</option>
+                                        @foreach (var f in _files)
+                                        {
+                                            <option value="@f.Id">@f.Filename</option>
+                                        }
+                                    </select>
+                                    <button class="msg-action mt-1" @onclick="AddFileAsync"
+                                            disabled="@(string.IsNullOrEmpty(_addFileId))">@L["workspace.add_file"]</button>
+                                </div>
+                            }
+                        }
+                    </div>
+                    @if (_error is not null)
+                    {
+                        <div class="text-sm text-red-500 mt-2">@_error</div>
+                    }
+                </div>
+                <div class="card-actions">
+                    <button class="auth-submit" @onclick="SaveAsync">@L["common.save"]</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Kind { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private bool IsCreate => Id is null;
+    private bool _loading = true;
+    private bool _notFound;
+    private string? _error;
+
+    private string PageTitle =>
+        (IsCreate ? L["common.new"] : L["common.edit"]) + " " + (Kind switch
+        {
+            "models" => L["workspace.models"],
+            "tools" => "Tools",
+            "knowledge" => "Knowledge",
+            _ => L["workspace.prompts"],
+        });
+
+    private string _pCommand = "", _pTitle = "", _pContent = "";
+    private string _mName = "", _mBase = "", _mSystem = "", _mParams = "";
+    private string _tName = "", _tDesc = "", _tUrl = "", _tSpec = "";
+    private bool _tEnabled = true;
+    private string _kName = "", _kDesc = "", _addFileId = "";
+
+    private List<ModelInfo> _baseModels = [];
+    private List<FileResponse> _files = [];
+    private KnowledgeDetailResponse? _knowledge;
+    private PromptResponse? _prompt;
+    private ModelEntryResponse? _model;
+    private ToolResponse? _tool;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _notFound = false;
+        _error = null;
+        Kind ??= "prompts";
+
+        if (Kind == "models")
+        {
+            _baseModels = await Api.GetModelsAsync();
+            if (_baseModels.Count > 0 && string.IsNullOrEmpty(_mBase))
+            {
+                _mBase = _baseModels[0].Id;
+            }
+        }
+
+        if (!IsCreate && Id is not null)
+        {
+            switch (Kind)
+            {
+                case "prompts":
+                    _prompt = await Api.GetPromptAsync(Id);
+                    if (_prompt is null) { _notFound = true; break; }
+                    _pCommand = _prompt.Command; _pTitle = _prompt.Title; _pContent = _prompt.Content;
+                    break;
+                case "models":
+                    _model = await Api.GetCustomModelAsync(Id);
+                    if (_model is null) { _notFound = true; break; }
+                    _mName = _model.Name; _mBase = _model.BaseModelId;
+                    _mSystem = _model.SystemPrompt ?? ""; _mParams = _model.ParamsJson ?? "";
+                    break;
+                case "tools":
+                    _tool = (await Api.GetToolsAsync()).FirstOrDefault(t => t.Id == Id);
+                    if (_tool is null) { _notFound = true; break; }
+                    _tName = _tool.Name; _tDesc = _tool.Description ?? ""; _tSpec = _tool.SpecJson;
+                    _tEnabled = _tool.Enabled;
+                    break;
+                default:
+                    _files = await Api.GetFilesAsync();
+                    _knowledge = await Api.GetKnowledgeDetailAsync(Id);
+                    if (_knowledge is null) { _notFound = true; break; }
+                    _kName = _knowledge.Name; _kDesc = _knowledge.Description ?? "";
+                    break;
+            }
+        }
+        else if (Kind == "knowledge")
+        {
+            _files = await Api.GetFilesAsync();
+        }
+
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        var ok = Kind switch
+        {
+            "prompts" => IsCreate
+                ? await Api.CreatePromptAsync(new PromptUpsertRequest(
+                    _pCommand.Trim().TrimStart('/'), _pTitle.Trim(), _pContent)) is not null
+                : await Api.UpdatePromptAsync(Id!, new PromptUpsertRequest(
+                    _pCommand.Trim().TrimStart('/'), _pTitle.Trim(), _pContent)) is not null,
+            "models" => IsCreate
+                ? await Api.CreateCustomModelAsync(new ModelEntryUpsertRequest(
+                    _mName.Trim(), _mBase, _mSystem, string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, null)) is not null
+                : await Api.UpdateCustomModelAsync(Id!, new ModelEntryUpsertRequest(
+                    _mName.Trim(), _mBase, _mSystem,
+                    string.IsNullOrWhiteSpace(_mParams) ? null : _mParams, _model?.ProfileImageUrl)) is not null,
+            "tools" => IsCreate
+                ? await Api.CreateToolAsync(new ToolUpsertRequest(
+                    _tName.Trim(), _tDesc, _tSpec, _tUrl.Trim())) is not null
+                : await Api.UpdateToolAsync(Id!, new ToolUpsertRequest(
+                    _tName.Trim(), _tDesc, _tSpec, null, _tEnabled)) is not null,
+            _ => IsCreate
+                ? await Api.CreateKnowledgeAsync(_kName.Trim(),
+                    string.IsNullOrWhiteSpace(_kDesc) ? null : _kDesc) is not null
+                : await Api.UpdateKnowledgeAsync(Id!, _kName.Trim(),
+                    string.IsNullOrWhiteSpace(_kDesc) ? null : _kDesc) is not null,
+        };
+
+        if (ok)
+        {
+            Nav.NavigateTo($"/workspace/{Kind}");
+        }
+        else
+        {
+            _error = L["common.save_failed"];
+        }
+    }
+
+    private async Task AddFileAsync()
+    {
+        if (!string.IsNullOrEmpty(_addFileId) && await Api.AddKnowledgeFileAsync(Id!, _addFileId))
+        {
+            _knowledge = await Api.GetKnowledgeDetailAsync(Id!);
+            _addFileId = "";
+        }
+    }
+
+    private async Task RemoveFileAsync(KnowledgeFileResponse kf)
+    {
+        if (await Api.RemoveKnowledgeFileAsync(Id!, kf.FileId))
+        {
+            _knowledge = await Api.GetKnowledgeDetailAsync(Id!);
+        }
+    }
+
+    private void GoBack() => Nav.NavigateTo($"/workspace/{Kind}");
+}

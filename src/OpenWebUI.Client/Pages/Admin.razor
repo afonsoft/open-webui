@@ -1,4 +1,5 @@
 @page "/admin"
+@page "/admin/{Tab}"
 @inject ApiService Api
 @inject AuthService Auth
 @inject IJSRuntime JS
@@ -343,7 +344,16 @@
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
 
-    private void SetTab(string tab) => _tab = tab;
+    [Parameter] public string? Tab { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _tab = Tab is "users" or "groups" or "analytics" or "evaluations" or "config"
+            ? Tab
+            : "users";
+    }
+
+    private void SetTab(string tab) => Nav.NavigateTo($"/admin/{tab}");
 
     private async Task AddUserAsync()
     {
