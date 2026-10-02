@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -249,6 +250,7 @@ public static class UserEndpoints
         UpdateUserRoleRequest request,
         HttpContext http,
         AppDbContext db,
+        NotificationService notifications,
         CancellationToken ct)
     {
         if (!http.User.IsInRole(UserRoles.Admin))
@@ -266,9 +268,15 @@ public static class UserEndpoints
             return Results.NotFound();
         }
 
+        var wasPending = user.Role == UserRoles.Pending;
         user.Role = request.Role;
         user.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await db.SaveChangesAsync(ct);
+        if (wasPending && request.Role != UserRoles.Pending)
+        {
+            await notifications.DispatchAsync("user.approved",
+                new { user.Id, user.Name, user.Email, user.Role }, user.Id, ct);
+        }
         return Results.Ok(AuthEndpoints.ToResponse(user));
     }
 

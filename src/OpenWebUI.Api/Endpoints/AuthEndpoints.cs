@@ -40,6 +40,7 @@ public static class AuthEndpoints
         AppDbContext db,
         ConfigService config,
         JwtTokenService tokens,
+        NotificationService notifications,
         CancellationToken ct)
     {
         var adminConfig = await config.GetAdminConfigAsync(ct);
@@ -79,6 +80,8 @@ public static class AuthEndpoints
 
         if (user.Role == UserRoles.Pending)
         {
+            await notifications.DispatchAsync("user.pending",
+                new { user.Id, user.Name, user.Email }, user.Id, ct);
             return Results.Ok(new AuthResponse(
                 string.Empty, "Bearer", DateTimeOffset.UtcNow, ToResponse(user)));
         }
