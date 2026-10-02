@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
@@ -92,6 +93,16 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseWebAssemblyDebugging();
 }
+
+// Atrás de reverse proxy (nginx/Cloudflare/preview): honra X-Forwarded-*
+// para que Scheme/Host reflitam a URL real — sem isso o redirect_uri do
+// OAuth sai como http://interno e o callback quebra (mesmo fix do agent-harness).
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost,
+});
 
 // Serve os static web assets com fingerprinting e resolve os placeholders
 // #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).

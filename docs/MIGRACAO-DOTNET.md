@@ -3,12 +3,11 @@
 Documento de acompanhamento da migração de tecnologia do Open WebUI
 (SvelteKit + FastAPI/Python) para **.NET 10 · C# 14 · Blazor WebAssembly**.
 
-> Revisão pós-expansão (out/2026): inventário refeito contra o upstream
-> `open-webui/open-webui` (~v0.11.x, ~600 endpoints, ~48 rotas de página,
-> ~250 chaves de `DEFAULT_CONFIG`). O código legado foi removido — o repo
-> agora contém apenas a migração .NET, organizada em Clean Architecture
-> (`src/OpenWebUI.{Domain,Application,Infrastructure,Api,Client}`).
-> A tabela abaixo reflete o estado real implementado.
+> Auditoria out/2026 contra `open-webui/open-webui` upstream (~v0.11.x,
+> 33 routers / ~500 endpoints, 47 rotas de página, ~250 chaves de
+> `DEFAULT_CONFIG`). As 13 slices do epic `gap-analysis-20261001` foram
+> entregues (PRs #29–#41); a tabela abaixo reflete o estado real **atual**,
+> incluindo o que ainda falta para paridade total.
 
 ## Arquitetura alvo
 
@@ -16,91 +15,113 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 ┌─────────────────────────────────────────────┐
 │ OpenWebUI.Api (ASP.NET Core 10)             │
 │  ├── serve OpenWebUI.Client (Blazor WASM)   │
-│  ├── /api/v1/*  (auth, chats, configs)      │
-│  ├── /api/models, /api/chat/completions     │
+│  ├── /api/v1/*  (17 grupos de endpoints)    │
+│  ├── /api/chat/completions  (SSE)           │
+│  ├── /ws  (SignalR — canais realtime)       │
 │  └── EF Core SQLite (data/openwebui.db)     │
 └─────────────────────────────────────────────┘
               │                │
         Ollama /api/*    OpenAI /v1/*
 ```
 
-## Paridade por área (inventário → src/)
+## Resumo quantitativo (auditoria vs upstream)
 
-| Área (Open WebUI original)             | Status      | Observação                                                |
-| -------------------------------------- | ----------- | --------------------------------------------------------- |
-| Auth (signup/signin/signout, JWT)      | ✅ Migrado  | `/api/v1/auths/*` completo, primeiro usuário vira admin   |
-| Papéis pending/user/admin              | ✅ Migrado  | `DEFAULT_USER_ROLE` configurável no Admin                 |
-| Aprovação de usuários pendentes        | ✅ Migrado  | Página `/admin` aprova/rebaixa/remove                     |
-| Perfil (nome, imagem, senha, fuso)     | ✅ Migrado  | `/update/profile`, `/update/password`, `/update/timezone` |
-| Chaves de API `sk-*`                   | ✅ Migrado  | POST/GET/DELETE `/api_key` + middleware Bearer sk-        |
-| Chats CRUD + busca                     | ✅ Migrado  | Título e conteúdo de mensagens                            |
-| Fixar / arquivar chats                 | ✅ Migrado  | `/pin`, `/archive`, listas dedicadas                      |
-| Pastas de conversas                    | ✅ Migrado  | `/api/v1/folders`, sidebar agrupada                       |
-| Tags de chats                          | ✅ Migrado  | `/api/v1/chats/{id}/tags`                                 |
-| Compartilhamento público `/s/{id}`     | ✅ Migrado  | ShareId + página pública sem login                        |
-| Clone de chat                          | ✅ Migrado  | `POST /{id}/clone`                                        |
-| Exportar / importar chats              | ✅ Migrado  | `/all/db`, `/import`                                      |
-| Mensagens: editar / apagar restante    | ✅ Migrado  | `/{id}/messages/{mid}` POST/DELETE                        |
-| Regenerar resposta                     | ✅ Migrado  | Por mensagem                                              |
-| Copiar mensagem                        | ✅ Migrado  | Ação no bubble                                            |
-| Avaliação (👍/👎)                      | ✅ Migrado  | `/api/v1/evaluations/feedback`                            |
-| Título automático via LLM              | ✅ Migrado  | `/api/v1/tasks/title/completions`                         |
-| Follow-ups sugeridos                   | ✅ Migrado  | `/tasks/follow_up/completions`                            |
-| Tags automáticas                       | ✅ Migrado  | `/tasks/tags/completions`                                 |
-| Upload de arquivos + contexto          | 🟡 Parcial  | Texto extraído injetado no prompt; sem RAG vetorial       |
-| Prompts `/comando`                     | ✅ Migrado  | `/api/v1/prompts`, autocomplete no input                  |
-| Modelos personalizados do workspace    | ✅ Migrado  | `/api/v1/models`, system prompt + params                  |
-| Memórias persistentes                  | ✅ Migrado  | `/api/v1/memories`, injetadas no contexto                 |
-| Notas                                  | ✅ Migrado  | `/api/v1/notes`, página `/notes`                          |
-| Lista agregada de modelos              | ✅ Migrado  | Ollama + OpenAI + custom models                           |
-| Conexões (admin)                       | ✅ Migrado  | Chaves nunca retornadas à UI                              |
-| `/api/config` + `/health`              | ✅ Migrado  | Feature flags públicas                                    |
-| Exportar/importar config               | ✅ Migrado  | `/api/v1/configs/export                                   | import` |
-| Tema claro/escuro                      | ✅ Migrado  | Persistido em localStorage                                |
-| RAG / Knowledge / vector store         | ✅ Migrado  | Store SQLite + cosseno; embeddings Ollama/OpenAI       |
-| Web search RAG                         | ⬜ Pendente | Stub de query generation existe                           |
-| Tools / Functions / Pipes / Filters    | 🟡 Parcial  | Tools HTTP com function calling (loop no servidor); Pipes/Filters não suportados |
-| Channels (chat em grupo)               | ✅ Migrado  | SignalR /ws + mensagens + @modelo + typing/presence   |
-| Groups / RBAC granular                 | ✅ Migrado  | `Group`/`GroupMember` + flags workspace/sharing/chat      |
-| OAuth / LDAP / SAML / SCIM             | 🟡 Parcial  | OAuth (Google/GitHub/Microsoft/OIDC) + LDAP bind; SAML/SCIM pendentes |
-| Voice / STT / TTS / Call               | 🟡 Parcial  | Web Speech API (STT+TTS) + modo Call; sem provider remoto |
-| Image generation                       | 🟡 Parcial  | OpenAI Images; botão na mensagem + config admin; sem ComfyUI/A1111 |
-| Code execution (Pyodide/Open Terminal) | 🟡 Parcial  | JS em Web Worker + Python via Pyodide WASM; botão Executar em blocos |
-| Socket.io / realtime multiusuário      | ✅ Migrado  | SignalR `/ws` (canais)                                    |
-| PWA (manifest + service worker do shell) | ✅ Migrado   |                                                           |
-| i18n                                   | 🟡 Parcial  | pt-BR/en-US com troca sem reload; backend não traduzido   |
-| Analytics / métricas                   | 🟡 Parcial  | `/api/v1/analytics` admin-only + aba Analytics em /admin |
-| Automations / calendar / pipelines     | ⬜ Pendente |                                                           |
-| Migrações EF Core                      | ✅ Migrado  | `DatabaseMigrator` + EF Migrations; baseline de bases legadas |
-| Docker / deploy dedicado               | ⬜ Pendente |                                                           |
+| Superfície | Upstream | Coberto | Gap |
+|---|---|---|---|
+| Routers (grupos de endpoints) | 33 | ~20 ✅ / ~8 🟡 parcial / ~5 ⬜ | ver tabela |
+| Rotas de página | 47 | ~24 | páginas de criar/editar em workspace + admin tabs |
+| Engines de integração | ~15 (embeddings, busca web, imagens, TTS, extração) | ~4 | engines alternativas por família |
+
+## Paridade por área (router upstream → .NET)
+
+### Migrado ✅
+
+| Área | Observação |
+|---|---|
+| `auths` — signup/signin/profile/api-key/admin | JWT, primeiro usuário admin, `sk-*`, aprovação de pendentes |
+| `chats` — core | CRUD, busca, pin/archive, pastas, tags, share `/s/{id}`, clone, import/export, editar/regenerar mensagem |
+| `users` — core | Perfil, senha, timezone, admin CRUD |
+| `models` — custom | CRUD workspace, system prompt + params, toggle |
+| `evaluations` — feedbacks | 👍/👎 + lista admin paginada |
+| `files` — upload/serve | Extração de texto, `data/uploads/{user}/` fora do wwwroot |
+| `knowledge` — RAG | Coleções, itens, embeddings (Ollama/OpenAI), retrieval por cosseno |
+| `channels` — grupo | SignalR `/ws`: `message:new`, `typing`, `presence`, `@modelo` invoca provider |
+| `groups` — RBAC | CRUD + membros + flags workspace/sharing/chat |
+| `folders`, `memories`, `notes`, `prompts` | CRUD completo |
+| `tasks` — LLM | Título, follow-ups, tags automáticas |
+| `tools` — HTTP | Function calling com loop server-side (máx. 5), URL nunca exposta |
+| `images` — OpenAI Images | Geração + config admin + botão no chat |
+| `configs` — core | Conexões (chaves mascaradas), admin config, feature flags, export/import |
+| `analytics` | Dashboard admin-only |
+| `automations` | Agendas (interval/daily/weekly UTC) + runs + run-now + visão calendário |
+| OAuth/OIDC + LDAP | Google/GitHub/Microsoft/OIDC + bind LDAP (slice auth-sso-rbac) |
+| EF Migrations | `DatabaseMigrator` + baseline de `webui.db` legadas |
+| Docker | Dockerfile multi-stage + compose (+ ollama opcional) |
+
+### Parcial 🟡
+
+| Área | Feito | Falta |
+|---|---|---|
+| `retrieval` (17 eps) | Embeddings + busca vetorial | `/process/{file,text,url,youtube,web}` (web loaders), `/process/web/search` (12 engines: SearXNG/Google/Bing/Brave/Tavily/Kagi/DDG/Exa/Jina…), reranking, hybrid BM25, engines de extração de conteúdo, reset de db/uploads |
+| `channels` (28 eps) | Canais em grupo + realtime | Canais DM, threads/replies, reações, unread counts, mensagens pinadas, access grants |
+| `users` (26 eps) | Perfil/admin | User settings (estado UI persistido), sessões ativas, permissões default, busca/paginação |
+| `chats` (50 eps) | Core completo | Versões/diff de mensagens, chat-events realtime, lista admin de todos os chats |
+| `knowledge` (35 eps) | RAG essencial | Anexar `file_id` a itens, access grants por item, reindex, batch ops |
+| `tools` (15 eps) | Tools HTTP | Tools em código (execução server-side), valves/user settings por tool |
+| `images` (6 eps) | OpenAI Images | Engines ComfyUI/A1111/Gemini, edição/variações |
+| `audio` (6 eps) | Web Speech client-side | `POST /audio/speech` (TTS remoto), `/transcriptions` (Whisper/Deepgram STT), `/voices`, `/models` |
+| `calendar` (13 eps) | Visão mensal de runs de automations | Calendário real: múltiplos calendários, events CRUD, busca, access grants |
+| `configs` (25 eps) | Conexões/flags/admin | Banners, default models/suggestions, code-execution config, audio/image/retrieval config completa, OAuth/LDAP toggles, direct connections |
+| `groups` (11 eps) | Flags workspace/sharing | Domínios allowlist, permissões granulares por feature |
+| `models` (16 eps) | Custom models | Arena models, access grants por modelo, model filters |
+| `evaluations` (15 eps) | Feedbacks | Leaderboard/arena, export |
+| `notes` (12 eps) | CRUD | Colaboração realtime (yjs), access grants |
+| `i18n` | pt-BR/en-US sem reload | ~30 locales do upstream; backend não traduzido |
+
+### Pendente ⬜
+
+| Área | Escopo upstream |
+|---|---|
+| `functions` (17 eps) | Pipes/Filters/Valves — plugins de código custom do admin |
+| `pipelines` (8 eps) | Framework Pipelines (inlet/outlet filters) |
+| `scim` (15 eps) | Provisionamento SCIM 2.0 |
+| `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
+| `terminals` (1 ep + ws) | Terminal server-side / Jupyter (proxy + WS) |
+| `notifications` (7 eps) | Webhooks de notificação |
+| `ollama` (45 eps) + `openai` (15 eps) | Routers de passthrough gerenciados (`/ollama/*`, `/openai/*` — pull/delete/copy/blobs/embeddings etc.) |
+| `utils` (4 eps) | Gravatar, format, litellm config |
+| SAML | SSO enterprise (OAuth/LDAP já cobertos) |
+| Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
+| Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
+| Rate limiting | Limites de uso por usuário/modelo |
 
 ## Rotas de página (frontend)
 
-| Original (SvelteKit)                                      | Blazor                                    | Status |
-| --------------------------------------------------------- | ----------------------------------------- | ------ |
-| `/`                                                       | `/`                                       | ✅     |
-| `/c/{id}`                                                 | `/c/{ChatId}`                             | ✅     |
-| `/auth`                                                   | `/auth`                                   | ✅     |
-| `/s/{id}`                                                 | `/s/{ShareId}`                            | ✅     |
-| `/admin` (users, evals, settings)                         | `/admin` (usuários, grupos, analytics, avaliações, flags) | ✅     |
-| `/workspace` (models, prompts, knowledge, tools, files)   | `/workspace` (prompts, modelos, arquivos, tools) | 🟡     |
-| `/notes`                                                  | `/notes`                                  | ✅     |
-| Arquivadas (modal/menu)                                   | `/archived`                               | ✅     |
-| `/channels/*`                                            | `/channels/{id}`                          | ✅     |
-| `/playground`                                             | `/playground` (sem persistir chat)        | ✅     |
-| `/automations`                                            | `/automations` + scheduler em background  | ✅     |
-| `/calendar`                                               | `/calendar` (visão mensal de runs)        | ✅     |
+| Original (SvelteKit) | Blazor | Status |
+|---|---|---|
+| `/`, `/c/{id}`, `/auth`, `/s/{id}`, `/error` | idênticos | ✅ |
+| `/admin` (users, evals, settings, analytics) | `/admin` (usuários, grupos, analytics, avaliações, flags) | ✅ |
+| `/workspace` (models, prompts, knowledge, tools, files) | `/workspace` (abas) | 🟡 sem páginas dedicadas `create`/`edit`/`[id]` |
+| `/notes`, `/notes/{id}`, `/notes/new` | `/notes` (editor inline) | 🟡 rotas dedicadas |
+| Arquivadas | `/archived` | ✅ |
+| `/channels/{id}` | `/channels/{id}` | ✅ |
+| `/playground` (+`/completions`,`/images`) | `/playground` | 🟡 sub-páginas |
+| `/automations`, `/automations/{id}` | `/automations` | 🟡 detalhe |
+| `/calendar` | `/calendar` | ✅ |
+| `/folders/{id}` | sidebar | 🟡 rota dedicada |
+| `/admin/functions`, `/workspace/functions/*`, `/workspace/skills/*` | — | ⬜ dependem de functions/skills |
+| `/watch` | — | ⬜ |
 
 ## Decisões de design
 
 - **EF Core Migrations** — `DatabaseMigrator` aplica `Migrate()` no startup e faz
-  baseline de bases legadas criadas sem histórico (marca migrações como aplicadas
-  em `__EFMigrationsHistory` sem recriar tabelas nem perder dados).
-- **Streaming SSE** no lugar de WebSocket — suficiente para token streaming;
-  SignalR reservado para features realtime futuras.
-- **Chaves de API somente no servidor** — a UI nunca recebe segredos;
-  `ConnectionsConfigResponse` expõe apenas `OpenAiKeyConfigured`.
-- **Segredo JWT persistido** na tabela `config` (mesmo padrão do original:
-  `WEBUI_SECRET_KEY` gerado na primeira execução).
-- **Config admin persistida** em `admin.config` no `ConfigService` —
-  espelha `WEBUI_*` / `ENABLE_*` do `DEFAULT_CONFIG` para os toggles migrados.
+  baseline de bases legadas criadas sem histórico.
+- **Streaming SSE** para completions; **SignalR** para realtime multiusuário.
+- **Segredos somente no servidor** — UI nunca recebe chaves; tools executam
+  server-side com URL oculta.
+- **`data/` fora do `wwwroot`** — `openwebui.db` e uploads nunca são servidos
+  estaticamente (mesmo padrão `.data/` do agent-harness).
+- **`UseForwardedHeaders`** — `X-Forwarded-For/Proto/Host` honrados para
+  `redirect_uri` de OAuth e cookies corretos atrás de proxy.
+- **Voz/execução client-side** — Web Speech + Web Worker + Pyodide WASM,
+  sem infra extra no servidor.
