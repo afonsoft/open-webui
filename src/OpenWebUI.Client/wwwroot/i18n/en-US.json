@@ -422,5 +422,11 @@
   "admin.pipelines": "Pipeline Servers",
   "admin.pipeline_name": "Name",
   "admin.pipeline_key": "API key (optional)",
-  "admin.pipeline_add": "Add server"
+  "admin.pipeline_add": "Add server",
+  "admin.perms": "Permissions",
+  "admin.perm_hint": "“—” inherits from group",
+  "admin.perm_on": "on",
+  "admin.perm_off": "off",
+  "admin.group_domains": "Group domains",
+  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):"
 }

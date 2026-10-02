@@ -422,5 +422,11 @@
   "admin.pipelines": "Servidores de Pipelines",
   "admin.pipeline_name": "Nome",
   "admin.pipeline_key": "API key (opcional)",
-  "admin.pipeline_add": "Adicionar servidor"
+  "admin.pipeline_add": "Adicionar servidor",
+  "admin.perms": "Права",
+  "admin.perm_hint": "«—» — наследуется из группы",
+  "admin.perm_on": "вкл",
+  "admin.perm_off": "выкл",
+  "admin.group_domains": "Домены группы",
+  "admin.prompt_group_domains": "Домены через запятую (напр. mail.com, corp.ru):"
 }

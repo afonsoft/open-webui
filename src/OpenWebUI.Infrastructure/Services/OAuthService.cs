@@ -45,7 +45,7 @@ public class OAuthService(AppDbContext db, ConfigService config)
                 Name = string.IsNullOrWhiteSpace(name) ? email : name.Trim(),
                 Email = email,
                 Role = !anyUser ? UserRoles.Admin : NormalizeRole(adminConfig.DefaultUserRole),
-                PermissionsJson = GroupPermissions.FullJson,
+                PermissionsJson = "{}",
                 PasswordHash = string.Empty, // login somente via provedor
                 CreatedAt = now,
                 UpdatedAt = now,

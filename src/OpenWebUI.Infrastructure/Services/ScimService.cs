@@ -66,7 +66,7 @@ public class ScimService(AppDbContext db, ConfigService config)
                 Email = email,
                 Name = ResolveDisplayName(input, email),
                 Role = NormalizeRole(adminConfig.DefaultUserRole),
-                PermissionsJson = GroupPermissions.FullJson,
+                PermissionsJson = "{}",
                 PasswordHash = string.Empty, // login via IdP
                 CreatedAt = now,
                 UpdatedAt = now,

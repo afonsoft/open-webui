@@ -338,4 +338,52 @@ public class PermissionServiceTests
         Assert.CatchAsync<OperationCanceledException>(
             () => HasAsync(usuario, PermissionService.WorkspaceModels, cts.Token));
     }
+
+    [Test, Order(19)]
+    public async Task Override_Usuario_Permite_Onde_Grupo_Nega()
+    {
+        // SPEC permissions-granular: flag explícita do usuário vence a do grupo.
+        var usuario = NovoUsuario("u1", UserRoles.User);
+        usuario.PermissionsJson = """{"workspace":{"models":true}}""";
+        var grupo = new Group { Id = "g1", Name = "nega-models", PermissionsJson = Json(Negando(PermissionService.WorkspaceModels)) };
+        var vinculo = new GroupMember { GroupId = "g1", UserId = "u1" };
+
+        await SeedAsync(usuario, grupo, vinculo);
+        Assert.That(await HasAsync(usuario, PermissionService.WorkspaceModels), Is.True);
+    }
+
+    [Test, Order(20)]
+    public async Task Override_Usuario_Nega_Onde_Grupo_Permite()
+    {
+        var usuario = NovoUsuario("u1", UserRoles.User);
+        usuario.PermissionsJson = """{"workspace":{"tools":false}}""";
+        var grupo = new Group { Id = "g1", Name = "completo", PermissionsJson = Json(GroupPermissions.Full) };
+        var vinculo = new GroupMember { GroupId = "g1", UserId = "u1" };
+
+        await SeedAsync(usuario, grupo, vinculo);
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await HasAsync(usuario, PermissionService.WorkspaceTools), Is.False);
+            Assert.That(await HasAsync(usuario, PermissionService.WorkspaceModels), Is.True);
+        });
+    }
+
+    [Test, Order(21)]
+    public async Task Override_Usuario_NaoAfeta_OutroMembro()
+    {
+        // Override desliga a flag para um usuário sem afetar outro membro do grupo.
+        var u1 = NovoUsuario("u1", UserRoles.User);
+        u1.PermissionsJson = """{"workspace":{"models":false}}""";
+        var u2 = NovoUsuario("u2", UserRoles.User);
+        var grupo = new Group { Id = "g1", Name = "completo", PermissionsJson = Json(GroupPermissions.Full) };
+        var m1 = new GroupMember { GroupId = "g1", UserId = "u1" };
+        var m2 = new GroupMember { GroupId = "g1", UserId = "u2" };
+
+        await SeedAsync(u1, u2, grupo, m1, m2);
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await HasAsync(u1, PermissionService.WorkspaceModels), Is.False);
+            Assert.That(await HasAsync(u2, PermissionService.WorkspaceModels), Is.True);
+        });
+    }
 }
