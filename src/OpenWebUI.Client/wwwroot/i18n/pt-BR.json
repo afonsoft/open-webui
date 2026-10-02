@@ -430,5 +430,6 @@
   "chat.prev_version": "Versão anterior",
   "chat.next_version": "Próxima versão",
   "chat.archived": "arquivado",
-  "common.open": "Abrir"
+  "common.open": "Abrir",
+  "workspace.filter_presets": "Filtros do modelo (inserir preset):"
 }

@@ -193,6 +193,13 @@ public static class ApiEndpoints
 
         var effective = await EnrichRequestAsync(request, user, db, config, rag, ct);
 
+        // Filtros outlet do modelo custom: redação por regex nas linhas SSE.
+        var outletRules = ModelFilterService.OutletRules(
+            ModelFilterService.Parse(await db.ModelEntries.AsNoTracking()
+                .Where(m => m.IsActive && (m.Id == request.Model || m.Name == request.Model)
+                    && (m.UserId == user.Id || m.UserId == "public"))
+                .Select(m => m.MetaJson).FirstOrDefaultAsync(ct)));
+
         try
         {
             var tools = request.ToolIds is { Count: > 0 }
@@ -209,6 +216,10 @@ public static class ApiEndpoints
                 var finished = await RunToolLoopAsync(effective, tools, toolExecutor, providers, ct);
                 if (finished is not null)
                 {
+                    foreach (var (regex, replacement) in outletRules)
+                    {
+                        finished = regex.Replace(finished, replacement);
+                    }
                     var chunk = JsonSerializer.Serialize(new
                     {
                         choices = new[] { new { index = 0, delta = new { content = finished } } },
@@ -224,7 +235,8 @@ public static class ApiEndpoints
 
             await foreach (var line in providers.StreamCompletionAsync(effective, ct))
             {
-                await writer.WriteLineAsync(line);
+                await writer.WriteLineAsync(
+                    ModelFilterService.ProcessSseLine(line, outletRules));
                 await writer.WriteLineAsync();
                 await writer.FlushAsync();
             }
@@ -595,13 +607,19 @@ public static class ApiEndpoints
             }
         }
 
-        return request with
+        var built = request with
         {
             Model = model,
             Messages = messages,
             Params = parameters,
             FileIds = null,
         };
+
+        // 5. Filtros declarativos do modelo custom (inlet) em ordem estável.
+        var inletFilters = ModelFilterService.Parse(customModel?.MetaJson);
+        return inletFilters.Count > 0
+            ? ModelFilterService.ApplyInlet(built, inletFilters)
+            : built;
     }
 
     /// <summary>Resolve referências #nome (arquivo ou coleção) para ids de arquivo.</summary>

@@ -3,6 +3,8 @@
 @inject ApiService Api
 @inject NavigationManager Nav
 @inject LocalizationService L
+@using System.Text.Json
+@using System.Text.Json.Nodes
 
 <PageTitle>@PageTitle — Open WebUI</PageTitle>
 
@@ -70,6 +72,13 @@
                                 <textarea class="input font-mono text-sm" rows="3"
                                           placeholder="{&quot;arena&quot;: true, &quot;model_ids&quot;: [&quot;a&quot;, &quot;b&quot;]}"
                                           @bind="_mMeta"></textarea>
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    <span class="text-xs text-gray-500 w-full">@L["workspace.filter_presets"]</span>
+                                    <button class="msg-action" @onclick='() => AddFilterPreset("system_inject")'>+ system_inject</button>
+                                    <button class="msg-action" @onclick='() => AddFilterPreset("params_override")'>+ params_override</button>
+                                    <button class="msg-action" @onclick='() => AddFilterPreset("regex_redact")'>+ regex_redact</button>
+                                    <button class="msg-action" @onclick='() => AddFilterPreset("max_tokens_cap")'>+ max_tokens_cap</button>
+                                </div>
                             </div>
                             <div class="field">
                                 <label>@L["workspace.grants_json"]</label>
@@ -183,6 +192,51 @@
 
     private string _pCommand = "", _pTitle = "", _pContent = "";
     private string _mName = "", _mBase = "", _mSystem = "", _mParams = "";
+
+    /// <summary>Insere um filtro declarativo padrão no MetaJson (campo filters).</summary>
+    private void AddFilterPreset(string type)
+    {
+        JsonObject meta;
+        try
+        {
+            meta = string.IsNullOrWhiteSpace(_mMeta)
+                ? new JsonObject()
+                : (JsonNode.Parse(_mMeta) as JsonObject) ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            meta = new JsonObject();
+        }
+
+        JsonObject config = type switch
+        {
+            "system_inject" => new JsonObject
+            {
+                ["text"] = "Responda sempre em pt-BR de forma objetiva.",
+                ["position"] = "append",
+            },
+            "params_override" => new JsonObject { ["temperature"] = 0.2 },
+            "regex_redact" => new JsonObject
+            {
+                ["pattern"] = @"\b\d{11}\b",
+                ["replacement"] = "[cpf-redacted]",
+                ["stage"] = "both",
+            },
+            _ => new JsonObject { ["max_tokens"] = 512 },
+        };
+
+        if (meta["filters"] is not JsonArray filters)
+        {
+            filters = new JsonArray();
+            meta["filters"] = filters;
+        }
+        filters.Add(new JsonObject
+        {
+            ["type"] = type,
+            ["config"] = config,
+        });
+        _mMeta = meta.ToJsonString();
+    }
     private string _mMeta = string.Empty;
     private string _mGrants = string.Empty;
     private string _tName = "", _tDesc = "", _tUrl = "", _tSpec = "";

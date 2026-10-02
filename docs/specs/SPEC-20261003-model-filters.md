@@ -54,3 +54,9 @@ Sem endpoint novo — MetaJson do modelo + pipeline interno.
 - [ ] Modelo com `system_inject` gera request com prompt extra (assert mock).
 - [ ] `regex_redact` remove padrão do conteúdo enviado.
 - [ ] JSON inválido → 400 com detalhe.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/97
+- Issue: https://github.com/afonsoft/open-webui/issues/87
+- Epic: https://github.com/afonsoft/open-webui/issues/79
