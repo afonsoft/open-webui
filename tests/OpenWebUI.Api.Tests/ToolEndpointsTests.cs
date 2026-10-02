@@ -172,7 +172,7 @@ public class ToolEndpointsTests
         Assert.That(list, Has.Count.EqualTo(1));
 
         var updated = await _client.PutAsJsonAsync($"/api/v1/tools/{created.Id}",
-            new ToolUpsertRequest("Calc", null, Spec, null, false));
+            new ToolUpsertRequest("Calc", null, Spec, null, null, false));
         Assert.That(updated.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var tool = (await updated.Content.ReadFromJsonAsync<ToolResponse>())!;
         Assert.Multiple(() =>
@@ -213,7 +213,7 @@ public class ToolEndpointsTests
 
         UseToken(outro.Token);
         var update = await _client.PutAsJsonAsync($"/api/v1/tools/{tool.Id}",
-            new ToolUpsertRequest("X", null, Spec, null, true));
+            new ToolUpsertRequest("X", null, Spec, null, null, true));
         Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
         var delete = await _client.DeleteAsync($"/api/v1/tools/{tool.Id}");
         Assert.That(delete.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));

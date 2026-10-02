@@ -102,6 +102,13 @@
                                 <input class="input" type="url" placeholder="https://…" @bind="_tUrl" />
                             </div>
                             <div class="field">
+                                <label>@L["workspace.tool_code"]</label>
+                                <textarea class="input font-mono text-sm" rows="8"
+                                          placeholder="class Tools:&#10;    def my_func(self, arg: str) -> str:&#10;        ..."
+                                          @bind="_tCode"></textarea>
+                                <small class="text-gray-500">@L["workspace.tool_code_hint"]</small>
+                            </div>
+                            <div class="field">
                                 <label>@L["workspace.tool_spec"]</label>
                                 <textarea class="input font-mono text-sm" rows="8" @bind="_tSpec"></textarea>
                             </div>
@@ -239,7 +246,7 @@
     }
     private string _mMeta = string.Empty;
     private string _mGrants = string.Empty;
-    private string _tName = "", _tDesc = "", _tUrl = "", _tSpec = "";
+    private string _tName = "", _tDesc = "", _tUrl = "", _tSpec = "", _tCode = "";
     private bool _tEnabled = true;
     private string _kName = "", _kDesc = "", _addFileId = "";
 
@@ -286,7 +293,7 @@
                     _tool = (await Api.GetToolsAsync()).FirstOrDefault(t => t.Id == Id);
                     if (_tool is null) { _notFound = true; break; }
                     _tName = _tool.Name; _tDesc = _tool.Description ?? ""; _tSpec = _tool.SpecJson;
-                    _tEnabled = _tool.Enabled;
+                    _tCode = _tool.Code ?? ""; _tEnabled = _tool.Enabled;
                     break;
                 default:
                     _files = await Api.GetFilesAsync();
@@ -327,9 +334,12 @@
                     string.IsNullOrWhiteSpace(_mGrants) ? null : _mGrants)) is not null,
             "tools" => IsCreate
                 ? await Api.CreateToolAsync(new ToolUpsertRequest(
-                    _tName.Trim(), _tDesc, _tSpec, _tUrl.Trim())) is not null
+                    _tName.Trim(), _tDesc, _tSpec,
+                    string.IsNullOrWhiteSpace(_tUrl) ? null : _tUrl.Trim(),
+                    string.IsNullOrWhiteSpace(_tCode) ? null : _tCode, _tEnabled)) is not null
                 : await Api.UpdateToolAsync(Id!, new ToolUpsertRequest(
-                    _tName.Trim(), _tDesc, _tSpec, null, _tEnabled)) is not null,
+                    _tName.Trim(), _tDesc, _tSpec, null,
+                    string.IsNullOrWhiteSpace(_tCode) ? "" : _tCode, _tEnabled)) is not null,
             _ => IsCreate
                 ? await Api.CreateKnowledgeAsync(_kName.Trim(),
                     string.IsNullOrWhiteSpace(_kDesc) ? null : _kDesc) is not null

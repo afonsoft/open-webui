@@ -50,14 +50,21 @@ public static class ToolEndpoints
         {
             return Results.BadRequest(new { detail = error });
         }
-        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
+        var hasCode = !string.IsNullOrWhiteSpace(request.Code);
+        if (hasCode && !request.Code!.Contains("class Tools", StringComparison.Ordinal))
         {
-            return Results.BadRequest(new { detail = "URL de execução inválida." });
+            return Results.BadRequest(new { detail = "O código da tool precisa definir a classe 'Tools'." });
         }
-        if (request.Url!.StartsWith("http://", StringComparison.OrdinalIgnoreCase) is false &&
-            !request.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(request.Url) && !hasCode)
         {
-            return Results.BadRequest(new { detail = "URL de execução deve ser http(s)." });
+            return Results.BadRequest(new { detail = "Informe a URL de execução ou o código Python da tool." });
+        }
+        if (!string.IsNullOrWhiteSpace(request.Url) &&
+            (!Uri.TryCreate(request.Url, UriKind.Absolute, out _) ||
+             request.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) is false &&
+             !request.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new { detail = "URL de execução inválida (deve ser http(s))." });
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -67,7 +74,8 @@ public static class ToolEndpoints
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
             SpecJson = request.SpecJson,
-            Url = request.Url.Trim(),
+            Url = request.Url?.Trim() ?? string.Empty,
+            Code = hasCode ? request.Code : null,
             Enabled = request.Enabled,
             CreatedAt = now,
             UpdatedAt = now,
@@ -101,6 +109,18 @@ public static class ToolEndpoints
         tool.Name = request.Name.Trim();
         tool.Description = request.Description?.Trim();
         tool.SpecJson = request.SpecJson;
+        if (!string.IsNullOrWhiteSpace(request.Code))
+        {
+            if (!request.Code.Contains("class Tools", StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new { detail = "O código da tool precisa definir a classe 'Tools'." });
+            }
+            tool.Code = request.Code;
+        }
+        else if (request.Code is not null)
+        {
+            tool.Code = null; // string vazia enviada explicitamente remove o código
+        }
         if (!string.IsNullOrWhiteSpace(request.Url))
         {
             if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
@@ -108,6 +128,10 @@ public static class ToolEndpoints
                 return Results.BadRequest(new { detail = "URL de execução inválida." });
             }
             tool.Url = request.Url.Trim();
+        }
+        if (string.IsNullOrWhiteSpace(tool.Url) && string.IsNullOrWhiteSpace(tool.Code))
+        {
+            return Results.BadRequest(new { detail = "A tool precisa de URL de execução ou código Python." });
         }
         tool.Enabled = request.Enabled;
         tool.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -158,5 +182,5 @@ public static class ToolEndpoints
     }
 
     private static ToolResponse ToResponse(Tool t) =>
-        new(t.Id, t.Name, t.Description, t.SpecJson, t.Enabled, t.CreatedAt);
+        new(t.Id, t.Name, t.Description, t.SpecJson, t.Code, t.Enabled, t.CreatedAt);
 }

@@ -315,6 +315,8 @@
   "workspace.params_json": "Params (JSON, optional):",
   "workspace.tool_url": "Execution URL (HTTP POST):",
   "workspace.tool_spec": "Tool spec (JSON):",
+  "workspace.tool_code": "Codice Python (opzionale, alternativa all'URL):",
+  "workspace.tool_code_hint": "Definisci una classe Tools i cui metodi sono le funzioni chiamabili. Eseguito sul server.",
   "admin.search_users": "Search by name or email…",
   "admin.all_roles": "All roles",
   "admin.config_general": "Generale",
