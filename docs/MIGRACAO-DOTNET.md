@@ -56,6 +56,8 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `notifications` (7 eps) | Webhooks user/global, eventos (`user.pending`, `user.approved`, `automation.failed`), HMAC `X-Webhook-Signature`, `/test`, campo em Settings |
 | `automations` | Agendas (interval/daily/weekly UTC) + runs + run-now + visão calendário |
 | OAuth/OIDC + LDAP | Google/GitHub/Microsoft/OIDC + bind LDAP (slice auth-sso-rbac) |
+| SAML 2.0 | SP-initiated (HTTP-POST): metadata, login redirect, ACS com validação de assinatura/issuer/audience + JIT user (slice enterprise-sso) |
+| `scim` | Users CRUD + Groups + ServiceProviderConfig + filtro `userName eq`, token dedicado (`scim.token`), `active=false` → desativa |
 | EF Migrations | `DatabaseMigrator` + baseline de `webui.db` legadas |
 | Docker | Dockerfile multi-stage + compose (+ ollama opcional) |
 
@@ -87,10 +89,8 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 |---|---|
 | `functions` (17 eps) | Pipes/Filters/Valves — plugins de código custom do admin |
 | `pipelines` (8 eps) | Framework Pipelines (inlet/outlet filters) |
-| `scim` (15 eps) | Provisionamento SCIM 2.0 |
 | `skills` (9 eps) | Entidade Skills do workspace (novo no upstream) |
 | `utils` (4 eps) | Gravatar, format, litellm config |
-| SAML | SSO enterprise (OAuth/LDAP já cobertos) |
 | Multi-instância | Redis pub/sub (SignalR backplane), Postgres, storage S3/GCS |
 | Comunidade | Integração openwebui.com (share tools/prompts/modelos) |
 | Rate limiting | Limites de uso por usuário/modelo |

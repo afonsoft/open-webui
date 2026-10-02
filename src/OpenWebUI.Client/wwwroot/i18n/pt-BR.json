@@ -374,5 +374,10 @@
   "admin.terminals": "Servidores de terminal",
   "admin.terminal_name": "Nome do servidor",
   "admin.terminal_key": "Token/senha do servidor",
-  "admin.terminal_add": "Adicionar servidor"
+  "admin.terminal_add": "Adicionar servidor",
+  "admin.sso_saml": "SSO — SAML 2.0",
+  "admin.sso_scim": "Provisionamento — SCIM 2.0",
+  "admin.sso_enabled": "Habilitado",
+  "admin.sso_role_attr": "Atributo de papel (opcional)",
+  "admin.scim_token": "Token SCIM (Bearer dedicado)"
 }

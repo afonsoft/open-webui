@@ -422,6 +422,42 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main">
+                                <div class="card-title">@L["admin.sso_saml"]</div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="toggle">
+                                    <input type="checkbox" @bind="_samlEnabled" />
+                                    <span>@L["admin.sso_enabled"]</span>
+                                </label>
+                                <input class="input" @bind="_samlSsoUrl" placeholder="IdP SSO URL" />
+                                <input class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
+                                <textarea class="input" rows="3" @bind="_samlCert"
+                                    placeholder="@(_samlHasCert ? "********" : "IdP X.509 PEM")"></textarea>
+                                <input class="input" @bind="_samlSpEntity" placeholder="SP Entity ID (opcional)" />
+                                <input class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
+                                <button class="auth-submit" @onclick="SaveSamlAsync">@L["common.save"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.sso_scim"]</div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="toggle">
+                                    <input type="checkbox" @bind="_scimEnabled" />
+                                    <span>@L["admin.sso_enabled"]</span>
+                                </label>
+                                <input class="input" type="password" @bind="_scimToken"
+                                    placeholder="@(_scimHasToken ? "********" : L["admin.scim_token"])" />
+                                <button class="auth-submit" @onclick="SaveScimAsync">@L["common.save"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
                                 <div class="card-title">@L["admin.flags_readonly"]</div>
                                 <div class="card-sub">
                                     notes: @FlagBadge(_appConfig.Features.EnableNotes) ·
@@ -519,6 +555,16 @@
     private bool _enginePyodide = true;
     private bool _engineJupyter;
     private List<TerminalServerResponse> _terminals = [];
+    private bool _samlEnabled;
+    private string _samlSsoUrl = string.Empty;
+    private string _samlEntityId = string.Empty;
+    private string _samlCert = string.Empty;
+    private bool _samlHasCert;
+    private string _samlSpEntity = string.Empty;
+    private string _samlRoleAttr = string.Empty;
+    private bool _scimEnabled;
+    private string _scimToken = string.Empty;
+    private bool _scimHasToken;
     private string _termName = "";
     private string _termUrl = "";
     private string _termAuth = "token";
@@ -582,6 +628,16 @@
         _enginePyodide = codeExec?.Engines.Contains("pyodide") ?? true;
         _engineJupyter = codeExec?.Engines.Contains("jupyter") ?? false;
         _terminals = await Api.GetTerminalServersAsync() ?? [];
+        var saml = await Api.GetSamlConfigAsync();
+        _samlEnabled = saml?.Enabled ?? false;
+        _samlSsoUrl = saml?.IdpSsoUrl ?? string.Empty;
+        _samlEntityId = saml?.IdpEntityId ?? string.Empty;
+        _samlHasCert = saml?.HasCert ?? false;
+        _samlSpEntity = saml?.SpEntityId ?? string.Empty;
+        _samlRoleAttr = saml?.RoleAttribute ?? string.Empty;
+        var scim = await Api.GetScimConfigAsync();
+        _scimEnabled = scim?.Enabled ?? false;
+        _scimHasToken = scim?.HasToken ?? false;
     }
 
     private async Task SaveTerminalAsync()
@@ -603,6 +659,29 @@
     {
         await Api.DeleteTerminalServerAsync(server.Id);
         _terminals.RemoveAll(t => t.Id == server.Id);
+    }
+
+    private async Task SaveSamlAsync()
+    {
+        var saved = await Api.SaveSamlConfigAsync(new SamlConfigRequest(
+            _samlEnabled, _samlSsoUrl.Trim(), _samlEntityId.Trim(),
+            string.IsNullOrWhiteSpace(_samlCert) || _samlCert.Trim() == "********"
+                ? "********" : _samlCert.Trim(),
+            _samlSpEntity.Trim(), _samlRoleAttr.Trim()));
+        _samlHasCert = saved?.HasCert ?? _samlHasCert;
+        _samlCert = string.Empty;
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
+    }
+
+    private async Task SaveScimAsync()
+    {
+        var saved = await Api.SaveScimConfigAsync(new ScimConfigRequest(
+            _scimEnabled,
+            string.IsNullOrWhiteSpace(_scimToken) || _scimToken.Trim() == "********"
+                ? "********" : _scimToken.Trim()));
+        _scimHasToken = saved?.HasToken ?? _scimHasToken;
+        _scimToken = string.Empty;
+        _configMessage = saved is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
 
     private async Task SaveFlagsAsync()

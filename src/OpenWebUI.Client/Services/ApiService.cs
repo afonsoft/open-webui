@@ -498,6 +498,22 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<bool> DeleteTerminalServerAsync(string id) =>
         SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminals/config/{id}");
 
+    /// <summary>Configuração SAML (admin).</summary>
+    public Task<SamlConfigResponse?> GetSamlConfigAsync() =>
+        SendAsync<SamlConfigResponse>(HttpMethod.Get, "/api/v1/configs/saml");
+
+    /// <summary>Salva a configuração SAML (admin).</summary>
+    public Task<SamlConfigResponse?> SaveSamlConfigAsync(SamlConfigRequest request) =>
+        SendAsync<SamlConfigResponse>(HttpMethod.Post, "/api/v1/configs/saml", request);
+
+    /// <summary>Configuração SCIM (admin).</summary>
+    public Task<ScimConfigResponse?> GetScimConfigAsync() =>
+        SendAsync<ScimConfigResponse>(HttpMethod.Get, "/api/v1/configs/scim");
+
+    /// <summary>Salva a configuração SCIM (admin).</summary>
+    public Task<ScimConfigResponse?> SaveScimConfigAsync(ScimConfigRequest request) =>
+        SendAsync<ScimConfigResponse>(HttpMethod.Post, "/api/v1/configs/scim", request);
+
     /// <summary>Revoga a chave de API do usuário.</summary>
     public async Task<bool> DeleteApiKeyAsync()
     {
