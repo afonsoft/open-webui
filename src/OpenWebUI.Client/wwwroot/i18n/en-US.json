@@ -456,5 +456,6 @@
   "admin.perm_on": "on",
   "admin.perm_off": "off",
   "admin.group_domains": "Group domains",
-  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):"
+  "admin.prompt_group_domains": "Comma-separated domains (e.g. mail.com, corp.io):",
+  "notes.cursor_at": "character {{pos}}"
 }
