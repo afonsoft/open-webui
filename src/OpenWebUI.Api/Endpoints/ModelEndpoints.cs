@@ -70,6 +70,11 @@ public static class ModelEndpoints
         {
             return Results.BadRequest(new { detail = "Nome e modelo base são obrigatórios." });
         }
+        var filterError = ModelFilterService.Validate(request.MetaJson);
+        if (filterError is not null)
+        {
+            return Results.BadRequest(new { detail = filterError });
+        }
         if (arena is not null && arena.Value.ModelIds.Count < 2)
         {
             return Results.BadRequest(
@@ -126,6 +131,12 @@ public static class ModelEndpoints
                 is not AccessControlService.Write)
         {
             return Results.NotFound();
+        }
+
+        var updateFilterError = ModelFilterService.Validate(request.MetaJson);
+        if (updateFilterError is not null)
+        {
+            return Results.BadRequest(new { detail = updateFilterError });
         }
 
         model.Name = string.IsNullOrWhiteSpace(request.Name) ? model.Name : request.Name.Trim();
@@ -212,6 +223,16 @@ public static class ModelEndpoints
         if (user is null)
         {
             return Results.Unauthorized();
+        }
+
+        foreach (var item in request)
+        {
+            var importFilterError = ModelFilterService.Validate(item.MetaJson);
+            if (importFilterError is not null)
+            {
+                return Results.BadRequest(
+                    new { detail = $"Modelo '{item.Name}': {importFilterError}" });
+            }
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
