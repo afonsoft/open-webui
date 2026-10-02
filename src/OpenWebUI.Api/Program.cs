@@ -200,6 +200,7 @@ app.MapPluginEndpoints();
 app.MapChatEndpoints();
 app.MapUserEndpoints();
 app.MapWorkspaceEndpoints();
+app.MapUtilsEndpoints();
 app.MapFileEndpoints();
 app.MapModelEndpoints();
 app.MapEvaluationEndpoints();

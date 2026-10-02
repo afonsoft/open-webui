@@ -57,3 +57,11 @@ Upstream `utils`: `/gravatar` (avatar por email), `/litellm/config`, `/code/form
 - [ ] Gravatar por e-mail retorna URL/hash correto.
 - [ ] Format de código funciona para ao menos `json` (formatter interno) e 501 sem executor.
 - [ ] Botão de share gera URL upstream-compatível.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/99
+- Issue: https://github.com/afonsoft/open-webui/issues/89
+- Epic: https://github.com/afonsoft/open-webui/issues/79
+
+Nota: o upstream usa **SHA256** (não MD5) para o hash do gravatar — seguido o upstream.

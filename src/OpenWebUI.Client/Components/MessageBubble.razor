@@ -27,7 +27,7 @@
                 }
                 else
                 {
-                    @((MarkupString)Markdown.ToHtml(Message.Content))
+                    @((MarkupString)Markdown.ToHtml(DisplayContent))
                     @if (Streaming)
                     {
                         <span class="typing">▌</span>
@@ -36,13 +36,29 @@
             }
             else
             {
-                @Message.Content
+                @DisplayContent
             }
         </div>
 
         @if (ShowActions && !Streaming)
         {
             <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
+                @if (Message.Versions is { Count: > 0 } versions)
+                {
+                    var total = versions.Count + 1;
+                    var position = total - _versionOffset;
+                    <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer disabled:opacity-30"
+                            title="@L["chat.prev_version"]" disabled="@(_versionOffset >= versions.Count)"
+                            @onclick="() => _versionOffset++">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                    </button>
+                    <span class="text-xs tabular-nums select-none">@position/@total</span>
+                    <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer disabled:opacity-30"
+                            title="@L["chat.next_version"]" disabled="@(_versionOffset == 0)"
+                            @onclick="() => _versionOffset--">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                    </button>
+                }
                 <button class="size-6 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-850 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
                         title="@L["chat.copy"]" @onclick="CopyAsync">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5" /></svg>
@@ -127,6 +143,22 @@
     private ElementReference _contentRef;
     private bool _codeExecEnabled;
     private bool _imageGenEnabled;
+    private int _versionOffset;
+
+    /// <summary>Conteúdo exibido: versão atual (_versionOffset=0) ou uma versão anterior.</summary>
+    private string DisplayContent =>
+        _versionOffset > 0 && Message.Versions is { Count: > 0 } versions && _versionOffset <= versions.Count
+            ? versions[versions.Count - _versionOffset].Content
+            : Message.Content;
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (Message.Versions is null || _versionOffset > Message.Versions.Count)
+        {
+            _versionOffset = 0;
+        }
+    }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -149,5 +181,5 @@
     }
 
     private async Task CopyAsync() =>
-        await JS.InvokeVoidAsync("openwebui.copyText", Message.Content);
+        await JS.InvokeVoidAsync("openwebui.copyText", DisplayContent);
 }

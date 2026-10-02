@@ -22,6 +22,8 @@
                     @onclick='() => SetTab("users")'>@L["admin.users"]</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("groups")'>@L["admin.groups"]</button>
+            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "chats" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                    @onclick='() => SetTab("chats")'>@L["admin.tab_chats"]</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("analytics")'>Analytics</button>
             <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
@@ -126,6 +128,61 @@
                         <span>@L.T("admin.page_of", ("page", _usersPage.ToString()), ("total", UsersTotalPages.ToString()))</span>
                         <button class="msg-action" @onclick="() => ReloadUsersAsync(_usersPage + 1)"
                                 disabled="@(_usersPage >= UsersTotalPages)">@L["admin.next"]</button>
+                    </div>
+                }
+            }
+        }
+        else if (_tab == "chats")
+        {
+            if (_adminChats is null)
+            {
+                <div class="sidebar-empty">@L["common.loading"]</div>
+            }
+            else
+            {
+                <div class="card-row">
+                    <div class="card-main w-full">
+                        <input class="input w-full" placeholder="@L["admin.search_chats"]"
+                               @bind="_chatQuery" @bind:event="oninput"
+                               @onchange="() => ReloadAdminChatsAsync(1)" />
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    @foreach (var chat in _adminChats.Items)
+                    {
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="card-title truncate">@chat.Title</span>
+                                    @if (chat.Archived)
+                                    {
+                                        <span class="text-xs text-gray-400">@L["chat.archived"]</span>
+                                    }
+                                </div>
+                                <div class="card-meta">
+                                    @chat.UserName &lt;@chat.UserEmail&gt; ·
+                                    @L.T("admin.chats_messages", ("count", chat.MessageCount.ToString())) ·
+                                    @DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime.ToString("dd/MM/yyyy HH:mm")
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <a class="msg-action" href="/c/@chat.Id" target="_blank">@L["common.open"]</a>
+                            </div>
+                        </div>
+                    }
+                    @if (_adminChats.Items.Count == 0)
+                    {
+                        <div class="sidebar-empty">@L["admin.no_chats"]</div>
+                    }
+                </div>
+                @if (AdminChatsTotalPages > 1)
+                {
+                    <div class="flex gap-2 items-center justify-center mt-3 text-sm">
+                        <button class="msg-action" @onclick="() => ReloadAdminChatsAsync(_chatsPage - 1)"
+                                disabled="@(_chatsPage <= 1)">@L["admin.prev"]</button>
+                        <span>@L.T("admin.page_of", ("page", _chatsPage.ToString()), ("total", AdminChatsTotalPages.ToString()))</span>
+                        <button class="msg-action" @onclick="() => ReloadAdminChatsAsync(_chatsPage + 1)"
+                                disabled="@(_chatsPage >= AdminChatsTotalPages)">@L["admin.next"]</button>
                     </div>
                 }
             }
@@ -628,6 +685,11 @@
         ("sharing.public_chats", "Публичные чаты"),
         ("chat.controls", "Управление чатом"),
     ];
+    private AdminChatListResponse? _adminChats;
+    private int _chatsPage = 1;
+    private string? _chatQuery;
+    private int AdminChatsTotalPages => Math.Max(1,
+        (int)Math.Ceiling((_adminChats?.Total ?? 0) / 20.0));
     private AnalyticsResponse? _analytics;
     private List<AdminFeedbackResponse>? _feedbacks;
     private List<LeaderboardEntryResponse>? _leaderboard;
@@ -726,6 +788,7 @@
         _analytics = await Api.GetAnalyticsAsync(30);
         _feedbacks = await Api.GetAllFeedbacksAsync();
         _leaderboard = await Api.GetLeaderboardAsync();
+        await ReloadAdminChatsAsync();
         _adminConfig = await Api.GetAdminConfigAsync();
         _appConfig = await Api.GetAppConfigAsync();
         if (_adminConfig is not null)
@@ -999,7 +1062,7 @@
     protected override void OnParametersSet()
     {
         _tab = Tab is "users" or "groups" or "analytics" or "evaluations"
-            or "leaderboard" or "config"
+            or "leaderboard" or "config" or "chats"
             ? Tab
             : "users";
     }
@@ -1024,6 +1087,12 @@
         {
             await ReloadUsersAsync();
         }
+    }
+
+    private async Task ReloadAdminChatsAsync(int page = 1)
+    {
+        _adminChats = await Api.GetAllChatsAdminAsync(_chatQuery, page);
+        _chatsPage = page;
     }
 
     private async Task ReloadUsersAsync(int page = 1)

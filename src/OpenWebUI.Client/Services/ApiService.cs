@@ -50,6 +50,19 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<ChatResponse>(HttpMethod.Post, "/api/v1/chats/", request);
 
     /// <summary>Atualiza título, modelos e mensagens de um chat.</summary>
+    /// <summary>Lista paginada de todos os chats (admin).</summary>
+    public Task<AdminChatListResponse?> GetAllChatsAdminAsync(string? query = null, int page = 1)
+    {
+        var uri = $"/api/v1/chats/all?page={page}"
+            + (string.IsNullOrWhiteSpace(query) ? "" : $"&query={Uri.EscapeDataString(query)}");
+        return SendAsync<AdminChatListResponse>(HttpMethod.Get, uri);
+    }
+
+    /// <summary>Versões anteriores de uma mensagem.</summary>
+    public Task<List<ChatMessageVersionModel>?> GetMessageVersionsAsync(string chatId, string messageId) =>
+        SendAsync<List<ChatMessageVersionModel>>(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/messages/{messageId}/versions");
+
     public Task<ChatResponse?> UpdateChatAsync(string id, ChatUpsertRequest request) =>
         SendAsync<ChatResponse>(HttpMethod.Post, $"/api/v1/chats/{id}", request);
 
