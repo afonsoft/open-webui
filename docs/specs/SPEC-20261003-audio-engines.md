@@ -59,3 +59,9 @@ Mesmos endpoints; `engine` aceita `openai|deepgram|whisper|elevenlabs|azure`.
 - [ ] STT via whisper mockado (HttpListener) retorna texto.
 - [ ] TTS elevenlabs/azure retornam audio/* com provider mock.
 - [ ] Capabilities refletem engines configuradas.
+
+## Delivered
+
+- Issue: https://github.com/afonsoft/open-webui/issues/83
+- Epic: https://github.com/afonsoft/open-webui/issues/79
+- PR: https://github.com/afonsoft/open-webui/pull/104
