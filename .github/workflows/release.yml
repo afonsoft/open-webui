@@ -106,7 +106,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
 
       - name: 🔐 Log in to GitHub Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567   # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f   # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -127,7 +127,7 @@ jobs:
       # existirem no repo — sem eles os steps abaixo são pulados.
       - name: 🔐 Log in to Docker Hub (optional)
         if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567   # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f   # v3
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
