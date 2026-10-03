@@ -77,6 +77,32 @@ public class RagEdgeTests
     }
 
     [Test]
+    public void Chunk_PrefereLimiteDeFraseOuParagrafo()
+    {
+        // Frase termina em ~930 dentro da metade final da janela de 1000.
+        var text = new string('a', 930) + ". " + new string('b', 1500);
+        var chunks = RagService.ChunkText(text, chunkSize: 1000, overlap: 100);
+
+        Assert.Multiple(() =>
+        {
+            // O primeiro chunk corta no fim da frase (pos 931), não em 1000.
+            Assert.That(chunks[0], Has.Length.EqualTo(931));
+            Assert.That(chunks[0], Does.EndWith("."));
+            // A próxima janela recomeça dentro da sobreposição e cobre o resto.
+            Assert.That(chunks[^1], Does.Contain("bbb"));
+        });
+    }
+
+    [Test]
+    public void Chunk_SemLimite_CortaNoTamanhoMaximo()
+    {
+        // Sem pontuação/parágrafo: comportamento anterior de janela fixa.
+        var text = new string('a', 2500);
+        var chunks = RagService.ChunkText(text, chunkSize: 1000, overlap: 100);
+        Assert.That(chunks[0], Has.Length.EqualTo(1000));
+    }
+
+    [Test]
     public void Chunk_ComOverlap_RespeitaTamanhoESobreposicao()
     {
         var text = new string('a', 2500);
