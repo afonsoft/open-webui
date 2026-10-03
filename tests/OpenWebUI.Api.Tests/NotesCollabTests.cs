@@ -99,7 +99,14 @@ public class NotesCollabTests
             ]));
         Assert.That(grant.StatusCode, Is.EqualTo(HttpStatusCode.OK),
             await grant.Content.ReadAsStringAsync());
-        return note;
+
+        // access/update bumpa note.UpdatedAt — o objeto "note" do create já
+        // está defasado se o segundo virar entre as duas chamadas (flake real
+        // sob coverage). Re-lê a nota para a versão atual do servidor.
+        var fresh = await _client.GetAsync($"/api/v1/notes/{note.Id}");
+        Assert.That(fresh.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await fresh.Content.ReadAsStringAsync());
+        return (await fresh.Content.ReadFromJsonAsync<NoteResponse>())!;
     }
 
     private static async Task<T> WithTimeout<T>(Task<T> task, string what)
