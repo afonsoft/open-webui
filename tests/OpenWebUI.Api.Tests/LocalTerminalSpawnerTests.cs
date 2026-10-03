@@ -81,7 +81,7 @@ public class LocalTerminalSpawnerTests
         if (!HasPython()) Assert.Ignore("python3 não disponível no ambiente.");
         using var spawner = NewSpawner("exit 1");
 
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => spawner.EnsureStartedAsync(LocalServer("dead")));
         Assert.That(ex!.Message, Does.Contain("dead"));
     }

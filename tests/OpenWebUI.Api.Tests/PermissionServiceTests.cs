@@ -328,14 +328,14 @@ public class PermissionServiceTests
     }
 
     [Test, Order(18)]
-    public void TokenCancelado_PropagaOperationCanceled()
+    public async Task TokenCancelado_PropagaOperationCanceled()
     {
         // Branch: CancellationToken cancelado propaga pela query EF.
         var usuario = NovoUsuario("u1", UserRoles.User);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        Assert.CatchAsync<OperationCanceledException>(
+        await Assert.CatchAsync<OperationCanceledException>(
             () => HasAsync(usuario, PermissionService.WorkspaceModels, cts.Token));
     }
 

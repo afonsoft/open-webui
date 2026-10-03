@@ -259,7 +259,7 @@ public class ProviderServiceTests
         await SetConnectionsAsync([_mockUrl], [_mockUrl], []);
 
         // JsonNode.Parse lança JsonReaderException (interna, deriva de JsonException).
-        Assert.CatchAsync<JsonException>(async () => await NewService().ListModelsAsync());
+        await Assert.CatchAsync<JsonException>(async () => await NewService().ListModelsAsync());
     }
 
     [Test, Order(17)]
@@ -270,7 +270,7 @@ public class ProviderServiceTests
         _routes["/api/tags"] = (200, "[]", 0);
         await SetConnectionsAsync([_mockUrl], [], []);
 
-        Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await NewService().ListModelsAsync());
     }
 
@@ -350,17 +350,17 @@ public class ProviderServiceTests
         await SetConnectionsAsync([_mockUrl], [_mockUrl], []);
         var svc = NewService();
 
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await svc.CompleteAsync(Req("m1", connection: "bogus")));
         Assert.That(ex!.Message, Does.Contain("m1"));
 
         // O mesmo switch lança ao enumerar o stream.
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await DrainAsync(svc.StreamCompletionAsync(Req("m1", connection: "bogus"))));
 
         // OpenAI só com URL em branco: FirstOpenAiConnection não acha nenhuma.
         await SetConnectionsAsync([], ["   "], []);
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await svc.CompleteAsync(Req("g", connection: "openai")));
     }
 
@@ -371,14 +371,14 @@ public class ProviderServiceTests
         var svc = NewService();
 
         // Modelo desconhecido sem OpenAI cai no ramo "ollama" sem URL → lança.
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await svc.CompleteAsync(Req("qualquer")));
         Assert.That(ex!.Message, Does.Contain("Ollama"));
 
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await DrainAsync(svc.StreamCompletionAsync(Req("qualquer"))));
 
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await svc.CompleteWithToolsAsync(Req("qualquer")));
     }
 
@@ -390,15 +390,15 @@ public class ProviderServiceTests
         await SetConnectionsAsync([_mockUrl], [_mockUrl], []);
         var svc = NewService();
 
-        Assert.Multiple(() =>
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await Assert.ThrowsAsync<HttpRequestException>(async () =>
                 await svc.CompleteAsync(Req("m1", connection: "ollama")));
-            Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await Assert.ThrowsAsync<HttpRequestException>(async () =>
                 await svc.CompleteAsync(Req("g", connection: "openai")));
-            Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await Assert.ThrowsAsync<HttpRequestException>(async () =>
                 await svc.CompleteWithToolsAsync(Req("m1", connection: "ollama")));
-            Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await Assert.ThrowsAsync<HttpRequestException>(async () =>
                 await DrainAsync(svc.StreamCompletionAsync(Req("g", connection: "openai"))));
         });
     }

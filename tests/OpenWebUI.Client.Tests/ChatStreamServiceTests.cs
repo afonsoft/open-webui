@@ -42,12 +42,12 @@ public class ChatStreamServiceTests
     }
 
     [Test]
-    public void Stream_ChunkDeErro_LancaInvalidOperation()
+    public async Task Stream_ChunkDeErro_LancaInvalidOperation()
     {
         var sse = "data: {\"error\":\"provider caiu\"}\n\ndata: [DONE]\n";
         var service = CreateService(sse);
 
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await foreach (var _ in service.StreamCompletionAsync(
                 new OpenWebUI.Application.Contracts.ChatCompletionRequest("m", [])))
