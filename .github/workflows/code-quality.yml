@@ -11,10 +11,15 @@ on:
       - main
       - "releases/*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   qodana:
     name: 🔍 Qodana Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -65,6 +70,7 @@ jobs:
   sonarqube:
     name: 📊 SonarQube Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
 

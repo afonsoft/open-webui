@@ -22,10 +22,16 @@ env:
   DOTNET_VERSION: "10.0.x"
   SOLUTION: "OpenWebUI.slnx"
 
+# Cancela a run anterior do mesmo ref: push novo torna a antiga obsoleta.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-openwebui:
     name: Build OpenWebUI (.NET 10)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -55,6 +61,7 @@ jobs:
   test:
     name: Tests + Coverage Gate (NUnit)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: build-openwebui
     permissions:
       contents: read
@@ -118,6 +125,7 @@ jobs:
   blazor-client-validation:
     name: Blazor WASM Client Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build-openwebui
     permissions:
       contents: read
@@ -151,9 +159,39 @@ jobs:
           echo "Blazor WASM assets gerados com sucesso: $(basename "$app_wasm")"
           echo "payloads em _framework: $(ls "$fw" | wc -l)"
 
+  # Hard rule do repo: tailwind.css é artefato gerado e commitado junto das
+  # mudanças de classe nos .razor — este job pega o esquecimento no diff.
+  tailwind-freshness:
+    name: Tailwind CSS em dia
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Install Tailwind CLI (standalone)
+        run: |
+          curl -sSL -o /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x /tmp/tailwindcss
+          /tmp/tailwindcss --version
+
+      - name: Regenerate and diff
+        run: |
+          cd src/OpenWebUI.Client
+          /tmp/tailwindcss -i tailwind.input.css -o wwwroot/css/tailwind.css --minify
+          cd "$GITHUB_WORKSPACE"
+          if ! git diff --exit-code -- src/OpenWebUI.Client/wwwroot/css/tailwind.css; then
+            echo "::error::wwwroot/css/tailwind.css desatualizado — regenere com o comando acima e commite junto"
+            exit 1
+          fi
+
   docker-build:
     name: Docker Image Build
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: build-openwebui
     permissions:
       contents: read
@@ -180,6 +218,7 @@ jobs:
   coverage-ratchet:
     name: Coverage Baseline Ratchet
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
