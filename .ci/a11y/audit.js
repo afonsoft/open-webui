@@ -43,8 +43,12 @@ async function analyze(page, context) {
     const page = await context.newPage();
     const ctx = name => `${name}@${vp.name}`;
 
-    // Tela de auth (sem sessão).
-    await page.goto(BASE, { waitUntil: 'networkidle' });
+    // Tela de auth (sem sessão). O Blazor WASM boota via boot.js
+    // (autostart="false") — networkidle dispara antes da hidratação,
+    // então esperamos o campo de email renderizar de fato.
+    await page.goto(BASE + '/auth', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    await page.waitForTimeout(1000); // settle pós-hidratação
     all.push(...await analyze(page, ctx('auth')));
 
     // Login real via formulário (admin semeado por ADMIN_EMAIL/ADMIN_PASSWORD).
@@ -56,8 +60,11 @@ async function analyze(page, context) {
     await page.waitForLoadState('networkidle');
 
     for (const p of PAGES) {
-      await page.goto(BASE + p.path, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(1500); // WASM hydration
+      // goto é reload completo — o WASM reboota a cada página; esperamos
+      // o shell renderizar (#main-content existe em todas as rotas logadas).
+      await page.goto(BASE + p.path, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#main-content', { timeout: 60000 });
+      await page.waitForTimeout(1500); // settle pós-hidratação
       all.push(...await analyze(page, ctx(p.name)));
     }
     await context.close();
