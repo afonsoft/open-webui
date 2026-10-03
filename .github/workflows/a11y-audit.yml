@@ -38,8 +38,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Build App (Release)
-        run: dotnet build OpenWebUI.slnx --configuration Release --verbosity minimal
+      - name: Publish App (Release)
+        # Precisa ser publish: só ele gera wwwroot/_framework + index.html
+        # do WASM — `dotnet build` não materializa os static web assets.
+        run: dotnet publish src/OpenWebUI.Api --configuration Release -o ./app-out
 
       - name: Setup Node
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903   # v6.0.0
@@ -63,14 +65,12 @@ jobs:
           ADMIN_PASSWORD: ci-admin-password-123
           ADMIN_NAME: CI Admin
         run: |
-          # content root = output dir para resolver wwwroot/static web assets
-          cd src/OpenWebUI.Api/bin/Release/net10.0
-          nohup dotnet OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
-          for i in $(seq 1 60); do
+          nohup dotnet ./app-out/OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
+          for i in $(seq 1 90); do
             curl -sf http://127.0.0.1:5099/health > /dev/null && exit 0
             sleep 1
           done
-          echo "::error::app não subiu em 60s"; cat "$GITHUB_WORKSPACE/app.log"; exit 1
+          echo "::error::app não subiu em 90s"; cat "$GITHUB_WORKSPACE/app.log"; exit 1
 
       - name: Run axe audit
         working-directory: .ci/a11y
