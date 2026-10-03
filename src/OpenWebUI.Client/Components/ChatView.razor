@@ -338,8 +338,9 @@
         {
             _webSearch = await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch") == "true";
         }
-        catch (JSException)
+        catch (JSException ex)
         {
+            Console.WriteLine($"localStorage indisponível: {ex.Message}");
         }
         Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
         Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
@@ -854,8 +855,9 @@
             await JS.InvokeVoidAsync("localStorage.setItem", "webui.chat.websearch",
                 _webSearch ? "true" : "false");
         }
-        catch (JSException)
+        catch (JSException ex)
         {
+            Console.WriteLine($"localStorage indisponível: {ex.Message}");
         }
     }
 
@@ -913,8 +915,9 @@
         {
             await JS.InvokeVoidAsync("openwebui.scrollToEnd", _scrollContainer);
         }
-        catch (JSException)
+        catch (JSException ex)
         {
+            Console.WriteLine($"scrollToEnd falhou: {ex.Message}");
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -71,7 +72,8 @@ public class ProviderServiceTests
         }
     }
 
-    private ProviderService NewService() => new(new FakeHttpClientFactory(_clientTimeout), _config);
+    private ProviderService NewService() =>
+        new(new FakeHttpClientFactory(_clientTimeout), _config, NullLogger<ProviderService>.Instance);
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>

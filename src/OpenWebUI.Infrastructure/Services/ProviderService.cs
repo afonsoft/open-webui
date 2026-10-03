@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -11,7 +12,10 @@ namespace OpenWebUI.Infrastructure.Services;
 /// Resolve conexões com provedores de IA (Ollama e APIs compatíveis com OpenAI),
 /// lista modelos e transmite completions no formato SSE da OpenAI.
 /// </summary>
-public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService config)
+public class ProviderService(
+    IHttpClientFactory httpClientFactory,
+    ConfigService config,
+    ILogger<ProviderService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -25,26 +29,16 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
 
         foreach (var baseUrl in connections.OllamaBaseUrls.Where(u => !string.IsNullOrWhiteSpace(u)))
         {
-            foreach (var model in await FetchOllamaModelsAsync(baseUrl, ct))
-            {
-                if (seen.Add($"ollama:{model.Id}"))
-                {
-                    models.Add(model);
-                }
-            }
+            models.AddRange((await FetchOllamaModelsAsync(baseUrl, ct))
+                .Where(model => seen.Add($"ollama:{model.Id}")));
         }
 
         for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
         {
-            foreach (var model in await FetchOpenAiModelsAsync(
+            models.AddRange((await FetchOpenAiModelsAsync(
                 connections.OpenAiBaseUrls[i],
                 connections.OpenAiApiKeys.ElementAtOrDefault(i), ct))
-            {
-                if (seen.Add($"openai:{model.Id}"))
-                {
-                    models.Add(model);
-                }
-            }
+                .Where(model => seen.Add($"openai:{model.Id}")));
         }
 
         return models;
@@ -94,17 +88,19 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
                     ?? model?["name"]?.GetValue<string>();
                 if (!string.IsNullOrEmpty(id))
                 {
-                    models.Add(new ModelInfo(id, model?["name"]?.GetValue<string>() ?? id, "ollama", "ollama"));
+                    models.Add(new ModelInfo(id, model!["name"]?.GetValue<string>() ?? id, "ollama", "ollama"));
                 }
             }
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
             // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos do Ollama em {BaseUrl}.", baseUrl);
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException ex)
         {
             // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos do Ollama em {BaseUrl}.", baseUrl);
         }
         return models;
     }
@@ -144,15 +140,19 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
                         id,
                         id,
                         "openai",
-                        model?["owned_by"]?.GetValue<string>()));
+                        model!["owned_by"]?.GetValue<string>()));
                 }
             }
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos OpenAI em {BaseUrl}.", baseUrl);
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException ex)
         {
+            // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos OpenAI em {BaseUrl}.", baseUrl);
         }
         return models;
     }
