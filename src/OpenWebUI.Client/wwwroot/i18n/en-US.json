@@ -319,6 +319,8 @@
   "workspace.tool_code_hint": "Define a Tools class whose methods are the callable functions (upstream convention). Runs on the server.",
   "admin.search_users": "Search by name or email…",
   "admin.all_roles": "All roles",
+  "admin.filter_role": "Filter by role",
+  "admin.sort_by": "Sort by",
   "admin.config_general": "General",
   "admin.config_models": "Models",
   "admin.config_features": "Features",

@@ -50,13 +50,13 @@
                         <input class="input flex-1 min-w-40" placeholder="@L["admin.search_users"]"
                                @bind="_userQuery" @bind:event="oninput"
                                @onchange="() => ReloadUsersAsync(1)" />
-                        <select class="input w-auto flex-none" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
+                        <select class="input w-auto flex-none" aria-label="@L["admin.filter_role"]" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
                             <option value="">@L["admin.all_roles"]</option>
                             <option value="admin">admin</option>
                             <option value="user">user</option>
                             <option value="pending">pending</option>
                         </select>
-                        <select class="input w-auto flex-none" @bind="_userOrderBy" @bind:after="() => ReloadUsersAsync(1)">
+                        <select class="input w-auto flex-none" aria-label="@L["admin.sort_by"]" @bind="_userOrderBy" @bind:after="() => ReloadUsersAsync(1)">
                             <option value="created_at">@L["admin.col_date"]</option>
                             <option value="name">@L["common.name"]</option>
                             <option value="email">@L["common.email"]</option>

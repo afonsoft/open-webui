@@ -64,10 +64,16 @@ async function analyze(page, context) {
 
     // Login real via formulário (admin semeado por ADMIN_EMAIL/ADMIN_PASSWORD).
     // Os <label> da tela de auth não têm `for`/id — seleção por type.
+    // Blazor @bind comita no 'change' (blur): Tab garante o bind antes do submit.
     await page.locator('input[type="email"]').first().fill(EMAIL);
     await page.locator('input[type="password"]').first().fill(PASSWORD);
-    await page.locator('input[type="password"]').first().press('Enter');
-    await page.waitForURL(u => !u.pathname.includes('auth'), { timeout: 30000 });
+    await page.locator('input[type="password"]').first().press('Tab');
+    // CTA é o único botão pill do card (não depende do locale).
+    await page.locator('button.w-full.rounded-full').first().click();
+    // NavigateTo é SPA (history.pushState): waitForURL nunca dispara 'load'
+    // em same-document nav — esperar a URL mudar via waitForFunction.
+    await page.waitForFunction(() => !location.pathname.includes('auth'), null, { timeout: 30000 });
+    await page.waitForSelector('#main-content', { timeout: 60000 });
     await page.waitForLoadState('networkidle');
 
     for (const p of PAGES) {
