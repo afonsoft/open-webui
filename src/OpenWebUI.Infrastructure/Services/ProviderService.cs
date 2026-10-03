@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -11,7 +12,10 @@ namespace OpenWebUI.Infrastructure.Services;
 /// Resolve conexões com provedores de IA (Ollama e APIs compatíveis com OpenAI),
 /// lista modelos e transmite completions no formato SSE da OpenAI.
 /// </summary>
-public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService config)
+public class ProviderService(
+    IHttpClientFactory httpClientFactory,
+    ConfigService config,
+    ILogger<ProviderService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -25,83 +29,131 @@ public class ProviderService(IHttpClientFactory httpClientFactory, ConfigService
 
         foreach (var baseUrl in connections.OllamaBaseUrls.Where(u => !string.IsNullOrWhiteSpace(u)))
         {
-            try
-            {
-                using var response = await httpClientFactory.CreateClient()
-                    .GetAsync($"{TrimSlash(baseUrl)}/api/tags", ct);
-                if (!response.IsSuccessStatusCode)
-                {
-                    continue;
-                }
-
-                var json = await response.Content.ReadAsStringAsync(ct);
-                var node = JsonNode.Parse(json);
-                foreach (var model in node?["models"]?.AsArray() ?? [])
-                {
-                    var id = model?["model"]?.GetValue<string>()
-                        ?? model?["name"]?.GetValue<string>();
-                    if (!string.IsNullOrEmpty(id) && seen.Add($"ollama:{id}"))
-                    {
-                        models.Add(new ModelInfo(id, model?["name"]?.GetValue<string>() ?? id, "ollama", "ollama"));
-                    }
-                }
-            }
-            catch (HttpRequestException)
-            {
-                // Provedor indisponível: ignora e segue para o próximo.
-            }
-            catch (TaskCanceledException)
-            {
-                // Timeout na conexão: ignora e segue para o próximo.
-            }
+            models.AddRange((await FetchOllamaModelsAsync(baseUrl, ct))
+                .Where(model => seen.Add($"ollama:{model.Id}")));
         }
 
         for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
         {
-            var baseUrl = connections.OpenAiBaseUrls[i];
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                continue;
-            }
-
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, $"{TrimSlash(baseUrl)}/models");
-                var apiKey = connections.OpenAiApiKeys.ElementAtOrDefault(i);
-                if (!string.IsNullOrEmpty(apiKey))
-                {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-                }
-
-                using var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
-                if (!response.IsSuccessStatusCode)
-                {
-                    continue;
-                }
-
-                var json = await response.Content.ReadAsStringAsync(ct);
-                var node = JsonNode.Parse(json);
-                foreach (var model in node?["data"]?.AsArray() ?? [])
-                {
-                    var id = model?["id"]?.GetValue<string>();
-                    if (!string.IsNullOrEmpty(id) && seen.Add($"openai:{id}"))
-                    {
-                        models.Add(new ModelInfo(
-                            id,
-                            id,
-                            "openai",
-                            model?["owned_by"]?.GetValue<string>()));
-                    }
-                }
-            }
-            catch (HttpRequestException)
-            {
-            }
-            catch (TaskCanceledException)
-            {
-            }
+            models.AddRange((await FetchOpenAiModelsAsync(
+                connections.OpenAiBaseUrls[i],
+                connections.OpenAiApiKeys.ElementAtOrDefault(i), ct))
+                .Where(model => seen.Add($"openai:{model.Id}")));
         }
 
+        return models;
+    }
+
+    /// <summary>
+    /// Lista modelos de uma única conexão cadastrada (por tipo e índice).
+    /// Usado pela UI admin para combos de modelos por conexão.
+    /// </summary>
+    /// <param name="type">"ollama" ou "openai".</param>
+    /// <param name="index">Índice da conexão na lista configurada.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<List<ModelInfo>> ListModelsForConnectionAsync(
+        string type, int index, CancellationToken ct = default)
+    {
+        var connections = await config.GetConnectionsAsync(ct);
+        return type == "ollama"
+            ? index >= 0 && index < connections.OllamaBaseUrls.Count
+                ? await FetchOllamaModelsAsync(connections.OllamaBaseUrls[index], ct)
+                : []
+            : index >= 0 && index < connections.OpenAiBaseUrls.Count
+                ? await FetchOpenAiModelsAsync(
+                    connections.OpenAiBaseUrls[index],
+                    connections.OpenAiApiKeys.ElementAtOrDefault(index), ct)
+                : [];
+    }
+
+    /// <summary>GET {base}/api/tags do Ollama; vazio quando indisponível.</summary>
+    private async Task<List<ModelInfo>> FetchOllamaModelsAsync(
+        string baseUrl, CancellationToken ct)
+    {
+        var models = new List<ModelInfo>();
+        try
+        {
+            using var response = await httpClientFactory.CreateClient()
+                .GetAsync($"{TrimSlash(baseUrl)}/api/tags", ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return models;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var node = JsonNode.Parse(json);
+            foreach (var model in node?["models"]?.AsArray() ?? [])
+            {
+                var id = model?["model"]?.GetValue<string>()
+                    ?? model?["name"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    models.Add(new ModelInfo(id, model!["name"]?.GetValue<string>() ?? id, "ollama", "ollama"));
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos do Ollama em {BaseUrl}.", baseUrl);
+        }
+        catch (TaskCanceledException ex)
+        {
+            // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos do Ollama em {BaseUrl}.", baseUrl);
+        }
+        return models;
+    }
+
+    /// <summary>GET {base}/models de uma API OpenAI-compatível; vazio quando indisponível.</summary>
+    private async Task<List<ModelInfo>> FetchOpenAiModelsAsync(
+        string baseUrl, string? apiKey, CancellationToken ct)
+    {
+        var models = new List<ModelInfo>();
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return models;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{TrimSlash(baseUrl)}/models");
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            }
+
+            using var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return models;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var node = JsonNode.Parse(json);
+            foreach (var model in node?["data"]?.AsArray() ?? [])
+            {
+                var id = model?["id"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    models.Add(new ModelInfo(
+                        id,
+                        id,
+                        "openai",
+                        model!["owned_by"]?.GetValue<string>()));
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos OpenAI em {BaseUrl}.", baseUrl);
+        }
+        catch (TaskCanceledException ex)
+        {
+            // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos OpenAI em {BaseUrl}.", baseUrl);
+        }
         return models;
     }
 

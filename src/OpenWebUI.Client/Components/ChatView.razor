@@ -195,11 +195,11 @@
 
                 <div class="flex justify-between mt-0.5 mb-2 mx-0.5 max-w-full" dir="ltr">
                     <div class="ml-1 self-end flex items-center flex-1 min-w-0">
-                        @if (_tools.Count > 0)
+                        @if (_tools.Count > 0 || _webSearchAvailable)
                         {
                             <div class="relative">
                                 <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
-                                               @(_toolIds.Count > 0 ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
+                                               @(_toolIds.Count > 0 || _webSearch ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
                                         title="@L["chat.tools"]" disabled="@_loading"
                                         @onclick="() => _showToolsMenu = !_showToolsMenu">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
@@ -207,14 +207,27 @@
                                 @if (_showToolsMenu)
                                 {
                                     <div class="absolute bottom-10 left-0 z-40 w-56 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden">
-                                        <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">@L["chat.tools_in_chat"]</div>
-                                        @foreach (var tool in _tools)
+                                        @if (_webSearchAvailable)
                                         {
+                                            <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">@L["chat.tools_features"]</div>
                                             <label class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
-                                                <input type="checkbox" checked="@_toolIds.Contains(tool.Id)"
-                                                       @onchange="() => ToggleToolAsync(tool.Id)" />
-                                                <span class="truncate">@tool.Name</span>
+                                                <input type="checkbox" checked="@_webSearch"
+                                                       @onchange="ToggleWebSearchAsync" />
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5 0 4.5-4 4.5-9S14.5 3 12 3m0 18c-2.5 0-4.5-4-4.5-9S9.5 3 12 3m-8.7 6h17.4M3.3 15h17.4" /></svg>
+                                                <span class="truncate">@L["chat.web_search"]</span>
                                             </label>
+                                        }
+                                        @if (_tools.Count > 0)
+                                        {
+                                            <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">@L["chat.tools_in_chat"]</div>
+                                            @foreach (var tool in _tools)
+                                            {
+                                                <label class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
+                                                    <input type="checkbox" checked="@_toolIds.Contains(tool.Id)"
+                                                           @onchange="() => ToggleToolAsync(tool.Id)" />
+                                                    <span class="truncate">@tool.Name</span>
+                                                </label>
+                                            }
                                         }
                                     </div>
                                 }
@@ -283,6 +296,8 @@
     private List<ToolResponse> _tools = [];
     private HashSet<string> _toolIds = [];
     private bool _showToolsMenu;
+    private bool _webSearchAvailable;
+    private bool _webSearch;
     private string? _loadedChatId;
     private string _chatTitle = "New Chat";
     private string? _model;
@@ -318,6 +333,15 @@
         _prompts = await Api.GetPromptsAsync();
         _tools = await Api.GetToolsAsync();
         _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
+        _webSearchAvailable = (await Api.GetAppConfigCachedAsync())?.Features.EnableWebSearch ?? false;
+        try
+        {
+            _webSearch = await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch") == "true";
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"localStorage indisponível: {ex.Message}");
+        }
         Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
         Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
         await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
@@ -746,7 +770,8 @@
                     .ToList(),
                 Stream: true,
                 FileIds: fileIds.Count > 0 ? fileIds : null,
-                ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null);
+                ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null,
+                WebSearch: _webSearch ? true : null);
 
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
             {
@@ -822,6 +847,20 @@
         await PersistAsync();
     }
 
+    private async Task ToggleWebSearchAsync()
+    {
+        _webSearch = !_webSearch;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "webui.chat.websearch",
+                _webSearch ? "true" : "false");
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"localStorage indisponível: {ex.Message}");
+        }
+    }
+
     private async Task GenerateTitleAsync()
     {
         if (_loadedChatId is null || string.IsNullOrEmpty(_model))
@@ -876,8 +915,9 @@
         {
             await JS.InvokeVoidAsync("openwebui.scrollToEnd", _scrollContainer);
         }
-        catch (JSException)
+        catch (JSException ex)
         {
+            Console.WriteLine($"scrollToEnd falhou: {ex.Message}");
         }
     }
 }

@@ -325,7 +325,7 @@
   "admin.webui_name": "Instance name",
   "admin.default_role": "Default role for new users",
   "admin.jwt_expires": "JWT expiry (e.g. 7d, 24h, 30m)",
-  "admin.default_models": "Default models (comma-separated)",
+  "admin.default_models": "Default models",
   "admin.suggestions": "Prompt suggestions",
   "admin.suggestions_hint": "Shown in the empty chat state",
   "admin.suggestion_title": "Title",
@@ -471,5 +471,14 @@
   "workspace.reindex_failed": "Reindex failed.",
   "workspace.delete_selected": "Delete {{count}} selected",
   "workspace.confirm_delete_selected": "Delete the selected collections?",
-  "workspace.deleted_count": "{{count}} collection(s) deleted."
+  "workspace.deleted_count": "{{count}} collection(s) deleted.",
+  "settings.theme_system": "System",
+  "settings.ollama_connections": "Ollama connections",
+  "settings.openai_connections": "OpenAI connections",
+  "settings.add_connection": "+ Add connection",
+  "admin.default_models_empty": "No models selected",
+  "admin.engine_provider": "provider (registered connection)",
+  "admin.select_provider": "Select connection…",
+  "chat.web_search": "Web search",
+  "chat.tools_features": "Features"
 }

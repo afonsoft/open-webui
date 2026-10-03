@@ -4,10 +4,14 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="OllamaBaseUrls">URLs base de servidores Ollama.</param>
 /// <param name="OpenAiBaseUrls">URLs base de APIs compatíveis com OpenAI.</param>
 /// <param name="OpenAiApiKeys">Chaves de API correspondentes às URLs OpenAI.</param>
+/// <param name="OllamaNames">Nomes de exibição das conexões Ollama (opcional).</param>
+/// <param name="OpenAiNames">Nomes de exibição das conexões OpenAI (opcional).</param>
 public sealed record ConnectionsConfig(
     IReadOnlyList<string> OllamaBaseUrls,
     IReadOnlyList<string> OpenAiBaseUrls,
-    IReadOnlyList<string> OpenAiApiKeys)
+    IReadOnlyList<string> OpenAiApiKeys,
+    IReadOnlyList<string>? OllamaNames = null,
+    IReadOnlyList<string>? OpenAiNames = null)
 {
     /// <summary>Configuração padrão apontando para um Ollama local.</summary>
     public static ConnectionsConfig Default { get; } = new(
@@ -23,7 +27,9 @@ public sealed record ConnectionsConfig(
 public sealed record ConnectionsConfigResponse(
     IReadOnlyList<string> OllamaBaseUrls,
     IReadOnlyList<string> OpenAiBaseUrls,
-    IReadOnlyList<bool> OpenAiKeyConfigured);
+    IReadOnlyList<bool> OpenAiKeyConfigured,
+    IReadOnlyList<string>? OllamaNames = null,
+    IReadOnlyList<string>? OpenAiNames = null);
 
 /// <summary>Resposta de versão da API.</summary>
 /// <param name="Version">Versão do backend .NET.</param>
@@ -61,7 +67,7 @@ public sealed record AppConfigResponse(
 /// <param name="EnableMemories">Memórias habilitadas.</param>
 /// <param name="EnableNotes">Notas habilitadas.</param>
 /// <param name="EnableChannels">Canais habilitados (não implementado).</param>
-/// <param name="EnableWebSearch">Busca web habilitada (não implementado).</param>
+/// <param name="EnableWebSearch">Busca web habilitada (engine de retrieval configurada).</param>
 /// <param name="EnableImageGeneration">Geração de imagens habilitada (não implementado).</param>
 /// <param name="EnableCodeExecution">Execução de código habilitada (não implementado).</param>
 /// <param name="EnableCommunitySharing">Compartilhamento comunitário habilitado.</param>

@@ -35,6 +35,7 @@ public static class ApiEndpoints
         var configs = app.MapGroup("/api/v1/configs").RequireAuthorization();
         configs.MapGet("/connections", GetConnectionsAsync);
         configs.MapPost("/connections", UpdateConnectionsAsync);
+        configs.MapGet("/connections/models", ListConnectionModelsAsync);
         configs.MapGet("/export", ExportConfigAsync);
         configs.MapPost("/import", ImportConfigAsync);
     }
@@ -77,6 +78,7 @@ public static class ApiEndpoints
         var adminConfig = await config.GetAdminConfigAsync(ct);
         var imagesConfig = await images.GetConfigAsync(ct);
         var modelsConfig = await ConfigEndpoints.GetModelsConfigInternalAsync(config, ct);
+        var retrieval = await config.GetAsync("retrieval.config", RetrievalConfig.Default, ct);
 
         return Results.Ok(new AppConfigResponse(
             Status: true,
@@ -93,7 +95,7 @@ public static class ApiEndpoints
                 EnableMemories: adminConfig.EnableMemories,
                 EnableNotes: true,
                 EnableChannels: true,
-                EnableWebSearch: false,
+                EnableWebSearch: retrieval.Engine is not "none",
                 EnableImageGeneration: imagesConfig.Enabled,
                 EnableCodeExecution: true,
                 EnableCommunitySharing: true),
@@ -159,6 +161,7 @@ public static class ApiEndpoints
         RagService rag,
         ToolExecutor toolExecutor,
         PipelineClientService pipelines,
+        WebSearchService webSearch,
         CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
@@ -186,12 +189,12 @@ public static class ApiEndpoints
             ? request.Model["arena:".Length..]
             : request.Model;
         if (await TryRunArenaAsync(
-            request, arenaModel, user, db, config, rag, providers, writer, ct))
+            request, arenaModel, user, db, config, rag, providers, webSearch, writer, ct))
         {
             return;
         }
 
-        var effective = await EnrichRequestAsync(request, user, db, config, rag, ct);
+        var effective = await EnrichRequestAsync(request, user, db, config, rag, webSearch, ct);
 
         // Filtros outlet do modelo custom: redação por regex nas linhas SSE.
         var outletRules = ModelFilterService.OutletRules(
@@ -277,6 +280,7 @@ public static class ApiEndpoints
         ConfigService config,
         RagService rag,
         ProviderService providers,
+        WebSearchService webSearch,
         StreamWriter writer,
         CancellationToken ct)
     {
@@ -312,7 +316,7 @@ public static class ApiEndpoints
             {
                 var effective = await EnrichRequestAsync(
                     request with { Model = competitor, Stream = false },
-                    user, db, config, rag, ct);
+                    user, db, config, rag, webSearch, ct);
                 responses.Add(await providers.CompleteAsync(effective, ct));
             }
         }
@@ -486,6 +490,7 @@ public static class ApiEndpoints
         AppDbContext db,
         ConfigService config,
         RagService rag,
+        WebSearchService webSearch,
         CancellationToken ct)
     {
         var model = request.Model;
@@ -574,6 +579,27 @@ public static class ApiEndpoints
             if (!string.IsNullOrEmpty(fileContext))
             {
                 systemParts.Add(fileContext);
+            }
+        }
+
+        // 2.5. Busca web opcional: injeta os resultados como contexto com fontes.
+        if (request.WebSearch == true && lastUserText.Length > 0)
+        {
+            try
+            {
+                var results = await webSearch.SearchAsync(lastUserText, count: 5, ct);
+                if (results is { Count: > 0 })
+                {
+                    var lines = results.Select((r, i) =>
+                        $"[{i + 1}] {r.Title}\nURL: {r.Url}\n{r.Snippet}");
+                    systemParts.Add(
+                        "Resultados da busca web (use-os para responder e cite as fontes como [n]):\n"
+                        + string.Join("\n\n", lines));
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+            {
+                // Engine indisponível: segue sem contexto web.
             }
         }
 
@@ -678,7 +704,23 @@ public static class ApiEndpoints
             connections.OpenAiBaseUrls,
             connections.OpenAiBaseUrls
                 .Select((_, i) => !string.IsNullOrEmpty(connections.OpenAiApiKeys.ElementAtOrDefault(i)))
-                .ToList()));
+                .ToList(),
+            connections.OllamaNames,
+            connections.OpenAiNames));
+    }
+
+    /// <summary>Lista modelos de uma conexão cadastrada (admin) — usado pelos combos da UI.</summary>
+    private static async Task<IResult> ListConnectionModelsAsync(
+        HttpContext http, ProviderService providers,
+        string type, int index, CancellationToken ct)
+    {
+        if (!IsAdmin(http))
+        {
+            return Results.Forbid();
+        }
+
+        var models = await providers.ListModelsForConnectionAsync(type, index, ct);
+        return Results.Ok(new ModelListResponse(models));
     }
 
     private static async Task<IResult> UpdateConnectionsAsync(
@@ -717,7 +759,9 @@ public static class ApiEndpoints
             updated.OpenAiBaseUrls,
             updated.OpenAiBaseUrls
                 .Select((_, i) => !string.IsNullOrEmpty(updated.OpenAiApiKeys.ElementAtOrDefault(i)))
-                .ToList()));
+                .ToList(),
+            updated.OllamaNames,
+            updated.OpenAiNames));
     }
 
     private static async Task<IResult> ExportConfigAsync(

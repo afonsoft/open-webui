@@ -49,7 +49,7 @@ public static class AudioEndpoints
             return Results.Unauthorized();
         }
 
-        var cfg = await audio.GetConfigAsync(ct);
+        var cfg = await audio.GetResolvedConfigAsync(ct);
         return Results.Ok(new
         {
             stt = cfg.SttEnabled,
@@ -68,9 +68,10 @@ public static class AudioEndpoints
             return Results.Forbid();
         }
 
-        var valid = request.SttEngine is "none" or "openai" or "deepgram" or "whisper" or "web-speech"
+        var valid = request.SttEngine is "none" or "openai" or "deepgram" or "whisper"
+                or "web-speech" or "provider"
             && request.TtsEngine is "none" or "openai" or "elevenlabs" or "azure"
-                or "transformers" or "web-speech";
+                or "transformers" or "web-speech" or "provider";
         if (!valid)
         {
             return Results.BadRequest(new { detail = "Engine de áudio inválida." });

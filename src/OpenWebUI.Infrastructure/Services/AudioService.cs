@@ -30,6 +30,54 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
         config.SetAsync("audio.config", audio, ct);
 
     /// <summary>
+    /// Config resolvida: engine <c>provider</c> é convertida para <c>openai</c>
+    /// com a URL base e a chave da conexão OpenAI cadastrada correspondente.
+    /// Quando a conexão não é encontrada a engine cai para <c>none</c> (desabilitada).
+    /// </summary>
+    /// <param name="ct">Cancelamento.</param>
+    public async Task<AudioConfig> GetResolvedConfigAsync(CancellationToken ct = default) =>
+        await ResolveProvidersAsync(await GetConfigAsync(ct), ct);
+
+    private async Task<AudioConfig> ResolveProvidersAsync(AudioConfig cfg, CancellationToken ct)
+    {
+        if (cfg.SttEngine != "provider" && cfg.TtsEngine != "provider")
+        {
+            return cfg;
+        }
+
+        var connections = await config.GetConnectionsAsync(ct);
+
+        (string Url, string? Key)? Find(string? providerUrl)
+        {
+            if (string.IsNullOrWhiteSpace(providerUrl))
+            {
+                return null;
+            }
+            var index = connections.OpenAiBaseUrls.ToList().FindIndex(u =>
+                string.Equals(u?.TrimEnd('/'), providerUrl.TrimEnd('/'),
+                    StringComparison.OrdinalIgnoreCase));
+            return index < 0
+                ? null
+                : (connections.OpenAiBaseUrls[index],
+                    connections.OpenAiApiKeys.ElementAtOrDefault(index));
+        }
+
+        if (cfg.SttEngine == "provider")
+        {
+            cfg = Find(cfg.SttProvider) is { } stt
+                ? cfg with { SttEngine = "openai", SttBaseUrl = stt.Url, SttApiKey = stt.Key }
+                : cfg with { SttEngine = "none" };
+        }
+        if (cfg.TtsEngine == "provider")
+        {
+            cfg = Find(cfg.TtsProvider) is { } tts
+                ? cfg with { TtsEngine = "openai", TtsBaseUrl = tts.Url, TtsApiKey = tts.Key }
+                : cfg with { TtsEngine = "none" };
+        }
+        return cfg;
+    }
+
+    /// <summary>
     /// Gera áudio a partir de texto no provider TTS configurado.
     /// </summary>
     /// <param name="input">Texto a sintetizar.</param>
@@ -41,7 +89,7 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
     public async Task<SpeechResult> SpeechAsync(
         string input, string? voice, string? model, CancellationToken ct = default)
     {
-        var cfg = await GetConfigAsync(ct);
+        var cfg = await ResolveProvidersAsync(await GetConfigAsync(ct), ct);
         if (!cfg.TtsEnabled)
         {
             throw new AudioDisabledException("TTS desabilitado — configure um provider.");
@@ -171,7 +219,7 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
     public async Task<string> TranscribeAsync(
         Stream stream, string fileName, CancellationToken ct = default)
     {
-        var cfg = await GetConfigAsync(ct);
+        var cfg = await ResolveProvidersAsync(await GetConfigAsync(ct), ct);
         if (!cfg.SttEnabled)
         {
             throw new AudioDisabledException("STT desabilitada — configure um provider.");
@@ -234,7 +282,7 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
     /// <param name="ct">Cancelamento.</param>
     public async Task<JsonElement> GetVoicesAsync(CancellationToken ct = default)
     {
-        var cfg = await GetConfigAsync(ct);
+        var cfg = await ResolveProvidersAsync(await GetConfigAsync(ct), ct);
         if (!cfg.TtsEnabled)
         {
             throw new AudioDisabledException("TTS desabilitado — configure um provider.");
@@ -260,7 +308,7 @@ public class AudioService(IHttpClientFactory httpFactory, ConfigService config)
     /// <param name="ct">Cancelamento.</param>
     public async Task<JsonElement> GetModelsAsync(CancellationToken ct = default)
     {
-        var cfg = await GetConfigAsync(ct);
+        var cfg = await ResolveProvidersAsync(await GetConfigAsync(ct), ct);
         string? url = cfg.SttEnabled
             ? $"{cfg.SttBaseUrl!.TrimEnd('/')}/models"
             : cfg.TtsEngine switch

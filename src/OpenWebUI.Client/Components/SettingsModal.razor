@@ -32,6 +32,7 @@
                     <div class="field">
                         <label>@L["settings.theme"]</label>
                         <select class="input" value="@Theme.Current" @onchange="OnThemeChanged">
+                            <option value="system">@L["settings.theme_system"]</option>
                             <option value="dark">@L["settings.theme_dark"]</option>
                             <option value="light">@L["settings.theme_light"]</option>
                         </select>
@@ -179,16 +180,30 @@
                     else
                     {
                         <div class="field">
-                            <label>@L["settings.ollama_urls"]</label>
-                            <textarea class="input" rows="2" @bind="_ollamaUrls"></textarea>
+                            <label>@L["settings.ollama_connections"]</label>
+                            @foreach (var row in _ollamaRows)
+                            {
+                                <div class="flex gap-2 mb-1 items-center">
+                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" />
+                                    <button class="msg-action danger flex-none" @onclick="() => _ollamaRows.Remove(row)">✕</button>
+                                </div>
+                            }
+                            <button class="button-sm" @onclick="() => _ollamaRows.Add(new ConnectionRow())">@L["settings.add_connection"]</button>
                         </div>
                         <div class="field">
-                            <label>@L["settings.openai_urls"]</label>
-                            <textarea class="input" rows="2" @bind="_openAiUrls"></textarea>
-                        </div>
-                        <div class="field">
-                            <label>@L["settings.openai_keys"]</label>
-                            <textarea class="input" rows="2" @bind="_openAiKeys" placeholder="@L["settings.keys_keep"]"></textarea>
+                            <label>@L["settings.openai_connections"]</label>
+                            @foreach (var row in _openAiRows)
+                            {
+                                <div class="flex gap-2 mb-1 items-center">
+                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" />
+                                    <input class="input w-48" type="password" @bind="row.Key"
+                                           placeholder="@(row.KeyConfigured ? L["settings.keys_keep"] : "API key")" />
+                                    <button class="msg-action danger flex-none" @onclick="() => _openAiRows.Remove(row)">✕</button>
+                                </div>
+                            }
+                            <button class="button-sm" @onclick="() => _openAiRows.Add(new ConnectionRow())">@L["settings.add_connection"]</button>
                         </div>
                         @if (_saveMessage is not null)
                         {
@@ -361,13 +376,21 @@
 
     private string _tab = "general";
     private ConnectionsConfigResponse? _connections;
-    private string _ollamaUrls = string.Empty;
     private List<OllamaModelInfo>? _ollamaModels;
     private string _ollamaPullName = string.Empty;
     private bool _ollamaPulling;
     private string? _ollamaPullMessage;
-    private string _openAiUrls = string.Empty;
-    private string _openAiKeys = string.Empty;
+
+    /// <summary>Linha editável de conexão (nome, URL, chave).</summary>
+    private sealed class ConnectionRow
+    {
+        public string Name = string.Empty;
+        public string Url = string.Empty;
+        public string Key = string.Empty;
+        public bool KeyConfigured;
+    }
+    private List<ConnectionRow> _ollamaRows = [];
+    private List<ConnectionRow> _openAiRows = [];
     private string? _saveMessage;
     private string? _version;
 
@@ -444,9 +467,21 @@
             _connections = await Api.GetConnectionsAsync();
             if (_connections is not null)
             {
-                _ollamaUrls = string.Join('\n', _connections.OllamaBaseUrls);
-                _openAiUrls = string.Join('\n', _connections.OpenAiBaseUrls);
-                _openAiKeys = string.Empty;
+                _ollamaRows = _connections.OllamaBaseUrls
+                    .Select((url, i) => new ConnectionRow
+                    {
+                        Url = url,
+                        Name = _connections.OllamaNames?.ElementAtOrDefault(i) ?? string.Empty,
+                    })
+                    .ToList();
+                _openAiRows = _connections.OpenAiBaseUrls
+                    .Select((url, i) => new ConnectionRow
+                    {
+                        Url = url,
+                        Name = _connections.OpenAiNames?.ElementAtOrDefault(i) ?? string.Empty,
+                        KeyConfigured = _connections.OpenAiKeyConfigured.ElementAtOrDefault(i),
+                    })
+                    .ToList();
             }
 
             var adminConfig = await Api.GetAdminConfigAsync();
@@ -696,20 +731,26 @@
 
     private async Task SaveConnectionsAsync()
     {
-        var ollama = SplitLines(_ollamaUrls);
-        var openAi = SplitLines(_openAiUrls);
-        var keys = SplitLines(_openAiKeys);
+        var ollama = _ollamaRows.Select(r => r.Url.Trim()).Where(u => u.Length > 0).ToList();
+        var ollamaNames = _ollamaRows.Where(r => r.Url.Trim().Length > 0).Select(r => r.Name.Trim()).ToList();
+        var openAiRows = _openAiRows.Where(r => r.Url.Trim().Length > 0).ToList();
+        var openAi = openAiRows.Select(r => r.Url.Trim()).ToList();
+        var openAiNames = openAiRows.Select(r => r.Name.Trim()).ToList();
+        var keys = openAiRows.Select(r => r.Key.Trim()).ToList();
 
         // Chaves deixadas em branco são preservadas pelo servidor.
-        while (keys.Count < openAi.Count)
-        {
-            keys.Add(string.Empty);
-        }
-
         var result = await Api.UpdateConnectionsAsync(
-            new ConnectionsConfig(ollama, openAi, keys));
+            new ConnectionsConfig(ollama, openAi, keys, ollamaNames, openAiNames));
         _saveMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
         _connections = result;
+        if (result is not null)
+        {
+            for (var i = 0; i < _openAiRows.Count && i < result.OpenAiKeyConfigured.Count; i++)
+            {
+                _openAiRows[i].KeyConfigured = result.OpenAiKeyConfigured[i];
+                _openAiRows[i].Key = string.Empty;
+            }
+        }
     }
 
     private async Task SaveAdminAsync()
@@ -750,10 +791,6 @@
 
     private static string FormatDate(long unixSeconds) =>
         DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
-
-    private static List<string> SplitLines(string text) =>
-        text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
 
     private Task Close() => OnClose.InvokeAsync();
 }
