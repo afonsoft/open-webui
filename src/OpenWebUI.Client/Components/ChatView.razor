@@ -23,14 +23,14 @@
                         @if (_voiceSupported)
                         {
                             <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
-                                    title="@L["voice.call"]" @onclick="() => _callActive = true">
+                                    title="@L["voice.call"]" aria-label="@L["voice.call"]" @onclick="() => _callActive = true">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
                             </button>
                         }
                         @if (_loadedChatId is not null)
                         {
                             <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
-                                    title="@L["chat.share"]" @onclick="ShareAsync">
+                                    title="@L["chat.share"]" aria-label="@L["chat.share"]" @onclick="ShareAsync">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                             </button>
                         }
@@ -76,7 +76,7 @@
             }
             else
             {
-                <div class="flex flex-col gap-5 py-4">
+                <div class="flex flex-col gap-5 py-4" role="log" aria-live="polite" aria-relevant="additions">
                     @for (var i = 0; i < _messages.Count; i++)
                     {
                         var index = i;
@@ -139,7 +139,7 @@
 
             @if (_error is not null)
             {
-                <div class="my-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm text-red-600 dark:text-red-400">@_error</div>
+                <div class="my-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm text-red-600 dark:text-red-400" role="alert">@_error</div>
             }
 
             @if (_followUps.Count > 0 && !_streaming)
@@ -200,7 +200,7 @@
                             <div class="relative">
                                 <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
                                                @(_toolIds.Count > 0 || _webSearch ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                        title="@L["chat.tools"]" disabled="@_loading"
+                                        title="@L["chat.tools"]" aria-label="@L["chat.tools"]" disabled="@_loading"
                                         @onclick="() => _showToolsMenu = !_showToolsMenu">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
                                 </button>
@@ -234,7 +234,7 @@
                             </div>
                         }
                         <button class="size-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition cursor-pointer disabled:opacity-40"
-                                title="@L["chat.attach"]" disabled="@(_loading || _uploading)"
+                                title="@L["chat.attach"]" aria-label="@L["chat.attach"]" disabled="@(_loading || _uploading)"
                                 @onclick="TriggerFilePicker">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         </button>
@@ -250,7 +250,7 @@
                         @if (_streaming)
                         {
                             <button class="size-8 flex items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900 transition cursor-pointer"
-                                    title="@L["chat.stop"]" @onclick="StopStreaming">
+                                    title="@L["chat.stop"]" aria-label="@L["chat.stop"]" @onclick="StopStreaming">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clip-rule="evenodd" /></svg>
                             </button>
                         }
@@ -258,7 +258,7 @@
                         {
                             <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
                                            @(SendDisabled ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600" : "bg-gray-900 text-white dark:bg-white dark:text-gray-900")"
-                                    title="@L["chat.send"]" disabled="@SendDisabled" @onclick="SendAsync">
+                                    title="@L["chat.send"]" aria-label="@L["chat.send"]" disabled="@SendDisabled" @onclick="SendAsync">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
                             </button>
                         }

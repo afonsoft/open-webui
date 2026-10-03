@@ -480,5 +480,7 @@
   "admin.engine_provider": "provider (conexão cadastrada)",
   "admin.select_provider": "Selecionar conexão…",
   "chat.web_search": "Busca na web",
-  "chat.tools_features": "Recursos"
+  "chat.tools_features": "Recursos",
+  "common.skip_to_content": "Ir para o conteúdo",
+  "common.close": "Fechar"
 }

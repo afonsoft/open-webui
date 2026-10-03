@@ -7,10 +7,11 @@
 @if (IsOpen)
 {
     <div class="modal-backdrop" @onclick="Close">
-        <div class="modal" @onclick:stopPropagation>
+        <div class="modal" role="dialog" aria-modal="true" aria-label="@L["settings.title"]"
+             tabindex="-1" @ref="_modalElement" @onkeydown="OnKeyDown" @onclick:stopPropagation>
             <div class="modal-header">
                 <span>@L["settings.title"]</span>
-                <button class="icon-btn" @onclick="Close">×</button>
+                <button class="icon-btn" aria-label="@L["common.close"]" @onclick="Close">×</button>
             </div>
 
             <div class="modal-shell">
@@ -407,6 +408,8 @@
 
     private bool _adminLoaded;
     private string _adminWebUiName = "Open WebUI";
+    private ElementReference _modalElement;
+    private bool _focusTrapped;
     private string _adminDefaultRole = "pending";
     private bool _adminEnableSignup = true;
     private bool _adminEnableLoginForm = true;
@@ -439,6 +442,28 @@
 
     private static readonly string[] WebhookEvents =
         ["user.pending", "user.approved", "automation.failed", "channel.mention"];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsOpen && !_focusTrapped)
+        {
+            _focusTrapped = true;
+            await JS.InvokeVoidAsync("openwebui.trapFocus", _modalElement);
+        }
+        else if (!IsOpen && _focusTrapped)
+        {
+            _focusTrapped = false;
+            await JS.InvokeVoidAsync("openwebui.releaseFocus", _modalElement);
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await Close();
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
