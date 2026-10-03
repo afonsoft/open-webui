@@ -611,6 +611,11 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ConnectionsConfigResponse?> UpdateConnectionsAsync(ConnectionsConfig config) =>
         SendAsync<ConnectionsConfigResponse>(HttpMethod.Post, "/api/v1/configs/connections", config);
 
+    /// <summary>Lista os modelos de uma conexão cadastrada (somente admin).</summary>
+    public Task<ModelListResponse?> GetConnectionModelsAsync(string type, int index) =>
+        SendAsync<ModelListResponse>(HttpMethod.Get,
+            $"/api/v1/configs/connections/models?type={Uri.EscapeDataString(type)}&index={index}");
+
     /// <summary>Obtém a versão do backend.</summary>
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");

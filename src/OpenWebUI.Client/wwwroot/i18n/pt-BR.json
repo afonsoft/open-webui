@@ -325,7 +325,7 @@
   "admin.webui_name": "Nome da instância",
   "admin.default_role": "Papel padrão de novos usuários",
   "admin.jwt_expires": "Expiração do JWT (ex.: 7d, 24h, 30m)",
-  "admin.default_models": "Modelos padrão (separados por vírgula)",
+  "admin.default_models": "Modelos padrão",
   "admin.suggestions": "Sugestões de prompt",
   "admin.suggestions_hint": "Exibidas no estado vazio do chat",
   "admin.suggestion_title": "Título",
@@ -471,5 +471,14 @@
   "workspace.reindex_failed": "Falha ao reindexar.",
   "workspace.delete_selected": "Excluir {{count}} selecionada(s)",
   "workspace.confirm_delete_selected": "Excluir as coleções selecionadas?",
-  "workspace.deleted_count": "{{count}} coleção(ões) excluída(s)."
+  "workspace.deleted_count": "{{count}} coleção(ões) excluída(s).",
+  "settings.theme_system": "Sistema",
+  "settings.ollama_connections": "Conexões Ollama",
+  "settings.openai_connections": "Conexões OpenAI",
+  "settings.add_connection": "+ Adicionar conexão",
+  "admin.default_models_empty": "Nenhum modelo selecionado",
+  "admin.engine_provider": "provider (conexão cadastrada)",
+  "admin.select_provider": "Selecionar conexão…",
+  "chat.web_search": "Busca na web",
+  "chat.tools_features": "Recursos"
 }

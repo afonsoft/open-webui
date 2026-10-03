@@ -35,4 +35,5 @@ public sealed record ChatCompletionRequest(
     IReadOnlyList<string>? FileIds = null,
     IReadOnlyDictionary<string, object>? Params = null,
     IReadOnlyList<string>? ToolIds = null,
-    IReadOnlyList<System.Text.Json.JsonElement>? Tools = null);
+    IReadOnlyList<System.Text.Json.JsonElement>? Tools = null,
+    bool? WebSearch = null);

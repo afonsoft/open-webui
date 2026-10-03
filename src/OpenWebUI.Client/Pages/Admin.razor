@@ -46,17 +46,17 @@
                     <button class="auth-submit" @onclick="AddUserAsync">@L["admin.new_user"]</button>
                 </div>
                 <div class="card-row">
-                    <div class="card-main w-full flex flex-wrap gap-2 items-center">
+                    <div class="card-main w-full flex flex-row flex-wrap gap-2 items-center">
                         <input class="input flex-1 min-w-40" placeholder="@L["admin.search_users"]"
                                @bind="_userQuery" @bind:event="oninput"
                                @onchange="() => ReloadUsersAsync(1)" />
-                        <select class="input w-32" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
+                        <select class="input w-auto flex-none" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
                             <option value="">@L["admin.all_roles"]</option>
                             <option value="admin">admin</option>
                             <option value="user">user</option>
                             <option value="pending">pending</option>
                         </select>
-                        <select class="input w-36" @bind="_userOrderBy" @bind:after="() => ReloadUsersAsync(1)">
+                        <select class="input w-auto flex-none" @bind="_userOrderBy" @bind:after="() => ReloadUsersAsync(1)">
                             <option value="created_at">@L["admin.col_date"]</option>
                             <option value="name">@L["common.name"]</option>
                             <option value="email">@L["common.email"]</option>
@@ -373,8 +373,37 @@
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
                                 <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.default_models"]</label>
-                                <input class="input" @bind="_defaultModelsText"
-                                       placeholder="llama3, gpt-4o" />
+                                <div class="relative">
+                                    <button type="button" class="input text-left flex items-center justify-between gap-2"
+                                            @onclick="() => _showDefaultModelsMenu = !_showDefaultModelsMenu">
+                                        <span class="truncate text-gray-800 dark:text-gray-200">
+                                            @(_defaultModels.Count == 0
+                                                ? L["admin.default_models_empty"]
+                                                : string.Join(", ", _defaultModels.Take(3))
+                                                    + (_defaultModels.Count > 3 ? $" +{_defaultModels.Count - 3}" : ""))
+                                        </span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                                    </button>
+                                    @if (_showDefaultModelsMenu)
+                                    {
+                                        <div class="absolute left-0 top-11 z-40 w-full max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg p-2">
+                                            <input class="input mb-1" placeholder="@L["models.select"]"
+                                                   @bind="_defaultModelsQuery" @bind:event="oninput" />
+                                            @foreach (var modelId in DefaultModelOptions)
+                                            {
+                                                <label class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
+                                                    <input type="checkbox" checked="@_defaultModels.Contains(modelId)"
+                                                           @onchange="() => ToggleDefaultModel(modelId)" />
+                                                    <span class="truncate">@modelId</span>
+                                                </label>
+                                            }
+                                            @if (!DefaultModelOptions.Any())
+                                            {
+                                                <div class="px-2 py-1.5 text-xs text-gray-400">@L["models.none"]</div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
                             </div>
                         </div>
                         <div class="card-row">
@@ -386,7 +415,7 @@
                         @foreach (var suggestion in _suggestions.ToList())
                         {
                             <div class="card-row">
-                                <div class="card-main w-full flex gap-2">
+                                <div class="card-main w-full flex flex-row gap-2">
                                     <input class="input w-40" @bind="suggestion.Title" placeholder="@L["admin.suggestion_title"]" />
                                     <input class="input flex-1" @bind="suggestion.Content" placeholder="@L["admin.suggestion_content"]" />
                                 </div>
@@ -412,7 +441,7 @@
                             </div>
                         </div>
                         <div class="card-row">
-                            <div class="card-main w-full flex flex-wrap gap-2 items-center">
+                            <div class="card-main w-full flex flex-row flex-wrap gap-2 items-center">
                                 <select class="input w-28" @bind="_bannerType">
                                     <option value="info">info</option>
                                     <option value="warning">warning</option>
@@ -447,12 +476,13 @@
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
                                 <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.stt_engine"]</label>
-                                <select class="input w-52" @bind="_sttEngine">
+                                <select class="input w-52" @bind="_sttEngine" @bind:after="OnSttEngineChangedAsync">
                                     <option value="none">none</option>
                                     <option value="web-speech">web-speech</option>
                                     <option value="openai">openai</option>
                                     <option value="deepgram">deepgram</option>
                                     <option value="whisper">whisper</option>
+                                    <option value="provider">@L["admin.engine_provider"]</option>
                                 </select>
                                 @if (_sttEngine is "openai" or "deepgram" or "whisper")
                                 {
@@ -460,19 +490,59 @@
                                     <input class="input" type="password" @bind="_sttKey" placeholder="API key" />
                                     <input class="input" @bind="_sttModel" placeholder="whisper-1" />
                                 }
+                                else if (_sttEngine == "provider")
+                                {
+                                    <select class="input" @bind="_sttProvider" @bind:after="LoadSttProviderModelsAsync">
+                                        <option value="">@L["admin.select_provider"]</option>
+                                        @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
+                                        {
+                                            <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
+                                        }
+                                    </select>
+                                    <select class="input" @bind="_sttModel">
+                                        <option value="auto">auto</option>
+                                        @foreach (var m in _sttProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_sttModel) || _sttModel == "auto" ? [] : [_sttModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
                             </div>
                         </div>
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
                                 <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.tts_engine"]</label>
-                                <select class="input w-52" @bind="_ttsEngine">
+                                <select class="input w-52" @bind="_ttsEngine" @bind:after="OnTtsEngineChangedAsync">
                                     <option value="none">none</option>
                                     <option value="openai">openai</option>
                                     <option value="elevenlabs">elevenlabs</option>
                                     <option value="azure">azure</option>
                                     <option value="transformers">transformers</option>
+                                    <option value="provider">@L["admin.engine_provider"]</option>
                                 </select>
-                                @if (_ttsEngine is "openai" or "transformers")
+                                @if (_ttsEngine == "provider")
+                                {
+                                    <select class="input" @bind="_ttsProvider" @bind:after="LoadTtsProviderModelsAsync">
+                                        <option value="">@L["admin.select_provider"]</option>
+                                        @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
+                                        {
+                                            <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
+                                        }
+                                    </select>
+                                    <select class="input" @bind="_ttsModel">
+                                        <option value="auto">auto</option>
+                                        @foreach (var m in _ttsProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_ttsModel) || _ttsModel == "auto" ? [] : [_ttsModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                    <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                }
+                                else if (_ttsEngine is "openai" or "transformers")
                                 {
                                     <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
                                     <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
@@ -864,7 +934,11 @@
     private string _webUiName = "";
     private string _defaultRole = "pending";
     private string _jwtExpiresIn = "7d";
-    private string _defaultModelsText = "";
+    private List<string> _defaultModels = [];
+    private List<ModelInfo> _availableModels = [];
+    private bool _showDefaultModelsMenu;
+    private string _defaultModelsQuery = "";
+    private ConnectionsConfigResponse? _connections;
     private List<PromptSuggestion> _suggestions = [];
     private List<BannerResponse> _banners = [];
     private string _bannerType = "info";
@@ -911,10 +985,14 @@
     private string? _sttBaseUrl;
     private string? _sttKey;
     private string? _sttModel;
+    private string? _sttProvider;
+    private List<string> _sttProviderModels = [];
     private string _ttsEngine = "none";
     private string? _ttsBaseUrl;
     private string? _ttsKey;
     private string? _ttsModel;
+    private string? _ttsProvider;
+    private List<string> _ttsProviderModels = [];
     private string? _ttsVoice;
     private string? _azureRegion;
     private string _retEngine = "none";
@@ -984,7 +1062,9 @@
         _defaultRole = signup?.DefaultUserRole ?? "pending";
         _jwtExpiresIn = (await Api.GetJwtExpiryAsync())?.ExpiresIn ?? "7d";
         var models = await Api.GetModelsConfigAsync();
-        _defaultModelsText = string.Join(", ", models?.DefaultModels ?? []);
+        _defaultModels = models?.DefaultModels.ToList() ?? [];
+        _availableModels = await Api.GetModelsAsync();
+        _connections = await Api.GetConnectionsAsync();
         _suggestions = models?.PromptSuggestions?.ToList() ?? [];
         _banners = await Api.GetBannersAsync();
         _toggleChannels = await Api.GetFeatureToggleAsync("channels", true);
@@ -999,12 +1079,22 @@
             _sttBaseUrl = audio.SttBaseUrl;
             _sttKey = audio.SttApiKey;
             _sttModel = audio.SttModel;
+            _sttProvider = audio.SttProvider;
             _ttsEngine = audio.TtsEngine;
             _ttsBaseUrl = audio.TtsBaseUrl;
             _ttsKey = audio.TtsApiKey;
             _ttsModel = audio.TtsModel;
+            _ttsProvider = audio.TtsProvider;
             _ttsVoice = audio.TtsVoice;
             _azureRegion = audio.AzureRegion;
+        }
+        if (_sttEngine == "provider" && !string.IsNullOrWhiteSpace(_sttProvider))
+        {
+            await LoadSttProviderModelsAsync();
+        }
+        if (_ttsEngine == "provider" && !string.IsNullOrWhiteSpace(_ttsProvider))
+        {
+            await LoadTtsProviderModelsAsync();
         }
         var ret = await Api.GetRetrievalConfigAsync();
         if (ret is not null)
@@ -1178,12 +1268,69 @@
 
     private void AddSuggestion() => _suggestions.Add(new PromptSuggestion());
 
+    private IEnumerable<string> DefaultModelOptions =>
+        _availableModels.Select(m => m.Id)
+            .Concat(_defaultModels)
+            .Distinct()
+            .Where(id => string.IsNullOrWhiteSpace(_defaultModelsQuery)
+                || id.Contains(_defaultModelsQuery, StringComparison.OrdinalIgnoreCase));
+
+    private void ToggleDefaultModel(string modelId)
+    {
+        if (!_defaultModels.Remove(modelId))
+        {
+            _defaultModels.Add(modelId);
+        }
+    }
+
     private async Task SaveModelsConfigAsync()
     {
-        var models = _defaultModelsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-        var updated = await Api.UpdateModelsConfigAsync(new ModelsConfig(models, _suggestions));
+        var updated = await Api.UpdateModelsConfigAsync(new ModelsConfig(_defaultModels.ToList(), _suggestions));
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
     }
+
+    private string ConnectionLabel(int index)
+    {
+        var name = _connections?.OpenAiNames?.ElementAtOrDefault(index);
+        return !string.IsNullOrWhiteSpace(name)
+            ? name!
+            : _connections?.OpenAiBaseUrls.ElementAtOrDefault(index) ?? string.Empty;
+    }
+
+    private int? ProviderIndex(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || _connections is null)
+        {
+            return null;
+        }
+        var index = _connections.OpenAiBaseUrls.ToList().FindIndex(u =>
+            string.Equals(u?.TrimEnd('/'), url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? null : index;
+    }
+
+    private async Task LoadProviderModelsAsync(string? providerUrl, Action<List<string>> assign)
+    {
+        var index = ProviderIndex(providerUrl);
+        assign(index is null
+            ? []
+            : (await Api.GetConnectionModelsAsync("openai", index.Value))?.Data.Select(m => m.Id).ToList() ?? []);
+    }
+
+    private Task LoadSttProviderModelsAsync() =>
+        LoadProviderModelsAsync(_sttProvider, list => _sttProviderModels = list);
+
+    private Task LoadTtsProviderModelsAsync() =>
+        LoadProviderModelsAsync(_ttsProvider, list => _ttsProviderModels = list);
+
+    private Task OnSttEngineChangedAsync() =>
+        _sttEngine == "provider" && _sttProviderModels.Count == 0
+            ? LoadSttProviderModelsAsync()
+            : Task.CompletedTask;
+
+    private Task OnTtsEngineChangedAsync() =>
+        _ttsEngine == "provider" && _ttsProviderModels.Count == 0
+            ? LoadTtsProviderModelsAsync()
+            : Task.CompletedTask;
 
     private void EditBanner(BannerResponse banner)
     {
@@ -1227,7 +1374,9 @@
         var updated = await Api.UpdateAudioConfigAsync(new AudioConfig(
             _sttEngine, _sttBaseUrl, _sttKey, _sttModel,
             _ttsEngine, _ttsBaseUrl, _ttsKey, _ttsModel, _ttsVoice,
-            _azureRegion));
+            _azureRegion,
+            _sttEngine == "provider" ? _sttProvider : null,
+            _ttsEngine == "provider" ? _ttsProvider : null));
         _configMessage = updated is null ? L["settings.save_failed"] : L["admin.config_saved"];
         await JS.InvokeVoidAsync("openwebui.audio.refreshCaps");
     }
