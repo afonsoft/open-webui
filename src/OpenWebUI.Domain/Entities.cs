@@ -532,6 +532,12 @@ public class EmbeddingChunk
     /// <summary>Vetor de embedding serializado (JSON array de floats).</summary>
     public string EmbeddingJson { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Norma L2 do vetor, gravada na indexação. Chunks antigos (0) recalculam
+    /// a norma em memória até a próxima reindexação.
+    /// </summary>
+    public double EmbeddingNorm { get; set; }
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 }

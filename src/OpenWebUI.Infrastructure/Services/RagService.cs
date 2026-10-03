@@ -30,6 +30,9 @@ public class RagService(
     /// <summary>Budget máximo de caracteres do contexto recuperado.</summary>
     public int ContextBudget { get; set; } = 2000;
 
+    /// <summary>Candidatos mantidos do ranking para o rerank/top-K final.</summary>
+    private const int CandidateLimit = 256;
+
     /// <summary>Divide um texto em chunks com sobreposição.</summary>
     /// <param name="text">Texto completo.</param>
     /// <param name="chunkSize">Tamanho máximo por chunk.</param>
@@ -42,17 +45,56 @@ public class RagService(
             return chunks;
         }
 
-        var step = Math.Max(1, chunkSize - overlap);
-        for (var start = 0; start < text.Length; start += step)
+        for (var start = 0; start < text.Length;)
         {
-            var length = Math.Min(chunkSize, text.Length - start);
-            chunks.Add(text.Substring(start, length));
-            if (start + length >= text.Length)
+            var windowEnd = Math.Min(start + chunkSize, text.Length);
+            var end = windowEnd;
+            if (windowEnd < text.Length)
+            {
+                // Prefere cortar no último limite de parágrafo/frase da metade
+                // final da janela — chunks não quebram sentenças no meio.
+                var boundary = LastBoundary(text, start + chunkSize / 2, windowEnd);
+                if (boundary > 0)
+                {
+                    end = boundary;
+                }
+            }
+
+            var chunk = text.Substring(start, end - start).Trim();
+            if (chunk.Length > 0)
+            {
+                chunks.Add(chunk);
+            }
+            if (end >= text.Length)
             {
                 break;
             }
+            // Sempre avança: end ≥ start + chunkSize/2 garante progresso.
+            start = Math.Max(end - overlap, start + 1);
         }
         return chunks;
+    }
+
+    /// <summary>
+    /// Último limite de parágrafo (<c>\n</c>) ou fim de frase (<c>. ! ?</c>
+    /// seguido de espaço) entre <paramref name="min"/> (exclusivo) e
+    /// <paramref name="end"/> (exclusivo); 0 quando não há.
+    /// </summary>
+    private static int LastBoundary(string text, int min, int end)
+    {
+        for (var i = end - 1; i > min; i--)
+        {
+            if (text[i] == '\n')
+            {
+                return i + 1;
+            }
+            if ((text[i] == '.' || text[i] == '!' || text[i] == '?')
+                && i + 1 < text.Length && char.IsWhiteSpace(text[i + 1]))
+            {
+                return i + 1;
+            }
+        }
+        return 0;
     }
 
     /// <summary>
@@ -103,6 +145,7 @@ public class RagService(
                 ChunkIndex = i,
                 Text = chunks[i],
                 EmbeddingJson = JsonSerializer.Serialize(vectors[i]),
+                EmbeddingNorm = L2Norm(vectors[i]),
                 CreatedAt = now,
             });
         }
@@ -180,16 +223,30 @@ public class RagService(
         string userId, float[] queryVector, IReadOnlyList<string>? fileIds,
         CancellationToken ct = default)
     {
-        var scored = new List<(EmbeddingChunk chunk, double score)>();
+        var queryNorm = L2Norm(queryVector);
+        // Min-heap dos CandidateLimit melhores: corpora grandes não
+        // materializam/ordenam a lista inteira.
+        var top = new PriorityQueue<(EmbeddingChunk chunk, double score), double>();
         await foreach (var chunk in ScopedChunks(userId, fileIds).WithCancellation(ct))
         {
             var vector = JsonSerializer.Deserialize<float[]>(chunk.EmbeddingJson);
-            if (vector is { Length: > 0 })
+            if (vector is not { Length: > 0 })
             {
-                scored.Add((chunk, Cosine(queryVector, vector)));
+                continue;
+            }
+            var score = Cosine(queryVector, queryNorm, vector, chunk.EmbeddingNorm);
+            if (top.Count < CandidateLimit)
+            {
+                top.Enqueue((chunk, score), score);
+            }
+            else if (score > top.Peek().score)
+            {
+                top.Dequeue();
+                top.Enqueue((chunk, score), score);
             }
         }
-        return scored.OrderByDescending(s => s.score).ToList();
+        return top.UnorderedItems.Select(i => i.Element)
+            .OrderByDescending(s => s.score).ToList();
     }
 
     /// <summary>
@@ -217,13 +274,24 @@ public class RagService(
         var terms = Tokenize(query);
         var bm25 = Bm25Scores(terms, corpus.Select(c => c.chunk.Text).ToList());
         var weight = Math.Clamp(cfg.HybridWeight, 0, 1);
-        var scored = new List<(EmbeddingChunk chunk, double score)>(corpus.Count);
+        var queryNorm = L2Norm(queryVector);
+        var top = new PriorityQueue<(EmbeddingChunk chunk, double score), double>();
         for (var i = 0; i < corpus.Count; i++)
         {
-            scored.Add((corpus[i].chunk,
-                weight * Cosine(queryVector, corpus[i].vector) + (1 - weight) * bm25[i]));
+            var score = weight * Cosine(queryVector, queryNorm, corpus[i].vector, corpus[i].chunk.EmbeddingNorm)
+                + (1 - weight) * bm25[i];
+            if (top.Count < CandidateLimit)
+            {
+                top.Enqueue((corpus[i].chunk, score), score);
+            }
+            else if (score > top.Peek().score)
+            {
+                top.Dequeue();
+                top.Enqueue((corpus[i].chunk, score), score);
+            }
         }
-        return scored.OrderByDescending(s => s.score).ToList();
+        return top.UnorderedItems.Select(i => i.Element)
+            .OrderByDescending(s => s.score).ToList();
     }
 
     /// <summary>
@@ -381,15 +449,32 @@ public class RagService(
 
     /// <summary>Similaridade de cosseno entre dois vetores.</summary>
     internal static double Cosine(float[] a, float[] b)
+        => Cosine(a, L2Norm(a), b, 0);
+
+    /// <summary>
+    /// Cosseno com normas pré-computadas: <paramref name="normB"/> ≤ 0
+    /// (chunks anteriores à coluna EmbeddingNorm) recalcula em memória.
+    /// </summary>
+    internal static double Cosine(float[] a, double normA, float[] b, double normB)
     {
         var n = Math.Min(a.Length, b.Length);
-        double dot = 0, na = 0, nb = 0;
+        double dot = 0;
         for (var i = 0; i < n; i++)
         {
             dot += a[i] * b[i];
-            na += a[i] * a[i];
-            nb += b[i] * b[i];
         }
-        return na == 0 || nb == 0 ? 0 : dot / (Math.Sqrt(na) * Math.Sqrt(nb));
+        var nb = normB > 0 ? normB : L2Norm(b);
+        return normA == 0 || nb == 0 ? 0 : dot / (normA * nb);
+    }
+
+    /// <summary>Norma L2 do vetor.</summary>
+    internal static double L2Norm(float[] v)
+    {
+        double sum = 0;
+        foreach (var x in v)
+        {
+            sum += x * x;
+        }
+        return Math.Sqrt(sum);
     }
 }
