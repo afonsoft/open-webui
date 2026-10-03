@@ -48,7 +48,7 @@ public class ProviderServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
-        _config = new ConfigService(_db);
+        _config = new ConfigService(_db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         _mockUrl = StartMock();
     }
 
@@ -73,7 +73,10 @@ public class ProviderServiceTests
     }
 
     private ProviderService NewService() =>
-        new(new FakeHttpClientFactory(_clientTimeout), _config, NullLogger<ProviderService>.Instance);
+        new(new FakeHttpClientFactory(_clientTimeout), _config,
+            NullLogger<ProviderService>.Instance,
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>

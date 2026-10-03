@@ -134,7 +134,7 @@ public class GroupAndSsoTests
     public async Task OAuth_VinculaOuCriaUsuario()
     {
         await using var db = CreateContext();
-        var oauth = new OAuthService(db, new ConfigService(db));
+        var oauth = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
 
         var linked = await oauth.LinkOrCreateAsync(
             "github", "gh-42", "user@test.local", "User GH");

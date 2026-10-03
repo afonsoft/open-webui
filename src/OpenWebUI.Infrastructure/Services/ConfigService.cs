@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Application.Contracts;
@@ -7,9 +8,13 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>Armazena e recupera configurações persistidas no banco (tabela chave-valor).</summary>
-public class ConfigService(AppDbContext db)
+public class ConfigService(AppDbContext db, IMemoryCache cache)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    // TTL curto: limita o stale em deployments multi-instância (a escrita
+    // invalida/atualiza só o cache local da instância que escreveu).
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(10);
 
     /// <summary>Obtém uma configuração desserializada ou o valor padrão.</summary>
     /// <typeparam name="T">Tipo do valor.</typeparam>
@@ -17,6 +22,18 @@ public class ConfigService(AppDbContext db)
     /// <param name="defaultValue">Valor usado quando a chave não existe.</param>
     /// <param name="ct">Token de cancelamento.</param>
     public async Task<T> GetAsync<T>(string key, T defaultValue, CancellationToken ct = default)
+    {
+        if (cache.TryGetValue(CacheKey<T>(key), out var hit) && hit is T typed)
+        {
+            return typed;
+        }
+
+        var value = await GetFromDbAsync(key, defaultValue, ct);
+        cache.Set(CacheKey<T>(key), value, CacheTtl);
+        return value;
+    }
+
+    private async Task<T> GetFromDbAsync<T>(string key, T defaultValue, CancellationToken ct)
     {
         var entry = await db.ConfigEntries.AsNoTracking()
             .FirstOrDefaultAsync(e => e.Key == key, ct);
@@ -34,6 +51,8 @@ public class ConfigService(AppDbContext db)
             return defaultValue;
         }
     }
+
+    private static string CacheKey<T>(string key) => $"cfg:{key}:{typeof(T).FullName}";
 
     /// <summary>Grava uma configuração serializada em JSON.</summary>
     /// <typeparam name="T">Tipo do valor.</typeparam>
@@ -60,6 +79,7 @@ public class ConfigService(AppDbContext db)
         }
 
         await db.SaveChangesAsync(ct);
+        cache.Set(CacheKey<T>(key), value, CacheTtl);
     }
 
     /// <summary>Obtém a configuração de conexões com provedores de IA.</summary>

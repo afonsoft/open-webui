@@ -70,15 +70,26 @@ public class RagService(
         }
 
         var chunks = ChunkText(file.ExtractedText, ChunkSize, ChunkOverlap);
-        var vectors = new List<float[]>(chunks.Count);
-        foreach (var chunk in chunks)
+
+        // Batch: uma requisição por provider embeddando todos os chunks de
+        // uma vez (Ollama /api/embed e OpenAI /embeddings aceitam input[]).
+        // Se o provider não atender o batch, cai no modo sequencial.
+        var vectors = await embeddings.EmbedBatchAsync(chunks, ct) is { } batch
+            && batch.Length == chunks.Count
+            ? batch.ToList()
+            : null;
+        if (vectors is null)
         {
-            var vector = await embeddings.EmbedAsync(chunk, ct);
-            if (vector is null)
+            vectors = new List<float[]>(chunks.Count);
+            foreach (var chunk in chunks)
             {
-                return false;
+                var vector = await embeddings.EmbedAsync(chunk, ct);
+                if (vector is null)
+                {
+                    return false;
+                }
+                vectors.Add(vector);
             }
-            vectors.Add(vector);
         }
 
         await RemoveFileChunksAsync(file.Id, ct);
@@ -231,8 +242,8 @@ public class RagService(
         return ranked
             .Select(s =>
             {
-                var text = Tokenize(s.chunk.Text);
-                var coverage = terms.Count(t => text.Contains(t)) / (double)terms.Count;
+                var text = Tokenize(s.chunk.Text).ToHashSet(StringComparer.Ordinal);
+                var coverage = terms.Count(text.Contains) / (double)terms.Count;
                 return (s.chunk, score: s.score + coverage);
             })
             .OrderByDescending(s => s.score)
@@ -332,10 +343,18 @@ public class RagService(
             return scores.ToList();
         }
 
-        var docTerms = documents.Select(Tokenize).ToList();
-        var avgdl = docTerms.Average(d => (double)d.Count);
+        // HashSet por documento — evita re-contar a lista de termos a cada
+        // termo da query (era O(termos × docs × tokens)). Mantém a semântica
+        // original: tf binário (termo presente/ausente) e dl = nº de termos
+        // distintos, pois Tokenize() já faz Distinct().
+        var docTerms = documents
+            .Select(d => Tokenize(d).ToHashSet(StringComparer.Ordinal))
+            .ToList();
+        var docLengths = docTerms.Select(d => (double)d.Count).ToList();
+        var avgdl = docLengths.Average();
         var k1 = 1.5;
         var b = 0.75;
+        const int tf = 1;
 
         foreach (var term in terms)
         {
@@ -347,12 +366,11 @@ public class RagService(
             var idf = Math.Log(1 + (documents.Count - df + 0.5) / (df + 0.5));
             for (var i = 0; i < documents.Count; i++)
             {
-                var tf = docTerms[i].Count(t => t == term);
-                if (tf == 0)
+                if (!docTerms[i].Contains(term))
                 {
                     continue;
                 }
-                var dl = docTerms[i].Count;
+                var dl = docLengths[i];
                 scores[i] += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avgdl));
             }
         }
