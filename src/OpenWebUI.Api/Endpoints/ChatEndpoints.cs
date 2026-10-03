@@ -65,7 +65,9 @@ public static class ChatEndpoints
         AppDbContext db,
         CancellationToken ct,
         string? query = null,
-        bool includeFolders = false)
+        bool includeFolders = false,
+        int skip = 0,
+        int limit = 0)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -92,10 +94,15 @@ public static class ChatEndpoints
                 || c.Messages.Any(m => m.Content.ToLower().Contains(term)));
         }
 
-        var list = await chats
+        var ordered = chats
             .OrderByDescending(c => c.Pinned)
-            .ThenByDescending(c => c.UpdatedAt)
-            .ToListAsync(ct);
+            .ThenByDescending(c => c.UpdatedAt);
+
+        // skip/limit opcionais — sem eles o comportamento original (lista completa)
+        // é preservado para o sidebar, que faz busca/pin client-side.
+        var list = limit > 0
+            ? await ordered.Skip(Math.Max(0, skip)).Take(limit).ToListAsync(ct)
+            : await ordered.ToListAsync(ct);
 
         return Results.Ok(list.Select(ToSummary).ToList());
     }

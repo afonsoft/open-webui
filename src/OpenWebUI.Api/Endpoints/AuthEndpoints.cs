@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
@@ -273,6 +274,7 @@ public static class AuthEndpoints
         HttpContext http,
         AppDbContext db,
         ConfigService config,
+        IMemoryCache cache,
         CancellationToken ct)
     {
         var user = await FindUserAsync(http, db, ct);
@@ -290,7 +292,11 @@ public static class AuthEndpoints
         var key = $"sk-{Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant()}";
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        // Rotação: invalida a identidade cacheada da chave substituída.
+        var oldHashes = await db.ApiKeys.Where(k => k.UserId == user.Id)
+            .Select(k => k.KeyHash).ToListAsync(ct);
         db.ApiKeys.RemoveRange(db.ApiKeys.Where(k => k.UserId == user.Id));
+        ApiKeyAuthCache.Evict(cache, oldHashes);
         db.ApiKeys.Add(new ApiKey
         {
             UserId = user.Id,
@@ -320,7 +326,7 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> DeleteApiKeyAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, IMemoryCache cache, CancellationToken ct)
     {
         var user = await FindUserAsync(http, db, ct);
         if (user is null)
@@ -328,7 +334,10 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
+        var hashes = await db.ApiKeys.Where(k => k.UserId == user.Id)
+            .Select(k => k.KeyHash).ToListAsync(ct);
         await db.ApiKeys.Where(k => k.UserId == user.Id).ExecuteDeleteAsync(ct);
+        ApiKeyAuthCache.Evict(cache, hashes);
         return Results.Ok(new StatusResponse(true));
     }
 
