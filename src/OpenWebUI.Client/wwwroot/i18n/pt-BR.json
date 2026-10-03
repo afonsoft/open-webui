@@ -319,6 +319,8 @@
   "workspace.tool_code_hint": "Defina uma classe Tools cujos métodos são as funções chamáveis (convenção do upstream). Executa no servidor.",
   "admin.search_users": "Buscar por nome ou e-mail…",
   "admin.all_roles": "Todos os papéis",
+  "admin.filter_role": "Filtrar por papel",
+  "admin.sort_by": "Ordenar por",
   "admin.config_general": "Geral",
   "admin.config_models": "Modelos",
   "admin.config_features": "Recursos",

@@ -42,22 +42,46 @@ async function analyze(page, context) {
     const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
     const page = await context.newPage();
     const ctx = name => `${name}@${vp.name}`;
+    page.on('console', m => console.log(`[browser:${m.type()}]`, m.text().slice(0, 200)));
+    page.on('pageerror', e => console.log('[pageerror]', String(e).slice(0, 300)));
+    page.on('requestfailed', r => console.log('[reqfail]', r.url(), r.failure()?.errorText));
+    page.on('response', r => { if (r.status() >= 400) console.log(`[http${r.status()}]`, r.url()); });
 
-    // Tela de auth (sem sessão).
-    await page.goto(BASE, { waitUntil: 'networkidle' });
+    // Tela de auth (sem sessão). O Blazor WASM boota via boot.js
+    // (autostart="false") — networkidle dispara antes da hidratação,
+    // então esperamos o campo de email renderizar de fato.
+    await page.goto(BASE + '/auth', { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    } catch (e) {
+      const html = await page.content();
+      console.log('FORM NÃO RENDERIZOU — title:', await page.title());
+      console.log(html.slice(0, 2000));
+      throw e;
+    }
+    await page.waitForTimeout(1000); // settle pós-hidratação
     all.push(...await analyze(page, ctx('auth')));
 
     // Login real via formulário (admin semeado por ADMIN_EMAIL/ADMIN_PASSWORD).
     // Os <label> da tela de auth não têm `for`/id — seleção por type.
+    // Blazor @bind comita no 'change' (blur): Tab garante o bind antes do submit.
     await page.locator('input[type="email"]').first().fill(EMAIL);
     await page.locator('input[type="password"]').first().fill(PASSWORD);
-    await page.locator('input[type="password"]').first().press('Enter');
-    await page.waitForURL(u => !u.pathname.includes('auth'), { timeout: 30000 });
+    await page.locator('input[type="password"]').first().press('Tab');
+    // CTA é o único botão pill do card (não depende do locale).
+    await page.locator('button.w-full.rounded-full').first().click();
+    // NavigateTo é SPA (history.pushState): waitForURL nunca dispara 'load'
+    // em same-document nav — esperar a URL mudar via waitForFunction.
+    await page.waitForFunction(() => !location.pathname.includes('auth'), null, { timeout: 30000 });
+    await page.waitForSelector('#main-content', { timeout: 60000 });
     await page.waitForLoadState('networkidle');
 
     for (const p of PAGES) {
-      await page.goto(BASE + p.path, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(1500); // WASM hydration
+      // goto é reload completo — o WASM reboota a cada página; esperamos
+      // o shell renderizar (#main-content existe em todas as rotas logadas).
+      await page.goto(BASE + p.path, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#main-content', { timeout: 60000 });
+      await page.waitForTimeout(1500); // settle pós-hidratação
       all.push(...await analyze(page, ctx(p.name)));
     }
     await context.close();
