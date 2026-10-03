@@ -38,7 +38,9 @@ async function analyze(page, context) {
   const all = [];
 
   for (const vp of VIEWPORTS) {
-    const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+    // @axe-core/playwright exige página criada via browser.newContext().
+    const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+    const page = await context.newPage();
     const ctx = name => `${name}@${vp.name}`;
 
     // Tela de auth (sem sessão).
@@ -58,7 +60,7 @@ async function analyze(page, context) {
       await page.waitForTimeout(1500); // WASM hydration
       all.push(...await analyze(page, ctx(p.name)));
     }
-    await page.close();
+    await context.close();
   }
 
   await browser.close();

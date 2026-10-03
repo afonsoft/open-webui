@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
+using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -236,6 +237,66 @@ public class RagEdgeTests
         {
             Assert.That(await db.EmbeddingChunks.CountAsync(), Is.EqualTo(1));
             Assert.That(await db.EmbeddingChunks.SingleAsync(), Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public void L2Norm_ECosine_VetoresConhecidos()
+    {
+        // [3,4] tem norma 5; cosseno de [1,0] x [0,1] é 0 (ortogonais)
+        // e de [1,0] x [1,0] é 1 (idênticos).
+        Assert.Multiple(() =>
+        {
+            Assert.That(RagService.L2Norm([3f, 4f]), Is.EqualTo(5.0).Within(1e-6));
+            Assert.That(RagService.Cosine([1f, 0f], [0f, 1f]), Is.EqualTo(0).Within(1e-6));
+            Assert.That(RagService.Cosine([1f, 0f], [1f, 0f]), Is.EqualTo(1).Within(1e-6));
+            // Norma 0 (query/chunk degenerado) devolve 0 em vez de NaN.
+            Assert.That(RagService.Cosine([0f, 0f], [1f, 0f]), Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public async Task VectorRank_NormaPersistidaEFallback_LegadoSemNorma()
+    {
+        await using var db = await CreateContextAsync();
+        var rag = NewRag(db);
+        // Chunk legado sem norma (0): cai no cálculo em memória via L2Norm(b).
+        db.EmbeddingChunks.Add(NewChunk("f1", "legado", "[0.0,1.0]"));
+        // Chunk novo com norma persistida — deve vir primeiro no ranking.
+        var novo = NewChunk("f1", "novo", "[1.0,0.0]");
+        novo.EmbeddingNorm = 1.0;
+        db.EmbeddingChunks.Add(novo);
+        await db.SaveChangesAsync();
+
+        var ranked = await rag.VectorRankAsync("u1", [1f, 0f], null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ranked, Has.Count.EqualTo(2));
+            Assert.That(ranked[0].chunk.Text, Is.EqualTo("novo"));
+            Assert.That(ranked[0].score, Is.GreaterThan(ranked[1].score));
+        });
+    }
+
+    [Test]
+    public async Task HybridRank_CombinaCossenoEBm25()
+    {
+        await using var db = await CreateContextAsync();
+        var rag = NewRag(db);
+        var proximo = NewChunk("f1", "pagamento boleto pix", "[1.0,0.0]");
+        proximo.EmbeddingNorm = 1.0;
+        db.EmbeddingChunks.Add(proximo);
+        db.EmbeddingChunks.Add(NewChunk("f1", "receita de bolo", "[0.0,1.0]"));
+        await db.SaveChangesAsync();
+
+        var ranked = await rag.HybridRankAsync(
+            "u1", "pagamento boleto", [1f, 0f], null,
+            RetrievalConfig.Default with { HybridWeight = 0.5 });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ranked, Has.Count.EqualTo(2));
+            Assert.That(ranked[0].chunk.Text, Does.Contain("pagamento"));
         });
     }
 
