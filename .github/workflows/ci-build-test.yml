@@ -83,28 +83,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Run All Tests
-        run: dotnet test ${{ env.SOLUTION }} --configuration Release --verbosity minimal --logger "trx;LogFileName=tests.trx"
+      # Única passada: testes + cobertura juntos (coverlet.collector está nos
+      # dois projetos de teste; o runsettings exclui Client/migrations do
+      # denominador). Antes eram 2 rodadas de teste — ~2min economizados.
+      - name: Run All Tests + Coverage
+        run: dotnet test ${{ env.SOLUTION }} --configuration Release --verbosity minimal --logger "trx;LogFileName=tests.trx" --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
 
-      - name: Collect Coverage
-        run: dotnet test tests/OpenWebUI.Api.Tests/OpenWebUI.Api.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-
-      # Gate de cobertura: o piso vive em .ci/coverage-baseline.txt — baseline
-      # commitada, não hardcoded. PRs comparam contra ela; o job
-      # coverage-ratchet sobe o baseline automaticamente quando a cobertura
+      # Gate de cobertura: o piso vive em .ci/coverage-baseline.txt (linha) e
+      # .ci/coverage-branch-baseline.txt (branch) — baselines commitadas, não
+      # hardcoded. O job coverage-ratchet sobe os baselines quando a cobertura
       # medida na main melhora (ratchet, nunca desce).
-      - name: Coverage Gate
+      - name: Coverage Gate + Summary
         run: |
-          XML=$(ls -t TestResults/*/coverage.cobertura.xml 2>/dev/null | head -1)
+          # Api.Tests e Client.Tests emitem um cobertura.xml cada — o do gate é
+          # o que contém OpenWebUI.Infrastructure (Client é excluído via
+          # runsettings, seu XML não tem esse pacote).
+          XML=$(find TestResults -name coverage.cobertura.xml -exec grep -l 'OpenWebUI.Infrastructure' {} \; | head -1)
           if [ -z "$XML" ]; then echo "::error::coverage.cobertura.xml not found"; exit 1; fi
-          RATE=$(python3 -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('$XML').getroot().get('line-rate'))*100, 2))")
-          BASELINE=$(cat .ci/coverage-baseline.txt 2>/dev/null || echo "0")
-          echo "Line coverage: ${RATE}% (baseline ${BASELINE}%)"
-          if python3 -c "import sys; sys.exit(0 if float('$RATE') >= float('$BASELINE') else 1)"; then
-            echo "Coverage gate passed."
-          else
-            echo "::error::Coverage ${RATE}% < baseline ${BASELINE}%"; exit 1
-          fi
+          python3 - "$XML" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          r = ET.parse(sys.argv[1]).getroot()
+          line, branch = float(r.get('line-rate'))*100, float(r.get('branch-rate'))*100
+          print(f"Line coverage: {line:.2f}%  Branch coverage: {branch:.2f}%")
+          with open('.ci/coverage-baseline.txt') as f: lb = float(f.read().strip() or 0)
+          import os
+          bb = float(open('.ci/coverage-branch-baseline.txt').read().strip() or 0) if os.path.exists('.ci/coverage-branch-baseline.txt') else 0.0
+          # resumo por projeto no step summary
+          rows = ["", "## 📈 Cobertura", "", "| Projeto | Linha | Branch |", "|---|---|---|"]
+          for p in r.iter('package'):
+              n = p.get('name') or ''
+              if 'Tests' in n: continue
+              rows.append(f"| {n} | {float(p.get('line-rate'))*100:.1f}% | {float(p.get('branch-rate'))*100:.1f}% |")
+          rows.append(f"| **Total** | **{line:.1f}%** | **{branch:.1f}%** |")
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f: f.write('\n'.join(rows)+'\n')
+          ok = True
+          if line < lb: print(f"::error::Line coverage {line:.2f}% < baseline {lb}%"); ok = False
+          if branch < bb: print(f"::error::Branch coverage {branch:.2f}% < baseline {bb}%"); ok = False
+          sys.exit(0 if ok else 1)
+          PY
+          echo "Coverage gate passed (line + branch)."
 
       - name: Upload Test Results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
@@ -172,10 +189,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
 
+      - name: Cache Tailwind CLI
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
+        with:
+          path: /tmp/tailwindcss
+          key: tailwindcss-v4.3.3-linux-x64
+
       - name: Install Tailwind CLI (standalone)
         run: |
           # Versão pinada — output de `latest` diverge do artefato commitado.
-          curl -sSL -o /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64
+          [ -x /tmp/tailwindcss ] || curl -sSL -o /tmp/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64
           chmod +x /tmp/tailwindcss
           /tmp/tailwindcss --help | head -1
 
@@ -237,18 +260,31 @@ jobs:
 
       - name: Raise Baseline When Improved
         run: |
-          XML=$(find . -name "coverage.cobertura.xml" | head -1)
+          XML=$(find . -name coverage.cobertura.xml -exec grep -l 'OpenWebUI.Infrastructure' {} \; | head -1)
           if [ -z "$XML" ]; then echo "coverage xml not found — skipping ratchet"; exit 0; fi
-          RATE=$(python3 -c "import xml.etree.ElementTree as ET; print(round(float(ET.parse('$XML').getroot().get('line-rate'))*100, 2))")
-          BASELINE=$(cat .ci/coverage-baseline.txt 2>/dev/null || echo "0")
-          echo "measured ${RATE}% vs baseline ${BASELINE}%"
-          if python3 -c "import sys; sys.exit(0 if float('$RATE') > float('$BASELINE') else 1)"; then
-            echo "$RATE" > .ci/coverage-baseline.txt
+          # Marcador em arquivo — `set -e` do runner mataria o step num exit 1
+          # do python antes do `if`, então o sinal de "melhorou" sai via /tmp.
+          rm -f /tmp/raise-baseline
+          python3 - "$XML" <<'PY'
+          import sys, os, xml.etree.ElementTree as ET
+          r = ET.parse(sys.argv[1]).getroot()
+          pairs = [('.ci/coverage-baseline.txt', float(r.get('line-rate'))*100),
+                   ('.ci/coverage-branch-baseline.txt', float(r.get('branch-rate'))*100)]
+          changed = False
+          for f, rate in pairs:
+              old = float(open(f).read().strip() or 0) if os.path.exists(f) else 0.0
+              print(f"{f}: measured {rate:.2f}% vs baseline {old}%")
+              if rate > old:
+                  open(f, 'w').write(f"{rate:.2f}\n")
+                  changed = True
+          if changed: open('/tmp/raise-baseline', 'w').close()
+          PY
+          if [ -f /tmp/raise-baseline ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .ci/coverage-baseline.txt
-            git commit -m "chore(ci): raise coverage baseline to ${RATE}% [skip ci]"
+            git add .ci/coverage-baseline.txt .ci/coverage-branch-baseline.txt
+            git commit -m "chore(ci): raise coverage baselines [skip ci]"
             git push
           else
-            echo "coverage did not improve — baseline unchanged"
+            echo "coverage did not improve — baselines unchanged"
           fi
