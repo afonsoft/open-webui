@@ -8,14 +8,17 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="Code">Fonte Python da tool (class Tools), quando definida.</param>
 /// <param name="Enabled">Se está habilitada.</param>
 /// <param name="CreatedAt">Criação (epoch seconds).</param>
+/// <param name="Source">Origem: <c>user</c> (workspace) ou <c>mcp</c> (virtual, gerida na aba MCP do Admin).</param>
 public sealed record ToolResponse(
     string Id,
     string Name,
     string? Description,
     string SpecJson,
     string? Code,
+    string? Url,
     bool Enabled,
-    long CreatedAt);
+    long CreatedAt,
+    string Source = "user");
 
 /// <summary>Criação/atualização de tool.</summary>
 /// <param name="Name">Nome.</param>

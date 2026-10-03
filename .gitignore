@@ -28,4 +28,5 @@ Thumbs.db
 
 # Coverage/test artifacts
 TestResults/
-node_modules/ # a11y audit deps
+# a11y audit deps
+node_modules/

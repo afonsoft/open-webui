@@ -221,6 +221,35 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> DeleteToolAsync(string id) =>
         await SendStatusAsync(HttpMethod.Delete, $"/api/v1/tools/{id}");
 
+    // ---------------- MCP servers (admin) ----------------
+
+    /// <summary>Lista servidores MCP registrados (headers mascarados).</summary>
+    public async Task<List<McpServerResponse>> GetMcpServersAsync() =>
+        await SendAsync<List<McpServerResponse>>(HttpMethod.Get, "/api/v1/mcp/servers/") ?? [];
+
+    /// <summary>Registra um servidor MCP.</summary>
+    public Task<McpServerResponse?> CreateMcpServerAsync(McpServerUpsertRequest request) =>
+        SendAsync<McpServerResponse>(HttpMethod.Post, "/api/v1/mcp/servers/", request);
+
+    /// <summary>Atualiza um servidor MCP.</summary>
+    public Task<McpServerResponse?> UpdateMcpServerAsync(string id, McpServerUpsertRequest request) =>
+        SendAsync<McpServerResponse>(HttpMethod.Put, $"/api/v1/mcp/servers/{id}", request);
+
+    /// <summary>Remove um servidor MCP (e suas tools virtuais).</summary>
+    public async Task<bool> DeleteMcpServerAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Delete, $"/api/v1/mcp/servers/{id}");
+
+    /// <summary>Re-descobre as tools do servidor (tools/list).</summary>
+    public async Task<int> RefreshMcpServerAsync(string id)
+    {
+        var result = await SendAsync<JsonNode>(HttpMethod.Post, $"/api/v1/mcp/servers/{id}/refresh", null);
+        return result?["tools"]?.GetValue<int>() ?? -1;
+    }
+
+    /// <summary>Lista as tools descobertas de um servidor.</summary>
+    public async Task<List<McpToolResponse>> GetMcpToolsAsync(string serverId) =>
+        await SendAsync<List<McpToolResponse>>(HttpMethod.Get, $"/api/v1/mcp/servers/{serverId}/tools") ?? [];
+
     // ---------------- Prompts ----------------
 
     /// <summary>Lista prompts do usuário.</summary>

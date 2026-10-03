@@ -104,6 +104,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Servidores de pipelines externos.</summary>
     public DbSet<PipelineServer> PipelineServers => Set<PipelineServer>();
 
+    /// <summary>Servidores MCP registrados pelo admin.</summary>
+    public DbSet<McpServer> McpServers => Set<McpServer>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -273,6 +276,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(t => t.User)
                 .WithMany()
                 .HasForeignKey(t => t.UserId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
