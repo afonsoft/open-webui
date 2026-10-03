@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
@@ -106,7 +107,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 
+// JSON das APIs (listas de chats, configs, i18n) é o payload que mais se repete;
+// os assets WASM já são servidos comprimidos pelo MapStaticAssets.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
 var app = builder.Build();
+
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {
@@ -171,30 +181,49 @@ app.Use(async (context, next) =>
     {
         var key = header["Bearer ".Length..].Trim();
         var hash = AuthEndpoints.HashApiKey(key);
-        using var scope = context.RequestServices.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var configService = scope.ServiceProvider.GetRequiredService<ConfigService>();
-        var adminConfig = await configService.GetAdminConfigAsync();
-        if (adminConfig.EnableApiKeys)
+        var memoryCache = context.RequestServices.GetRequiredService<IMemoryCache>();
+        // Flag lida fora do cache (ConfigService já cacheia) para que desligar
+        // API keys passe a valer imediatamente para chaves já resolvidas.
+        using (var flagScope = context.RequestServices.CreateScope())
         {
-            var apiKey = await db.ApiKeys.AsNoTracking()
-                .FirstOrDefaultAsync(k => k.KeyHash == hash);
-            if (apiKey is not null)
+            var flagConfig = flagScope.ServiceProvider.GetRequiredService<ConfigService>();
+            var flagAdmin = await flagConfig.GetAdminConfigAsync();
+            if (!flagAdmin.EnableApiKeys)
             {
-                var user = await db.Users.AsNoTracking()
-                    .FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
-                if (user is not null && user.Role != UserRoles.Pending)
-                {
-                    var identity = new ClaimsIdentity(
-                    [
-                        new Claim(ClaimTypes.NameIdentifier, user.Id),
-                        new Claim(ClaimTypes.Name, user.Name),
-                        new Claim(ClaimTypes.Email, user.Email),
-                        new Claim(ClaimTypes.Role, user.Role),
-                    ], "ApiKey");
-                    context.User = new ClaimsPrincipal(identity);
-                }
+                await next();
+                return;
             }
+        }
+        // Cache de 2min: evita escopo DI + 2 queries ao SQLite por request.
+        // Revogação/rotação evicta explicitamente em AuthEndpoints; o TTL curto
+        // cobre mudanças de role (admin rebaixa usuário) fora desse caminho.
+        var identity = await memoryCache.GetOrCreateAsync(
+            ApiKeyAuthCache.CacheKey(hash),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = ApiKeyAuthCache.Ttl;
+                using var scope = context.RequestServices.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var apiKey = await db.ApiKeys.AsNoTracking()
+                    .FirstOrDefaultAsync(k => k.KeyHash == hash);
+                var user = apiKey is null
+                    ? null
+                    : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
+                if (user is null || user.Role == UserRoles.Pending)
+                {
+                    return null;
+                }
+                return new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim(ClaimTypes.Name, user.Name),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role),
+                ], "ApiKey");
+            });
+        if (identity is not null)
+        {
+            context.User = new ClaimsPrincipal(identity);
         }
     }
 

@@ -57,7 +57,6 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 | `notifications` (7 eps) | Webhooks user/global, eventos (`user.pending`, `user.approved`, `automation.failed`), HMAC `X-Webhook-Signature`, `/test`, campo em Settings |
 | `automations` | Agendas (interval/daily/weekly UTC) + runs + run-now + visão calendário |
 | `calendar` | Calendários reais (CRUD) + events + access grants |
-| Multi-instância | `DATABASE_PROVIDER=postgresql`, `REDIS_URL` backplane SignalR, `IFileStorage` local/S3, `/health` enriquecido |
 | OAuth/OIDC + LDAP | Google/GitHub/Microsoft/OIDC + bind LDAP (slice auth-sso-rbac) |
 | SAML 2.0 | SP-initiated (HTTP-POST): metadata, login redirect, ACS com validação de assinatura/issuer/audience + JIT user (slice enterprise-sso) |
 | `scim` | Users CRUD + Groups + ServiceProviderConfig + filtro `userName eq`, token dedicado (`scim.token`), `active=false` → desativa |
@@ -70,6 +69,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 |---|---|---|
 | `tools` (15 eps) | Tools HTTP com loop server-side | Tools/functions em código arbitrário — decisão do plugin-ecosystem: .NET não executa código do usuário; filters são declarativos |
 | `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local / PTY no host — decisão documentada: só proxy externo |
+| Multi-instância | Não implementado — persistência única em SQLite (`data/openwebui.db`), uploads em disco local e SignalR sem backplane (presença/notas colab em memória, single-instance) | `DATABASE_PROVIDER` (Postgres), `REDIS_URL` (backplane), `IFileStorage` S3 e `/health` de orquestração — dependem de decisão de roadmap, não existem no código |
 
 ### Fase 3 entregue (Epic #79)
 
