@@ -65,7 +65,10 @@ jobs:
           ADMIN_PASSWORD: ci-admin-password-123
           ADMIN_NAME: CI Admin
         run: |
-          nohup dotnet ./app-out/OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
+          # content root = app-out: rodar fora dele deixa wwwroot/_framework
+          # inacessível (rotas SPA devolvem 404 — só /health responde).
+          cd app-out
+          nohup dotnet OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
           for i in $(seq 1 90); do
             curl -sf http://127.0.0.1:5099/health > /dev/null && exit 0
             sleep 1
