@@ -17,6 +17,8 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenWebUI.Domain\OpenWebUI.Domain.csproj" />
     <ProjectReference Include="..\OpenWebUI.Application\OpenWebUI.Application.csproj" />
+    <!-- Expõe helpers internos (ex.: RagService.Cosine/L2Norm) aos testes. -->
+    <InternalsVisibleTo Include="OpenWebUI.Api.Tests" />
   </ItemGroup>
 
 </Project>

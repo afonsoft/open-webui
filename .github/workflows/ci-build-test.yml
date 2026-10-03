@@ -180,10 +180,11 @@ jobs:
           /tmp/tailwindcss --help | head -1
 
       - name: Regenerate and diff
+        # Deve rodar da raiz do repo (comando documentado em CLAUDE.md):
+        # rodando de src/OpenWebUI.Client o output do CLI diverge do commitado.
         run: |
-          cd src/OpenWebUI.Client
-          /tmp/tailwindcss -i tailwind.input.css -o wwwroot/css/tailwind.css --minify
-          cd "$GITHUB_WORKSPACE"
+          /tmp/tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
+            -o src/OpenWebUI.Client/wwwroot/css/tailwind.css --minify
           if ! git diff --exit-code -- src/OpenWebUI.Client/wwwroot/css/tailwind.css; then
             echo "::error::wwwroot/css/tailwind.css desatualizado — regenere com o comando acima e commite junto"
             exit 1
