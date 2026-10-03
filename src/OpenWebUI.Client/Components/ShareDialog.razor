@@ -3,7 +3,7 @@
 
 @* Seção "Compartilhar" — grants de acesso (usuário/grupo/todos, read|write) de um recurso. *@
 <div class="card-list">
-    <div class="card-row" style="cursor:pointer" @onclick="ToggleAsync">
+    <button type="button" class="card-row w-full text-left cursor-pointer" aria-expanded="@_open" @onclick="ToggleAsync">
         <div class="card-main">
             <div class="card-title">@L["share.title"]</div>
             <div class="card-sub">
@@ -17,8 +17,8 @@
                 }
             </div>
         </div>
-        <div class="card-actions text-gray-500">@(_open ? "▲" : "▼")</div>
-    </div>
+        <div class="card-actions text-gray-500" aria-hidden="true">@(_open ? "▲" : "▼")</div>
+    </button>
 
     @if (_open)
     {

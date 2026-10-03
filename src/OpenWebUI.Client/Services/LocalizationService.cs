@@ -102,6 +102,18 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
         var lang = Languages.Any(l => l.Code == language) ? language! : DefaultLanguage;
         _active = lang == DefaultLanguage ? _fallbackPt : await LoadAsync(lang);
         Language = lang;
+        try
+        {
+            // Mantém <html lang> consistente com o idioma ativo (leitores de tela).
+            await js.InvokeVoidAsync("openwebui.setLang", lang);
+        }
+        catch (JSException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+            // JS ainda indisponível durante o prerender.
+        }
     }
 
     /// <summary>Manifesto de locales: atualiza <see cref="Languages"/> dinamicamente;

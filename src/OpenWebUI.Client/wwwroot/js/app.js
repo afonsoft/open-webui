@@ -46,5 +46,40 @@ window.openwebui = {
 		};
 		window.addEventListener('message', handler, false);
 		return true;
+	},
+	setLang: function (lang) {
+		document.documentElement.lang = lang || 'pt-BR';
+	},
+	// Trap de foco para modais acessíveis: foca o primeiro interativo e faz
+	// Tab/Shift+Tab circular dentro do elemento (Escape fica no .razor).
+	trapFocus: function (element) {
+		if (!element) return;
+		const selector = 'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])';
+		const focusables = function () {
+			return Array.prototype.filter.call(
+				element.querySelectorAll(selector),
+				function (el) { return !el.disabled && el.offsetParent !== null; });
+		};
+		element._openwebuiTrap = function (e) {
+			if (e.key !== 'Tab') return;
+			const f = focusables();
+			if (!f.length) return;
+			if (e.shiftKey && document.activeElement === f[0]) {
+				f[f.length - 1].focus();
+				e.preventDefault();
+			} else if (!e.shiftKey && document.activeElement === f[f.length - 1]) {
+				f[0].focus();
+				e.preventDefault();
+			}
+		};
+		element.addEventListener('keydown', element._openwebuiTrap);
+		const first = focusables()[0];
+		if (first) first.focus();
+	},
+	releaseFocus: function (element) {
+		if (element && element._openwebuiTrap) {
+			element.removeEventListener('keydown', element._openwebuiTrap);
+			element._openwebuiTrap = null;
+		}
 	}
 };

@@ -480,5 +480,7 @@
   "admin.engine_provider": "provider (registered connection)",
   "admin.select_provider": "Select connection…",
   "chat.web_search": "Web search",
-  "chat.tools_features": "Features"
+  "chat.tools_features": "Features",
+  "common.skip_to_content": "Skip to content",
+  "common.close": "Close"
 }

@@ -7,11 +7,21 @@
 
 @if (_ready)
 {
+    <a class="skip-link" href="#main-content">@L["common.skip_to_content"]</a>
     <div class="text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-900 h-screen max-h-[100dvh] overflow-hidden flex flex-row">
-        <Sidebar OnOpenSettings="OpenSettings" />
+        <Sidebar OnOpenSettings="OpenSettings" MobileOpen="_mobileMenu" OnCloseMobile="CloseMobileMenu" />
         <div class="flex-1 min-w-0 flex flex-col h-screen max-h-[100dvh]">
+            @* Barra superior mobile: hamburger abre a sidebar como gaveta (upstream) *@
+            <div class="md:hidden flex items-center gap-1 h-11 px-2 shrink-0 border-b border-gray-50 dark:border-gray-850/30">
+                <button class="flex size-9 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        aria-label="@L["sidebar.expand"]" aria-expanded="@_mobileMenu"
+                        @onclick="() => _mobileMenu = true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                </button>
+                <span class="text-sm font-normal text-gray-700 dark:text-gray-200">Open WebUI</span>
+            </div>
             <BannerBar />
-            <main id="main-content" class="contents">
+            <main id="main-content" class="contents" tabindex="-1">
                 @Body
             </main>
         </div>
@@ -22,6 +32,7 @@
 @code {
     private bool _ready;
     private bool _settingsOpen;
+    private bool _mobileMenu;
 
     protected override async Task OnInitializedAsync()
     {
@@ -54,4 +65,5 @@
 
     private void OpenSettings() => _settingsOpen = true;
     private void CloseSettings() => _settingsOpen = false;
+    private void CloseMobileMenu() => _mobileMenu = false;
 }

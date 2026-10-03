@@ -44,7 +44,7 @@
                         <div class="card-sub">Base: @model.BaseModelId</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" title="@L["workspace.share_community"]"
+                        <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("model", model)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/models/{model.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
@@ -124,7 +124,7 @@
                             @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
                         </button>
                         <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">@L["workspace.add_file"]</button>
-                        <button class="msg-action" title="@L["workspace.reindex"]"
+                        <button class="msg-action" title="@L["workspace.reindex"]" aria-label="@L["workspace.reindex"]"
                                 @onclick="() => ReindexKnowledgeAsync(item)">↻</button>
                         <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
                         <input type="checkbox" class="ml-1 cursor-pointer"
@@ -153,7 +153,7 @@
                         <div class="card-sub">@tool.Description</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" title="@L["workspace.share_community"]"
+                        <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("tool", tool)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/tools/{tool.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
@@ -222,7 +222,7 @@
                         <div class="card-sub card-pre">@prompt.Content</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" title="@L["workspace.share_community"]"
+                        <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
                         <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>

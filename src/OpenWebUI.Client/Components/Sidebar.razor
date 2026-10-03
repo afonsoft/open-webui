@@ -6,19 +6,26 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
+@* Mobile: backdrop fecha a gaveta (overlay abaixo do md) *@
+@if (MobileOpen)
+{
+    <div class="fixed inset-0 z-40 bg-gray-950/50 md:hidden" aria-hidden="true"
+         @onclick="CloseMobile"></div>
+}
+
 @if (_collapsed)
 {
     @* Rail fina quando a sidebar está recolhida, como no upstream *@
-    <div class="w-[42px] shrink-0 py-1 px-1 flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
+    <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
         <div class="flex flex-col flex-1 items-center">
-            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" @onclick="NewChat">
+            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" aria-label="@L["sidebar.new_chat"]" @onclick="NewChat">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
             </button>
         </div>
         <div class="flex justify-center items-center">
-            <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
+            <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="@L["sidebar.expand"]" aria-label="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </div>
@@ -28,7 +35,10 @@
 }
 else
 {
-    <div class="my-auto flex flex-col justify-between h-screen max-h-[100dvh] w-[260px] shrink-0 overflow-x-hidden scrollbar-hidden z-50 border-e border-gray-50 dark:border-gray-850/30">
+    @* Mobile: gaveta fixa que desliza; desktop: coluna estática *@
+    <div class="my-auto flex flex-col justify-between h-screen max-h-[100dvh] w-[260px] shrink-0 overflow-x-hidden scrollbar-hidden z-50 border-e border-gray-50 dark:border-gray-850/30
+                fixed inset-y-0 left-0 transition-transform duration-200 @(MobileOpen ? "translate-x-0" : "-translate-x-full") md:static md:translate-x-0 md:z-10"
+         @onkeydown="OnKeyDown">
         <div class="px-1 pt-1.5 pb-1 flex justify-between space-x-1 text-gray-600 dark:text-gray-400 sticky top-0 z-10 -mb-2">
             <button class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" @onclick="NewChat" aria-label="@L["sidebar.new_chat"]">
                 <img src="favicon.png" class="size-5 rounded-full" alt="" />
@@ -38,9 +48,13 @@ else
                 <div class="self-center font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
             </button>
 
-            <button class="flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
-                    title="@L["sidebar.collapse"]" @onclick="() => _collapsed = true">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            <button class="hidden md:flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
+                    title="@L["sidebar.collapse"]" aria-label="@L["sidebar.collapse"]" @onclick="() => _collapsed = true">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            </button>
+            <button class="flex md:hidden size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                    aria-label="@L["sidebar.collapse"]" @onclick="CloseMobile">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
             </button>
         </div>
 
@@ -77,9 +91,9 @@ else
                         <span>@L["sidebar.channels"]</span>
                         <span>
                             <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                    title="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
+                                    title="@L["sidebar.new_dm"]" aria-label="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
                             <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                    title="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
+                                    title="@L["sidebar.create_channel"]" aria-label="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
                         </span>
                     </div>
                     <div class="flex flex-col">
@@ -276,10 +290,13 @@ else
 @if (_shareUrl is not null)
 {
     <div class="fixed inset-0 z-50 bg-gray-900/40 dark:bg-gray-950/60 flex items-center justify-center" @onclick="() => _shareUrl = null">
-        <div class="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl p-5" @onclick:stopPropagation>
+        <div class="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl p-5"
+             role="dialog" aria-modal="true" aria-label="@L["sidebar.share_title"]" tabindex="-1"
+             @ref="_shareDialog" @onkeydown="OnShareKeyDown" @onclick:stopPropagation>
             <div class="flex items-center justify-between mb-3">
                 <span class="text-base font-medium text-gray-800 dark:text-gray-100">@L["sidebar.share_title"]</span>
-                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer" @onclick="() => _shareUrl = null">×</button>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                        aria-label="@L["common.close"]" @onclick="() => _shareUrl = null">×</button>
             </div>
             <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">@L["sidebar.public_link"]</label>
             <input class="w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100"
@@ -295,6 +312,12 @@ else
 @code {
     /// <summary>Disparado quando o usuário abre as configurações.</summary>
     [Parameter] public EventCallback OnOpenSettings { get; set; }
+
+    /// <summary>Gaveta mobile aberta (controlada pelo layout).</summary>
+    [Parameter] public bool MobileOpen { get; set; }
+
+    /// <summary>Disparado quando a gaveta mobile deve fechar (backdrop, Escape, navegação).</summary>
+    [Parameter] public EventCallback OnCloseMobile { get; set; }
 
     private List<ChatSummaryResponse> _chats = [];
     private List<ChatSummaryResponse> _pinned = [];
@@ -326,8 +349,49 @@ else
         await LoadAsync();
     }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (MobileOpen)
+        {
+            _ = OnCloseMobile.InvokeAsync();
+        }
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseMobile() => _ = OnCloseMobile.InvokeAsync();
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && MobileOpen)
+        {
+            CloseMobile();
+        }
+    }
+
+    private ElementReference _shareDialog;
+    private bool _shareFocusTrapped;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shareUrl is not null && !_shareFocusTrapped)
+        {
+            _shareFocusTrapped = true;
+            await JS.InvokeVoidAsync("openwebui.trapFocus", _shareDialog);
+        }
+        else if (_shareUrl is null && _shareFocusTrapped)
+        {
+            _shareFocusTrapped = false;
+            await JS.InvokeVoidAsync("openwebui.releaseFocus", _shareDialog);
+        }
+    }
+
+    private void OnShareKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _shareUrl = null;
+        }
+    }
 
     private async void OnChatsChanged()
     {
@@ -393,7 +457,7 @@ else
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
                            @(current ? "flex" : "hidden group-hover:flex")"
-                    title="@L["sidebar.options"]" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
             </button>
         </div>

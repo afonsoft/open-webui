@@ -90,7 +90,7 @@
                                 }
                                 @if (user.Id != Auth.CurrentUser?.Id)
                                 {
-                                    <button class="msg-action" title="@L["admin.perms"]"
+                                    <button class="msg-action" title="@L["admin.perms"]" aria-label="@L["admin.perms"]"
                                             @onclick="() => TogglePermEditorAsync(user)">🛡</button>
                                     <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
                                 }
@@ -251,8 +251,8 @@
             }
             else
             {
-                <div class="card-list">
-                    <div class="grid grid-cols-[1fr_1fr_80px_1fr_110px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <div class="card-list overflow-x-auto">
+                    <div class="grid grid-cols-[1fr_1fr_80px_1fr_110px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 min-w-[540px]">
                         <span>@L["admin.col_user"]</span>
                         <span>@L["admin.col_model"]</span>
                         <span>@L["admin.col_rating"]</span>
@@ -261,7 +261,7 @@
                     </div>
                     @foreach (var fb in PagedFeedbacks)
                     {
-                        <div class="card-row">
+                        <div class="card-row min-w-[540px]">
                             <div class="grid grid-cols-[1fr_1fr_80px_1fr_110px] gap-2 w-full text-sm">
                                 <span class="truncate">@fb.UserName</span>
                                 <span class="truncate text-gray-500">@(fb.ModelId ?? "—")</span>
@@ -294,8 +294,8 @@
             }
             else
             {
-                <div class="card-list">
-                    <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <div class="card-list overflow-x-auto">
+                    <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 min-w-[420px]">
                         <span>@L["admin.col_model"]</span>
                         <span>@L["admin.col_rating_elo"]</span>
                         <span>@L["admin.col_battles"]</span>
@@ -303,7 +303,7 @@
                     </div>
                     @foreach (var entry in _leaderboard)
                     {
-                        <div class="card-row">
+                        <div class="card-row min-w-[420px]">
                             <div class="grid grid-cols-[1fr_100px_100px_100px] gap-2 w-full text-sm">
                                 <span class="truncate">@entry.ModelId</span>
                                 <span>@entry.Rating.ToString("F0")</span>
@@ -874,7 +874,7 @@
                             </div>
                             <div class="card-actions">
                                 <button class="msg-action" @onclick="() => AddMemberAsync(group)">@L["admin.add_member"]</button>
-                                <button class="msg-action" title="@L["admin.group_domains"]"
+                                <button class="msg-action" title="@L["admin.group_domains"]" aria-label="@L["admin.group_domains"]"
                                         @onclick="() => EditDomainsAsync(group)">🌐</button>
                                 <button class="msg-action" @onclick="() => ToggleSharingAsync(group)">
                                     @(group.Permissions.Sharing?.PublicChats == false ? L["admin.allow_share"] : L["admin.block_share"])
