@@ -14,7 +14,8 @@ namespace OpenWebUI.Infrastructure.Services;
 public class ToolExecutor(
     AppDbContext db,
     IHttpClientFactory httpClientFactory,
-    PythonToolExecutor pythonExecutor)
+    PythonToolExecutor pythonExecutor,
+    McpClientService mcp)
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private const int MaxOutputChars = 4000;
@@ -31,7 +32,8 @@ public class ToolExecutor(
             return [];
         }
         return await db.Tools.AsNoTracking()
-            .Where(t => toolIds.Contains(t.Id) && t.Enabled && t.UserId == userId)
+            .Where(t => toolIds.Contains(t.Id) && t.Enabled
+                && (t.UserId == userId || t.Url.StartsWith(McpClientService.VirtualUrlPrefix)))
             .ToListAsync(ct);
     }
 
@@ -58,6 +60,15 @@ public class ToolExecutor(
             return await pythonExecutor.ExecuteAsync(tool, functionName, argumentsJson, ct);
         }
 
+        if (McpClientService.ParseVirtualUrl(tool.Url) is { } mcpTarget)
+        {
+            var server = await db.McpServers.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == mcpTarget.ServerId, ct);
+            return server is null
+                ? $"Erro: servidor MCP da tool '{functionName}' não existe mais."
+                : await mcp.CallToolAsync(server, mcpTarget.ToolName, argumentsJson, ct);
+        }
+
         try
         {
             using var http = httpClientFactory.CreateClient();
@@ -80,7 +91,7 @@ public class ToolExecutor(
     }
 
     /// <summary>Extrai o nome da função do spec da tool.</summary>
-    internal static string? FunctionName(Tool tool)
+    public static string? FunctionName(Tool tool)
     {
         try
         {

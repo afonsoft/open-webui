@@ -400,7 +400,8 @@
                 _knowledgeDetail = null;
             }
         }
-        _tools = await Api.GetToolsAsync();
+        // Tools virtuais MCP são geridas na aba MCP do Admin — não entram na lista editável.
+        _tools = (await Api.GetToolsAsync()).Where(t => t.Source == "user").ToList();
     }
 
     private async Task DeletePromptAsync(PromptResponse prompt)

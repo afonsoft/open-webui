@@ -547,8 +547,8 @@ public class Tool
     /// <summary>Identificador único (GUID).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    /// <summary>Dono da tool.</summary>
-    public string UserId { get; set; } = string.Empty;
+    /// <summary>Dono da tool — <c>null</c> em tools virtuais MCP (admin-provisionadas).</summary>
+    public string? UserId { get; set; }
 
     /// <summary>Usuário navegação.</summary>
     public User? User { get; set; }
@@ -961,6 +961,48 @@ public class PipelineServer
 
     /// <summary>Chave de API (Bearer) — nunca retornada pela API.</summary>
     public string? Key { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
+/// <summary>Servidor MCP (Model Context Protocol) registrado pelo admin —
+/// fonte de tools virtuais <c>mcp_...</c> descobertas via <c>tools/list</c>.</summary>
+public class McpServer
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Nome de exibição.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Transporte: <c>stdio</c> (subprocess) ou <c>http</c> (streamable HTTP).</summary>
+    public string Transport { get; set; } = "http";
+
+    /// <summary>Comando a executar (transport stdio, ex.: <c>npx</c>).</summary>
+    public string? Command { get; set; }
+
+    /// <summary>Argumentos do comando em JSON array (stdio).</summary>
+    public string? ArgsJson { get; set; }
+
+    /// <summary>Nomes de variáveis de ambiente passadas ao processo em JSON array
+    /// (stdio) — só os nomes são persistidos; valores lidos do ambiente no spawn.</summary>
+    public string? EnvJson { get; set; }
+
+    /// <summary>URL do endpoint MCP (transport http, streamable HTTP).</summary>
+    public string? Url { get; set; }
+
+    /// <summary>Headers HTTP extras em JSON object (http) — mascarados nas leituras.</summary>
+    public string? HeadersJson { get; set; }
+
+    /// <summary>Se o server está habilitado (tools disponíveis no function calling).</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Último erro de conexão/discovery (legível, nunca exception).</summary>
+    public string? LastError { get; set; }
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }

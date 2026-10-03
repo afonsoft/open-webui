@@ -324,7 +324,7 @@
             else
             {
                 <div class="flex gap-1 mb-3">
-                    @foreach (var sub in new[] { "general", "models", "features", "audio", "retrieval" })
+                    @foreach (var sub in new[] { "general", "models", "features", "audio", "retrieval", "mcp" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -666,6 +666,84 @@
                         </div>
                     </div>
                 }
+                else if (_configTab == "mcp")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.mcp_servers"]</div>
+                                <div class="card-sub">@L["admin.mcp_servers_hint"]</div>
+                            </div>
+                        </div>
+                        @foreach (var server in _mcpServers)
+                        {
+                            <div class="card-row flex-col items-stretch">
+                                <div class="flex items-center justify-between gap-2 flex-wrap">
+                                    <div class="card-main">
+                                        <div class="card-title">
+                                            @server.Name <span class="role-badge">@server.Transport</span>
+                                            @if (!server.Enabled)
+                                            {
+                                                <span class="role-badge">@L["common.disabled"]</span>
+                                            }
+                                        </div>
+                                        <div class="card-sub">
+                                            @(server.Transport == "stdio" ? server.Command : server.Url)
+                                            @if (server.LastError is not null)
+                                            {
+                                                <span class="text-red-500"> — @server.LastError</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="msg-action" @onclick="() => RefreshMcpAsync(server)"
+                                                aria-label="@L["admin.mcp_refresh"]">⟳</button>
+                                        <button class="msg-action" @onclick="() => EditMcpServer(server)"
+                                                aria-label="@L["common.edit"]">✎</button>
+                                        <button class="msg-action" @onclick="() => ToggleMcpServerAsync(server)"
+                                                aria-label="@L["common.toggle"]">@(server.Enabled ? "⏻" : "◌")</button>
+                                        <button class="msg-action danger" @onclick="() => DeleteMcpServerAsync(server)">🗑</button>
+                                    </div>
+                                </div>
+                                @if (_mcpTools.TryGetValue(server.Id, out var mcpTools) && mcpTools.Count > 0)
+                                {
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        @string.Join(" · ", mcpTools.Select(t => t.Name))
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <div class="card-row">
+                            <div class="card-main w-full flex flex-col gap-2">
+                                <label class="text-sm text-gray-600 dark:text-gray-300">
+                                    @(_editingMcpId is null ? L["admin.mcp_add"] : L["admin.mcp_edit"])</label>
+                                <input class="input" @bind="_mcpName" placeholder="@L["admin.mcp_name"]" />
+                                <select class="input w-52" @bind="_mcpTransport">
+                                    <option value="http">http (streamable)</option>
+                                    <option value="stdio">stdio (subprocess)</option>
+                                </select>
+                                @if (_mcpTransport == "http")
+                                {
+                                    <input class="input" @bind="_mcpUrl" placeholder="http://mcp-server:8000/mcp" />
+                                    <input class="input" @bind="_mcpHeaders" placeholder="@L["admin.mcp_headers_hint"]" />
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_mcpCommand" placeholder="npx" />
+                                    <input class="input" @bind="_mcpArgs" placeholder="-y mcp-server-everything" />
+                                    <input class="input" @bind="_mcpEnv" placeholder="@L["admin.mcp_env_hint"]" />
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_mcpMessage is not null)
+                            {
+                                <div class="field-note">@_mcpMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveMcpServerAsync">@L["common.save"]</button>
+                        </div>
+                    </div>
+                }
                 else
                 {
                     <div class="card-list">
@@ -931,6 +1009,17 @@
     private string _tab = "users";
     private int _fbPage;
     private string _configTab = "general";
+    private List<McpServerResponse> _mcpServers = [];
+    private Dictionary<string, List<McpToolResponse>> _mcpTools = new();
+    private string? _editingMcpId;
+    private string _mcpName = "";
+    private string _mcpTransport = "http";
+    private string _mcpCommand = "";
+    private string _mcpArgs = "";
+    private string _mcpEnv = "";
+    private string _mcpUrl = "";
+    private string _mcpHeaders = "";
+    private string? _mcpMessage;
     private string _webUiName = "";
     private string _defaultRole = "pending";
     private string _jwtExpiresIn = "7d";
@@ -1047,6 +1136,11 @@
         await ReloadAdminChatsAsync();
         _adminConfig = await Api.GetAdminConfigAsync();
         _appConfig = await Api.GetAppConfigAsync();
+        _mcpServers = await Api.GetMcpServersAsync();
+        foreach (var server in _mcpServers)
+        {
+            _mcpTools[server.Id] = await Api.GetMcpToolsAsync(server.Id);
+        }
         if (_adminConfig is not null)
         {
             _flagSignup = _adminConfig.EnableSignup;
@@ -1158,6 +1252,93 @@
     {
         await Api.DeleteTerminalServerAsync(server.Id);
         _terminals.RemoveAll(t => t.Id == server.Id);
+    }
+
+    private void EditMcpServer(McpServerResponse server)
+    {
+        _editingMcpId = server.Id;
+        _mcpName = server.Name;
+        _mcpTransport = server.Transport;
+        _mcpCommand = server.Command ?? "";
+        _mcpArgs = string.Join(" ", server.Args);
+        _mcpEnv = string.Join(" ", server.EnvNames);
+        _mcpUrl = server.Url ?? "";
+        _mcpHeaders = string.Join("\n", server.Headers.Select(h => $"{h.Key}={h.Value}"));
+    }
+
+    private void ResetMcpForm()
+    {
+        _editingMcpId = null;
+        _mcpName = _mcpCommand = _mcpArgs = _mcpEnv = _mcpUrl = _mcpHeaders = "";
+        _mcpTransport = "http";
+    }
+
+    private McpServerUpsertRequest BuildMcpRequest(bool enabled) => new(
+        _mcpName.Trim(),
+        _mcpTransport,
+        _mcpTransport == "stdio" ? _mcpCommand.Trim() : null,
+        _mcpTransport == "stdio" ? _mcpArgs.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList() : null,
+        _mcpTransport == "stdio" ? _mcpEnv.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList() : null,
+        _mcpTransport == "http" ? _mcpUrl.Trim() : null,
+        _mcpTransport == "http"
+            ? _mcpHeaders.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Split('=', 2))
+                .Where(p => p.Length == 2)
+                .ToDictionary(p => p[0].Trim(), p => p[1].Trim())
+            : new Dictionary<string, string>(),
+        enabled);
+
+    private async Task SaveMcpServerAsync()
+    {
+        var saved = _editingMcpId is null
+            ? await Api.CreateMcpServerAsync(BuildMcpRequest(enabled: true))
+            : await Api.UpdateMcpServerAsync(_editingMcpId,
+                BuildMcpRequest(_mcpServers.First(s => s.Id == _editingMcpId).Enabled));
+        _mcpMessage = saved is null ? L["settings.save_failed"] : L["admin.mcp_saved"];
+        if (saved is not null)
+        {
+            ResetMcpForm();
+            _mcpServers = await Api.GetMcpServersAsync();
+        }
+    }
+
+    private async Task ToggleMcpServerAsync(McpServerResponse server)
+    {
+        var updated = await Api.UpdateMcpServerAsync(server.Id, new McpServerUpsertRequest(
+            server.Name, server.Transport, server.Command, server.Args, server.EnvNames,
+            server.Url,
+            server.Headers.ToDictionary(h => h.Key, _ => "********"),
+            !server.Enabled));
+        if (updated is not null)
+        {
+            _mcpServers = await Api.GetMcpServersAsync();
+        }
+    }
+
+    private async Task DeleteMcpServerAsync(McpServerResponse server)
+    {
+        if (await Api.DeleteMcpServerAsync(server.Id))
+        {
+            _mcpServers.RemoveAll(s => s.Id == server.Id);
+            _mcpTools.Remove(server.Id);
+            if (_editingMcpId == server.Id)
+            {
+                ResetMcpForm();
+            }
+        }
+    }
+
+    private async Task RefreshMcpAsync(McpServerResponse server)
+    {
+        var count = await Api.RefreshMcpServerAsync(server.Id);
+        _mcpMessage = count >= 0
+            ? L.T("admin.mcp_tools_found", ("count", count.ToString()))
+            : L["settings.save_failed"];
+        _mcpServers = await Api.GetMcpServersAsync();
+        if (count >= 0)
+        {
+            _mcpTools[server.Id] = await Api.GetMcpToolsAsync(server.Id);
+        }
     }
 
     private async Task SaveSamlAsync()

@@ -184,7 +184,7 @@ quando a cobertura na `main` melhora (ratchet — nunca desce).
 
 - [`docs/MIGRACAO-DOTNET.md`](docs/MIGRACAO-DOTNET.md) — mapa de paridade upstream → .NET
 - [`docs/architecture/architecture.md`](docs/architecture/architecture.md) — diagrama Mermaid da arquitetura
-- [`docs/specs/`](docs/specs/) — SPEC SDDs entregues; `.specs/` — SPECs em andamento (ex.: MCP tool servers)
+- [`docs/specs/`](docs/specs/) — SPEC SDDs entregues; `.specs/` — SPECs em andamento
 - [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Licença

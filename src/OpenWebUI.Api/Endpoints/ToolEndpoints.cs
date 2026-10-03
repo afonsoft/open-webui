@@ -31,8 +31,12 @@ public static class ToolEndpoints
             return Results.Unauthorized();
         }
 
+        // Tools virtuais MCP (sem dono, Url "mcp://") são admin-provisionadas e
+        // aparecem no seletor do chat para qualquer usuário — mas só habilitadas
+        // (servidor desligado remove as tools do picker sem apagá-las).
         var tools = await db.Tools.AsNoTracking()
-            .Where(t => t.UserId == user.Id)
+            .Where(t => t.UserId == user.Id
+                || (t.Url.StartsWith(McpClientService.VirtualUrlPrefix) && t.Enabled))
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
         return Results.Ok(tools.Select(ToResponse));
@@ -183,5 +187,6 @@ public static class ToolEndpoints
     }
 
     private static ToolResponse ToResponse(Tool t) =>
-        new(t.Id, t.Name, t.Description, t.SpecJson, t.Code, t.Enabled, t.CreatedAt);
+        new(t.Id, t.Name, t.Description, t.SpecJson, t.Code, t.Url, t.Enabled, t.CreatedAt,
+            t.Url.StartsWith(McpClientService.VirtualUrlPrefix) ? "mcp" : "user");
 }

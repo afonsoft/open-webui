@@ -9,7 +9,7 @@
 | Stack | `.NET / Blazor` |
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-mcp-tool-servers` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 

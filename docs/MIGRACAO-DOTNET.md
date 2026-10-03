@@ -67,7 +67,7 @@ Documento de acompanhamento da migração de tecnologia do Open WebUI
 
 | Área | Feito | Residual |
 |---|---|---|
-| `tools` (15 eps) | Tools HTTP com loop server-side | Tools/functions em código arbitrário — decisão do plugin-ecosystem: .NET não executa código do usuário; filters são declarativos |
+| `tools` (15 eps) | Tools HTTP com loop server-side + **MCP tool servers** (registry admin, discovery `tools/list`, execução `tools/call` — SPEC-20261003) | Filters/pipes em código arbitrário — decisão do plugin-ecosystem: .NET não executa código do usuário; filters são declarativos |
 | `terminals` | Terminal servers admin + proxy HTTP/WS + engine jupyter no chat | Spawn do processo Jupyter local / PTY no host — decisão documentada: só proxy externo |
 | Multi-instância | Não implementado — persistência única em SQLite (`data/openwebui.db`), uploads em disco local e SignalR sem backplane (presença/notas colab em memória, single-instance) | `DATABASE_PROVIDER` (Postgres), `REDIS_URL` (backplane), `IFileStorage` S3 e `/health` de orquestração — dependem de decisão de roadmap, não existem no código |
 
