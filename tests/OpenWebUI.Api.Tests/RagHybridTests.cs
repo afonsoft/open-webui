@@ -39,8 +39,8 @@ public class RagHybridTests
     }
 
     private static RagService NewRag(AppDbContext db) =>
-        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db)),
-            new ConfigService(db), new StubHttpClientFactory());
+        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))),
+            new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())), new StubHttpClientFactory());
 
     private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null)
         : IHttpClientFactory
@@ -112,7 +112,7 @@ public class RagHybridTests
             Chunk("f1", 1, "zebra girafa zebra girafa", [0f, 1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db);
+        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         await config.SetAsync("retrieval.config",
             RetrievalConfig.Default with { Hybrid = true, HybridWeight = 0, TopK = 1 });
 
@@ -150,7 +150,7 @@ public class RagHybridTests
             Chunk("f1", 1, "beta", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db);
+        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
             Rerank = true,
@@ -177,7 +177,7 @@ public class RagHybridTests
             Chunk("f1", 1, "alfa beta gama", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db);
+        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
             Rerank = true,

@@ -43,6 +43,7 @@ builder.Services.AddScoped<ScimService>();
 builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<PipelineClientService>();
 builder.Services.AddSingleton<RateLimitService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 

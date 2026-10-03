@@ -262,6 +262,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.HasKey(c => c.Id);
             entity.HasIndex(c => new { c.UserId, c.FileId });
+            // RemoveFileChunksAsync filtra só por FileId — o composto
+            // (UserId, FileId) não cobre busca pela coluna à direita.
+            entity.HasIndex(c => c.FileId);
         });
         modelBuilder.Entity<Tool>(entity =>
         {

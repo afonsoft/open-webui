@@ -1,8 +1,10 @@
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using OpenWebUI.Application.Contracts;
 
@@ -15,15 +17,34 @@ namespace OpenWebUI.Infrastructure.Services;
 public class ProviderService(
     IHttpClientFactory httpClientFactory,
     ConfigService config,
-    ILogger<ProviderService> logger)
+    ILogger<ProviderService> logger,
+    IMemoryCache cache)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    // Cache curto da lista de modelos: sem ele, cada mensagem de chat
+    // (ResolveProviderAsync) fazia GET /models em TODAS as conexões.
+    private static readonly TimeSpan ModelsCacheTtl = TimeSpan.FromSeconds(60);
 
     /// <summary>Lista modelos de todas as conexões configuradas.</summary>
     /// <param name="ct">Token de cancelamento.</param>
     public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken ct = default)
     {
         var connections = await config.GetConnectionsAsync(ct);
+        var cacheKey = $"provider-models:{ConnectionsFingerprint(connections)}";
+        if (cache.TryGetValue(cacheKey, out List<ModelInfo>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var models = await FetchAllModelsAsync(connections, ct);
+        cache.Set(cacheKey, models, ModelsCacheTtl);
+        return models;
+    }
+
+    private async Task<List<ModelInfo>> FetchAllModelsAsync(
+        ConnectionsConfig connections, CancellationToken ct)
+    {
         var models = new List<ModelInfo>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -42,6 +63,14 @@ public class ProviderService(
         }
 
         return models;
+    }
+
+    private static string ConnectionsFingerprint(ConnectionsConfig c)
+    {
+        var raw = string.Join('\n', c.OllamaBaseUrls) + '|'
+            + string.Join('\n', c.OpenAiBaseUrls) + '|'
+            + string.Join('\n', c.OpenAiApiKeys);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
     }
 
     /// <summary>

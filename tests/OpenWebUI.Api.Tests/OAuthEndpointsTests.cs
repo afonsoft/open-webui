@@ -208,7 +208,7 @@ public class OAuthEndpointsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        return new OAuthService(db, new ConfigService(db));
+        return new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
     }
 
     private static string NewServiceDbPath() =>
@@ -615,7 +615,7 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var service = new OAuthService(db, new ConfigService(db));
+        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
 
         var first = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
         var second = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
@@ -644,7 +644,7 @@ public class OAuthEndpointsTests
         };
         db.Users.Add(existente);
         await db.SaveChangesAsync();
-        var service = new OAuthService(db, new ConfigService(db));
+        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
 
         var link = await service.LinkOrCreateAsync(" OIDC ", "sub-9", " exist@b.c ", null);
 
@@ -691,7 +691,7 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var config = new ConfigService(db);
+        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         await config.SetAsync("admin.config",
             AdminConfig.Default with { DefaultUserRole = "convidado" });
         db.Users.Add(new User

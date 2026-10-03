@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Infrastructure.Services;
 
@@ -76,6 +77,100 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
                 if (vector is { Length: > 0 })
                 {
                     return vector;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gera embeddings de vários textos em uma única requisição por provider
+    /// (Ollama /api/embed e OpenAI /embeddings aceitam input como array).
+    /// Retorna null quando nenhum provider atende o batch — o chamador pode
+    /// cair no modo sequencial por EmbedAsync.
+    /// </summary>
+    /// <param name="texts">Textos a embeddar (ordem preservada).</param>
+    /// <param name="ct">Cancelamento.</param>
+    public virtual async Task<float[][]?> EmbedBatchAsync(
+        IReadOnlyList<string> texts, CancellationToken ct = default)
+    {
+        if (texts.Count == 0)
+        {
+            return [];
+        }
+
+        ConnectionsConfig connections;
+        HttpClient http;
+        try
+        {
+            connections = await config.GetConnectionsAsync(ct);
+            http = httpClientFactory.CreateClient("ai-providers");
+            http.Timeout = TimeSpan.FromSeconds(60);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+
+        foreach (var baseUrl in connections.OllamaBaseUrls)
+        {
+            try
+            {
+                var model = Environment.GetEnvironmentVariable(OllamaModelEnv)
+                    ?? "nomic-embed-text";
+                var response = await http.PostAsJsonAsync(
+                    $"{baseUrl.TrimEnd('/')}/api/embed",
+                    new { model, input = texts }, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+                var payload = await response.Content.ReadFromJsonAsync<OllamaEmbedResponse>(ct);
+                var vectors = payload?.Embeddings;
+                if (vectors is { Length: > 0 })
+                {
+                    return vectors;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+            }
+        }
+
+        for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
+        {
+            try
+            {
+                var baseUrl = connections.OpenAiBaseUrls[i].TrimEnd('/');
+                var model = Environment.GetEnvironmentVariable(OpenAiModelEnv)
+                    ?? "text-embedding-3-small";
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post, $"{baseUrl}/embeddings");
+                if (i < connections.OpenAiApiKeys.Count &&
+                    !string.IsNullOrEmpty(connections.OpenAiApiKeys[i]))
+                {
+                    request.Headers.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue(
+                            "Bearer", connections.OpenAiApiKeys[i]);
+                }
+                request.Content = JsonContent.Create(new { model, input = texts });
+                var response = await http.SendAsync(request, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+                var payload = await response.Content.ReadFromJsonAsync<OpenAiEmbedResponse>(ct);
+                var vectors = payload?.Data?.Select(d => d.Embedding)
+                    .Where(e => e is { Length: > 0 })
+                    .Select(e => e!)
+                    .ToArray();
+                if (vectors is { Length: > 0 } && vectors.Length == texts.Count)
+                {
+                    return vectors;
                 }
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
