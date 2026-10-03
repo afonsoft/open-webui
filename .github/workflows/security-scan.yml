@@ -11,10 +11,15 @@ on:
   schedule:
     - cron: '0 2 * * 1'    # Semanal, segunda às 2h UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   codeql:
     name: 🔍 CodeQL Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: read
@@ -57,6 +62,7 @@ jobs:
   snyk:
     name: 🛡️ Snyk Security
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     if: github.actor != 'dependabot[bot]'
@@ -99,6 +105,7 @@ jobs:
   trivy:
     name: 🔐 Trivy Container Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
       security-events: write
