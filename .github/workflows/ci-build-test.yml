@@ -95,10 +95,10 @@ jobs:
       # medida na main melhora (ratchet, nunca desce).
       - name: Coverage Gate + Summary
         run: |
-          # Api.Tests e Client.Tests emitem um cobertura.xml cada — o correto é
-          # o com mais pacotes (o do Client vem vazio: Client é excluído via
-          # runsettings).
-          XML=$(find TestResults -name coverage.cobertura.xml -exec sh -c 'echo "$(grep -c "<package " "$1") $1"' _ {} \; | sort -rn | head -1 | cut -d' ' -f2-)
+          # Api.Tests e Client.Tests emitem um cobertura.xml cada — o do gate é
+          # o que contém OpenWebUI.Infrastructure (Client é excluído via
+          # runsettings, seu XML não tem esse pacote).
+          XML=$(find TestResults -name coverage.cobertura.xml -exec grep -l 'OpenWebUI.Infrastructure' {} \; | head -1)
           if [ -z "$XML" ]; then echo "::error::coverage.cobertura.xml not found"; exit 1; fi
           python3 - "$XML" <<'PY'
           import sys, xml.etree.ElementTree as ET
@@ -260,9 +260,11 @@ jobs:
 
       - name: Raise Baseline When Improved
         run: |
-          XML=$(find . -name "coverage.cobertura.xml" -exec sh -c 'echo "$(grep -c "<package " "$1") $1"' _ {} \; | sort -rn | head -1 | cut -d' ' -f2-)
+          XML=$(find . -name coverage.cobertura.xml -exec grep -l 'OpenWebUI.Infrastructure' {} \; | head -1)
           if [ -z "$XML" ]; then echo "coverage xml not found — skipping ratchet"; exit 0; fi
-          CHANGED=0
+          # Marcador em arquivo — `set -e` do runner mataria o step num exit 1
+          # do python antes do `if`, então o sinal de "melhorou" sai via /tmp.
+          rm -f /tmp/raise-baseline
           python3 - "$XML" <<'PY'
           import sys, os, xml.etree.ElementTree as ET
           r = ET.parse(sys.argv[1]).getroot()
@@ -275,9 +277,9 @@ jobs:
               if rate > old:
                   open(f, 'w').write(f"{rate:.2f}\n")
                   changed = True
-          sys.exit(0 if changed else 1)
+          if changed: open('/tmp/raise-baseline', 'w').close()
           PY
-          if [ $? -eq 0 ]; then
+          if [ -f /tmp/raise-baseline ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add .ci/coverage-baseline.txt .ci/coverage-branch-baseline.txt
