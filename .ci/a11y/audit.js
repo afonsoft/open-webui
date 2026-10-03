@@ -42,12 +42,23 @@ async function analyze(page, context) {
     const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
     const page = await context.newPage();
     const ctx = name => `${name}@${vp.name}`;
+    page.on('console', m => console.log(`[browser:${m.type()}]`, m.text().slice(0, 200)));
+    page.on('pageerror', e => console.log('[pageerror]', String(e).slice(0, 300)));
+    page.on('requestfailed', r => console.log('[reqfail]', r.url(), r.failure()?.errorText));
+    page.on('response', r => { if (r.status() >= 400) console.log(`[http${r.status()}]`, r.url()); });
 
     // Tela de auth (sem sessão). O Blazor WASM boota via boot.js
     // (autostart="false") — networkidle dispara antes da hidratação,
     // então esperamos o campo de email renderizar de fato.
     await page.goto(BASE + '/auth', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    try {
+      await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+    } catch (e) {
+      const html = await page.content();
+      console.log('FORM NÃO RENDERIZOU — title:', await page.title());
+      console.log(html.slice(0, 2000));
+      throw e;
+    }
     await page.waitForTimeout(1000); // settle pós-hidratação
     all.push(...await analyze(page, ctx('auth')));
 
