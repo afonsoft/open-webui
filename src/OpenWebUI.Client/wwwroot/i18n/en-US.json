@@ -523,6 +523,7 @@
   "chat.tool_deny": "Deny",
   "chat.tool_expand": "expand",
   "chat.tool_collapse": "collapse",
+  "chat.tool_delegate_open": "open subtask",
   "chat.tasks": "Tasks",
   "chat.status_auto_approved": "auto-approved: {{name}}",
   "chat.status_paused": "paused",

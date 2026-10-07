@@ -470,6 +470,7 @@
   "chat.tool_deny": "Refuser",
   "chat.tool_expand": "développer",
   "chat.tool_collapse": "réduire",
+  "chat.tool_delegate_open": "voir la sous-tâche",
   "chat.tasks": "Tâches",
   "chat.status_auto_approved": "auto-approuvé : {{name}}",
   "chat.status_paused": "en pause",

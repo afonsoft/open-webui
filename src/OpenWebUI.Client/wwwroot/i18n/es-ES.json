@@ -470,6 +470,7 @@
   "chat.tool_deny": "Denegar",
   "chat.tool_expand": "expandir",
   "chat.tool_collapse": "contraer",
+  "chat.tool_delegate_open": "ver subtarea",
   "chat.tasks": "Tareas",
   "chat.status_auto_approved": "autoaprobada: {{name}}",
   "chat.status_paused": "en pausa",

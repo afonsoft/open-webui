@@ -470,6 +470,7 @@
   "chat.tool_deny": "拒否",
   "chat.tool_expand": "展開",
   "chat.tool_collapse": "折りたたむ",
+  "chat.tool_delegate_open": "サブタスクを開く",
   "chat.tasks": "タスク",
   "chat.status_auto_approved": "自動承認: {{name}}",
   "chat.status_paused": "一時停止中",

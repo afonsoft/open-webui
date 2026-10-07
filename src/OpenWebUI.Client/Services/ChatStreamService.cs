@@ -303,7 +303,10 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["ok"]?.GetValue<bool>() ?? false,
                                 node["preview"]?.GetValue<string>(),
                                 node["imagePath"]?.GetValue<string>(),
-                                node["denied"]?.GetValue<bool>() ?? false));
+                                node["denied"]?.GetValue<bool>() ?? false,
+                                node["result"] is { } resultNode
+                                    ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
+                                    : null));
                         break;
                     case "approval_asked":
                         produced = new ChatStreamEvent.ApprovalAsked(

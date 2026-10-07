@@ -260,7 +260,7 @@ public sealed class ChatRunExecutor(
                 $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
         }
         broadcaster.Publish(run.Id,
-            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied), JsonOptions)}");
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result), JsonOptions)}");
         return Task.CompletedTask;
     }
 

@@ -1,3 +1,4 @@
+@using System.Text.Json
 @inject LocalizationService L
 
 @*
@@ -48,6 +49,14 @@
             <span class="ml-auto rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-green-700 dark:text-green-300 flex-none">
                 ok
             </span>
+        }
+        @if (ChildChatId is { } childId)
+        {
+            @* delegate_task: link pro transcript completo da subtarefa (RF-016) *@
+            <a href="/c/@childId" class="flex-none rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/70"
+               @onclick:stopPropagation="true">
+                @L["chat.tool_delegate_open"]
+            </a>
         }
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
              class="size-3.5 flex-none transition-transform @(_open ? "rotate-180" : "")">
@@ -118,6 +127,9 @@
     /// <summary>Sucesso da execução; null = desconhecido.</summary>
     [Parameter] public bool? Ok { get; set; }
 
+    /// <summary>Payload estruturado do resultado (links/ids) quando publicado.</summary>
+    [Parameter] public JsonElement? Result { get; set; }
+
     private const int OutputMaxLines = 10;
 
     private bool _open;
@@ -128,6 +140,14 @@
     private bool IsShell => ToolSuffix == "shell_exec";
     private bool IsCode => ToolSuffix == "code_interpreter";
     private bool IsDiff => ToolSuffix is "file_write" or "file_edit";
+
+    /// <summary>Chat da subtarefa delegada, quando a tool publicou childChatId.</summary>
+    private string? ChildChatId =>
+        ToolSuffix == "delegate_task"
+        && Result is { } r && r.ValueKind == JsonValueKind.Object
+        && r.TryGetProperty("childChatId", out var c) && c.ValueKind == JsonValueKind.String
+            ? c.GetString()
+            : null;
 
     /// <summary>Linhas do diff com cor por prefixo (+/-/@@/cabeçalho).</summary>
     private IEnumerable<(string Text, string Css)> DiffLines =>
