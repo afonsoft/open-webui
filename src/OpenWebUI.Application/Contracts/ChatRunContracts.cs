@@ -74,6 +74,17 @@ public sealed record RunApprovalAskedEvent(
     string CallId, string ToolName, string Kind, string? ArgsPreview);
 
 /// <summary>
+/// Evento SSE <c>question_asked</c> (SPEC-20261007-chat-agent-ux RF-005):
+/// a run pausou aguardando resposta do dono para a pergunta estruturada
+/// emitida pela builtin <c>ask_user</c> — resolve pelo mesmo endpoint de
+/// aprovação (<c>decision=approve</c> + <c>message</c> = resposta).
+/// </summary>
+/// <param name="Options">Opções clicáveis; vazio = só resposta livre.</param>
+/// <param name="Multiple">Mais de uma opção pode ser escolhida.</param>
+public sealed record RunQuestionAskedEvent(
+    string CallId, string Question, string[] Options, bool Multiple);
+
+/// <summary>
 /// Item da lista de tarefas da run (SPEC-20261007-chat-agent-parity
 /// RF-010): snapshot emitido pela builtin <c>todo_write</c>.
 /// </summary>
@@ -133,8 +144,12 @@ public sealed record RunApprovalDecisionRequest(
 /// <summary>
 /// Decisão do gate de tools (SPEC-20261007-chat-agent-ux): aprovado, ou
 /// negado com mensagem opcional de instrução para o modelo.
+/// <paramref name="Output"/> quando não nulo substitui a execução da tool
+/// — usado pelo <c>ask_user</c> para devolver a resposta do dono como
+/// resultado direto (RF-005).
 /// </summary>
-public sealed record ToolGateDecision(bool Approved, string? DenyMessage = null)
+public sealed record ToolGateDecision(
+    bool Approved, string? DenyMessage = null, string? Output = null)
 {
     /// <summary>Aprovado.</summary>
     public static readonly ToolGateDecision Allow = new(true);

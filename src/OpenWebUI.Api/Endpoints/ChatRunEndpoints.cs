@@ -430,9 +430,12 @@ public static class ChatRunEndpoints
         }
 
         var approved = request.Decision == "approve";
+        // A mensagem vai mesmo em approve: no ask_user a resposta do dono
+        // é justamente decision=approve + message (RF-005); numa aprovação
+        // comum, message em approve é ignorada pelo gate.
         return approvals.Resolve(
             run.Id, run.ChatId, callId, approved, request.Remember,
-            approved ? null : request.Message)
+            request.Message)
             ? Results.Ok(new StatusResponse(true))
             : Results.NotFound(new { detail = "Aprovação não está pendente." });
     }
