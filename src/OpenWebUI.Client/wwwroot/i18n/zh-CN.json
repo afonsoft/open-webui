@@ -470,6 +470,7 @@
   "chat.tool_deny": "拒绝",
   "chat.tool_expand": "展开",
   "chat.tool_collapse": "折叠",
+  "chat.tool_delegate_open": "打开子任务",
   "chat.tasks": "任务",
   "chat.status_auto_approved": "自动批准：{{name}}",
   "chat.status_paused": "已暂停",

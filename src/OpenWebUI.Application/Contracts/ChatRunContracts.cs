@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace OpenWebUI.Application.Contracts;
 
 /// <summary>Pedido de envio de mensagem que dispara uma run desacoplada.</summary>
@@ -46,11 +48,13 @@ public sealed record RunToolCallEvent(string Id, string Name, string? ArgsPrevie
 /// <summary>
 /// Evento SSE <c>tool_result</c>: <paramref name="Ok"/> false em erro ou
 /// negação (<paramref name="Denied"/>); <paramref name="Preview"/> truncado;
-/// <paramref name="ImagePath"/> quando a tool gerou imagem renderizável.
+/// <paramref name="ImagePath"/> quando a tool gerou imagem renderizável;
+/// <paramref name="Result"/> é o payload estruturado da tool (links,
+/// diffs, ids) para renderização rica no cliente.
 /// </summary>
 public sealed record RunToolResultEvent(
     string Id, string Name, bool Ok, string? Preview,
-    string? ImagePath = null, bool Denied = false);
+    string? ImagePath = null, bool Denied = false, JsonElement? Result = null);
 
 /// <summary>
 /// Evento SSE <c>status</c> de fase (RF-002): <paramref name="Phase"/> ∈

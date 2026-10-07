@@ -523,6 +523,7 @@
   "chat.tool_deny": "Negar",
   "chat.tool_expand": "expandir",
   "chat.tool_collapse": "recolher",
+  "chat.tool_delegate_open": "ver subtarefa",
   "chat.tasks": "Tarefas",
   "chat.status_auto_approved": "auto-aprovada: {{name}}",
   "chat.status_paused": "pausada",

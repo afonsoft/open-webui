@@ -128,7 +128,9 @@ public class ToolStreamingTests
                     ? "{\"message\":{\"role\":\"assistant\",\"content\":\"resposta pós-tool\"}}"
                     : body.Contains("file_write", StringComparison.Ordinal)
                         ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-fw\",\"function\":{\"name\":\"builtin:file_write\",\"arguments\":{\"path\":\"saida.txt\",\"content\":\"gerado\"}}}]}}"
-                        : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
+                        : body.Contains("delegate_task", StringComparison.Ordinal)
+                            ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-dl\",\"function\":{\"name\":\"builtin:delegate_task\",\"arguments\":{\"prompt\":\"resuma o arquivo\"}}}]}}"
+                            : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
             }
             else if (path == "/tool/eco")
             {
@@ -860,5 +862,52 @@ public class ToolStreamingTests
             Assert.That(eventos.Any(e => e.Event == "tool_result"
                     && e.Data.Contains("resultado-eco")), Is.True);
         });
+    }
+
+    // ---- delegate_task (RF-016) ----
+
+    [Test]
+    public async Task Delegate_CriaRunFilhaEmChatProprioEAggregaResultado()
+    {
+        // O pai pede builtin:delegate_task → a tool cria um chat "delegado:"
+        // com run própria (dispatcher serializa por chat — filho no mesmo
+        // chat deadlockaria), aguarda e devolve o link ao transcript.
+        var auth = await SignUpAsync("Del", "del@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync();
+        var chat = await CriarChatAsync();
+        var patch = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("always-allow"));
+        Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var run = await EnfileirarAsync(chat.Id, "delegue a subtarefa",
+            ["builtin:delegate_task", toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "tool_call"
+                    && e.Data.Contains("delegate_task")), Is.True,
+                "faltou tool_call do delegate");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("childChatId")
+                    && e.Data.Contains("\"ok\":true")), Is.True,
+                "faltou tool_result com childChatId");
+        });
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+
+        // Chat filho "delegado:" existe e sua run terminou completed —
+        // a filha herdou o toolId (menos o próprio delegate): o mock
+        // devolve a call `eco` e o loop fecha com "resposta pós-tool".
+        var chats = await _client.GetFromJsonAsync<List<ChatResponse>>("/api/v1/chats/");
+        var filho = chats!.SingleOrDefault(c => c.Title.StartsWith("delegado:"));
+        Assert.That(filho, Is.Not.Null, "chat filho não foi criado");
+        var runs = await _client.GetFromJsonAsync<List<ChatRunResponse>>(
+            $"/api/v1/chats/{filho!.Id}/runs");
+        Assert.That(runs, Has.Count.EqualTo(1));
+        Assert.That(runs![0].Status, Is.EqualTo("completed"), runs[0].Error);
     }
 }

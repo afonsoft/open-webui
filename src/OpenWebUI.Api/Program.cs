@@ -58,6 +58,8 @@ builder.Services.AddSingleton<ChatRunBroadcaster>();
 builder.Services.AddSingleton<ChatRunApprovals>();
 builder.Services.AddSingleton<ChatRunPauses>();
 builder.Services.AddSingleton<ChatRunDispatcher>();
+builder.Services.AddSingleton<IChatRunDispatcher>(
+    sp => sp.GetRequiredService<ChatRunDispatcher>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRunDispatcher>());
 builder.Services.AddScoped<ChatRunExecutor>();
 
@@ -86,6 +88,7 @@ builder.Services.AddScoped<IBuiltinChatTool, FileGlobBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, FileWriteBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, FileEditBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, TodoWriteBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, DelegateTaskBuiltinTool>();
 builder.Services.AddScoped<BuiltinToolRegistry>();
 builder.Services.AddSingleton<ChatJobService>();
 builder.Services.AddHttpClient(nameof(FetchUrlBuiltinTool));

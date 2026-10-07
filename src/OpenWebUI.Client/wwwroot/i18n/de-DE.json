@@ -470,6 +470,7 @@
   "chat.tool_deny": "Ablehnen",
   "chat.tool_expand": "erweitern",
   "chat.tool_collapse": "einklappen",
+  "chat.tool_delegate_open": "Teilaufgabe öffnen",
   "chat.tasks": "Aufgaben",
   "chat.status_auto_approved": "auto-genehmigt: {{name}}",
   "chat.status_paused": "pausiert",

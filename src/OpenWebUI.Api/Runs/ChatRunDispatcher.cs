@@ -23,7 +23,7 @@ public sealed class ChatRunDispatcher(
     ChatRunBroadcaster broadcaster,
     ChatJobService jobs,
     ChatRunPauses pauses,
-    ILogger<ChatRunDispatcher> logger) : BackgroundService
+    ILogger<ChatRunDispatcher> logger) : BackgroundService, IChatRunDispatcher
 {
     /// <summary>Máximo de runs executando em paralelo.</summary>
     public const int MaxConcurrent = 4;

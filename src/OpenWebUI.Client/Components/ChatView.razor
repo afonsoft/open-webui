@@ -133,6 +133,7 @@
                             ArgsPreview="@t.Call.ArgsPreview"
                             ResultPreview="@t.Result?.Preview"
                             ImagePath="@t.Result?.ImagePath"
+                            Result="@t.Result?.Result"
                             Running="@(t.Result is null && _streaming)"
                             Denied="@(t.Result?.Denied ?? false)"
                             Ok="@(t.Result is null ? null : t.Result.Ok)" />
