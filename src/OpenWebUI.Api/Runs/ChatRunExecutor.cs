@@ -28,6 +28,7 @@ public sealed class ChatRunExecutor(
     WebSearchService webSearch,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
+    ChatRunPauses pauses,
     IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
@@ -108,7 +109,13 @@ public sealed class ChatRunExecutor(
                         .ToList(),
                 };
                 var callbacks = new ChatPipeline.ToolLoopCallbacks(
-                    OnPhaseAsync: (phase, label, t) => PublishPhaseAsync(run, phase, label),
+                    // Checkpoint de pausa em cada iteração do loop (RF-013):
+                    // fase nova só começa depois do resume.
+                    OnPhaseAsync: async (phase, label, t) =>
+                    {
+                        await pauses.WaitIfPausedAsync(run.Id, t);
+                        await PublishPhaseAsync(run, phase, label);
+                    },
                     OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
                     GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
                     OnResultAsync: (call, output, result, denied, t)
@@ -136,6 +143,7 @@ public sealed class ChatRunExecutor(
             {
                 await foreach (var line in providers.StreamCompletionAsync(effective, ct))
                 {
+                    await pauses.WaitIfPausedAsync(run.Id, ct);
                     var processed = ModelFilterService.ProcessSseLine(line, outletRules);
                     broadcaster.Publish(run.Id, processed);
                     AccumulateDelta(processed, content);
@@ -242,6 +250,9 @@ public sealed class ChatRunExecutor(
     private async Task<ToolGateDecision> GateToolCallAsync(
         ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call, CancellationToken ct)
     {
+        // Checkpoint de pausa antes do gate (RF-013) — a call pendente
+        // só resolve depois do resume.
+        await pauses.WaitIfPausedAsync(run.Id, ct);
         var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
         if (tool is null || !ToolExecutor.IsMutable(tool)
             || approvals.IsRemembered(run.ChatId, call.Name))

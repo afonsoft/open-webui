@@ -22,6 +22,7 @@ public sealed class ChatRunDispatcher(
     IServiceScopeFactory scopeFactory,
     ChatRunBroadcaster broadcaster,
     ChatJobService jobs,
+    ChatRunPauses pauses,
     ILogger<ChatRunDispatcher> logger) : BackgroundService
 {
     /// <summary>Máximo de runs executando em paralelo.</summary>
@@ -73,7 +74,8 @@ public sealed class ChatRunDispatcher(
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var orphans = await db.ChatRuns
-                .Where(r => r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running)
+                .Where(r => r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running
+                    || r.Status == ChatRunStatus.Paused)
                 .ToListAsync(ct);
             if (orphans.Count == 0)
             {
@@ -153,6 +155,7 @@ public sealed class ChatRunDispatcher(
             finally
             {
                 _runCancels.TryRemove(runId, out _);
+                pauses.Forget(runId);
                 broadcaster.Complete(runId);
                 await NotifyRunFinishedAsync(scope.ServiceProvider, run);
             }
