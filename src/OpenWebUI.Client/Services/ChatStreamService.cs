@@ -125,6 +125,29 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         }
     }
 
+    /// <summary>Runs recentes do chat (mais nova primeiro — máx. 20).</summary>
+    public async Task<List<ChatRunResponse>> GetRunsAsync(
+        string chatId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs");
+        using var response = await http.SendAsync(httpRequest, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return [];
+        }
+
+        try
+        {
+            return await response.Content
+                .ReadFromJsonAsync<List<ChatRunResponse>>(ct) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     /// <summary>Pede a interrupção de uma run ativa.</summary>
     public async Task<bool> StopRunAsync(
         string chatId, string runId, CancellationToken ct = default)

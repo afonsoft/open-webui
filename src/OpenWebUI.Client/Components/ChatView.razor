@@ -32,6 +32,24 @@
                                 @_statusLabel
                             </span>
                         }
+                        @if (_git is { Git: true } g)
+                        {
+                            <button class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 cursor-pointer"
+                                    title="@L["chat.git_title"]" @onclick="OpenPanelAtChangesAsync">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12" />
+                                    <circle cx="18" cy="6" r="3" />
+                                    <circle cx="6" cy="18" r="3" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 9a9 9 0 0 1-9 9" />
+                                </svg>
+                                <span class="max-w-24 truncate font-mono">@g.Branch</span>
+                                @if (g.Added > 0 || g.Removed > 0)
+                                {
+                                    <span class="font-mono text-green-600 dark:text-green-400">+@g.Added</span>
+                                    <span class="font-mono text-red-500 dark:text-red-400">−@g.Removed</span>
+                                }
+                            </button>
+                        }
                         @if (_voiceSupported)
                         {
                             <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
@@ -422,8 +440,9 @@
     <aside class="hidden lg:flex w-80 xl:w-96 flex-none">
         <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
                             Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
-                            Model="@_model" RunId="@_activeRunId"
+                            Model="@_model" RunId="@_activeRunId" Git="_git"
                             IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                            RequestedTab="_requestedPanelTab"
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
     </aside>
@@ -432,8 +451,9 @@
         <aside class="absolute inset-y-0 right-0 w-80 max-w-[85vw] shadow-xl">
             <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
                                 Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
-                                Model="@_model" RunId="@_activeRunId"
+                                Model="@_model" RunId="@_activeRunId" Git="_git"
                                 IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                                RequestedTab="_requestedPanelTab"
                                 OnClose="() => _showPanel = false"
                                 OnKillJob="KillJobAsync" />
         </aside>
@@ -480,6 +500,10 @@
     private bool _uploading;
     private CancellationTokenSource? _cts;
     private string? _activeRunId;
+    /// <summary>Snapshot git do workspace (git bar do header + aba Changes).</summary>
+    private WorkspaceGitResponse? _git;
+    /// <summary>Aba que o painel abre na próxima renderização (clique no chip git).</summary>
+    private string? _requestedPanelTab;
     private ElementReference _scrollContainer;
     private InputFile? _fileInput;
     private string? _pendingNavigateId;
@@ -619,6 +643,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _runChanges = [];
+        _git = null;
         _pendingApproval = null;
         _paused = false;
         _statusLabel = null;
@@ -662,6 +687,11 @@
             if (activeRun is not null)
             {
                 _ = AttachActiveRunAsync(activeRun);
+            }
+            else
+            {
+                // Git bar: snapshot do workspace quando há runs anteriores.
+                _ = RefreshGitAsync();
             }
         }
         finally
@@ -1082,6 +1112,7 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+            await RefreshGitAsync();
             await ReloadChatAsync();
         }
     }
@@ -1124,6 +1155,7 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+            await RefreshGitAsync();
             await ReloadChatAsync();
         }
     }
@@ -1183,6 +1215,8 @@
                     break;
                 case ChatStreamService.ChatStreamEvent.Changes changes:
                     _runChanges = changes.Snapshot.Changes.ToList();
+                    // file_* escreveu no workdir — a git bar/aba Changes atualiza.
+                    await RefreshGitAsync();
                     break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
                     switch (phase.Status.Phase)
@@ -1337,6 +1371,56 @@
         if (_showPanel)
         {
             await RefreshPanelAsync();
+        }
+    }
+
+    /// <summary>Chip git do header → abre o painel já na aba Changes.</summary>
+    private async Task OpenPanelAtChangesAsync()
+    {
+        _requestedPanelTab = "changes";
+        if (!_showPanel)
+        {
+            _showPanel = true;
+            await RefreshPanelAsync();
+        }
+    }
+
+    /// <summary>
+    /// Snapshot git do workspace (RF-018): usa a run ativa, senão a mais
+    /// recente do chat. Silencioso — sem repo retorna <c>Git=false</c>.
+    /// </summary>
+    private async Task RefreshGitAsync()
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+
+        var runId = _activeRunId;
+        if (runId is null)
+        {
+            try
+            {
+                runId = (await ChatStream.GetRunsAsync(_loadedChatId))
+                    .FirstOrDefault()?.Id;
+            }
+            catch
+            {
+                return;
+            }
+        }
+        if (runId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _git = await Api.GetRunDiffAsync(_loadedChatId, runId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"git diff indisponível: {ex.Message}");
         }
     }
 

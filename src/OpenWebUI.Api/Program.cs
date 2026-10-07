@@ -91,6 +91,7 @@ builder.Services.AddScoped<IBuiltinChatTool, TodoWriteBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, DelegateTaskBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, BrowserScreenshotBuiltinTool>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
+builder.Services.AddSingleton<WorkspaceGitService>();
 builder.Services.AddScoped<BuiltinToolRegistry>();
 builder.Services.AddSingleton<ChatJobService>();
 builder.Services.AddHttpClient(nameof(FetchUrlBuiltinTool));

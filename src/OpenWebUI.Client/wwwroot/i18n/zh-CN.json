@@ -508,5 +508,9 @@
   "terminal.kill": "",
   "terminal.empty": " — 。",
   "terminal.disabled": "。",
-  "terminal.disabled_hint": "（PUT /api/v1/terminal/config  TERMINAL_ENABLED）。"
+  "terminal.disabled_hint": "（PUT /api/v1/terminal/config  TERMINAL_ENABLED）。",
+  "chat": {
+    "git_title": "工作区 Git — 查看更改",
+    "panel_diff_truncated": "diff 已截断（大型仓库）"
+  }
 }

@@ -561,5 +561,9 @@
   "terminal.kill": "Encerrar sessão",
   "terminal.empty": "Nenhuma sessão — crie uma acima.",
   "terminal.disabled": "Terminal desativado pelo administrador.",
-  "terminal.disabled_hint": "Peça a um admin para ativar (PUT /api/v1/terminal/config ou TERMINAL_ENABLED)."
+  "terminal.disabled_hint": "Peça a um admin para ativar (PUT /api/v1/terminal/config ou TERMINAL_ENABLED).",
+  "chat": {
+    "git_title": "Git do workspace — ver mudanças",
+    "panel_diff_truncated": "diff truncado (repo grande)"
+  }
 }

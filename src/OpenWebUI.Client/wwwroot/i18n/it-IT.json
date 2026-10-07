@@ -508,5 +508,9 @@
   "terminal.kill": "Termina sessione",
   "terminal.empty": "Nessuna sessione — creane una sopra.",
   "terminal.disabled": "Il terminale è disabilitato dall'amministratore.",
-  "terminal.disabled_hint": "Chiedi a un amministratore di abilitarlo (PUT /api/v1/terminal/config o TERMINAL_ENABLED)."
+  "terminal.disabled_hint": "Chiedi a un amministratore di abilitarlo (PUT /api/v1/terminal/config o TERMINAL_ENABLED).",
+  "chat": {
+    "git_title": "Git del workspace — vedi modifiche",
+    "panel_diff_truncated": "diff troncato (repo grande)"
+  }
 }

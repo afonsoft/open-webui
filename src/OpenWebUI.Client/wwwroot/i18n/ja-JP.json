@@ -508,5 +508,9 @@
   "terminal.kill": "セッションを",
   "terminal.empty": "セッションがありません — でしてください。",
   "terminal.disabled": "ターミナルはによりされています。",
-  "terminal.disabled_hint": "にをしてください（PUT /api/v1/terminal/config または TERMINAL_ENABLED）。"
+  "terminal.disabled_hint": "にをしてください（PUT /api/v1/terminal/config または TERMINAL_ENABLED）。",
+  "chat": {
+    "git_title": "ワークスペースのGit — 変更を見る",
+    "panel_diff_truncated": "diff が切り詰められました（大きなリポジトリ）"
+  }
 }
