@@ -497,5 +497,12 @@
   "chat.web_search": "Web search",
   "chat.tools_features": "Features",
   "common.skip_to_content": "Skip to content",
-  "common.close": "Close"
+  "common.close": "Close",
+  "settings.notifications": "Notifications",
+  "settings.notify_chat_done": "Notify me in-app when a response finishes",
+  "settings.notify_browser": "Browser notification when the tab is in background",
+  "settings.notify_push": "Push notification even with the site closed",
+  "settings.notify_permission_denied": "Notifications blocked by the browser — allow them in the address bar settings.",
+  "settings.notify_permission_unsupported": "This browser does not support notifications.",
+  "settings.notify_hint": "Browser permission is only requested when you enable a toggle. Push uses a subscription per device."
 }

@@ -461,6 +461,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> UpdateUserSettingsAsync(object settings) =>
         await SendStatusAsync(HttpMethod.Post, "/api/v1/users/user/settings/update", settings);
 
+    /// <summary>Chave pública VAPID para pushManager.subscribe (null quando push desligado).</summary>
+    public async Task<string?> GetVapidPublicKeyAsync()
+    {
+        var response = await SendAsync<VapidPublicKeyResponse>(
+            HttpMethod.Get, "/api/v1/notifications/push/vapid-key");
+        return response?.PublicKey;
+    }
+
     /// <summary>Obtém a configuração pública da aplicação.</summary>
     public Task<AppConfigResponse?> GetAppConfigAsync() =>
         SendAsync<AppConfigResponse>(HttpMethod.Get, "/api/config");

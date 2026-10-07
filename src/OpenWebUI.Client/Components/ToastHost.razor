@@ -1,0 +1,86 @@
+@implements IDisposable
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<div class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 max-w-sm" role="status" aria-live="polite">
+    @foreach (var toast in _toasts)
+    {
+        <button class="@CssClass(toast.Type) rounded-xl px-4 py-2.5 text-sm text-left shadow-lg flex items-start gap-2 cursor-pointer transition"
+                @onclick="() => Dismiss(toast, navigate: true)">
+            <span class="flex-1 min-w-0 break-words">@toast.Text</span>
+            <span class="opacity-60 shrink-0" aria-hidden="true">×</span>
+        </button>
+    }
+</div>
+
+@code {
+    private readonly List<ToastEntry> _toasts = [];
+
+    private sealed record ToastEntry(ToastMessage Message, CancellationTokenSource Timer)
+    {
+        public string Text => Message.Text;
+        public ToastType Type => Message.Type;
+        public string? Url => Message.Url;
+    }
+
+    protected override void OnInitialized() => Toasts.OnShow += HandleShow;
+
+    private void HandleShow(ToastMessage message)
+    {
+        var entry = new ToastEntry(message, new CancellationTokenSource());
+        _toasts.Add(entry);
+        if (_toasts.Count > 4)
+        {
+            Dismiss(_toasts[0]);
+        }
+
+        _ = AutoDismissAsync(entry);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task AutoDismissAsync(ToastEntry entry)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(6), entry.Timer.Token);
+            Dismiss(entry);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Dismiss(ToastEntry entry, bool navigate = false)
+    {
+        if (!_toasts.Remove(entry))
+        {
+            return;
+        }
+
+        entry.Timer.Cancel();
+        entry.Timer.Dispose();
+        _ = InvokeAsync(StateHasChanged);
+        if (navigate && !string.IsNullOrEmpty(entry.Url))
+        {
+            Nav.NavigateTo(entry.Url);
+        }
+    }
+
+    private static string CssClass(ToastType type) => type switch
+    {
+        ToastType.Success => "bg-green-600 text-white",
+        ToastType.Warning => "bg-yellow-500 text-gray-900",
+        ToastType.Error => "bg-red-600 text-white",
+        _ => "bg-gray-800 text-gray-100",
+    };
+
+    public void Dispose()
+    {
+        Toasts.OnShow -= HandleShow;
+        foreach (var toast in _toasts)
+        {
+            toast.Timer.Cancel();
+            toast.Timer.Dispose();
+        }
+    }
+}

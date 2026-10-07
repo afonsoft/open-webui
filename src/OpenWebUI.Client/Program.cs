@@ -20,6 +20,8 @@ builder.Services.AddScoped<MarkdownService>();
 builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<ChatListState>();
 builder.Services.AddScoped<RealtimeService>();
+builder.Services.AddScoped<ToastService>();
+builder.Services.AddScoped<ChatNotificationsService>();
 builder.Services.AddScoped<LocalizationService>();
 
 var host = builder.Build();

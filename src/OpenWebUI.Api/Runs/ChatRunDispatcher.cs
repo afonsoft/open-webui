@@ -1,6 +1,8 @@
+using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -105,6 +107,7 @@ public sealed class ChatRunDispatcher(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Erro inesperado ao despachar run {RunId}.", runId);
+                await FailRunBestEffortAsync(runId, ex);
             }
         }
     }
@@ -146,11 +149,73 @@ public sealed class ChatRunDispatcher(
             {
                 _runCancels.TryRemove(runId, out _);
                 broadcaster.Complete(runId);
+                await NotifyRunFinishedAsync(scope.ServiceProvider, run);
             }
         }
         finally
         {
             chatLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Última rede de segurança: uma exceção fora do executor (ex.: escrita
+    /// `database is locked` na transição queued→running) não pode deixar a
+    /// run eternamente não-terminal — tenta marcar failed em escopo novo,
+    /// com uma retentativa.
+    /// </summary>
+    private async Task FailRunBestEffortAsync(string runId, Exception cause)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var run = await db.ChatRuns
+                    .FirstOrDefaultAsync(r => r.Id == runId, CancellationToken.None);
+                if (run is null || run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running))
+                {
+                    return;
+                }
+
+                run.Status = ChatRunStatus.Failed;
+                run.Error = $"Falha interna do dispatcher: {cause.Message}";
+                run.CompletedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                await db.SaveChangesAsync(CancellationToken.None);
+                broadcaster.Publish(
+                    runId,
+                    $"data: {JsonSerializer.Serialize(new { error = run.Error })}");
+                broadcaster.Publish(runId, "data: [DONE]");
+                broadcaster.Complete(runId);
+                await NotifyRunFinishedAsync(scope.ServiceProvider, run);
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Falha ao marcar run {RunId} como failed (tentativa {Attempt}).",
+                    runId, attempt + 1);
+            }
+        }
+    }
+
+    private async Task NotifyRunFinishedAsync(IServiceProvider services, ChatRun run)
+    {
+        var finished = new ChatRunFinished(
+            run.Id, run.ChatId, run.UserId, run.Model,
+            run.Status, run.Error, run.PartialContent);
+        foreach (var notifier in services.GetServices<IChatRunNotifier>())
+        {
+            try
+            {
+                await notifier.RunCompletedAsync(finished, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Notifier {Type} falhou para run {RunId}.",
+                    notifier.GetType().Name, run.Id);
+            }
         }
     }
 }

@@ -240,6 +240,40 @@ public class ChatRun
     public long? CompletedAt { get; set; }
 }
 
+/// <summary>
+/// Subscription Web Push de um navegador
+/// (SPEC-20261007-chat-notifications): endpoint do push service (FCM/Mozilla)
+/// mais o material de criptografia do cliente, gravado quando o usuário opta
+/// por receber aviso de run concluída com a aba fechada. O endpoint é único —
+/// re-subscribe do mesmo navegador apenas rotaciona as chaves.
+/// </summary>
+public class ChatPushSubscription
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da subscription.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Endpoint do push service (único por navegador).</summary>
+    public string Endpoint { get; set; } = string.Empty;
+
+    /// <summary>Chave pública ECDH do cliente (base64url) para cifrar o payload.</summary>
+    public string P256dh { get; set; } = string.Empty;
+
+    /// <summary>Segredo de auth do cliente (base64url) para cifrar o payload.</summary>
+    public string Auth { get; set; } = string.Empty;
+
+    /// <summary>User-Agent do navegador (hint para ops/debug).</summary>
+    public string? UserAgent { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização/renovação (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
 /// <summary>Entrada chave-valor de configuração persistida (espelha a tabela config do Open WebUI).</summary>
 public class ConfigEntry
 {

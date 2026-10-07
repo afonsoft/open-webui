@@ -21,6 +21,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).</summary>
     public DbSet<ChatRun> ChatRuns => Set<ChatRun>();
 
+    /// <summary>Subscriptions Web Push de navegadores (SPEC-20261007-chat-notifications).</summary>
+    public DbSet<ChatPushSubscription> ChatPushSubscriptions => Set<ChatPushSubscription>();
+
     /// <summary>Pastas de organização de chats.</summary>
     public DbSet<Folder> Folders => Set<Folder>();
 
@@ -158,6 +161,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(r => r.ChatId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatPushSubscription>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.Endpoint).IsUnique();
         });
 
         modelBuilder.Entity<Folder>(entity =>

@@ -31,6 +31,17 @@ public static class NotificationEndpoints
             (HttpContext http, AppDbContext db, NotificationService notifications) =>
                 TestAsync(http, db, notifications, true));
 
+        // SPEC-20261007-chat-notifications RF-004: subscriptions Web Push
+        // (aviso de run concluída com a aba fechada).
+        group.MapGet("/push/vapid-key",
+            (HttpContext http, AppDbContext db, VapidKeyService vapid) =>
+                GetVapidKeyAsync(http, db, vapid));
+        group.MapPost("/push/subscriptions",
+            (HttpContext http, AppDbContext db) => SavePushSubscriptionAsync(http, db));
+        group.MapDelete("/push/subscriptions",
+            (HttpContext http, AppDbContext db, string endpoint) =>
+                DeletePushSubscriptionAsync(http, db, endpoint));
+
         return group;
     }
 
@@ -104,6 +115,80 @@ public static class NotificationEndpoints
         var body = JsonSerializer.Serialize(new { @event = "test", data = new { }, ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
         var status = await notifications.SendSafelyAsync(webhook, "test", body);
         return Results.Ok(new WebhookTestResponse(status, status is >= 200 and < 300));
+    }
+
+    private static async Task<IResult> GetVapidKeyAsync(
+        HttpContext http, AppDbContext db, VapidKeyService vapid)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        var publicKey = await vapid.GetPublicKeyAsync(http.RequestAborted);
+        return publicKey is null
+            ? Results.NotFound(new { detail = "Web Push não configurado neste servidor." })
+            : Results.Ok(new VapidPublicKeyResponse(publicKey));
+    }
+
+    private static async Task<IResult> SavePushSubscriptionAsync(HttpContext http, AppDbContext db)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        var request = await JsonSerializer.DeserializeAsync<PushSubscriptionRequest>(
+            http.Request.Body, JsonSerializerOptions.Web, http.RequestAborted);
+        if (request is null || string.IsNullOrWhiteSpace(request.Endpoint)
+            || string.IsNullOrWhiteSpace(request.Keys?.P256dh)
+            || string.IsNullOrWhiteSpace(request.Keys.Auth))
+        {
+            return Results.BadRequest(new { detail = "endpoint, keys.p256dh e keys.auth são obrigatórios." });
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        // Upsert por endpoint: re-subscribe do mesmo navegador só rotaciona
+        // as chaves — e sempre sob o UserId do dono autenticado.
+        var existing = await db.ChatPushSubscriptions
+            .FirstOrDefaultAsync(s => s.Endpoint == request.Endpoint, http.RequestAborted);
+        if (existing is not null)
+        {
+            existing.UserId = user.Id;
+            existing.P256dh = request.Keys.P256dh;
+            existing.Auth = request.Keys.Auth;
+            existing.UserAgent = request.UserAgent;
+            existing.UpdatedAt = now;
+        }
+        else
+        {
+            db.ChatPushSubscriptions.Add(new ChatPushSubscription
+            {
+                UserId = user.Id,
+                Endpoint = request.Endpoint.Trim(),
+                P256dh = request.Keys.P256dh,
+                Auth = request.Keys.Auth,
+                UserAgent = request.UserAgent,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return Results.Ok(new { subscribed = true });
+    }
+
+    private static async Task<IResult> DeletePushSubscriptionAsync(
+        HttpContext http, AppDbContext db, string endpoint)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        // Só o dono remove a própria subscription.
+        var existing = await db.ChatPushSubscriptions
+            .FirstOrDefaultAsync(s => s.Endpoint == endpoint && s.UserId == user.Id,
+                http.RequestAborted);
+        if (existing is null) return Results.NotFound();
+
+        db.ChatPushSubscriptions.Remove(existing);
+        await db.SaveChangesAsync();
+        return Results.Ok(new { subscribed = false });
     }
 
     private static Task<NotificationWebhook?> FindAsync(AppDbContext db, User user, bool global, CancellationToken ct) =>
