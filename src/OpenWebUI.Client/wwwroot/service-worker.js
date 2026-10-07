@@ -43,13 +43,17 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request).then((hit) => {
       if (hit) return hit;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
+      return fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        // Falha de rede num asset: resolve com erro em vez de rejeitar —
+        // evita "Uncaught (in promise) TypeError: Failed to fetch" no console.
+        .catch(() => new Response(null, { status: 504, statusText: 'Gateway Timeout' }));
     })
   );
 });

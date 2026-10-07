@@ -18,6 +18,29 @@ public class ImageGenerationService(
     public Task<ImagesConfig> GetConfigAsync(CancellationToken ct = default) =>
         config.GetAsync("images.config", ImagesConfig.Default, ct);
 
+    /// <summary>
+    /// Config resolvida: quando <see cref="ImagesConfig.Provider"/> aponta para
+    /// uma conexão OpenAI cadastrada, URL base e chave vêm dela (engine openai).
+    /// Conexão removida → BaseUrl vazia = feature desabilitada.
+    /// </summary>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<ImagesConfig> GetResolvedConfigAsync(CancellationToken ct = default)
+    {
+        var images = await GetConfigAsync(ct);
+        if (string.IsNullOrWhiteSpace(images.Provider))
+        {
+            return images;
+        }
+
+        return await config.FindOpenAiConnectionAsync(images.Provider, ct) is { } conn
+            ? images with
+            {
+                Engine = "openai", BaseUrl = conn.Url,
+                ApiKey = conn.Key ?? string.Empty,
+            }
+            : images with { BaseUrl = string.Empty, ApiKey = string.Empty };
+    }
+
     /// <summary>Persiste a configuração de geração de imagens.</summary>
     /// <param name="images">Configuração a gravar.</param>
     /// <param name="ct">Token de cancelamento.</param>
@@ -36,7 +59,7 @@ public class ImageGenerationService(
     public async Task<List<FileEntry>> GenerateAsync(
         string prompt, int n, string? size, string userId, string uploadDir, CancellationToken ct = default)
     {
-        var images = await GetConfigAsync(ct);
+        var images = await GetResolvedConfigAsync(ct);
         if (!images.Enabled || string.IsNullOrWhiteSpace(images.BaseUrl))
         {
             throw new InvalidOperationException("Geração de imagens desabilitada.");
@@ -60,7 +83,7 @@ public class ImageGenerationService(
         string imageId, string prompt, string? size, string userId, string uploadDir,
         CancellationToken ct = default)
     {
-        var images = await GetConfigAsync(ct);
+        var images = await GetResolvedConfigAsync(ct);
         if (!images.Enabled || string.IsNullOrWhiteSpace(images.BaseUrl))
         {
             throw new InvalidOperationException("Geração de imagens desabilitada.");
@@ -87,7 +110,7 @@ public class ImageGenerationService(
     /// <summary>Testa conectividade do motor configurado (admin).</summary>
     public async Task<(bool Ok, string Detail)> TestAsync(CancellationToken ct = default)
     {
-        var images = await GetConfigAsync(ct);
+        var images = await GetResolvedConfigAsync(ct);
         var engine = engineFactory.Resolve(images.Engine);
         return await engine.TestAsync(images, ct);
     }

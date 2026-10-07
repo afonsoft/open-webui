@@ -134,10 +134,18 @@ public class RagEdgeTests
         Assert.That(await db.EmbeddingChunks.CountAsync(), Is.EqualTo(0));
     }
 
+    /// <summary>Zera as conexões: o default aponta para localhost:11434 e um
+    /// Ollama real no host tornaria o teste dependente do ambiente.</summary>
+    private static async Task SeedSemConexoesAsync(AppDbContext db) =>
+        await new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
+            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))
+            .SetAsync("connections", new ConnectionsConfig([], [], []));
+
     [Test]
     public async Task Index_SemProviderDeEmbedding_RetornaFalse()
     {
         await using var db = await CreateContextAsync();
+        await SeedSemConexoesAsync(db);
         var rag = NewRag(db);
 
         // Sem conexões configuradas, EmbedAsync devolve null e nada é indexado.
@@ -212,6 +220,7 @@ public class RagEdgeTests
     public async Task Retrieve_SemProvider_RetornaNull()
     {
         await using var db = await CreateContextAsync();
+        await SeedSemConexoesAsync(db);
         var rag = NewRag(db);
         db.EmbeddingChunks.Add(NewChunk("f1", "texto", "[1.0,0.0]"));
         await db.SaveChangesAsync();

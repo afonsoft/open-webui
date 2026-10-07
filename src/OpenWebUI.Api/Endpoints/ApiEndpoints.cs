@@ -39,6 +39,7 @@ public static class ApiEndpoints
         configs.MapPost("/connections", UpdateConnectionsAsync);
         configs.MapGet("/capabilities", GetCapabilitiesAsync);
         configs.MapGet("/connections/models", ListConnectionModelsAsync);
+        configs.MapGet("/connections/capabilities", GetConnectionCapabilitiesAsync);
         configs.MapGet("/export", ExportConfigAsync);
         configs.MapPost("/import", ImportConfigAsync);
     }
@@ -177,6 +178,9 @@ public static class ApiEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         http.Response.Headers.Connection = "keep-alive";
+        // Desativa buffering do SSE em proxies (nginx) — senão os deltas
+        // só chegam ao cliente quando a resposta fecha.
+        http.Response.Headers["X-Accel-Buffering"] = "no";
 
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -341,8 +345,7 @@ public static class ApiEndpoints
             return Results.Forbid();
         }
 
-        var detected = await config.GetAsync<DetectedCapabilities?>(
-            "capabilities.detected", null, ct);
+        var detected = await capabilities.GetAggregatedAsync(ct);
         if (detected is null)
         {
             var connections = await config.GetConnectionsAsync(ct);
@@ -350,9 +353,7 @@ public static class ApiEndpoints
             {
                 try
                 {
-                    detected = await capabilities.DetectCandidatesAsync(
-                        connections.OpenAiBaseUrls[i],
-                        connections.OpenAiApiKeys.ElementAtOrDefault(i), ct);
+                    detected = await capabilities.DetectConnectionAsync("openai", i, ct);
                 }
                 catch (Exception)
                 {
@@ -364,6 +365,37 @@ public static class ApiEndpoints
         return detected is null
             ? Results.Ok(new DetectedCapabilities([], [], [], [], [], null, 0))
             : Results.Ok(detected);
+    }
+
+    /// <summary>
+    /// Capacidades detectadas de UMA conexão (admin) — os combos de STT/TTS,
+    /// imagem e vídeo filtram pelos modelos do provider selecionado, não pelo
+    /// catálogo inteiro nem por outro provider. Faz a detecção rápida
+    /// (/models + heurística) e atualiza o mapa persistido.
+    /// </summary>
+    private static async Task<IResult> GetConnectionCapabilitiesAsync(
+        HttpContext http, ProviderCapabilityService capabilities,
+        string type, int index, CancellationToken ct)
+    {
+        if (!IsAdmin(http))
+        {
+            return Results.Forbid();
+        }
+        if (type is not ("openai" or "ollama"))
+        {
+            return Results.BadRequest(new { detail = "type deve ser openai|ollama." });
+        }
+
+        try
+        {
+            var detected = await capabilities.DetectConnectionAsync(type, index, ct);
+            return Results.Ok(detected ?? new DetectedCapabilities([], [], [], [], [], null, 0));
+        }
+        catch (Exception)
+        {
+            // Provider fora do ar: devolve vazio — combos caem em texto livre.
+            return Results.Ok(new DetectedCapabilities([], [], [], [], [], null, 0));
+        }
     }
 
     /// <summary>Lista modelos de uma conexão cadastrada (admin) — usado pelos combos da UI.</summary>

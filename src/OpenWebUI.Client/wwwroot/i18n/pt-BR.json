@@ -640,5 +640,12 @@
   "settings.audio_test": "Testar TTS",
   "settings.audio_testing": "Testando…",
   "settings.audio_test_ok": "TTS OK",
-  "settings.audio_test_fail": "Falha no teste TTS"
+  "settings.audio_test_fail": "Falha no teste TTS",
+  "settings.audio_unavailable": "Áudio indisponível — configure um provider no Admin ou use Web Speech",
+  "settings.media_moved_to_integrations": "Imagem e vídeo agora são configurados em Admin → Integrações.",
+  "admin.images_sub": "Motor do builtin:generate_image (OpenAI/DALL·E, ComfyUI)",
+  "admin.provider_custom": "Manual (URL/chave abaixo)",
+  "admin.provider_register_hint": "Nenhuma conexão OpenAI cadastrada —",
+  "admin.provider_register": "cadastrar provider",
+  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima"
 }

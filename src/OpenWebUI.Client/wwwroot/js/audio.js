@@ -1,6 +1,7 @@
 // Áudio do Open WebUI — STT (Web Speech API ou /transcriptions server-side)
-// e TTS (speechSynthesis ou /speech server-side). Web Speech é preferida;
-// quando ausente (ou engine=server), cai para os endpoints com MediaRecorder.
+// e TTS (speechSynthesis ou /speech server-side). Os controles só aparecem
+// quando configurados: engine "web-speech" usa as APIs do browser; "auto" e
+// "server" exigem que o servidor reporte a capability em /audio/capabilities.
 (function () {
 	const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 	let recog = null;
@@ -64,13 +65,11 @@
 	}
 
 	function useServerStt() {
-		const e = engine();
-		return e === 'server' || (e !== 'web-speech' && !SR);
+		return engine() !== 'web-speech';
 	}
 
 	function useServerTts() {
-		const e = engine();
-		return e === 'server' || (e !== 'web-speech' && !('speechSynthesis' in window));
+		return engine() !== 'web-speech';
 	}
 
 	async function startServerStt(ref) {
@@ -156,10 +155,13 @@
 	window.openwebui = window.openwebui || {};
 	window.openwebui.audio = {
 		sttSupported: async () =>
-			(!!SR && !useServerStt()) ||
-			(('MediaRecorder' in window) && (await serverCaps()).stt),
+			engine() === 'web-speech'
+				? !!SR
+				: ('MediaRecorder' in window) && (await serverCaps()).stt,
 		ttsSupported: async () =>
-			('speechSynthesis' in window && !useServerTts()) || (await serverCaps()).tts,
+			engine() === 'web-speech'
+				? 'speechSynthesis' in window
+				: (await serverCaps()).tts,
 
 		voices: () =>
 			('speechSynthesis' in window ? speechSynthesis.getVoices() : []).map((v) => ({

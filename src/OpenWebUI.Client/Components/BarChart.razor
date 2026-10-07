@@ -1,10 +1,11 @@
 @* Gráfico de barras SVG simples para séries DayCount (analytics). *@
 @inject LocalizationService L
+@using System.Globalization
 
 <svg viewBox="0 0 @(Width) @(Height)" class="w-full h-24 text-gray-400 dark:text-gray-500" role="img" aria-label="@L["admin.chart"]">
     @foreach (var bar in Bars)
     {
-        <rect x="@bar.X" y="@bar.Y" width="@bar.W" height="@bar.H" rx="1"
+        <rect x="@Fmt(bar.X)" y="@Fmt(bar.Y)" width="@Fmt(bar.W)" height="@Fmt(bar.H)" rx="1"
               class="fill-gray-300 dark:fill-gray-600" />
     }
 </svg>
@@ -34,4 +35,8 @@
             }
         }
     }
+
+    // SVG exige separador decimal '.' — a cultura pt-BR renderizaria "68,57".
+    private static string Fmt(double value) =>
+        value.ToString("0.###", CultureInfo.InvariantCulture);
 }

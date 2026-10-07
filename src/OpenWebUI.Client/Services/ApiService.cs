@@ -708,6 +708,15 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<ModelListResponse>(HttpMethod.Get,
             $"/api/v1/configs/connections/models?type={Uri.EscapeDataString(type)}&index={index}");
 
+    /// <summary>
+    /// Capacidades detectadas de UMA conexão (somente admin) — os combos de
+    /// STT/TTS/imagem/vídeo exibem apenas os modelos compatíveis do provider
+    /// selecionado, não o catálogo inteiro.
+    /// </summary>
+    public Task<DetectedCapabilities?> GetConnectionCapabilitiesAsync(string type, int index) =>
+        SendAsync<DetectedCapabilities>(HttpMethod.Get,
+            $"/api/v1/configs/connections/capabilities?type={Uri.EscapeDataString(type)}&index={index}");
+
     /// <summary>Obtém a versão do backend.</summary>
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");
@@ -807,6 +816,10 @@ public class ApiService(HttpClient http, AuthService auth)
     /// <summary>Atualiza a configuração de geração de imagens (somente admin).</summary>
     public Task<ImagesConfig?> UpdateImagesConfigAsync(ImagesConfig config) =>
         SendAsync<ImagesConfig>(HttpMethod.Post, "/api/v1/images/config", config);
+
+    /// <summary>Motores de imagem disponíveis (somente admin).</summary>
+    public async Task<List<string>> GetImageEnginesAsync() =>
+        await SendAsync<List<string>>(HttpMethod.Get, "/api/v1/images/config/engines") ?? [];
 
     /// <summary>Testa a conectividade do motor de imagens configurado (admin).</summary>
     public Task<ImageTestResponse?> TestImagesConfigAsync() =>
