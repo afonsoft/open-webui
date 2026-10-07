@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;; \
     esac && \
     dotnet publish src/OpenWebUI.Api/OpenWebUI.Api.csproj \
-      -c Release -r "$RID" -o /app/publish
+      -c Release -r "$RID" --self-contained true -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 
