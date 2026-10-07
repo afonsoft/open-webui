@@ -509,13 +509,11 @@
   "terminal.empty": " — 。",
   "terminal.disabled": "。",
   "terminal.disabled_hint": "（PUT /api/v1/terminal/config  TERMINAL_ENABLED）。",
-  "chat": {
-    "git_title": "工作区 Git — 查看更改",
-    "panel_diff_truncated": "diff 已截断（大型仓库）"
-  },
   "chat.question_title": "代理人有问题",
   "chat.question_other": "其他（输入您的答案）",
   "chat.question_submit": "发送答案",
   "chat.question_skip": "跳过",
-  "chat.question_placeholder": "输入您的答案…"
+  "chat.question_placeholder": "输入您的答案…",
+  "chat.git_title": "工作区 Git — 查看更改",
+  "chat.panel_diff_truncated": "diff 已截断（大型仓库）"
 }

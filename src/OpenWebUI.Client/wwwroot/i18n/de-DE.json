@@ -509,13 +509,11 @@
   "terminal.empty": "Keine Sitzungen — oben eine erstellen.",
   "terminal.disabled": "Terminal ist vom Administrator deaktiviert.",
   "terminal.disabled_hint": "Einen Administrator bitten, es zu aktivieren (PUT /api/v1/terminal/config oder TERMINAL_ENABLED).",
-  "chat": {
-    "git_title": "Workspace-Git — Änderungen anzeigen",
-    "panel_diff_truncated": "Diff gekürzt (großes Repo)"
-  },
   "chat.question_title": "Der Agent hat eine Frage",
   "chat.question_other": "Andere (Antwort eingeben)",
   "chat.question_submit": "Antwort senden",
   "chat.question_skip": "Überspringen",
-  "chat.question_placeholder": "Antwort eingeben…"
+  "chat.question_placeholder": "Antwort eingeben…",
+  "chat.git_title": "Workspace-Git — Änderungen anzeigen",
+  "chat.panel_diff_truncated": "Diff gekürzt (großes Repo)"
 }

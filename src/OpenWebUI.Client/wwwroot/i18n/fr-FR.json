@@ -509,13 +509,11 @@
   "terminal.empty": "Aucune session — créez-en une ci-dessus.",
   "terminal.disabled": "Le terminal est désactivé par l'administrateur.",
   "terminal.disabled_hint": "Demandez à un administrateur de l'activer (PUT /api/v1/terminal/config ou TERMINAL_ENABLED).",
-  "chat": {
-    "git_title": "Git du workspace — voir les changements",
-    "panel_diff_truncated": "diff tronqué (gros dépôt)"
-  },
   "chat.question_title": "L'agent a une question",
   "chat.question_other": "Autre (tapez votre réponse)",
   "chat.question_submit": "Envoyer la réponse",
   "chat.question_skip": "Ignorer",
-  "chat.question_placeholder": "Tapez votre réponse…"
+  "chat.question_placeholder": "Tapez votre réponse…",
+  "chat.git_title": "Git du workspace — voir les changements",
+  "chat.panel_diff_truncated": "diff tronqué (gros dépôt)"
 }

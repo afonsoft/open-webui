@@ -509,13 +509,11 @@
   "terminal.empty": "Nessuna sessione — creane una sopra.",
   "terminal.disabled": "Il terminale è disabilitato dall'amministratore.",
   "terminal.disabled_hint": "Chiedi a un amministratore di abilitarlo (PUT /api/v1/terminal/config o TERMINAL_ENABLED).",
-  "chat": {
-    "git_title": "Git del workspace — vedi modifiche",
-    "panel_diff_truncated": "diff troncato (repo grande)"
-  },
   "chat.question_title": "L'agente ha una domanda",
   "chat.question_other": "Altro (digita la risposta)",
   "chat.question_submit": "Invia risposta",
   "chat.question_skip": "Salta",
-  "chat.question_placeholder": "Digita la risposta…"
+  "chat.question_placeholder": "Digita la risposta…",
+  "chat.git_title": "Git del workspace — vedi modifiche",
+  "chat.panel_diff_truncated": "diff troncato (repo grande)"
 }

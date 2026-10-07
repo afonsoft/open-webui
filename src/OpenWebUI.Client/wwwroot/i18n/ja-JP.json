@@ -509,13 +509,11 @@
   "terminal.empty": "セッションがありません — でしてください。",
   "terminal.disabled": "ターミナルはによりされています。",
   "terminal.disabled_hint": "にをしてください（PUT /api/v1/terminal/config または TERMINAL_ENABLED）。",
-  "chat": {
-    "git_title": "ワークスペースのGit — 変更を見る",
-    "panel_diff_truncated": "diff が切り詰められました（大きなリポジトリ）"
-  },
   "chat.question_title": "エージェントから質問があります",
   "chat.question_other": "その他（回答を入力）",
   "chat.question_submit": "回答を送信",
   "chat.question_skip": "スキップ",
-  "chat.question_placeholder": "回答を入力…"
+  "chat.question_placeholder": "回答を入力…",
+  "chat.git_title": "ワークスペースのGit — 変更を見る",
+  "chat.panel_diff_truncated": "diff が切り詰められました（大きなリポジトリ）"
 }
