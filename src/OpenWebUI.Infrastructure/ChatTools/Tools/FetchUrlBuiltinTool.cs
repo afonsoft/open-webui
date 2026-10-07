@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -53,7 +52,7 @@ public sealed partial class FetchUrlBuiltinTool(IHttpClientFactory httpFactory) 
             return new BuiltinToolResult("URL inválida — use http(s) absoluta.");
         }
 
-        if (await IsPrivateHostAsync(uri.Host, ct))
+        if (await SsrfGuard.IsBlockedAsync(uri.Host, allowLoopback: false, ct))
         {
             return new BuiltinToolResult(
                 $"Host '{uri.Host}' resolve para endereço privado/loopback — bloqueado.",
@@ -112,65 +111,6 @@ public sealed partial class FetchUrlBuiltinTool(IHttpClientFactory httpFactory) 
             url = uri.ToString(),
             truncated,
         });
-    }
-
-    /// <summary>
-    /// Resolve o host e barra se qualquer endereço for loopback, RFC1918,
-    /// link-local, CGNAT ou reservado (0.0.0.0, ::, fe80::/10, fc00::/7).
-    /// </summary>
-    private static async Task<bool> IsPrivateHostAsync(string host, CancellationToken ct)
-    {
-        IPAddress[] addresses;
-        try
-        {
-            if (IPAddress.TryParse(host, out var literal))
-            {
-                addresses = [literal];
-            }
-            else
-            {
-                addresses = await Dns.GetHostAddressesAsync(host, ct);
-            }
-        }
-        catch
-        {
-            return true; // não resolve → fail-closed
-        }
-
-        if (addresses.Length == 0)
-        {
-            return true;
-        }
-
-        return addresses.Any(IsPrivateAddress);
-    }
-
-    private static bool IsPrivateAddress(IPAddress address)
-    {
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            return address.IsIPv6LinkLocal
-                || address.IsIPv6SiteLocal
-                || IPAddress.IsLoopback(address)
-                || address.Equals(IPAddress.IPv6Any)
-                || IsInPrefix(address, 0xfc, 7); // fc00::/7 unique-local
-        }
-
-        var bytes = address.GetAddressBytes();
-        return bytes[0] == 0                                  // 0.0.0.0/8
-            || bytes[0] == 10                                 // 10/8
-            || bytes[0] == 127                                // loopback
-            || (bytes[0] == 169 && bytes[1] == 254)           // link-local
-            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31) // 172.16/12
-            || (bytes[0] == 192 && bytes[1] == 168)           // 192.168/16
-            || (bytes[0] == 100 && bytes[1] is >= 64 and <= 127); // CGNAT 100.64/10
-    }
-
-    private static bool IsInPrefix(IPAddress address, int prefixHighByte, int prefixBits)
-    {
-        var b = address.GetAddressBytes()[0];
-        var mask = 0xff << (8 - prefixBits) & 0xff;
-        return (b & mask) == (prefixHighByte & mask);
     }
 
     private static Encoding ResolveEncoding(string? charset)

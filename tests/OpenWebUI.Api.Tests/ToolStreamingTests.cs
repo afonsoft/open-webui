@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using OpenWebUI.Api.Runs;
 using OpenWebUI.Application.Contracts;
@@ -21,6 +22,7 @@ public class ToolStreamingTests
     private HttpClient _client = null!;
     private string _dbPath = null!;
     private string _mockBase = null!;
+    private string _adminToken = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
 
@@ -34,6 +36,7 @@ public class ToolStreamingTests
         _mockBase = StartMock();
 
         var admin = await SignUpAsync("Admin", "admin@tools.local");
+        _adminToken = admin.Token;
         UseToken(admin.Token);
         var config = AdminConfig.Default with { DefaultUserRole = "user" };
         var updated = await _client.PostAsJsonAsync("/api/v1/auths/admin/config", config);
@@ -130,7 +133,9 @@ public class ToolStreamingTests
                         ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-fw\",\"function\":{\"name\":\"builtin:file_write\",\"arguments\":{\"path\":\"saida.txt\",\"content\":\"gerado\"}}}]}}"
                         : body.Contains("delegate_task", StringComparison.Ordinal)
                             ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-dl\",\"function\":{\"name\":\"builtin:delegate_task\",\"arguments\":{\"prompt\":\"resuma o arquivo\"}}}]}}"
-                            : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
+                            : body.Contains("browser_screenshot", StringComparison.Ordinal)
+                                ? $"{{\"message\":{{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{{\"id\":\"call-bs\",\"function\":{{\"name\":\"builtin:browser_screenshot\",\"arguments\":{{\"url\":\"{_mockBase}/api/tags\",\"width\":640,\"height\":480}}}}}}]}}}}"
+                                : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
             }
             else if (path == "/tool/eco")
             {
@@ -909,5 +914,82 @@ public class ToolStreamingTests
             $"/api/v1/chats/{filho!.Id}/runs");
         Assert.That(runs, Has.Count.EqualTo(1));
         Assert.That(runs![0].Status, Is.EqualTo("completed"), runs[0].Error);
+    }
+
+    // ---- browser_screenshot (RF-017) ----
+
+    [Test]
+    public async Task BrowserScreenshot_Desabilitada_RecusaComAviso()
+    {
+        // Flag off por padrão (RF-017): a tool explica como habilitar em
+        // vez de executar. Garante estado deterministicamente via PUT.
+        var auth = await SignUpAsync("BsOff", "bsoff@tools.local");
+        UseToken(_adminToken);
+        var off = await _client.PutAsJsonAsync(
+            "/api/v1/browser/config", new { enabled = false });
+        Assert.That(off.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        UseToken(auth.Token);
+
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "tira um print",
+            ["builtin:browser_screenshot"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.That(eventos.Any(e => e.Event == "tool_result"
+                && e.Data.Contains("desabilitada")), Is.True,
+            "tool desabilitada deveria recusar com aviso");
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task BrowserScreenshot_Habilitada_CapturaEServePng()
+    {
+        // Admin liga a flag → a tool captura o mock Ollama via loopback
+        // (único host privado permitido) e a imagem fica servível em
+        // /api/v1/files/{id}/content. Sem browser headless no ambiente
+        // o teste é ignorado (Assert.Ignore), não quebra CI.
+        var auth = await SignUpAsync("BsOn", "bson@tools.local");
+        UseToken(_adminToken);
+        var on = await _client.PutAsJsonAsync(
+            "/api/v1/browser/config", new { enabled = true });
+        Assert.That(on.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        UseToken(auth.Token);
+
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "tira um print",
+            ["builtin:browser_screenshot"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        var resultado = eventos.FirstOrDefault(e => e.Event == "tool_result"
+            && e.Data.Contains("browser_screenshot")).Data
+            ?? eventos.FirstOrDefault(e => e.Event == "tool_result").Data;
+        Assert.That(resultado, Is.Not.Null, "faltou tool_result");
+        if (resultado!.Contains("Nenhum browser headless"))
+        {
+            Assert.Ignore("Ambiente sem browser headless instalado.");
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resultado, Does.Contain("imagePath"),
+                "resultado deveria carregar imagePath");
+            Assert.That(resultado, Does.Contain("\"ok\":true"));
+        });
+
+        using var doc = JsonDocument.Parse(resultado!);
+        var imagePath = doc.RootElement.GetProperty("imagePath").GetString()!;
+        var img = await _client.GetAsync(imagePath);
+        Assert.That(img.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            $"GET {imagePath} falhou");
+        var png = await img.Content.ReadAsByteArrayAsync();
+        Assert.That(png.Length, Is.GreaterThan(100));
+        Assert.That(png[0], Is.EqualTo(0x89), "não é PNG");
+
+        // Limpa a flag pra não vazar estado entre testes.
+        UseToken(_adminToken);
+        await _client.PutAsJsonAsync("/api/v1/browser/config", new { enabled = false });
     }
 }
