@@ -20,25 +20,22 @@ public sealed class AskUserBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Faz uma pergunta ao usuário e pausa a execução até a resposta. "
-        + "Use quando precisar de uma decisão, confirmação ou detalhe que só "
-        + "o usuário sabe — nunca pergunte em texto puro quando uma resposta "
-        + "estruturada resolve.";
+        "Ask the user — call when you need a decision or detail.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "question": { "type": "string", "description": "A pergunta a fazer." },
+            "question": { "type": "string", "description": "The question to ask." },
             "options": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Opções clicáveis (opcional; omitir = resposta livre)."
+              "description": "Clickable options (optional; omit = free-text answer)."
             },
             "multiple": {
               "type": "boolean",
-              "description": "Permite escolher mais de uma opção (opcional)."
+              "description": "Allow picking more than one option (optional)."
             }
           },
           "required": ["question"]

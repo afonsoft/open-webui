@@ -15,9 +15,7 @@ public sealed class N8nListWorkflowsBuiltinTool(N8nService n8n) : IBuiltinChatTo
 
     /// <inheritdoc />
     public string Description =>
-        "Lista os workflows disponíveis na instância n8n configurada (id, nome, "
-        + "se está ativo). Use antes de n8n_trigger para descobrir o "
-        + "workflow_id ou o path de webhook.";
+        "List n8n workflows — call before n8n_trigger.";
 
     /// <inheritdoc />
     public string ParametersJson => """{"type":"object","properties":{}}""";
@@ -69,10 +67,7 @@ public sealed class N8nTriggerBuiltinTool(N8nService n8n) : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Dispara um workflow do n8n e retorna o resultado. Prefira "
-        + "webhook_path (webhook de produção do workflow — não exige API key); "
-        + "workflow_id usa a API pública (n8n recente + API key configurada). "
-        + "payload é um objeto JSON opcional enviado como input do workflow.";
+        "Run an n8n workflow — call to trigger automation.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -81,15 +76,15 @@ public sealed class N8nTriggerBuiltinTool(N8nService n8n) : IBuiltinChatTool
           "properties": {
             "workflow_id": {
               "type": "string",
-              "description": "Id do workflow no n8n (execute via API pública)."
+              "description": "Workflow id in n8n (executes via public API)."
             },
             "webhook_path": {
               "type": "string",
-              "description": "Path do webhook de produção do workflow (sem /webhook/ inicial)."
+              "description": "Production webhook path of the workflow (without leading /webhook/)."
             },
             "payload": {
               "type": "object",
-              "description": "Dados de entrada do workflow (JSON opcional)."
+              "description": "Workflow input data (optional JSON)."
             }
           }
         }

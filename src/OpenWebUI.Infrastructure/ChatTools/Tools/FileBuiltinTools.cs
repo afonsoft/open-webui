@@ -15,16 +15,15 @@ public sealed class FileListBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Lista arquivos e subdiretórios de um diretório do workspace "
-        + "(dirs primeiro, com tamanhos). path omitido = raiz do workspace.";
+        "List a directory — call to see workspace files/sizes.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "path": { "type": "string", "description": "Diretório relativo ao workspace (default '.').", "default": "." },
-            "recursive": { "type": "boolean", "description": "true = desce subdiretórios (até 500 entradas).", "default": false }
+            "path": { "type": "string", "description": "Directory relative to the workspace (default '.').", "default": "." },
+            "recursive": { "type": "boolean", "description": "true = descend into subdirectories (up to 500 entries).", "default": false }
           }
         }
         """;
@@ -139,17 +138,16 @@ public sealed class FileReadBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Lê um arquivo de texto do workspace com linhas numeradas. "
-        + "offset (1-based) e limit (máx. 2000) paginam arquivos grandes.";
+        "Read a file (numbered, paged) — call to inspect code/text.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "path": { "type": "string", "description": "Caminho relativo ao workspace." },
-            "offset": { "type": "integer", "description": "Primeira linha (1-based, default 1).", "default": 1 },
-            "limit": { "type": "integer", "description": "Linhas a ler (default 400, máx. 2000).", "default": 400 }
+            "path": { "type": "string", "description": "Path relative to the workspace." },
+            "offset": { "type": "integer", "description": "First line (1-based, default 1).", "default": 1 },
+            "limit": { "type": "integer", "description": "Lines to read (default 400, max 2000).", "default": 400 }
           },
           "required": ["path"]
         }
@@ -231,20 +229,18 @@ public sealed class FileGrepBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Busca uma regex (ECMAScript/.NET) nos arquivos do workspace e "
-        + "retorna path:linha: conteúdo. glob opcional filtra arquivos "
-        + "(ex.: '*.cs'); ignore_case default true.";
+        "Regex-search file contents — call to find text/code.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "pattern": { "type": "string", "description": "Regex a buscar." },
-            "path": { "type": "string", "description": "Diretório/arquivo relativo (default '.').", "default": "." },
-            "glob": { "type": "string", "description": "Filtro de arquivos (ex.: '*.cs', 'src/**')." },
+            "pattern": { "type": "string", "description": "Regex to search for." },
+            "path": { "type": "string", "description": "Relative directory/file (default '.').", "default": "." },
+            "glob": { "type": "string", "description": "File filter (e.g. '*.cs', 'src/**')." },
             "ignore_case": { "type": "boolean", "default": true },
-            "max_results": { "type": "integer", "description": "Cap de matches (default 100).", "default": 100 }
+            "max_results": { "type": "integer", "description": "Match cap (default 100).", "default": 100 }
           },
           "required": ["pattern"]
         }
@@ -365,16 +361,15 @@ public sealed class FileGlobBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Lista arquivos do workspace que casam um glob (ex.: 'src/**/*.cs', "
-        + "'*.{json,md}'). path opcional limita a raiz da busca.";
+        "Find files by glob — call to locate e.g. 'src/**/*.cs'.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "pattern": { "type": "string", "description": "Glob (suporta **, *, ?, {}, [])." },
-            "path": { "type": "string", "description": "Diretório relativo raiz da busca (default '.').", "default": "." }
+            "pattern": { "type": "string", "description": "Glob (supports **, *, ?, {}, [])." },
+            "path": { "type": "string", "description": "Relative directory to search from (default '.').", "default": "." }
           },
           "required": ["pattern"]
         }
@@ -437,17 +432,15 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Cria ou sobrescreve um arquivo no workspace com o conteúdo "
-        + "completo. Para alterações pontuais prefira file_edit. O "
-        + "resultado inclui o diff unificado da mudança.";
+        "Create/overwrite a file — call to write full content.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "path": { "type": "string", "description": "Caminho relativo ao workspace (dirs criados)." },
-            "content": { "type": "string", "description": "Conteúdo completo do arquivo." }
+            "path": { "type": "string", "description": "Path relative to the workspace (dirs are created)." },
+            "content": { "type": "string", "description": "Full file content." }
           },
           "required": ["path", "content"]
         }
@@ -527,20 +520,17 @@ public sealed class FileEditBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Substitui um trecho exato de um arquivo do workspace "
-        + "(old_string → new_string). old_string deve ocorrer exatamente "
-        + "uma vez, salvo replace_all=true. Falha com dica quando o trecho "
-        + "não casa — releia o arquivo com file_read.";
+        "Replace exact text in a file — call for targeted edits.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "path": { "type": "string", "description": "Caminho relativo ao workspace." },
-            "old_string": { "type": "string", "description": "Trecho exato a substituir." },
-            "new_string": { "type": "string", "description": "Trecho substituto." },
-            "replace_all": { "type": "boolean", "description": "true = substitui todas as ocorrências.", "default": false }
+            "path": { "type": "string", "description": "Path relative to the workspace." },
+            "old_string": { "type": "string", "description": "Exact snippet to replace." },
+            "new_string": { "type": "string", "description": "Replacement snippet." },
+            "replace_all": { "type": "boolean", "description": "true = replace every occurrence.", "default": false }
           },
           "required": ["path", "old_string", "new_string"]
         }

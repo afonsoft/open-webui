@@ -30,18 +30,16 @@ public sealed class BrowserScreenshotBuiltinTool(
 
     /// <inheritdoc />
     public string Description =>
-        "Captura um screenshot de uma URL http(s) — inclusive localhost/127.0.0.1 "
-        + "(para verificar visualmente a aplicação que você acabou de subir). "
-        + "Retorna a imagem inline. Opcionalmente ajuste o viewport.";
+        "Screenshot a web page — call for visual checks or URLs.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "url": { "type": "string", "description": "URL http(s) a capturar (localhost permitido)." },
-            "width": { "type": "integer", "description": "Largura do viewport em px.", "default": 1280 },
-            "height": { "type": "integer", "description": "Altura do viewport em px.", "default": 800 }
+            "url": { "type": "string", "description": "http(s) URL to capture (localhost allowed)." },
+            "width": { "type": "integer", "description": "Viewport width in px.", "default": 1280 },
+            "height": { "type": "integer", "description": "Viewport height in px.", "default": 800 }
           },
           "required": ["url"]
         }

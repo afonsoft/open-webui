@@ -16,16 +16,15 @@ public sealed class WebSearchBuiltinTool(WebSearchService search) : IBuiltinChat
 
     /// <inheritdoc />
     public string Description =>
-        "Busca na web pelo engine configurado (SearxNG/Tavily/Brave/"
-        + "DuckDuckGo etc.) e devolve título, URL e snippet dos resultados.";
+        "Search the web — ALWAYS call for current info/news/facts.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "query": { "type": "string", "description": "Consulta de busca." },
-            "count": { "type": "integer", "description": "Quantidade de resultados (máx. 10).", "default": 5 }
+            "query": { "type": "string", "description": "Search query." },
+            "count": { "type": "integer", "description": "Number of results (max 10).", "default": 5 }
           },
           "required": ["query"]
         }

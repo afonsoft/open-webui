@@ -23,16 +23,15 @@ public sealed partial class FetchUrlBuiltinTool(IHttpClientFactory httpFactory) 
 
     /// <inheritdoc />
     public string Description =>
-        "Baixa uma URL http(s) pública e devolve o conteúdo como texto. "
-        + "Hosts privados/loopback são bloqueados.";
+        "Fetch a URL — ALWAYS call when the user shares a link.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "url": { "type": "string", "description": "URL http(s) a baixar." },
-            "max_chars": { "type": "integer", "description": "Máximo de caracteres devolvidos.", "default": 8000 }
+            "url": { "type": "string", "description": "http(s) URL to fetch." },
+            "max_chars": { "type": "integer", "description": "Maximum characters returned.", "default": 8000 }
           },
           "required": ["url"]
         }

@@ -41,12 +41,7 @@ public sealed class DelegateTaskBuiltinTool(
 
     /// <inheritdoc />
     public string Description =>
-        "Delega uma subtarefa independente para um agente filho que roda em "
-        + "background num chat próprio (contexto isolado, mesmo modelo e "
-        + "tools desta conversa, exceto delegate_task). Use para trabalho "
-        + "paralelizável ou que exija muitos passos intermediários. "
-        + "Aguarda o resultado até ~5min; se demorar mais, retorna o link "
-        + "do chat filho e a subtarefa continua em background.";
+        "Delegate to a child agent — call for parallel work.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -55,11 +50,11 @@ public sealed class DelegateTaskBuiltinTool(
           "properties": {
             "prompt": {
               "type": "string",
-              "description": "Instrução completa e autocontida para a subtarefa (o filho não vê esta conversa)."
+              "description": "Complete, self-contained instruction for the subtask (the child cannot see this conversation)."
             },
             "context": {
               "type": "string",
-              "description": "Contexto extra opcional (caminhos, decisões, restrições) anexado ao prompt."
+              "description": "Optional extra context (paths, decisions, constraints) appended to the prompt."
             }
           },
           "required": ["prompt"]

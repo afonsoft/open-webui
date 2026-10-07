@@ -20,18 +20,16 @@ public sealed class GenerateVideoBuiltinTool(VideoGenerationService videos) : IB
 
     /// <inheritdoc />
     public string Description =>
-        "Gera um vídeo curto a partir de um prompt usando o motor de vídeo "
-        + "configurado (OpenAI-compatible ou ComfyUI). Retorna o caminho do "
-        + "arquivo para exibir inline na conversa. Pode demorar alguns minutos.";
+        "ALWAYS call to create or generate a video clip.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "prompt": { "type": "string", "description": "Descrição do vídeo desejado." },
-            "seconds": { "type": "integer", "description": "Duração em segundos (1-60)." },
-            "size": { "type": "string", "description": "Resolução, ex.: 1280x720." }
+            "prompt": { "type": "string", "description": "Description of the desired video." },
+            "seconds": { "type": "integer", "description": "Duration in seconds (1-60)." },
+            "size": { "type": "string", "description": "Resolution, e.g. 1280x720." }
           },
           "required": ["prompt"]
         }

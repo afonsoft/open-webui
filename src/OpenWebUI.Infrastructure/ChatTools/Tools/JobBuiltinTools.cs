@@ -14,8 +14,7 @@ public sealed class JobListBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Lista os jobs de background iniciados pelo shell_exec com "
-        + "background=true — id, comando, status, pid e horário.";
+        "List background jobs — call to check running procs.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -24,12 +23,12 @@ public sealed class JobListBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
           "properties": {
             "all_chats": {
               "type": "boolean",
-              "description": "true = jobs de todas as conversas do usuário; false = só desta conversa.",
+              "description": "true = jobs from all of the user's conversations; false = this conversation only.",
               "default": false
             },
             "include_finished": {
               "type": "boolean",
-              "description": "true = inclui jobs já finalizados/mortos.",
+              "description": "true = include finished/killed jobs.",
               "default": true
             }
           }
@@ -83,16 +82,15 @@ public sealed class JobOutputBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Devolve a saída capturada (stdout+stderr) de um job de background "
-        + "pelo id — aceita tail em caracteres.";
+        "Read a job's output — call to poll a bg command.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "job_id": { "type": "string", "description": "Id do job (devolvido pelo shell_exec/job_list)." },
-            "tail_chars": { "type": "integer", "description": "Máximo de caracteres do fim do log.", "default": 4000 }
+            "job_id": { "type": "string", "description": "Job id (returned by shell_exec/job_list)." },
+            "tail_chars": { "type": "integer", "description": "Max characters from the end of the log.", "default": 4000 }
           },
           "required": ["job_id"]
         }
@@ -146,15 +144,14 @@ public sealed class JobKillBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Mata (SIGKILL na árvore de processo) um job de background do "
-        + "usuário pelo id.";
+        "Kill a background job — call to stop a bg process.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "job_id": { "type": "string", "description": "Id do job a matar." }
+            "job_id": { "type": "string", "description": "Id of the job to kill." }
           },
           "required": ["job_id"]
         }

@@ -20,20 +20,18 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Executa um comando shell no workspace do usuário e retorna "
-        + "stdout/stderr. Comandos perigosos ou que escapem do workspace "
-        + "são negados pelo classifier.";
+        "Run a shell command — call for builds, tests, git, CLI.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "command": { "type": "string", "description": "Comando a executar no workspace." },
-            "timeout_seconds": { "type": "integer", "description": "Timeout (máx. 300).", "default": 60 },
+            "command": { "type": "string", "description": "Command to run in the workspace." },
+            "timeout_seconds": { "type": "integer", "description": "Timeout (max 300).", "default": 60 },
             "background": {
               "type": "boolean",
-              "description": "true = roda desacoplado como job durável; consulte com job_output e mate com job_kill.",
+              "description": "true = run detached as a durable job; poll with job_output and kill with job_kill.",
               "default": false
             }
           },

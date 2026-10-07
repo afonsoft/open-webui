@@ -22,10 +22,7 @@ public sealed class TodoWriteBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Atualiza a lista de tarefas do plano da run (visível ao usuário). "
-        + "Chame ao decompor o trabalho e depois a cada conclusão — "
-        + "status: pending | in_progress | completed. Sempre envie a "
-        + "lista inteira (é um snapshot, não um delta).";
+        "Update the task list — call when planning progress.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -34,16 +31,16 @@ public sealed class TodoWriteBuiltinTool : IBuiltinChatTool
           "properties": {
             "todos": {
               "type": "array",
-              "description": "Snapshot completo da lista, em ordem.",
+              "description": "Complete snapshot of the list, in order.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": { "type": "string", "description": "Id estável (auto 't1', 't2', ... se omitido)." },
-                  "content": { "type": "string", "description": "Descrição da tarefa." },
+                  "id": { "type": "string", "description": "Stable id (auto 't1', 't2', ... if omitted)." },
+                  "content": { "type": "string", "description": "Task description." },
                   "status": {
                     "type": "string",
                     "enum": ["pending", "in_progress", "completed"],
-                    "description": "Estado atual."
+                    "description": "Current state."
                   }
                 },
                 "required": ["content", "status"]
