@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Delete folder",
   "sidebar.playground": "Zona de Pruebas",
   "sidebar.notes": "Notas",
+  "sidebar.terminal": "Terminal",
   "sidebar.admin": "Administración",
   "sidebar.settings": "Ajustes",
   "sidebar.archived": "Archived",
@@ -236,6 +237,7 @@
   "page.auth": "Iniciar Sesión",
   "page.admin": "Administración",
   "page.notes": "Notas",
+  "page.terminal": "Terminal",
   "page.archived": "Archived",
   "page.chat": "Chat",
   "page.playground": "Zona de Pruebas",
@@ -467,5 +469,11 @@
   "chat.approval_preset": "Aprobación de herramientas",
   "chat.preset_allow-readonly": "Solo herramientas de lectura",
   "chat.preset_approve-mutations": "Aprobar mutaciones",
-  "chat.preset_always-allow": "Permitir siempre"
+  "chat.preset_always-allow": "Permitir siempre",
+  "terminal.new": "Nueva sesión",
+  "terminal.refresh": "Actualizar",
+  "terminal.kill": "Cerrar sesión",
+  "terminal.empty": "Sin sesiones — crea una arriba.",
+  "terminal.disabled": "El terminal está desactivado por el administrador.",
+  "terminal.disabled_hint": "Pide a un administrador que lo active (PUT /api/v1/terminal/config o TERMINAL_ENABLED)."
 }

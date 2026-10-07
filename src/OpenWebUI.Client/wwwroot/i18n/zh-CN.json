@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Delete folder",
   "sidebar.playground": "AI 对话探索区",
   "sidebar.notes": "笔记",
+  "sidebar.terminal": "",
   "sidebar.admin": "管理员面板",
   "sidebar.settings": "设置",
   "sidebar.archived": "Archived",
@@ -236,6 +237,7 @@
   "page.auth": "登录",
   "page.admin": "管理员面板",
   "page.notes": "笔记",
+  "page.terminal": "",
   "page.archived": "Archived",
   "page.chat": "对话",
   "page.playground": "AI 对话探索区",
@@ -467,5 +469,11 @@
   "chat.approval_preset": "工具批准",
   "chat.preset_allow-readonly": "仅只读工具",
   "chat.preset_approve-mutations": "批准变更",
-  "chat.preset_always-allow": "始终允许"
+  "chat.preset_always-allow": "始终允许",
+  "terminal.new": "",
+  "terminal.refresh": "",
+  "terminal.kill": "",
+  "terminal.empty": " — 。",
+  "terminal.disabled": "。",
+  "terminal.disabled_hint": "（PUT /api/v1/terminal/config  TERMINAL_ENABLED）。"
 }
