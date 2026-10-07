@@ -174,6 +174,72 @@ public class ChatMessage
     public string VersionsJson { get; set; } = "[]";
 }
 
+/// <summary>Status possíveis de uma run desacoplada de chat.</summary>
+public static class ChatRunStatus
+{
+    /// <summary>Na fila aguardando o dispatcher.</summary>
+    public const string Queued = "queued";
+
+    /// <summary>Em execução pelo dispatcher.</summary>
+    public const string Running = "running";
+
+    /// <summary>Finalizada com sucesso.</summary>
+    public const string Completed = "completed";
+
+    /// <summary>Finalizada com erro.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>Interrompida por stop do usuário.</summary>
+    public const string Stopped = "stopped";
+
+    /// <summary>Órfã de restart: estava queued/running quando o servidor caiu.</summary>
+    public const string Interrupted = "interrupted";
+}
+
+/// <summary>
+/// Run de chat desacoplada da conexão do cliente
+/// (SPEC-20261007-chat-detached-runs): a resposta do assistant é gerada no
+/// servidor e o cliente apenas anexa ao stream — fechar a aba não mata a run.
+/// </summary>
+public class ChatRun
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Chat ao qual a run pertence.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o chat.</summary>
+    public Chat? Chat { get; set; }
+
+    /// <summary>Dono (mesmo do chat — usado para isolamento).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Modelo pedido no envio.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Status atual (ver <see cref="ChatRunStatus"/>).</summary>
+    public string Status { get; set; } = ChatRunStatus.Queued;
+
+    /// <summary>Snapshot do request de completion (serializado no enqueue).</summary>
+    public string RequestJson { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo parcial do assistant (checkpoint a cada iteração).</summary>
+    public string? PartialContent { get; set; }
+
+    /// <summary>Erro final, quando <see cref="ChatRunStatus.Failed"/>.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Início da execução (epoch seconds); null enquanto queued.</summary>
+    public long? StartedAt { get; set; }
+
+    /// <summary>Finalização (epoch seconds); null enquanto ativa.</summary>
+    public long? CompletedAt { get; set; }
+}
+
 /// <summary>Entrada chave-valor de configuração persistida (espelha a tabela config do Open WebUI).</summary>
 public class ConfigEntry
 {

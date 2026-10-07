@@ -18,6 +18,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Mensagens de chats.</summary>
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
+    /// <summary>Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).</summary>
+    public DbSet<ChatRun> ChatRuns => Set<ChatRun>();
+
     /// <summary>Pastas de organização de chats.</summary>
     public DbSet<Folder> Folders => Set<Folder>();
 
@@ -144,6 +147,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // Ids de mensagem são únicos dentro do chat (o original usa UUIDs locais).
             entity.HasKey(m => new { m.ChatId, m.Id });
             entity.HasIndex(m => new { m.ChatId, m.Position });
+        });
+
+        modelBuilder.Entity<ChatRun>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.HasIndex(r => new { r.ChatId, r.Status });
+            entity.HasIndex(r => new { r.UserId, r.CreatedAt });
+            entity.HasOne(r => r.Chat)
+                .WithMany()
+                .HasForeignKey(r => r.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Folder>(entity =>

@@ -56,6 +56,9 @@ public static class ChatEndpoints
         group.MapDelete("/{id}/messages/{messageId}", DeleteMessageAsync);
         group.MapGet("/{id}/messages/{messageId}/versions", GetMessageVersionsAsync);
 
+        // Runs desacopladas (SPEC-20261007-chat-detached-runs).
+        ChatRunEndpoints.MapChatRunEndpoints(group);
+
         return group;
     }
 

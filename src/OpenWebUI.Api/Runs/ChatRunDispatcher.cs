@@ -1,0 +1,156 @@
+using System.Collections.Concurrent;
+using System.Threading.Channels;
+using Microsoft.EntityFrameworkCore;
+using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
+
+namespace OpenWebUI.Api.Runs;
+
+/// <summary>
+/// Dispatcher das runs de chat desacopladas
+/// (SPEC-20261007-chat-detached-runs): fila em memória com FIFO por chat,
+/// no máximo <see cref="MaxConcurrent"/> execuções simultâneas, sweep de
+/// runs órfãs no boot (queued/running → interrupted) e cancelamento por
+/// stop. Runs são enfileiradas pelo endpoint de mensagens e executadas em
+/// escopo EF próprio — a conexão do cliente não participa.
+/// </summary>
+public sealed class ChatRunDispatcher(
+    IServiceScopeFactory scopeFactory,
+    ChatRunBroadcaster broadcaster,
+    ILogger<ChatRunDispatcher> logger) : BackgroundService
+{
+    /// <summary>Máximo de runs executando em paralelo.</summary>
+    public const int MaxConcurrent = 4;
+
+    private readonly System.Threading.Channels.Channel<string> _queue =
+        System.Threading.Channels.Channel.CreateUnbounded<string>();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _chatLocks = new();
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _runCancels = new();
+
+    /// <summary>Enfileira uma run recém-criada (idempotente).</summary>
+    public void Enqueue(string runId) => _queue.Writer.TryWrite(runId);
+
+    /// <summary>
+    /// Pede a interrupção de uma run em execução. Retorna false quando a run
+    /// não está ativa (queued ou já finalizada — o endpoint marca queued →
+    /// stopped direto no banco).
+    /// </summary>
+    public bool TryStop(string runId)
+    {
+        if (_runCancels.TryGetValue(runId, out var cts))
+        {
+            cts.Cancel();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc />
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await SweepOrphansAsync(stoppingToken);
+
+        var workers = Enumerable.Range(0, MaxConcurrent)
+            .Select(_ => WorkerAsync(stoppingToken))
+            .ToArray();
+        await Task.WhenAll(workers);
+    }
+
+    /// <summary>Marca runs órfãs de restart como interrupted no boot.</summary>
+    private async Task SweepOrphansAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var orphans = await db.ChatRuns
+                .Where(r => r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running)
+                .ToListAsync(ct);
+            if (orphans.Count == 0)
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            foreach (var orphan in orphans)
+            {
+                orphan.Status = ChatRunStatus.Interrupted;
+                orphan.CompletedAt = now;
+                orphan.Error ??= "Servidor reiniciado durante a execução.";
+            }
+
+            await db.SaveChangesAsync(ct);
+            logger.LogWarning("Runs órfãs marcadas como interrupted no boot: {Count}", orphans.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falha no sweep de runs órfãs.");
+        }
+    }
+
+    private async Task WorkerAsync(CancellationToken stoppingToken)
+    {
+        await foreach (var runId in _queue.Reader.ReadAllAsync(stoppingToken))
+        {
+            try
+            {
+                await ExecuteRunAsync(runId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Erro inesperado ao despachar run {RunId}.", runId);
+            }
+        }
+    }
+
+    private async Task ExecuteRunAsync(string runId, CancellationToken stoppingToken)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var run = await db.ChatRuns.FirstOrDefaultAsync(r => r.Id == runId, stoppingToken);
+        if (run is null || run.Status != ChatRunStatus.Queued)
+        {
+            return;
+        }
+
+        // FIFO por chat: runs do mesmo chat executam em sequência.
+        var chatLock = _chatLocks.GetOrAdd(run.ChatId, _ => new SemaphoreSlim(1, 1));
+        await chatLock.WaitAsync(stoppingToken);
+        try
+        {
+            // Stop pode ter chegado enquanto aguardava o lock.
+            if (run.Status != ChatRunStatus.Queued)
+            {
+                return;
+            }
+
+            run.Status = ChatRunStatus.Running;
+            run.StartedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            await db.SaveChangesAsync(stoppingToken);
+            broadcaster.Publish(runId, "event: status\ndata: {\"status\":\"running\"}");
+
+            using var runCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            _runCancels[runId] = runCts;
+            try
+            {
+                var executor = scope.ServiceProvider.GetRequiredService<ChatRunExecutor>();
+                await executor.ExecuteAsync(run, runCts.Token);
+            }
+            finally
+            {
+                _runCancels.TryRemove(runId, out _);
+                broadcaster.Complete(runId);
+            }
+        }
+        finally
+        {
+            chatLock.Release();
+        }
+    }
+}

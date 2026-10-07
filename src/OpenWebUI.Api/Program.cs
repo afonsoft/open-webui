@@ -7,6 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
+using OpenWebUI.Api.Runs;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Infrastructure.Services.Image;
 using OpenWebUI.Application.Contracts;
@@ -45,6 +46,12 @@ builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<PipelineClientService>();
 builder.Services.AddScoped<McpClientService>();
 builder.Services.AddSingleton<RateLimitService>();
+
+// Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).
+builder.Services.AddSingleton<ChatRunBroadcaster>();
+builder.Services.AddSingleton<ChatRunDispatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRunDispatcher>());
+builder.Services.AddScoped<ChatRunExecutor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
