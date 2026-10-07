@@ -7,8 +7,8 @@ public class ThemeService(IJSRuntime js, BrowserStorage storage)
 {
     private const string ThemeKey = "webui.theme";
 
-    /// <summary>Tema atual: "system", "dark" ou "light".</summary>
-    public string Current { get; private set; } = "dark";
+    /// <summary>Tema atual: "system", "dark" ou "light" (default claro).</summary>
+    public string Current { get; private set; } = "light";
 
     /// <summary>Disparado quando o tema muda.</summary>
     public event Action? Changed;
@@ -17,7 +17,7 @@ public class ThemeService(IJSRuntime js, BrowserStorage storage)
     public async Task InitializeAsync()
     {
         var saved = await storage.GetAsync(ThemeKey);
-        Current = saved is "light" or "dark" or "system" ? saved : "dark";
+        Current = saved is "light" or "dark" or "system" ? saved : "light";
         await ApplyAsync();
     }
 
