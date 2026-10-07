@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NUnit.Framework;
 using OpenWebUI.Application.Contracts;
 
@@ -107,6 +109,140 @@ public sealed class PushEndpointsTests
             "/api/v1/notifications/push/subscriptions",
             request with { Keys = new PushSubscriptionKeys("p256dh-2", "auth-2") });
         Assert.That(rotated.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
+    public async Task VapidKey_Env_PrevaleceSobrePersistida()
+    {
+        Environment.SetEnvironmentVariable("VAPID__PUBLIC_KEY", "env-public");
+        Environment.SetEnvironmentVariable("VAPID__PRIVATE_KEY", "env-private");
+        try
+        {
+            var key = await _client.GetFromJsonAsync<VapidPublicKeyResponse>(
+                "/api/v1/notifications/push/vapid-key");
+            Assert.That(key!.PublicKey, Is.EqualTo("env-public"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VAPID__PUBLIC_KEY", null);
+            Environment.SetEnvironmentVariable("VAPID__PRIVATE_KEY", null);
+        }
+    }
+
+    [Test]
+    public async Task WebPush_EndpointMorto_NotificaSemQuebrarRun()
+    {
+        // Subscription apontando para um push service inalcançável: a run
+        // falha rápido (sem provider) e o notifier tenta enviar — erro é
+        // absorvido, run finaliza normalmente, subscription não é prunada
+        // (não é 404/410).
+        var endpoint = "http://localhost:1/push";
+        await _client.PostAsJsonAsync("/api/v1/notifications/push/subscriptions",
+            new PushSubscriptionRequest(endpoint, new PushSubscriptionKeys("k", "a")));
+
+        var run = await EnfileirarAsync("notifique-me");
+        var final = await AguardarFinalAsync(run.ChatId, run.Id);
+        Assert.That(final.Status, Is.EqualTo("failed"));
+
+        var del = await _client.DeleteAsync(
+            $"/api/v1/notifications/push/subscriptions?endpoint={Uri.EscapeDataString(endpoint)}");
+        Assert.That(del.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
+    public async Task WebPush_Endpoint404_SubscriptionPrunada()
+    {
+        // Sender fake devolvendo 404: o notifier deve prunar a subscription.
+        var factory404 = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<OpenWebUI.Application.Interfaces.IWebPushSender>();
+                services.AddScoped<OpenWebUI.Application.Interfaces.IWebPushSender>(
+                    _ => new FakeSender(404));
+            }));
+        using var client = factory404.CreateClient();
+        var user = await SignUpAsync(client, $"Push404-{Guid.NewGuid():N}");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", user.Token);
+
+        var endpoint = $"https://push.example/dead/{Guid.NewGuid():N}";
+        await client.PostAsJsonAsync("/api/v1/notifications/push/subscriptions",
+            new PushSubscriptionRequest(endpoint, new PushSubscriptionKeys("k", "a")));
+
+        var run = await EnfileirarAsync(client, "prune-me");
+        var final = await AguardarFinalAsync(client, run.ChatId, run.Id);
+        Assert.That(final.Status, Is.EqualTo("failed"));
+
+        // O prune acontece no notifier, assíncrono ao status terminal da run.
+        var deleteStatus = HttpStatusCode.OK;
+        for (var i = 0; i < 40 && deleteStatus == HttpStatusCode.OK; i++)
+        {
+            var del = await client.DeleteAsync(
+                $"/api/v1/notifications/push/subscriptions?endpoint={Uri.EscapeDataString(endpoint)}");
+            deleteStatus = del.StatusCode;
+            if (deleteStatus != HttpStatusCode.NotFound)
+            {
+                await Task.Delay(150);
+            }
+        }
+        Assert.That(deleteStatus, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    private sealed class FakeSender(int httpStatus)
+        : OpenWebUI.Application.Interfaces.IWebPushSender
+    {
+        public Task<OpenWebUI.Application.Interfaces.IWebPushSender.Result> SendAsync(
+            string endpoint, string p256dh, string auth,
+            string payloadJson, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new OpenWebUI.Application.Interfaces.IWebPushSender.Result(
+                Sent: false, HttpStatus: httpStatus, Error: "fake"));
+    }
+
+    private async Task<ChatRunResponse> EnfileirarAsync(string content) =>
+        await EnfileirarAsync(_client, content);
+
+    private async Task<ChatRunResponse> EnfileirarAsync(HttpClient client, string content)
+    {
+        var chat = await client.PostAsJsonAsync("/api/v1/chats/",
+            new { title = "Push run", models = Array.Empty<string>(),
+                messages = Array.Empty<object>() });
+        chat.EnsureSuccessStatusCode();
+        var created = await chat.Content.ReadFromJsonAsync<ChatResponse>();
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/chats/{created!.Id}/messages",
+            new EnqueueChatRunRequest(content, "llama3"));
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ChatRunResponse>())!;
+    }
+
+    private async Task<ChatRunResponse> AguardarFinalAsync(
+        HttpClient client, string chatId, string runId)
+    {
+        for (var i = 0; i < 400; i++)
+        {
+            var run = await client.GetFromJsonAsync<ChatRunResponse>(
+                $"/api/v1/chats/{chatId}/runs/{runId}");
+            if (run!.Status is not ("queued" or "running"))
+            {
+                return run;
+            }
+
+            await Task.Delay(150);
+        }
+
+        Assert.Fail($"Run {runId} não finalizou em 60s.");
+        return null!;
+    }
+
+    private Task<ChatRunResponse> AguardarFinalAsync(string chatId, string runId) =>
+        AguardarFinalAsync(_client, chatId, runId);
+
+    private static async Task<AuthResponse> SignUpAsync(HttpClient client, string name)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/auths/signup",
+            new { name, email = $"{name}@push.local", password = "Senha1234!" });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
 
     [Test]
