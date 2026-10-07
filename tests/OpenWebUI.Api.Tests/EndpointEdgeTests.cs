@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -682,21 +683,24 @@ public class EndpointEdgeTests
     private static McpClientService NewMcp(AppDbContext db) =>
         new(db, new MemoryCache(new MemoryCacheOptions()));
 
+    private static BuiltinToolRegistry EmptyRegistry() =>
+        new([], new ConfigurationBuilder().Build());
+
     [Test, Order(24)]
     public async Task Executor_ToolDesconhecida_OuSpecQuebrada_RetornaErro()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db));
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db), EmptyRegistry());
         var tools = new List<Tool>
         {
             NewTool("outra", $"{_mockBaseUrl}/tool-ok"),
             NewTool("quebrada", $"{_mockBaseUrl}/tool-ok", spec: "{nao e json"),
         };
 
-        var unknown = await executor.ExecuteAsync(tools, "minha_tool", "{}");
+        var unknown = (await executor.ExecuteAsync(tools, "minha_tool", "{}")).Text;
         Assert.That(unknown, Does.Contain("minha_tool").And.Contain("habilitada"));
 
-        var brokenSpec = await executor.ExecuteAsync(tools, "quebrada", "{}");
+        var brokenSpec = (await executor.ExecuteAsync(tools, "quebrada", "{}")).Text;
         Assert.That(brokenSpec, Does.Contain("quebrada").And.Contain("habilitada"));
     }
 
@@ -704,15 +708,15 @@ public class EndpointEdgeTests
     public async Task Executor_UrlInacessivel_OuCancelada_RetornaErro()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db));
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db), EmptyRegistry());
         var tools = new List<Tool> { NewTool("minha_tool", "http://localhost:1/x") };
 
-        var down = await executor.ExecuteAsync(tools, "minha_tool", "{}");
+        var down = (await executor.ExecuteAsync(tools, "minha_tool", "{}")).Text;
         Assert.That(down, Does.Contain("Erro ao executar tool 'minha_tool'"));
 
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        var cancelled = await executor.ExecuteAsync(tools, "minha_tool", "{}", cts.Token);
+        var cancelled = (await executor.ExecuteAsync(tools, "minha_tool", "{}", cts.Token)).Text;
         Assert.That(cancelled, Does.Contain("Erro ao executar tool 'minha_tool'"));
     }
 
@@ -720,7 +724,7 @@ public class EndpointEdgeTests
     public async Task Executor_Respostas_TextoErroETruncamento()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db));
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db), EmptyRegistry());
         var tools = new List<Tool>
         {
             NewTool("minha_tool", $"{_mockBaseUrl}/tool-ok"),
@@ -729,13 +733,13 @@ public class EndpointEdgeTests
         };
 
         // Resposta não-JSON volta verbatim (o modelo interpreta o conteúdo).
-        var text = await executor.ExecuteAsync(tools, "minha_tool", "{}");
+        var text = (await executor.ExecuteAsync(tools, "minha_tool", "{}")).Text;
         Assert.That(text, Is.EqualTo("resultado em texto puro"));
 
-        var httpError = await executor.ExecuteAsync(tools, "errada", "{}");
+        var httpError = (await executor.ExecuteAsync(tools, "errada", "{}")).Text;
         Assert.That(httpError, Does.Contain("respondeu 500"));
 
-        var big = await executor.ExecuteAsync(tools, "grande", "{}");
+        var big = (await executor.ExecuteAsync(tools, "grande", "{}")).Text;
         Assert.That(big, Has.Length.EqualTo(4000));
     }
 
@@ -743,7 +747,7 @@ public class EndpointEdgeTests
     public async Task Executor_LoadEnabled_FiltraVaziasDesabilitadasEAlheias()
     {
         await using var db = CreateContext();
-        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db));
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(), NewPythonExecutor(), NewMcp(db), EmptyRegistry());
 
         var empty = await executor.LoadEnabledAsync("u1", []);
         Assert.That(empty, Is.Empty);

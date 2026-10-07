@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.ChatTools;
+using OpenWebUI.Infrastructure.ChatTools.Tools;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Api.Runs;
 using OpenWebUI.Api.Notifications;
@@ -63,6 +65,20 @@ builder.Services.AddScoped<IWebPushSender, WebPushSender>();
 builder.Services.AddScoped<IChatRunNotifier, SignalRChatRunNotifier>();
 builder.Services.AddScoped<IChatRunNotifier, WebPushChatRunNotifier>();
 builder.Services.AddHttpClient("webpush");
+
+// Tools built-in do chat (SPEC-20261007-chat-agent-tools): registro
+// resolve ids "builtin:*"; desligar via config BuiltinTools:Disabled (csv).
+builder.Services.AddScoped<IBuiltinChatTool, GenerateImageBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, CodeInterpreterBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, ShellExecBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, JobListBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, JobOutputBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, JobKillBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, FetchUrlBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, WebSearchBuiltinTool>();
+builder.Services.AddScoped<BuiltinToolRegistry>();
+builder.Services.AddSingleton<ChatJobService>();
+builder.Services.AddHttpClient(nameof(FetchUrlBuiltinTool));
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
@@ -274,6 +290,7 @@ app.MapGroupEndpoints();
 app.MapOAuthEndpoints();
 app.MapKnowledgeEndpoints();
 app.MapToolEndpoints();
+app.MapChatJobEndpoints();
 app.MapMcpEndpoints();
 app.MapChannelEndpoints();
 app.MapImageEndpoints();

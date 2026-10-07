@@ -548,21 +548,21 @@ public class InfraServicesTests
             FakeTool("fn_down", "http://localhost:1/tool"),
         };
 
-        var ok = await executor.ExecuteAsync(tools, "fn_ok", "{}");
+        var ok = (await executor.ExecuteAsync(tools, "fn_ok", "{}")).Text;
         Assert.That(ok, Is.EqualTo("resultado da tool"));
 
-        var fail = await executor.ExecuteAsync(tools, "fn_fail", "{}");
+        var fail = (await executor.ExecuteAsync(tools, "fn_fail", "{}")).Text;
         Assert.That(fail, Does.Contain("respondeu 500"));
 
         // Saída acima de 4000 chars é truncada.
-        var big = await executor.ExecuteAsync(tools, "fn_big", "{}");
+        var big = (await executor.ExecuteAsync(tools, "fn_big", "{}")).Text;
         Assert.That(big, Has.Length.EqualTo(4000));
 
         // URL inacessível → mensagem de erro para o modelo (não lança).
-        var down = await executor.ExecuteAsync(tools, "fn_down", "{}");
+        var down = (await executor.ExecuteAsync(tools, "fn_down", "{}")).Text;
         Assert.That(down, Does.Contain("Erro ao executar tool 'fn_down'"));
 
-        var missing = await executor.ExecuteAsync(tools, "nao_existe", "{}");
+        var missing = (await executor.ExecuteAsync(tools, "nao_existe", "{}")).Text;
         Assert.That(missing, Does.Contain("não está habilitada"));
     }
 }

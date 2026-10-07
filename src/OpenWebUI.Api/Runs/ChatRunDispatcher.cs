@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -20,6 +21,7 @@ namespace OpenWebUI.Api.Runs;
 public sealed class ChatRunDispatcher(
     IServiceScopeFactory scopeFactory,
     ChatRunBroadcaster broadcaster,
+    ChatJobService jobs,
     ILogger<ChatRunDispatcher> logger) : BackgroundService
 {
     /// <summary>Máximo de runs executando em paralelo.</summary>
@@ -53,6 +55,9 @@ public sealed class ChatRunDispatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await SweepOrphansAsync(stoppingToken);
+        // Jobs running órfãos de restart: o processo não existe mais —
+        // marca killed (SPEC-20261007-chat-agent-tools RF-004).
+        await jobs.SweepOrphansAsync(stoppingToken);
 
         var workers = Enumerable.Range(0, MaxConcurrent)
             .Select(_ => WorkerAsync(stoppingToken))

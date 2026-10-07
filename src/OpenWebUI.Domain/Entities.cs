@@ -259,6 +259,71 @@ public class ChatRun
     public long? CompletedAt { get; set; }
 }
 
+/// <summary>Status possíveis de um job de background de chat.</summary>
+public static class ChatJobStatus
+{
+    /// <summary>Processo em execução.</summary>
+    public const string Running = "running";
+
+    /// <summary>Terminou com exit code 0.</summary>
+    public const string Completed = "completed";
+
+    /// <summary>Terminou com erro/exit code não-zero.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>Morto pelo dono via job_kill/DELETE.</summary>
+    public const string Killed = "killed";
+}
+
+/// <summary>
+/// Job de background spawnado pelo chat
+/// (SPEC-20261007-chat-agent-tools RF-004): um comando classificado pelo
+/// gateway de risco que roda desacoplado da run — sobrevive a ela, escreve
+/// stdout+stderr num arquivo próprio e é consultável via
+/// <c>job_list/job_output/job_kill</c> e os endpoints REST.
+/// </summary>
+public class ChatJob
+{
+    /// <summary>Identificador único (GUID curto — aparece no transcript).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
+
+    /// <summary>Chat ao qual o job pertence.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Dono (mesmo do chat — isolamento de leitura/kill).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Run que originou o job, quando conhecida.</summary>
+    public string? RunId { get; set; }
+
+    /// <summary>Comando executado (já validado pelo classifier).</summary>
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>Diretório de trabalho (workspace do usuário).</summary>
+    public string WorkspacePath { get; set; } = string.Empty;
+
+    /// <summary>Status atual (ver <see cref="ChatJobStatus"/>).</summary>
+    public string Status { get; set; } = ChatJobStatus.Running;
+
+    /// <summary>PID do processo no host, quando vivo.</summary>
+    public int? Pid { get; set; }
+
+    /// <summary>Caminho do arquivo com stdout+stderr capturados.</summary>
+    public string? OutputPath { get; set; }
+
+    /// <summary>Exit code final, quando terminou.</summary>
+    public int? ExitCode { get; set; }
+
+    /// <summary>Erro de spawn/monitoramento, quando houver.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long StartedAt { get; set; }
+
+    /// <summary>Finalização (epoch seconds); null enquanto vivo.</summary>
+    public long? FinishedAt { get; set; }
+}
+
 /// <summary>
 /// Subscription Web Push de um navegador
 /// (SPEC-20261007-chat-notifications): endpoint do push service (FCM/Mozilla)

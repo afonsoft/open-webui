@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Api.Completions;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -27,6 +28,7 @@ public sealed class ChatRunExecutor(
     WebSearchService webSearch,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
+    IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
     /// <summary>Bytes de delta acumulados antes de gravar um checkpoint.</summary>
@@ -109,10 +111,11 @@ public sealed class ChatRunExecutor(
                     OnPhaseAsync: (phase, label, t) => PublishPhaseAsync(run, phase, label),
                     OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
                     GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
-                    OnResultAsync: (call, output, denied, t)
-                        => PublishToolResultAsync(run, call, output, denied));
+                    OnResultAsync: (call, output, result, denied, t)
+                        => PublishToolResultAsync(run, call, output, result, denied));
+                var builtinContext = BuildToolContext(run, user);
                 var outcome = await ChatPipeline.RunToolLoopAsync(
-                    effective, tools, toolExecutor, providers, ct, callbacks);
+                    effective, tools, toolExecutor, providers, ct, callbacks, builtinContext);
                 if (outcome?.FinalContent is { } final)
                 {
                     toolMessages = outcome.ToolMessages;
@@ -191,13 +194,31 @@ public sealed class ChatRunExecutor(
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Contexto das tools built-in da run (SPEC-20261007-chat-agent-tools):
+    /// workspace confinado em <c>data/workspaces/{userId}</c> e uploads em
+    /// <c>data/uploads/{userId}</c> (mesma raiz das telas de Imagens).
+    /// </summary>
+    private BuiltinToolContext BuildToolContext(ChatRun run, User user) => new(
+        user.Id,
+        run.ChatId,
+        run.Id,
+        Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
+        Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
+
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
     private Task PublishToolResultAsync(
-        ChatRun run, ProviderToolCall call, string output, bool denied)
+        ChatRun run, ProviderToolCall call, string output, JsonElement? result, bool denied)
     {
         var ok = !denied && !output.StartsWith("Erro", StringComparison.Ordinal);
+        string? imagePath = null;
+        if (result is { } el && el.ValueKind == JsonValueKind.Object
+            && el.TryGetProperty("imagePath", out var img))
+        {
+            imagePath = img.GetString();
+        }
         broadcaster.Publish(run.Id,
-            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), Denied: denied), JsonOptions)}");
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied), JsonOptions)}");
         return Task.CompletedTask;
     }
 

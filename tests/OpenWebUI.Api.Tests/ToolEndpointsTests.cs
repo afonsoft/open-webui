@@ -169,7 +169,12 @@ public class ToolEndpointsTests
         Assert.That(created.Name, Is.EqualTo("Calculadora"));
 
         var list = await _client.GetFromJsonAsync<List<ToolResponse>>("/api/v1/tools/");
-        Assert.That(list, Has.Count.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            // A lista inclui as tools built-in do catálogo (SPEC-20261007-chat-agent-tools).
+            Assert.That(list!.Count(t => t.Source != "builtin"), Is.EqualTo(1));
+            Assert.That(list!.Count(t => t.Source == "builtin"), Is.GreaterThan(0));
+        });
 
         var updated = await _client.PutAsJsonAsync($"/api/v1/tools/{created.Id}",
             new ToolUpsertRequest("Calc", null, Spec, null, null, false));
@@ -184,7 +189,7 @@ public class ToolEndpointsTests
         var deleted = await _client.DeleteAsync($"/api/v1/tools/{created.Id}");
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         var after = await _client.GetFromJsonAsync<List<ToolResponse>>("/api/v1/tools/");
-        Assert.That(after, Is.Empty);
+        Assert.That(after!.Count(t => t.Source != "builtin"), Is.EqualTo(0));
     }
 
     [Test, Order(2)]

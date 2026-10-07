@@ -21,6 +21,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).</summary>
     public DbSet<ChatRun> ChatRuns => Set<ChatRun>();
 
+    /// <summary>Jobs de background spawnados pelo chat (SPEC-20261007-chat-agent-tools).</summary>
+    public DbSet<ChatJob> ChatJobs => Set<ChatJob>();
+
     /// <summary>Subscriptions Web Push de navegadores (SPEC-20261007-chat-notifications).</summary>
     public DbSet<ChatPushSubscription> ChatPushSubscriptions => Set<ChatPushSubscription>();
 
@@ -160,6 +163,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(r => r.Chat)
                 .WithMany()
                 .HasForeignKey(r => r.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatJob>(entity =>
+        {
+            entity.HasKey(j => j.Id);
+            entity.HasIndex(j => new { j.ChatId, j.Status });
+            entity.HasIndex(j => new { j.UserId, j.StartedAt });
+            entity.HasOne<Chat>()
+                .WithMany()
+                .HasForeignKey(j => j.ChatId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

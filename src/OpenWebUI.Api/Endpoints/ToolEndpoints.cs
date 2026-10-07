@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -23,7 +24,8 @@ public static class ToolEndpoints
     }
 
     private static async Task<IResult> ListAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, BuiltinToolRegistry builtins,
+        CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -33,13 +35,16 @@ public static class ToolEndpoints
 
         // Tools virtuais MCP (sem dono, Url "mcp://") são admin-provisionadas e
         // aparecem no seletor do chat para qualquer usuário — mas só habilitadas
-        // (servidor desligado remove as tools do picker sem apagá-las).
+        // (servidor desligado remove as tools do picker sem apagá-las). Ids
+        // "builtin:*" (SPEC-20261007-chat-agent-tools) são sistema — entram no
+        // fim da lista sem precisar de cadastro.
         var tools = await db.Tools.AsNoTracking()
             .Where(t => t.UserId == user.Id
                 || (t.Url.StartsWith(McpClientService.VirtualUrlPrefix) && t.Enabled))
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
-        return Results.Ok(tools.Select(ToResponse));
+        return Results.Ok(
+            tools.Select(ToResponse).Concat(builtins.All.Select(ToBuiltinResponse)));
     }
 
     private static async Task<IResult> CreateAsync(
@@ -191,5 +196,22 @@ public static class ToolEndpoints
     private static ToolResponse ToResponse(Tool t) =>
         new(t.Id, t.Name, t.Description, t.SpecJson, t.Code, t.Url, t.Enabled, t.CreatedAt,
             t.Url.StartsWith(McpClientService.VirtualUrlPrefix) ? "mcp" : "user",
+            t.RequiresApproval);
+
+    private static ToolResponse ToBuiltinResponse(IBuiltinChatTool t) =>
+        new($"{BuiltinToolRegistry.IdPrefix}{t.Name}",
+            $"builtin/{t.Name}",
+            t.Description,
+            JsonSerializer.Serialize(new
+            {
+                type = "function",
+                function = new
+                {
+                    name = $"{BuiltinToolRegistry.IdPrefix}{t.Name}",
+                    description = t.Description,
+                    parameters = JsonDocument.Parse(t.ParametersJson).RootElement,
+                },
+            }),
+            null, $"{BuiltinToolRegistry.UrlPrefix}{t.Name}", true, 0, "builtin",
             t.RequiresApproval);
 }
