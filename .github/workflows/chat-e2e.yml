@@ -1,0 +1,88 @@
+name: 💬 Chat E2E (LLM real)
+
+permissions: {}
+
+on:
+  pull_request:
+    branches:
+      - "main"
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+# Cancela a run anterior do mesmo ref: push novo torna a antiga obsoleta.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chat-e2e:
+    name: Chat E2E com provider real
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Gate de secrets: sem LLM_API_KEY o job sai verde com notice, igual aos
+      # scanners opcionais do ci-build-test.yml.
+      - name: Gate de secrets LLM
+        id: gate
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "::notice::secrets.LLM_API_KEY ausente — chat e2e real pulado (configure LLM_BASE_URL/LLM_API_KEY/LLM_MODEL nos secrets do repo)"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache NuGet Packages
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # Roda só a fixture marcada TestCategory=e2e-chat (ChatRealE2eTests):
+      # signup real, seed de conexão via OPENAI_API_BASE_URL/KEY, GET /api/models
+      # e /api/chat/completions SSE de verdade contra o provider configurado.
+      - name: Run Chat E2E Tests
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          E2E_CHAT: "1"
+          E2E_LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          E2E_LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          E2E_LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: |
+          dotnet test tests/OpenWebUI.Api.Tests \
+            --configuration Release \
+            --filter "TestCategory=e2e-chat" \
+            --logger "trx;LogFileName=chat-e2e.trx" \
+            --results-directory ./TestResults \
+            --verbosity minimal
+
+      - name: Upload E2E Results
+        if: always() && steps.gate.outputs.enabled == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
+        with:
+          name: chat-e2e-results
+          path: "**/chat-e2e.trx"
+          if-no-files-found: ignore
