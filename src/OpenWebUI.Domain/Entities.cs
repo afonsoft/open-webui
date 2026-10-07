@@ -211,6 +211,9 @@ public static class ChatRunStatus
     /// <summary>Interrompida por stop do usuário.</summary>
     public const string Stopped = "stopped";
 
+    /// <summary>Suspensa pelo dono — retoma com resume (RF-013 chat-agent-parity).</summary>
+    public const string Paused = "paused";
+
     /// <summary>Órfã de restart: estava queued/running quando o servidor caiu.</summary>
     public const string Interrupted = "interrupted";
 }

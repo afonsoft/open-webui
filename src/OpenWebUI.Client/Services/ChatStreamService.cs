@@ -132,6 +132,26 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>Suspende uma run ativa — o executor bloqueia no próximo checkpoint.</summary>
+    public async Task<bool> PauseRunAsync(
+        string chatId, string runId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Post, $"/api/v1/chats/{chatId}/runs/{runId}/pause");
+        using var response = await http.SendAsync(httpRequest, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Retoma uma run pausada de onde ela parou.</summary>
+    public async Task<bool> ResumeRunAsync(
+        string chatId, string runId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Post, $"/api/v1/chats/{chatId}/runs/{runId}/resume");
+        using var response = await http.SendAsync(httpRequest, ct);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>
     /// Anexa ao stream de uma run: replay dos eventos com seq &gt;
     /// <paramref name="lastSeq"/> e depois os vivos até a run fechar.

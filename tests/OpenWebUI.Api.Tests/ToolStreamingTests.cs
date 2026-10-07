@@ -622,6 +622,190 @@ public class ToolStreamingTests
         });
     }
 
+    // ---- ChatRunPauses (unitário, RF-013) ----
+
+    [Test]
+    public async Task Pausa_BloqueiaCheckpoint_RetomadaLibera()
+    {
+        var pauses = new ChatRunPauses();
+        pauses.Pause("r1");
+
+        var wait = pauses.WaitIfPausedAsync("r1", CancellationToken.None);
+        Assert.That(wait.IsCompleted, Is.False, "checkpoint não bloqueou pausado");
+
+        pauses.Resume("r1");
+        await wait;
+
+        // O gate é pass-through: checkpoints seguintes passam direto.
+        await pauses.WaitIfPausedAsync("r1", CancellationToken.None);
+    }
+
+    [Test]
+    public void Pausa_CheckpointCancelado_PropagaOCE()
+    {
+        var pauses = new ChatRunPauses();
+        pauses.Pause("r1");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        Assert.That(
+            async () => await pauses.WaitIfPausedAsync("r1", cts.Token),
+            Throws.InstanceOf<OperationCanceledException>());
+    }
+
+    [Test]
+    public async Task Pausa_Idempotente_ForgetLimpaGate()
+    {
+        var pauses = new ChatRunPauses();
+        pauses.Pause("r2");
+        pauses.Pause("r2"); // pausar duas vezes não empilha
+        pauses.Resume("r2");
+        await pauses.WaitIfPausedAsync("r2", CancellationToken.None);
+
+        pauses.Forget("r2"); // fim da run: gate novo começa aberto
+        await pauses.WaitIfPausedAsync("r2", CancellationToken.None);
+    }
+
+    // ---- Pause/resume ponta a ponta ----
+
+    [Test]
+    public async Task Pausa_DuranteAprovacao_SuspendeAteResume()
+    {
+        var auth = await SignUpAsync("PauseA", "pausea@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "pausa no meio", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        // Lê o stream ao vivo até o approval_asked — aí a run está
+        // deterministicamente bloqueada no gate de aprovação.
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, $"/api/v1/chats/{chat.Id}/runs/{run.Id}/stream?lastSeq=0");
+        using var response = await _client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+        using var reader = new StreamReader(stream);
+
+        var eventos = new List<(string Event, string Data)>();
+        var evento = "";
+        var viuPedido = false;
+        while (!viuPedido && await reader.ReadLineAsync(cts.Token) is { } linha)
+        {
+            if (linha.StartsWith("event:", StringComparison.Ordinal))
+            {
+                evento = linha["event:".Length..].Trim();
+            }
+            else if (linha.StartsWith("data:", StringComparison.Ordinal))
+            {
+                eventos.Add((evento, linha["data:".Length..].Trim()));
+                viuPedido = evento == "approval_asked";
+            }
+        }
+        Assert.That(viuPedido, Is.True, "gate não pediu aprovação");
+
+        // Pausa com a run esperando aprovação → status paused no servidor.
+        var pausa = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/pause", null, cts.Token);
+        Assert.That(pausa.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await pausa.Content.ReadAsStringAsync());
+
+        // Aprovação ainda funciona na run pausada, mas ela não passa do
+        // próximo checkpoint — segue "paused" depois da decisão.
+        var aprovou = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-1",
+            new RunApprovalDecisionRequest("approve"), cts.Token);
+        Assert.That(aprovou.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await Task.Delay(500, cts.Token);
+        var travada = await _client.GetFromJsonAsync<ChatRunResponse>(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}", cts.Token);
+        Assert.That(travada!.Status, Is.EqualTo("paused"),
+            "run aprovada tinha que continuar parada no checkpoint de pausa");
+
+        var retomada = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/resume", null, cts.Token);
+        Assert.That(retomada.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        // Continua lendo o stream até o status terminal.
+        evento = "";
+        while (await reader.ReadLineAsync(cts.Token) is { } linha)
+        {
+            if (linha.StartsWith("event:", StringComparison.Ordinal))
+            {
+                evento = linha["event:".Length..].Trim();
+            }
+            else if (linha.StartsWith("data:", StringComparison.Ordinal))
+            {
+                var payload = linha["data:".Length..].Trim();
+                eventos.Add((evento, payload));
+                if (evento == "status" && payload.Contains("\"completed\""))
+                {
+                    break;
+                }
+            }
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "status"
+                    && e.Data.Contains("\"paused\"")), Is.True, "faltou status paused");
+            Assert.That(eventos.Any(e => e.Event == "status"
+                    && e.Data.Contains("\"resumed\"")), Is.True, "faltou status resumed");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("resultado-eco")), Is.True,
+                "tool aprovada não executou após resume");
+        });
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task PauseResume_RunFinalizada_Retorna409()
+    {
+        var auth = await SignUpAsync("PauseB", "pauseb@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "termina logo");
+        await AguardarFinalAsync(_client, chat.Id, run.Id);
+
+        var pausa = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/pause", null);
+        var retomada = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/resume", null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(pausa.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+            Assert.That(retomada.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        });
+    }
+
+    [Test]
+    public async Task PauseResume_IsolamentoPorUsuario()
+    {
+        var dono = await SignUpAsync("PauseC", "pausec@tools.local");
+        UseToken(dono.Token);
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "minha run");
+
+        var intruso = await SignUpAsync("PauseD", "paused@tools.local");
+        UseToken(intruso.Token);
+
+        var pausa = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/pause", null);
+        var retomada = await _client.PostAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/resume", null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(pausa.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(retomada.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        });
+    }
+
     [Test]
     public async Task Preset_AlwaysAllow_PulaGate()
     {

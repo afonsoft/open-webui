@@ -367,6 +367,20 @@
                     <div class="self-end flex items-center gap-1 mr-1">
                         @if (_streaming)
                         {
+                            if (_paused)
+                            {
+                                <button class="size-8 flex items-center justify-center rounded-full bg-blue-600 text-white transition cursor-pointer"
+                                        title="@L["chat.resume"]" aria-label="@L["chat.resume"]" @onclick="ResumeStreaming">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" /></svg>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="size-8 flex items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900 transition cursor-pointer"
+                                        title="@L["chat.pause"]" aria-label="@L["chat.pause"]" @onclick="PauseStreaming">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Zm7.5 0a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" /></svg>
+                                </button>
+                            }
                             <button class="size-8 flex items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900 transition cursor-pointer"
                                     title="@L["chat.stop"]" aria-label="@L["chat.stop"]" @onclick="StopStreaming">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clip-rule="evenodd" /></svg>
@@ -446,6 +460,7 @@
     /// <summary>Snapshot da lista de tarefas da run (evento <c>tasks</c>, RF-010).</summary>
     private List<RunTaskItem> _runTasks = [];
     private RunApprovalAskedEvent? _pendingApproval;
+    private bool _paused;
     private string _approvalPreset = "approve-mutations";
     private static readonly string[] ApprovalPresets =
         ["allow-readonly", "approve-mutations", "always-allow", "auto"];
@@ -564,6 +579,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _pendingApproval = null;
+        _paused = false;
         _statusLabel = null;
         if (_loadedChatId is not null)
         {
@@ -1016,6 +1032,7 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _paused = false;
             _statusLabel = null;
             if (ChatStream.LastArenaResult is { } arenaResult)
             {
@@ -1039,6 +1056,8 @@
 
         _streaming = true;
         _activeRunId = run.Id;
+        // Reattach numa run pausada já entra com o botão de resume.
+        _paused = run.Status == "paused";
         _cts = new CancellationTokenSource();
         var content = new System.Text.StringBuilder();
         await InvokeAsync(StateHasChanged);
@@ -1059,6 +1078,7 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _paused = false;
             _statusLabel = null;
             _streaming = false;
             _cts?.Dispose();
@@ -1113,10 +1133,25 @@
                     _runTasks = tasks.Snapshot.Tasks.ToList();
                     break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
-                    _statusLabel = phase.Status.Phase == "auto_approved"
-                        ? L.T("chat.status_auto_approved",
-                            ("name", phase.Status.Label ?? ""))
-                        : phase.Status.Label;
+                    switch (phase.Status.Phase)
+                    {
+                        case "auto_approved":
+                            _statusLabel = L.T("chat.status_auto_approved",
+                                ("name", phase.Status.Label ?? ""));
+                            break;
+                        case "paused":
+                            _paused = true;
+                            _statusLabel = L["chat.status_paused"];
+                            break;
+                        case "resumed":
+                            _paused = false;
+                            _statusLabel = null;
+                            break;
+                        default:
+                            _paused = false;
+                            _statusLabel = phase.Status.Label;
+                            break;
+                    }
                     break;
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
@@ -1221,6 +1256,25 @@
         if (_activeRunId is not null && _loadedChatId is not null)
         {
             _ = ChatStream.StopRunAsync(_loadedChatId, _activeRunId);
+        }
+    }
+
+    /// <summary>Pausa a run ativa no servidor — ela bloqueia no próximo checkpoint.</summary>
+    private void PauseStreaming()
+    {
+        if (_activeRunId is not null && _loadedChatId is not null)
+        {
+            _ = ChatStream.PauseRunAsync(_loadedChatId, _activeRunId);
+        }
+    }
+
+    /// <summary>Retoma a run pausada de onde ela parou.</summary>
+    private void ResumeStreaming()
+    {
+        if (_activeRunId is not null && _loadedChatId is not null)
+        {
+            _paused = false;
+            _ = ChatStream.ResumeRunAsync(_loadedChatId, _activeRunId);
         }
         _cts?.Cancel();
     }
