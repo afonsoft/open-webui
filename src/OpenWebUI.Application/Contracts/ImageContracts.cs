@@ -52,3 +52,39 @@ public sealed record ImageTestResponse(bool Ok, string Detail);
 /// <summary>Imagem gerada persistida como arquivo do usuário.</summary>
 /// <param name="Url">URL servida pelo endpoint de conteúdo de arquivos.</param>
 public sealed record GeneratedImage(string Url);
+
+/// <summary>
+/// Configuração de geração de vídeo (SPEC-20261007-chat-agent-parity
+/// RF-019), persistida em kv <c>video.config</c>. Projetada para
+/// <see cref="ImagesConfig"/> ao invocar os motores — mesmos campos
+/// transportados (base URL, key, modelo, tamanho, timeout, params).
+/// </summary>
+public sealed record VideoConfig(
+    bool Enabled,
+    string Engine,
+    string BaseUrl,
+    string ApiKey,
+    string Model,
+    string Size,
+    int TimeoutSeconds,
+    string EngineParams = "{}")
+{
+    /// <summary>Configuração padrão: desabilitada, motor OpenAI (Sora-compatible).</summary>
+    public static VideoConfig Default { get; } = new(
+        Enabled: false,
+        Engine: "openai",
+        BaseUrl: "https://api.openai.com/v1",
+        ApiKey: string.Empty,
+        Model: "sora-2",
+        Size: "1280x720",
+        TimeoutSeconds: 600,
+        EngineParams: "{}");
+
+    /// <summary>Projeta para a config usada pelos motores de mídia.</summary>
+    public ImagesConfig ToImagesConfig() => new(
+        Enabled, Engine, BaseUrl, ApiKey, Model, Size, TimeoutSeconds, EngineParams);
+}
+
+/// <summary>Pedido de geração de vídeo.</summary>
+/// <param name="Seconds">Duração desejada em segundos (opcional, 1–60).</param>
+public sealed record VideoGenerationRequest(string Prompt, int? Seconds, string? Size);

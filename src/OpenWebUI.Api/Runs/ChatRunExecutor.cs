@@ -229,10 +229,17 @@ public sealed class ChatRunExecutor(
     {
         var ok = !denied && !output.StartsWith("Erro", StringComparison.Ordinal);
         string? imagePath = null;
-        if (result is { } el && el.ValueKind == JsonValueKind.Object
-            && el.TryGetProperty("imagePath", out var img))
+        string? videoPath = null;
+        if (result is { } el && el.ValueKind == JsonValueKind.Object)
         {
-            imagePath = img.GetString();
+            if (el.TryGetProperty("imagePath", out var img))
+            {
+                imagePath = img.GetString();
+            }
+            if (el.TryGetProperty("videoPath", out var vid))
+            {
+                videoPath = vid.GetString();
+            }
         }
 
         // todo_write publica o snapshot de tarefas como evento `tasks`
@@ -260,7 +267,7 @@ public sealed class ChatRunExecutor(
                 $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
         }
         broadcaster.Publish(run.Id,
-            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result), JsonOptions)}");
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result, VideoPath: videoPath), JsonOptions)}");
         return Task.CompletedTask;
     }
 

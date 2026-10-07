@@ -49,12 +49,14 @@ public sealed record RunToolCallEvent(string Id, string Name, string? ArgsPrevie
 /// Evento SSE <c>tool_result</c>: <paramref name="Ok"/> false em erro ou
 /// negação (<paramref name="Denied"/>); <paramref name="Preview"/> truncado;
 /// <paramref name="ImagePath"/> quando a tool gerou imagem renderizável;
+/// <paramref name="VideoPath"/> idem para vídeo (<c>&lt;video&gt;</c> inline);
 /// <paramref name="Result"/> é o payload estruturado da tool (links,
 /// diffs, ids) para renderização rica no cliente.
 /// </summary>
 public sealed record RunToolResultEvent(
     string Id, string Name, bool Ok, string? Preview,
-    string? ImagePath = null, bool Denied = false, JsonElement? Result = null);
+    string? ImagePath = null, bool Denied = false, JsonElement? Result = null,
+    string? VideoPath = null);
 
 /// <summary>
 /// Evento SSE <c>status</c> de fase (RF-002): <paramref name="Phase"/> ∈

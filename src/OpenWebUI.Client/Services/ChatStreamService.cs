@@ -329,7 +329,8 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["denied"]?.GetValue<bool>() ?? false,
                                 node["result"] is { } resultNode
                                     ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
-                                    : null));
+                                    : null,
+                                node["videoPath"]?.GetValue<string>()));
                         break;
                     case "approval_asked":
                         produced = new ChatStreamEvent.ApprovalAsked(

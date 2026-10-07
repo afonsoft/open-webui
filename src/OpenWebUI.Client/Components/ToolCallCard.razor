@@ -84,6 +84,11 @@
             {
                 <img src="@ImagePath" alt="@Name" class="max-w-sm rounded-lg border border-gray-200 dark:border-gray-800" />
             }
+            @if (VideoPath is not null)
+            {
+                <video src="@VideoPath" controls preload="metadata"
+                       class="max-w-sm rounded-lg border border-gray-200 dark:border-gray-800"></video>
+            }
             @if (ResultPreview is not null && IsDiff)
             {
                 @* file_write/file_edit: saída é diff unificado — colorido por linha *@
@@ -117,6 +122,9 @@
 
     /// <summary>Caminho da imagem gerada, quando a tool produziu uma.</summary>
     [Parameter] public string? ImagePath { get; set; }
+
+    /// <summary>Caminho do vídeo gerado, quando a tool produziu um.</summary>
+    [Parameter] public string? VideoPath { get; set; }
 
     /// <summary>True enquanto a tool executa (entre tool_call e tool_result).</summary>
     [Parameter] public bool Running { get; set; }
