@@ -11,17 +11,25 @@ mantendo o layout, as funcionalidades e a configuração do original.
 
 ## Screenshots
 
-| Chat (escuro) | Chat (claro) | Login |
+| Chat (claro) | Chat (escuro) | Login |
 |---|---|---|
-| ![Chat — tema escuro](docs/screenshots/chat-dark.png) | ![Chat — tema claro](docs/screenshots/chat-light.png) | ![Login](docs/screenshots/auth-dark.png) |
+| ![Chat — tema claro](docs/screenshots/chat-light.png) | ![Chat — tema escuro](docs/screenshots/chat-dark.png) | ![Login](docs/screenshots/auth-light.png) |
 
-| Admin | Workspace | Mobile |
+| Painel Workspace | Tools no chat | Aprovação de tool |
 |---|---|---|
-| ![Administração](docs/screenshots/admin-dark.png) | ![Workspace](docs/screenshots/workspace-dark.png) | ![Chat mobile](docs/screenshots/chat-mobile.png) |
+| ![Workspace — Tasks/Changes/Jobs/MCPs](docs/screenshots/workspace-panel.png) | ![21 builtin tools + presets de aprovação](docs/screenshots/chat-tools.png) | ![Card de aprovação](docs/screenshots/chat-approval.png) |
 
-| Tools no chat | Terminal embutido | MCPs no Admin |
+| Terminal PTY | MCPs no Admin | Admin — usuários |
 |---|---|---|
-| ![Tool calls e aprovação](docs/screenshots/chat-tools.png) | ![Terminal PTY](docs/screenshots/terminal.png) | ![Servidores MCP](docs/screenshots/mcp-settings.png) |
+| ![Terminal PTY](docs/screenshots/terminal.png) | ![Servidores MCP](docs/screenshots/mcp-settings.png) | ![Rail de administração](docs/screenshots/admin-users.png) |
+
+| Admin — providers | Admin — integrações | Chat mobile |
+|---|---|---|
+| ![Providers Ollama/OpenAI](docs/screenshots/admin-providers.png) | ![n8n + webhooks + vídeo](docs/screenshots/admin-integrations.png) | ![Chat mobile](docs/screenshots/chat-mobile.png) |
+
+| Gaveta mobile | Admin mobile | Login (escuro) |
+|---|---|---|
+| ![Menu gaveta mobile](docs/screenshots/chat-mobile-drawer.png) | ![Admin mobile](docs/screenshots/admin-mobile.png) | ![Login escuro](docs/screenshots/auth-dark.png) |
 
 ## Funcionalidades
 
@@ -32,25 +40,41 @@ mantendo o layout, as funcionalidades e a configuração do original.
 - **Notificações** — toast in-app, Notification API e Web Push (VAPID) para avisar
   quando a resposta termina com o site fechado
 - **Tool streaming + aprovação** — `tool_call`/`tool_result`/status no SSE, gate de
-  aprovação para tools mutáveis com preset por conversa (readonly/aprovar/sempre)
-- **Builtin agent tools** — `generate_image` (imagem inline), `code_interpreter`,
-  `shell_exec` + jobs em background, `fetch_url`, `web_search`
+  aprovação para tools mutáveis com preset por conversa (readonly/aprovar/sempre/
+  **auto por risco** LOW-MED-HIGH), negar com instrução para o modelo corrigir a rota
+- **21 builtin agent tools** — `generate_image`/`generate_video` (mídia inline),
+  `code_interpreter`, `shell_exec` + jobs em background, `fetch_url`, `web_search`,
+  `file_*` (list/read/grep/glob/write/edit no workspace com diff), `todo_write`,
+  `ask_user` (pergunta estruturada mid-run), `delegate_task` (subtarefa navegável),
+  `browser_screenshot` (Chrome headless), `n8n_list_workflows`/`n8n_trigger`
+- **Painel Workspace** ao lado do chat — tabs Tasks, Changes (diff git do workspace),
+  Jobs, MCPs e Info/estado da run (padrão Devin/OpenHands)
+- **Runs pausáveis** — pause/resume cooperativo + chip de estado da run
+  (gerando/aguardando aprovação/pausada)
 - **Terminal embutido** — PTY real via WebSocket + xterm.js (`/terminal`, flag admin)
+- **Automação inbound** — webhooks anônimos `POST /api/v1/hooks/{token}` enfileiram
+  runs no chat (n8n, cron, CI); integração n8n admin (listar/disparar workflows)
 - **Canais em grupo** com realtime (SignalR `/ws`), menção `@modelo`, typing/presence
 - **Knowledge/RAG** — coleções com embeddings e retrieval vetorial em SQLite
   (cosseno + BM25 híbrido, chunking por frase, rerank por provider externo)
-- **MCP** — servidores Model Context Protocol configurados em Configurações → Admin,
+- **MCP** — servidores Model Context Protocol em Admin → Configurações → MCP,
   com teste de conexão e tools expansíveis; tools MCP entram no loop do chat
 - **Tools** — tools HTTP com function calling (loop no servidor, URL de execução nunca exposta)
-- **Geração de imagens** — provider OpenAI Images, botão por mensagem
+- **Geração de imagens e vídeo** — OpenAI Images/Sora e ComfyUI, botão por mensagem e
+  builtin tools `generate_image`/`generate_video` com mídia inline
 - **Execução de código** — blocos do chat: JS em Web Worker e Python via Pyodide WASM
 - **Voz** — ditado (STT), leitura de mensagens (TTS) e modo Call via Web Speech API
 - **Automações** — execuções agendadas (intervalo/diário/semanal) + calendário mensal
 - **Auth** — JWT, chaves `sk-*`, OAuth/OIDC (Google/GitHub/Microsoft), SAML, LDAP, SCIM, grupos/RBAC
 - **PWA** — manifest + service worker do shell, instalável e offline-safe
 - **i18n** — 8 locales (pt-BR, en-US, es, fr, de, it, ja, zh) com troca sem reload
-- **Mobile-first** — sidebar gaveta, navegação por breakpoints, auditoria axe-core no CI
-- **Admin** — usuários, grupos, conexões, avaliações, feature flags e analytics
+- **Temas** — claro por padrão, seletor claro/escuro/sistema no menu do usuário
+- **Mobile-first** — gaveta flutuante com backdrop (clique fora fecha),
+  navegação por breakpoints, auditoria axe-core no CI
+- **Admin** — rail agrupado (Gerenciar/Insights/Sistema): usuários, grupos, conversas,
+  analytics, avaliações, leaderboard + Configurações com abas Geral, Providers
+  (Ollama/OpenAI-compat add/edit/testar, pull de modelos), Modelos, Recursos, Áudio,
+  Retrieval, MCP e Integrações (n8n, webhooks, geração de vídeo, browser_screenshot)
 
 Mapa de paridade detalhado: [`docs/MIGRACAO-DOTNET.md`](docs/MIGRACAO-DOTNET.md).
 Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architecture.md).
@@ -81,8 +105,8 @@ Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architectur
 | Rotas de página (47) | ✅ | ~46 — falta só edição inline de functions no admin |
 | Canais/DM + presença | socket.io | ✅ SignalR (mesmo comportamento) |
 | Knowledge/RAG | ChromaDB/pgvector externo | ✅ SQLite vetorial embutido (cosseno + BM25, L2 persistida) |
-| Tools (function calling) | HTTP + código Python | ✅ HTTP declarativas · código arbitrário **não executado** (decisão) |
-| MCP tool servers | ✅ | 🟡 SPEC escrita — ver `.specs/SPEC-20261003-mcp-tool-servers.md` |
+| Tools (function calling) | HTTP + código Python | ✅ HTTP declarativas + 21 builtin agent tools (shell, arquivos, mídia, n8n) |
+| MCP tool servers | ✅ | ✅ portado (http streamable + stdio, teste de conexão, tools no chat) |
 | Pipelines/functions/skills | ✅ | ✅ registry de functions + pipeline servers externos + skills |
 | Arena (battles + ELO) | ✅ | ✅ portado |
 | Geração de imagens | ✅ | ✅ OpenAI Images |
@@ -96,9 +120,9 @@ Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architectur
 
 ### Divergências intencionais
 
-- **Sem execução de código do usuário no servidor**: tools Python arbitrárias e
-  spawn de Jupyter/PTY local do upstream foram substituídos por tools HTTP
-  declarativas e proxy de terminal externo (documentado em MIGRACAO-DOTNET).
+- **Execução no host, sem sandbox**: builtin tools rodam comandos/código no host do
+  servidor — a fronteira de segurança é o gate de aprovação por risco + jail do
+  workspace (documentado em MIGRACAO-DOTNET; sandbox isolado é roadmap).
 - **RAG self-contained**: embeddings e busca vetorial em SQLite, sem ChromaDB/
   pgvector externo; rerank via provider quando configurado.
 - **Single-instance por padrão**: SQLite + uploads em `data/uploads` (fora do
@@ -114,12 +138,12 @@ Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architectur
 │   ├── OpenWebUI.Domain/          # Entidades de domínio (sem dependências)
 │   ├── OpenWebUI.Application/     # Contratos/DTOs compartilhados
 │   ├── OpenWebUI.Infrastructure/  # EF Core (AppDbContext + Migrations), serviços
-│   │                              # (JWT, providers, RAG, imagens, automations)
+│   │                              # (JWT, providers, RAG, builtin tools, automations)
 │   ├── OpenWebUI.Api/             # Minimal APIs + SignalR + hosting do Blazor WASM
 │   └── OpenWebUI.Client/          # SPA Blazor WebAssembly (UI do chat)
 └── tests/
-    ├── OpenWebUI.Api.Tests/       # Testes de integração NUnit (518)
-    └── OpenWebUI.Client.Tests/    # Testes NUnit dos serviços do cliente (12)
+    ├── OpenWebUI.Api.Tests/       # Testes de integração NUnit (721)
+    └── OpenWebUI.Client.Tests/    # Testes NUnit dos serviços do cliente (23)
 ```
 
 Dependências apontam para dentro: `Api → Infrastructure → Application → Domain`.
@@ -166,7 +190,7 @@ Guia completo de deploy Docker: [docs/pt/DEPLOY-DOCKER.md](docs/pt/DEPLOY-DOCKER
 
 ```bash
 dotnet test OpenWebUI.slnx
-# 518 testes de API + 12 de cliente (NUnit)
+# 721 testes de API + 23 de cliente (NUnit)
 
 # Cobertura (Coverlet, exclui Client WASM, código gerado e assemblies de teste)
 dotnet test tests/OpenWebUI.Api.Tests \
@@ -178,10 +202,10 @@ Cobertura de linha/branch por projeto (Coverlet 10):
 | Camada | Linhas | Branches |
 |--------|--------|----------|
 | Domain | 100% | 100% |
-| Application | 99,0% | 81,8% |
-| Infrastructure | 84,6% | 64,8% |
-| Api | 87,9% | 71,3% |
-| **Total** | **87,4%** | **68,6%** |
+| Application | 99,4% | 81,8% |
+| Infrastructure | 89,3% | 71,2% |
+| Api | 90,1% | 74,8% |
+| **Total** | **90,2%** | **73,1%** |
 
 O CI impõe um **gate de cobertura**: `.ci/coverage-baseline.txt` é o piso
 exigido em todo PR; o job `coverage-ratchet` sobe a baseline automaticamente
