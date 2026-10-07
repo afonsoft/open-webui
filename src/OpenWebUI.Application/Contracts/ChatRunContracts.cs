@@ -70,7 +70,25 @@ public sealed record RunApprovalAskedEvent(
 /// <summary>Decisão do dono sobre uma aprovação pendente (RF-003).</summary>
 /// <param name="Decision"><c>approve</c> | <c>deny</c>.</param>
 /// <param name="Remember">Quando true, aprova a tool pelo resto da conversa.</param>
-public sealed record RunApprovalDecisionRequest(string Decision, bool Remember = false);
+/// <param name="Message">
+/// Instrução opcional numa negação (SPEC-20261007-chat-agent-ux RF-002):
+/// vai como resultado da tool para o modelo corrigir a rota.
+/// </param>
+public sealed record RunApprovalDecisionRequest(
+    string Decision, bool Remember = false, string? Message = null);
+
+/// <summary>
+/// Decisão do gate de tools (SPEC-20261007-chat-agent-ux): aprovado, ou
+/// negado com mensagem opcional de instrução para o modelo.
+/// </summary>
+public sealed record ToolGateDecision(bool Approved, string? DenyMessage = null)
+{
+    /// <summary>Aprovado.</summary>
+    public static readonly ToolGateDecision Allow = new(true);
+
+    /// <summary>Negado sem instrução.</summary>
+    public static readonly ToolGateDecision Deny = new(false);
+}
 
 /// <summary>Atualização parcial do chat (preset de aprovação de tools).</summary>
 /// <param name="ApprovalPreset">

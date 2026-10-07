@@ -304,9 +304,15 @@ public static class ChatRunEndpoints
                 statusCode: StatusCodes.Status410Gone);
         }
 
+        if (request.Message is { Length: > 2048 })
+        {
+            return Results.BadRequest(new { detail = "message deve ter até 2KB." });
+        }
+
         var approved = request.Decision == "approve";
         return approvals.Resolve(
-            run.Id, run.ChatId, callId, approved, request.Remember)
+            run.Id, run.ChatId, callId, approved, request.Remember,
+            approved ? null : request.Message)
             ? Results.Ok(new StatusResponse(true))
             : Results.NotFound(new { detail = "Aprovação não está pendente." });
     }

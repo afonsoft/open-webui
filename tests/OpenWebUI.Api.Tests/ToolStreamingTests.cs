@@ -260,7 +260,7 @@ public class ToolStreamingTests
         var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
 
         Assert.That(approvals.Resolve("run-1", "chat-1", "call-1", approved: true, remember: false), Is.True);
-        Assert.That(await wait, Is.True);
+        Assert.That((await wait).Approved, Is.True);
         Assert.That(approvals.IsPending("run-1", "call-1"), Is.False);
     }
 
@@ -271,7 +271,21 @@ public class ToolStreamingTests
         var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
 
         Assert.That(approvals.Resolve("run-1", "chat-1", "call-1", approved: false, remember: false), Is.True);
-        Assert.That(await wait, Is.False);
+        Assert.That((await wait).Approved, Is.False);
+    }
+
+    [Test]
+    public async Task Approval_ResolveNegaComMensagem_CarregaInstrucao()
+    {
+        var approvals = new ChatRunApprovals();
+        var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
+
+        Assert.That(approvals.Resolve(
+            "run-1", "chat-1", "call-1", approved: false, remember: false,
+            message: "rode ls antes"), Is.True);
+        var result = await wait;
+        Assert.That(result.Approved, Is.False);
+        Assert.That(result.Message, Is.EqualTo("rode ls antes"));
     }
 
     [Test]
@@ -282,7 +296,7 @@ public class ToolStreamingTests
 
         Assert.That(
             approvals.Resolve("run-1", "chat-1", "call-1", approved: true, remember: true), Is.True);
-        Assert.That(await wait, Is.True);
+        Assert.That((await wait).Approved, Is.True);
         Assert.That(approvals.IsRemembered("chat-1", "eco"), Is.True);
         // "Lembrar" é por chat — outro chat não herda.
         Assert.That(approvals.IsRemembered("chat-2", "eco"), Is.False);
@@ -303,7 +317,7 @@ public class ToolStreamingTests
         var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
 
         approvals.Cancel("run-1");
-        Assert.That(await wait, Is.False);
+        Assert.That((await wait).Approved, Is.False);
         Assert.That(approvals.IsPending("run-1", "call-1"), Is.False);
     }
 
@@ -494,6 +508,43 @@ public class ToolStreamingTests
         var eventos = await streamTask;
         Assert.That(eventos.Any(e => e.Event == "tool_result"
             && e.Data.Contains("\"denied\":true")), Is.True, "faltou tool_result negado");
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task Approval_NegaComMensagem_InstrucaoVaiComoResultado()
+    {
+        var auth = await SignUpAsync("GateD", "gated@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "nega com instrução", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var negou = false;
+        while (DateTime.UtcNow < limite && !negou)
+        {
+            var resp = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-1",
+                new RunApprovalDecisionRequest("deny", Message: "use outra abordagem"));
+            negou = resp.StatusCode == HttpStatusCode.OK;
+            if (!negou)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(negou, Is.True, "gate não pediu aprovação em 30s");
+
+        var eventos = await streamTask;
+        Assert.That(eventos.Any(e => e.Event == "tool_result"
+            && e.Data.Contains("\"denied\":true")
+            && e.Data.Contains("use outra abordagem")), Is.True,
+            "instrução da negação não virou resultado da tool");
 
         var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
         Assert.That(final.Status, Is.EqualTo("completed"), final.Error);

@@ -226,17 +226,18 @@ public sealed class ChatRunExecutor(
     /// Gate de aprovação por tool call (RF-003/RF-004): tool não-mutável
     /// ou já lembrada executa direto; preset <c>always-allow</c> libera,
     /// <c>allow-readonly</c> nega; <c>approve-mutations</c> emite
-    /// <c>approval_asked</c> e espera a decisão do dono (timeout → deny).
+    /// <c>approval_asked</c> e espera a decisão do dono (timeout → deny);
+    /// uma negação pode carregar a instrução do dono (RF-002 chat-agent-ux).
     /// O preset é relido a cada call — mudança mid-run vale já no próximo.
     /// </summary>
-    private async Task<bool> GateToolCallAsync(
+    private async Task<ToolGateDecision> GateToolCallAsync(
         ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call, CancellationToken ct)
     {
         var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
         if (tool is null || !ToolExecutor.IsMutable(tool)
             || approvals.IsRemembered(run.ChatId, call.Name))
         {
-            return true;
+            return ToolGateDecision.Allow;
         }
 
         var preset = await db.Chats.AsNoTracking()
@@ -247,9 +248,9 @@ public sealed class ChatRunExecutor(
         switch (preset)
         {
             case "always-allow":
-                return true;
+                return ToolGateDecision.Allow;
             case "allow-readonly":
-                return false;
+                return ToolGateDecision.Deny;
         }
 
         var argsPreview = Scrub(Truncate(call.ArgumentsJson, PreviewChars));
@@ -261,7 +262,11 @@ public sealed class ChatRunExecutor(
             $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
         broadcaster.Publish(run.Id,
             $"event: approval_asked\ndata: {JsonSerializer.Serialize(new RunApprovalAskedEvent(call.Id, call.Name, kind, argsPreview), JsonOptions)}");
-        return await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var message = string.IsNullOrWhiteSpace(result.Message)
+            ? null
+            : Scrub(Truncate(result.Message!, PreviewChars));
+        return new ToolGateDecision(result.Approved, message);
     }
 
     /// <summary>Esconde padrões óbvios de secret antes de publicar no SSE.</summary>
