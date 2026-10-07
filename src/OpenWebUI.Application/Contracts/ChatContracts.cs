@@ -19,7 +19,9 @@ public sealed record ChatMessageModel(
     string Content,
     string? Model,
     long Timestamp,
-    IReadOnlyList<ChatMessageVersionModel>? Versions = null);
+    IReadOnlyList<ChatMessageVersionModel>? Versions = null,
+    string? ToolCallId = null,
+    string? ToolCallsJson = null);
 
 /// <summary>Resumo de um chat para listagem na barra lateral.</summary>
 /// <param name="Id">Identificador do chat.</param>
@@ -62,7 +64,8 @@ public sealed record ChatResponse(
     string? ShareId,
     IReadOnlyList<string> ToolIds,
     long CreatedAt,
-    long UpdatedAt);
+    long UpdatedAt,
+    string ApprovalPreset = "approve-mutations");
 
 /// <summary>Requisição para criar ou atualizar um chat.</summary>
 /// <param name="Title">Título do chat.</param>

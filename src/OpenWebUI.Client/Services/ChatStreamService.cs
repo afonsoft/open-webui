@@ -15,6 +15,29 @@ namespace OpenWebUI.Client.Services;
 /// </summary>
 public class ChatStreamService(HttpClient http, AuthService auth)
 {
+    /// <summary>
+    /// Evento tipado do stream de uma run (SPEC-20261007-chat-tool-streaming):
+    /// delta de texto, tool_call/tool_result, fase de status ou pedido de
+    /// aprovação. O endpoint legado só produz <see cref="Delta"/>.
+    /// </summary>
+    public abstract record ChatStreamEvent
+    {
+        /// <summary>Pedaco de texto do assistant.</summary>
+        public sealed record Delta(string Text) : ChatStreamEvent;
+
+        /// <summary>Tool call iniciada (antes de executar).</summary>
+        public sealed record ToolCall(RunToolCallEvent Call) : ChatStreamEvent;
+
+        /// <summary>Resultado/negação de uma tool call.</summary>
+        public sealed record ToolResult(RunToolResultEvent Result) : ChatStreamEvent;
+
+        /// <summary>Fase da run (generating|running_tool|awaiting_approval).</summary>
+        public sealed record Phase(RunPhaseEvent Status) : ChatStreamEvent;
+
+        /// <summary>Aprovação pedida — a run pausou esperando decisão.</summary>
+        public sealed record ApprovalAsked(RunApprovalAskedEvent Asked) : ChatStreamEvent;
+    }
+
     /// <summary>Resultado de arena da última requisição (payload {"arena": ...}), quando houver.</summary>
     public ArenaCompletionResult? LastArenaResult { get; private set; }
 
@@ -114,6 +137,28 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         int lastSeq = 0,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        await foreach (var evt in StreamRunEventsAsync(chatId, runId, lastSeq, ct))
+        {
+            if (evt is ChatStreamEvent.Delta delta)
+            {
+                yield return delta.Text;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Anexa ao stream de uma run produzindo os eventos tipados
+    /// (<see cref="ChatStreamEvent"/>): deltas de texto mais tool_call,
+    /// tool_result, fase de status e pedidos de aprovação
+    /// (SPEC-20261007-chat-tool-streaming). Eventos desconhecidos são
+    /// ignorados (forward-compat).
+    /// </summary>
+    public async IAsyncEnumerable<ChatStreamEvent> StreamRunEventsAsync(
+        string chatId,
+        string runId,
+        int lastSeq = 0,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
         LastArenaResult = null;
 
         using var httpRequest = auth.CreateRequest(
@@ -125,22 +170,68 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         await EnsureSuccessAsync(response, "anexar à run", ct);
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        await foreach (var delta in ReadDeltasAsync(stream, ct))
+        await foreach (var evt in ReadEventsAsync(stream, ct))
         {
-            yield return delta;
+            yield return evt;
         }
+    }
+
+    /// <summary>
+    /// Envia a decisão do usuário sobre uma aprovação pendente
+    /// (<c>approve</c>|<c>deny</c>; <paramref name="remember"/> vale nesta
+    /// conversa). Retorna false quando a call não está mais pendente.
+    /// </summary>
+    public async Task<bool> DecideApprovalAsync(
+        string chatId, string runId, string callId,
+        string decision, bool remember = false, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Post,
+            $"/api/v1/chats/{chatId}/runs/{runId}/approvals/{callId}");
+        httpRequest.Content = JsonContent.Create(
+            new RunApprovalDecisionRequest(decision, remember));
+        using var response = await http.SendAsync(httpRequest, ct);
+        return response.IsSuccessStatusCode;
     }
 
     /// <summary>Lê linhas `data:` do SSE e produz os deltas de conteúdo.</summary>
     private async IAsyncEnumerable<string> ReadDeltasAsync(
         Stream stream, [EnumeratorCancellation] CancellationToken ct)
     {
+        await foreach (var evt in ReadEventsAsync(stream, ct))
+        {
+            if (evt is ChatStreamEvent.Delta delta)
+            {
+                yield return delta.Text;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Parser SSE: lê pares `event:`/`data:` e produz
+    /// <see cref="ChatStreamEvent"/>s — `data:` sem `event:` segue o
+    /// formato OpenAI (deltas, erro, arena); `data: [DONE]` encerra.
+    /// </summary>
+    private async IAsyncEnumerable<ChatStreamEvent> ReadEventsAsync(
+        Stream stream, [EnumeratorCancellation] CancellationToken ct)
+    {
         using var reader = new StreamReader(stream);
+        string? eventName = null;
 
         while (await reader.ReadLineAsync(ct) is { } line)
         {
             ct.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data:", StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+            if (line.StartsWith("event:", StringComparison.Ordinal))
+            {
+                eventName = line["event:".Length..].Trim();
+                continue;
+            }
+            if (line.StartsWith("id:", StringComparison.Ordinal)
+                || !line.StartsWith("data:", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -151,28 +242,77 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                 yield break;
             }
 
-            string? delta = null;
+            var evt = eventName;
+            eventName = null;
+            ChatStreamEvent? produced = null;
             string? error = null;
             try
             {
                 var node = JsonNode.Parse(payload);
-                error = node?["error"]?.GetValue<string>();
-                // Gateways podem emitir chunks sem choice (só role/usage/keepalive):
-                // indexar um array vazio lança ArgumentOutOfRangeException.
-                var choices = node?["choices"] as JsonArray;
-                delta = choices is { Count: > 0 }
-                    ? choices[0]?["delta"]?["content"]?.GetValue<string>()
-                    : null;
-                var arena = node?["arena"];
-                if (arena is not null)
+                if (node is null)
                 {
-                    LastArenaResult = new ArenaCompletionResult(
-                        arena["battle_id"]?.GetValue<string>() ?? string.Empty,
-                        (arena["responses"] as JsonArray ?? [])
-                            .Select(r => new ArenaCompletionResponse(
-                                r?["label"]?.GetValue<string>() ?? "?",
-                                r?["content"]?.GetValue<string>() ?? string.Empty))
-                            .ToList());
+                    continue;
+                }
+
+                switch (evt)
+                {
+                    case "tool_call":
+                        produced = new ChatStreamEvent.ToolCall(
+                            new RunToolCallEvent(
+                                node["id"]?.GetValue<string>() ?? string.Empty,
+                                node["name"]?.GetValue<string>() ?? "tool",
+                                node["argsPreview"]?.GetValue<string>()));
+                        break;
+                    case "tool_result":
+                        produced = new ChatStreamEvent.ToolResult(
+                            new RunToolResultEvent(
+                                node["id"]?.GetValue<string>() ?? string.Empty,
+                                node["name"]?.GetValue<string>() ?? "tool",
+                                node["ok"]?.GetValue<bool>() ?? false,
+                                node["preview"]?.GetValue<string>(),
+                                node["imagePath"]?.GetValue<string>(),
+                                node["denied"]?.GetValue<bool>() ?? false));
+                        break;
+                    case "approval_asked":
+                        produced = new ChatStreamEvent.ApprovalAsked(
+                            new RunApprovalAskedEvent(
+                                node["callId"]?.GetValue<string>() ?? string.Empty,
+                                node["toolName"]?.GetValue<string>() ?? "tool",
+                                node["kind"]?.GetValue<string>() ?? "http",
+                                node["argsPreview"]?.GetValue<string>()));
+                        break;
+                    case "status":
+                        if (node["phase"]?.GetValue<string>() is { } phase)
+                        {
+                            produced = new ChatStreamEvent.Phase(
+                                new RunPhaseEvent(
+                                    phase, node["label"]?.GetValue<string>()));
+                        }
+                        break;
+                    default:
+                        error = node["error"]?.GetValue<string>();
+                        // Gateways podem emitir chunks sem choice (só role/usage/keepalive):
+                        // indexar um array vazio lança ArgumentOutOfRangeException.
+                        var choices = node["choices"] as JsonArray;
+                        var delta = choices is { Count: > 0 }
+                            ? choices[0]?["delta"]?["content"]?.GetValue<string>()
+                            : null;
+                        var arena = node["arena"];
+                        if (arena is not null)
+                        {
+                            LastArenaResult = new ArenaCompletionResult(
+                                arena["battle_id"]?.GetValue<string>() ?? string.Empty,
+                                (arena["responses"] as JsonArray ?? [])
+                                    .Select(r => new ArenaCompletionResponse(
+                                        r?["label"]?.GetValue<string>() ?? "?",
+                                        r?["content"]?.GetValue<string>() ?? string.Empty))
+                                    .ToList());
+                        }
+                        if (!string.IsNullOrEmpty(delta))
+                        {
+                            produced = new ChatStreamEvent.Delta(delta);
+                        }
+                        break;
                 }
             }
             catch (JsonException)
@@ -184,10 +324,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
             {
                 throw new InvalidOperationException(error);
             }
-
-            if (!string.IsNullOrEmpty(delta))
+            if (produced is not null)
             {
-                yield return delta;
+                yield return produced;
             }
         }
     }

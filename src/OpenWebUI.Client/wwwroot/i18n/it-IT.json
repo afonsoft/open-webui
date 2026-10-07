@@ -451,5 +451,17 @@
   "settings.pulling": "Pulling…",
   "settings.model_pulled": "Model pulled successfully.",
   "settings.pull_failed": "Failed to pull the model.",
-  "notes.cursor_at": "carattere {{pos}}"
+  "notes.cursor_at": "carattere {{pos}}",
+  "chat.tool_running": "in esecuzione…",
+  "chat.tool_denied": "rifiutata",
+  "chat.tool_error": "errore",
+  "chat.tool_approval_title": "Approvazione dello strumento",
+  "chat.tool_approval_wants": "Lo strumento {name} vuole essere eseguito",
+  "chat.tool_approval_remember": "Ricorda in questa chat",
+  "chat.tool_approve": "Approva",
+  "chat.tool_deny": "Nega",
+  "chat.approval_preset": "Approvazione strumenti",
+  "chat.preset_allow-readonly": "Solo strumenti di lettura",
+  "chat.preset_approve-mutations": "Approva mutazioni",
+  "chat.preset_always-allow": "Consenti sempre"
 }

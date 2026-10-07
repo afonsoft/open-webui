@@ -1,0 +1,54 @@
+@inject LocalizationService L
+
+@*
+    Prompt de aprovação de tool mutável (SPEC-20261007-chat-tool-streaming):
+    mostra o que vai executar e oferece Aprovar/Negar com opção "lembrar
+    nesta conversa". A decisão vai pro endpoint de approvals da run.
+*@
+
+<div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2" role="alertdialog" aria-label="@L["chat.tool_approval_title"]">
+    <div class="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 flex-none">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        <span>@L.T("chat.tool_approval_wants", ("name", ToolName))</span>
+        <span class="rounded-full bg-amber-200/60 dark:bg-amber-800/60 px-1.5 py-0.5 text-[0.625rem]">@Kind</span>
+    </div>
+
+    @if (ArgsPreview is not null)
+    {
+        <pre class="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white/70 dark:bg-gray-950/70 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@ArgsPreview</pre>
+    }
+
+    <label class="mt-2 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+        <input type="checkbox" @bind="_remember" />
+        @L["chat.tool_approval_remember"]
+    </label>
+
+    <div class="mt-2 flex gap-2">
+        <button class="rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-3 py-1 text-xs font-medium transition hover:opacity-85 cursor-pointer"
+                @onclick='() => OnDecide.InvokeAsync(("approve", _remember))'>
+            @L["chat.tool_approve"]
+        </button>
+        <button class="rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 text-xs font-medium transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
+                @onclick='() => OnDecide.InvokeAsync(("deny", _remember))'>
+            @L["chat.tool_deny"]
+        </button>
+    </div>
+</div>
+
+@code {
+    /// <summary>Nome da tool pedindo aprovação.</summary>
+    [Parameter] public string ToolName { get; set; } = "tool";
+
+    /// <summary>Tipo da tool (http|python|mcp|builtin).</summary>
+    [Parameter] public string Kind { get; set; } = "http";
+
+    /// <summary>Preview dos argumentos (truncado, scrubbed).</summary>
+    [Parameter] public string? ArgsPreview { get; set; }
+
+    /// <summary>Callback com (decision, remember).</summary>
+    [Parameter] public EventCallback<(string Decision, bool Remember)> OnDecide { get; set; }
+
+    private bool _remember;
+}

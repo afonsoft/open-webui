@@ -90,6 +90,19 @@ public class ToolExecutor(
         }
     }
 
+    /// <summary>
+    /// Se a tool é mutável para o gate de aprovação
+    /// (SPEC-20261007-chat-tool-streaming RF-003): flag
+    /// <see cref="Tool.RequiresApproval"/>, ou sempre — código Python e
+    /// tools MCP são tratadas como mutáveis por poderem ter efeitos
+    /// colaterais arbitrários. Tools HTTP POST seguem o flag (o dono
+    /// decide se a URL escreve ou só lê).
+    /// </summary>
+    public static bool IsMutable(Tool tool) =>
+        tool.RequiresApproval
+        || !string.IsNullOrWhiteSpace(tool.Code)
+        || McpClientService.ParseVirtualUrl(tool.Url) is not null;
+
     /// <summary>Extrai o nome da função do spec da tool.</summary>
     public static string? FunctionName(Tool tool)
     {

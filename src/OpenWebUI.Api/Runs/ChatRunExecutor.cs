@@ -26,10 +26,14 @@ public sealed class ChatRunExecutor(
     PipelineClientService pipelines,
     WebSearchService webSearch,
     ChatRunBroadcaster broadcaster,
+    ChatRunApprovals approvals,
     ILogger<ChatRunExecutor> logger)
 {
     /// <summary>Bytes de delta acumulados antes de gravar um checkpoint.</summary>
     private const int CheckpointBytes = 2048;
+
+    /// <summary>Tamanho máximo do preview de args/resultado publicado no SSE.</summary>
+    private const int PreviewChars = 2048;
 
     /// <summary>Roda a run até o fim e atualiza o registro com o resultado.</summary>
     public async Task ExecuteAsync(ChatRun run, CancellationToken ct)
@@ -56,6 +60,7 @@ public sealed class ChatRunExecutor(
 
         var content = new StringBuilder();
         var sinceCheckpoint = 0;
+        IReadOnlyList<ChatCompletionMessage>? toolMessages = null;
 
         try
         {
@@ -100,10 +105,18 @@ public sealed class ChatRunExecutor(
                         .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
                         .ToList(),
                 };
-                var finished = await ChatPipeline.RunToolLoopAsync(
-                    effective, tools, toolExecutor, providers, ct);
-                if (finished is not null)
+                var callbacks = new ChatPipeline.ToolLoopCallbacks(
+                    OnPhaseAsync: (phase, label, t) => PublishPhaseAsync(run, phase, label),
+                    OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
+                    GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
+                    OnResultAsync: (call, output, denied, t)
+                        => PublishToolResultAsync(run, call, output, denied));
+                var outcome = await ChatPipeline.RunToolLoopAsync(
+                    effective, tools, toolExecutor, providers, ct, callbacks);
+                if (outcome?.FinalContent is { } final)
                 {
+                    toolMessages = outcome.ToolMessages;
+                    var finished = final;
                     foreach (var (regex, replacement) in outletRules)
                     {
                         finished = regex.Replace(finished, replacement);
@@ -134,12 +147,13 @@ public sealed class ChatRunExecutor(
             }
 
             broadcaster.Publish(run.Id, "data: [DONE]");
-            await FinishAsync(run, content.ToString(), ct);
+            await FinishAsync(run, content.ToString(), ct, toolMessages: toolMessages);
         }
         catch (OperationCanceledException)
         {
+            approvals.Cancel(run.Id);
             broadcaster.Publish(run.Id, "data: [DONE]");
-            await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Stopped);
+            await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Stopped, toolMessages);
         }
         catch (Exception ex)
         {
@@ -153,12 +167,95 @@ public sealed class ChatRunExecutor(
             var message = ex is HttpRequestException or TaskCanceledException
                 ? $"Falha ao contactar o provedor: {ex.Message}"
                 : ex.Message;
+            approvals.Cancel(run.Id);
             broadcaster.Publish(run.Id, $"data: {JsonSerializer.Serialize(new { error = message })}");
             broadcaster.Publish(run.Id, "data: [DONE]");
             run.Error = message;
-            await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Failed);
+            await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Failed, toolMessages);
         }
     }
+
+    /// <summary>Publica o evento <c>status</c> de fase no stream da run.</summary>
+    private Task PublishPhaseAsync(ChatRun run, string phase, string? label)
+    {
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent(phase, label), JsonOptions)}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Publica o evento <c>tool_call</c> com preview higienizado dos args.</summary>
+    private Task PublishToolCallAsync(ChatRun run, ProviderToolCall call)
+    {
+        broadcaster.Publish(run.Id,
+            $"event: tool_call\ndata: {JsonSerializer.Serialize(new RunToolCallEvent(call.Id, call.Name, Scrub(Truncate(call.ArgumentsJson, PreviewChars))), JsonOptions)}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
+    private Task PublishToolResultAsync(
+        ChatRun run, ProviderToolCall call, string output, bool denied)
+    {
+        var ok = !denied && !output.StartsWith("Erro", StringComparison.Ordinal);
+        broadcaster.Publish(run.Id,
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), Denied: denied), JsonOptions)}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Gate de aprovação por tool call (RF-003/RF-004): tool não-mutável
+    /// ou já lembrada executa direto; preset <c>always-allow</c> libera,
+    /// <c>allow-readonly</c> nega; <c>approve-mutations</c> emite
+    /// <c>approval_asked</c> e espera a decisão do dono (timeout → deny).
+    /// O preset é relido a cada call — mudança mid-run vale já no próximo.
+    /// </summary>
+    private async Task<bool> GateToolCallAsync(
+        ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call, CancellationToken ct)
+    {
+        var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
+        if (tool is null || !ToolExecutor.IsMutable(tool)
+            || approvals.IsRemembered(run.ChatId, call.Name))
+        {
+            return true;
+        }
+
+        var preset = await db.Chats.AsNoTracking()
+            .Where(c => c.Id == run.ChatId)
+            .Select(c => c.ApprovalPreset)
+            .FirstOrDefaultAsync(ct)
+            ?? "approve-mutations";
+        switch (preset)
+        {
+            case "always-allow":
+                return true;
+            case "allow-readonly":
+                return false;
+        }
+
+        var argsPreview = Scrub(Truncate(call.ArgumentsJson, PreviewChars));
+        var kind = !string.IsNullOrWhiteSpace(tool.Code)
+            ? "python"
+            : tool.Url.StartsWith(McpClientService.VirtualUrlPrefix,
+                StringComparison.Ordinal) ? "mcp" : "http";
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
+        broadcaster.Publish(run.Id,
+            $"event: approval_asked\ndata: {JsonSerializer.Serialize(new RunApprovalAskedEvent(call.Id, call.Name, kind, argsPreview), JsonOptions)}");
+        return await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+    }
+
+    /// <summary>Esconde padrões óbvios de secret antes de publicar no SSE.</summary>
+    private static string Scrub(string value)
+    {
+        var scrubbed = SecretPattern.Replace(value, m
+            => m.Value.StartsWith("Bearer", StringComparison.Ordinal)
+                ? "Bearer ***"
+                : m.Value[..3] + "***");
+        return scrubbed;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SecretPattern = new(
+        @"Bearer\s+[^\s""']+|sk-[A-Za-z0-9_-]{8,}",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>Roteia `pipeline:{id}` e repassa as linhas SSE do upstream.</summary>
     private async Task RunPipelineAsync(
@@ -240,16 +337,21 @@ public sealed class ChatRunExecutor(
         }
     }
 
-    /// <summary>Grava a mensagem do assistant no chat e finaliza a run.</summary>
+    /// <summary>
+    /// Grava as mensagens do loop de tools (assistant com ToolCallsJson +
+    /// respostas role=tool) e a mensagem final do assistant no chat, e
+    /// finaliza a run.
+    /// </summary>
     private async Task FinishAsync(
-        ChatRun run, string content, CancellationToken ct, string? status = null)
+        ChatRun run, string content, CancellationToken ct, string? status = null,
+        IReadOnlyList<ChatCompletionMessage>? toolMessages = null)
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         run.Status = status ?? ChatRunStatus.Completed;
         run.CompletedAt = now;
         run.PartialContent = content;
 
-        if (content.Length > 0)
+        if (content.Length > 0 || toolMessages is { Count: > 0 })
         {
             var chat = await db.Chats.Include(c => c.Messages)
                 .FirstOrDefaultAsync(c => c.Id == run.ChatId, CancellationToken.None);
@@ -258,15 +360,32 @@ public sealed class ChatRunExecutor(
                 var nextPosition = chat.Messages.Count == 0
                     ? 0
                     : chat.Messages.Max(m => m.Position) + 1;
-                chat.Messages.Add(new ChatMessage
+                foreach (var m in toolMessages ?? [])
                 {
-                    ChatId = chat.Id,
-                    Role = "assistant",
-                    Content = content,
-                    Model = run.Model,
-                    Position = nextPosition,
-                    Timestamp = now,
-                });
+                    chat.Messages.Add(new ChatMessage
+                    {
+                        ChatId = chat.Id,
+                        Role = m.Role,
+                        Content = m.Content,
+                        Model = m.Role == "assistant" ? run.Model : null,
+                        ToolCallsJson = m.ToolCallsJson,
+                        ToolCallId = m.ToolCallId,
+                        Position = nextPosition++,
+                        Timestamp = now,
+                    });
+                }
+                if (content.Length > 0)
+                {
+                    chat.Messages.Add(new ChatMessage
+                    {
+                        ChatId = chat.Id,
+                        Role = "assistant",
+                        Content = content,
+                        Model = run.Model,
+                        Position = nextPosition,
+                        Timestamp = now,
+                    });
+                }
                 chat.UpdatedAt = now;
             }
         }

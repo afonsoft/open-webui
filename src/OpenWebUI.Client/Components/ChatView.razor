@@ -81,6 +81,14 @@
                     {
                         var index = i;
                         var message = _messages[i];
+                        if (message.Role == "tool")
+                        {
+                            <ToolCallCard
+                                Name="@(message.ToolCallId ?? "tool")"
+                                ResultPreview="@message.Content"
+                                Ok="true" />
+                            continue;
+                        }
                         var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
                         <MessageBubble
                             Message="message"
@@ -95,6 +103,44 @@
                             TtsSupported="_ttsSupported"
                             OnSpeak="() => SpeakAtAsync(index)" />
                     }
+                </div>
+            }
+
+            @if (_liveToolCalls.Count > 0)
+            {
+                <div class="flex flex-col gap-1.5 py-2">
+                    @foreach (var t in _liveToolCalls)
+                    {
+                        <ToolCallCard
+                            Name="@t.Call.Name"
+                            ArgsPreview="@t.Call.ArgsPreview"
+                            ResultPreview="@t.Result?.Preview"
+                            ImagePath="@t.Result?.ImagePath"
+                            Running="@(t.Result is null && _streaming)"
+                            Denied="@(t.Result?.Denied ?? false)"
+                            Ok="@(t.Result is null ? null : t.Result.Ok)" />
+                    }
+                </div>
+            }
+
+            @if (_pendingApproval is { } pendingApproval)
+            {
+                <div class="py-1">
+                    <PermissionPromptCard
+                        ToolName="@pendingApproval.ToolName"
+                        Kind="@pendingApproval.Kind"
+                        ArgsPreview="@pendingApproval.ArgsPreview"
+                        OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember)" />
+                </div>
+            }
+            else if (_streaming && !string.IsNullOrEmpty(_statusLabel))
+            {
+                <div class="py-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                    <svg class="size-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                    </svg>
+                    @_statusLabel
                 </div>
             }
 
@@ -226,6 +272,28 @@
                                                     <input type="checkbox" checked="@_toolIds.Contains(tool.Id)"
                                                            @onchange="() => ToggleToolAsync(tool.Id)" />
                                                     <span class="truncate">@tool.Name</span>
+                                                    @if (tool.RequiresApproval)
+                                                    {
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                                                             class="size-3 flex-none text-amber-500" title="@L["chat.tool_approval_title"]">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                                        </svg>
+                                                    }
+                                                </label>
+                                            }
+                                        }
+                                        @if (_loadedChatId is not null && !Playground)
+                                        {
+                                            <div class="border-t border-gray-100 dark:border-gray-800 px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                @L["chat.approval_preset"]
+                                            </div>
+                                            @foreach (var preset in ApprovalPresets)
+                                            {
+                                                <label class="flex items-center gap-2 px-3 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
+                                                    <input type="radio" name="approvalPreset"
+                                                           checked="@(_approvalPreset == preset)"
+                                                           @onchange="() => SetApprovalPresetAsync(preset)" />
+                                                    <span class="truncate">@L["chat.preset_" + preset]</span>
                                                 </label>
                                             }
                                         }
@@ -319,6 +387,22 @@
     private ElementReference _scrollContainer;
     private InputFile? _fileInput;
     private string? _pendingNavigateId;
+
+    // Streaming de tools (SPEC-20261007-chat-tool-streaming):
+    // fase atual, calls ao vivo e pedido de aprovação pendente.
+    private string? _statusLabel;
+    private readonly List<ToolCallView> _liveToolCalls = [];
+    private RunApprovalAskedEvent? _pendingApproval;
+    private string _approvalPreset = "approve-mutations";
+    private static readonly string[] ApprovalPresets =
+        ["allow-readonly", "approve-mutations", "always-allow"];
+
+    /// <summary>Estado vivo de uma tool_call + seu tool_result.</summary>
+    private sealed class ToolCallView
+    {
+        public required RunToolCallEvent Call { get; init; }
+        public RunToolResultEvent? Result { get; set; }
+    }
 
     private string UserInitials =>
         string.IsNullOrWhiteSpace(Auth.CurrentUser?.Name)
@@ -424,6 +508,9 @@
         _error = null;
         _followUps = [];
         _attachedFiles.Clear();
+        _liveToolCalls.Clear();
+        _pendingApproval = null;
+        _statusLabel = null;
         if (_loadedChatId is not null)
         {
             await Realtime.LeaveChatAsync(_loadedChatId);
@@ -451,6 +538,7 @@
             await Realtime.JoinChatAsync(chat.Id);
             _chatTitle = chat.Title;
             _toolIds = chat.ToolIds.ToHashSet();
+            _approvalPreset = chat.ApprovalPreset;
             _messages.Clear();
             _messages.AddRange(chat.Messages);
             if (chat.Models.Count > 0)
@@ -860,14 +948,8 @@
                 _cts.Token);
             _activeRunId = run.Id;
 
-            await foreach (var delta in ChatStream.StreamRunAsync(
-                _loadedChatId!, run.Id, lastSeq: 0, _cts.Token))
-            {
-                content.Append(delta);
-                _messages[index] = placeholder with { Content = content.ToString() };
-                await InvokeAsync(StateHasChanged);
-                await ScrollToEndAsync();
-            }
+            await ConsumeRunEventsAsync(
+                _loadedChatId!, run.Id, content, placeholder, index, _cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -879,6 +961,8 @@
         finally
         {
             _activeRunId = null;
+            _pendingApproval = null;
+            _statusLabel = null;
             if (ChatStream.LastArenaResult is { } arenaResult)
             {
                 _arena = arenaResult;
@@ -907,14 +991,8 @@
 
         try
         {
-            await foreach (var delta in ChatStream.StreamRunAsync(
-                run.ChatId, run.Id, lastSeq: 0, _cts.Token))
-            {
-                content.Append(delta);
-                _messages[index] = placeholder with { Content = content.ToString() };
-                await InvokeAsync(StateHasChanged);
-                await ScrollToEndAsync();
-            }
+            await ConsumeRunEventsAsync(
+                run.ChatId, run.Id, content, placeholder, index, _cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -926,10 +1004,94 @@
         finally
         {
             _activeRunId = null;
+            _pendingApproval = null;
+            _statusLabel = null;
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
             await ReloadChatAsync();
+        }
+    }
+
+    /// <summary>
+    /// Consome o stream tipado de uma run (SPEC-20261007-chat-tool-streaming):
+    /// deltas viram conteúdo do placeholder; tool_call/tool_result viram
+    /// cards ao vivo; status vira o chip de fase; approval_asked mostra o
+    /// prompt de permissão.
+    /// </summary>
+    private async Task ConsumeRunEventsAsync(
+        string chatId, string runId,
+        System.Text.StringBuilder content,
+        ChatMessageModel placeholder, int index, CancellationToken ct)
+    {
+        _liveToolCalls.Clear();
+
+        await foreach (var evt in ChatStream.StreamRunEventsAsync(
+            chatId, runId, lastSeq: 0, ct))
+        {
+            switch (evt)
+            {
+                case ChatStreamService.ChatStreamEvent.Delta delta:
+                    content.Append(delta.Text);
+                    _messages[index] = placeholder with { Content = content.ToString() };
+                    break;
+                case ChatStreamService.ChatStreamEvent.ToolCall call:
+                    _liveToolCalls.Add(new ToolCallView { Call = call.Call });
+                    break;
+                case ChatStreamService.ChatStreamEvent.ToolResult result:
+                {
+                    var entry = _liveToolCalls.FindLast(t => t.Call.Id == result.Result.Id)
+                        ?? _liveToolCalls.FindLast(t => t.Call.Name == result.Result.Name);
+                    if (entry is null)
+                    {
+                        entry = new ToolCallView
+                        {
+                            Call = new RunToolCallEvent(
+                                result.Result.Id, result.Result.Name, null),
+                        };
+                        _liveToolCalls.Add(entry);
+                    }
+                    entry.Result = result.Result;
+                    break;
+                }
+                case ChatStreamService.ChatStreamEvent.Phase phase:
+                    _statusLabel = phase.Status.Label;
+                    break;
+                case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
+                    _pendingApproval = asked.Asked;
+                    break;
+            }
+            await InvokeAsync(StateHasChanged);
+            await ScrollToEndAsync();
+        }
+    }
+
+    /// <summary>
+    /// Envia a decisão (approve|deny) de uma aprovação pendente e limpa o
+    /// prompt — a tool_result chega depois pelo stream.
+    /// </summary>
+    private async Task DecideApprovalAsync(string callId, string decision, bool remember)
+    {
+        _pendingApproval = null;
+        if (_loadedChatId is null || _activeRunId is null)
+        {
+            return;
+        }
+        await ChatStream.DecideApprovalAsync(
+            _loadedChatId, _activeRunId, callId, decision, remember);
+    }
+
+    /// <summary>Troca o preset de aprovação do chat (re-lido por call no servidor).</summary>
+    private async Task SetApprovalPresetAsync(string preset)
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+        var updated = await Api.PatchChatAsync(_loadedChatId, preset);
+        if (updated is not null)
+        {
+            _approvalPreset = updated.ApprovalPreset;
         }
     }
 
