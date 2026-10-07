@@ -70,18 +70,18 @@ public class MissingPagesTests
     {
         UseToken(_adminToken);
         var before = await _client.GetFromJsonAsync<AppConfigResponse>("/api/config");
-        Assert.That(before!.Features.EnableMemories, Is.False);
+        Assert.That(before!.Features.EnableMemories, Is.True); // default agora ligado
 
         var updated = AdminConfig.Default with
         {
             DefaultUserRole = "user",
-            EnableMemories = true,
+            EnableMemories = false,
         };
         var response = await _client.PostAsJsonAsync("/api/config", updated);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         var after = await _client.GetFromJsonAsync<AppConfigResponse>("/api/config");
-        Assert.That(after!.Features.EnableMemories, Is.True);
+        Assert.That(after!.Features.EnableMemories, Is.False);
     }
 
     [Test, Order(3)]

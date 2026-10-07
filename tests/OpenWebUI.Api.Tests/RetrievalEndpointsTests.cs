@@ -212,6 +212,10 @@ public class RetrievalEndpointsTests
     public async Task WebSearch_SemEngine_Retorna503()
     {
         UseToken(_admin.Token);
+        // Desativa explicitamente: o default agora é duckduckgo (sem chave).
+        var update = await _client.PostAsJsonAsync("/api/v1/retrieval/config/update",
+            RetrievalConfig.Default with { Engine = "none" });
+        Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         var response = await _client.PostAsJsonAsync("/api/v1/retrieval/process/web/search",
             new { query = "qualquer coisa", processResults = false });

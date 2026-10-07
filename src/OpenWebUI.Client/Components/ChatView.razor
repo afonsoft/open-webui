@@ -362,16 +362,26 @@
                                                 {
                                                     continue;
                                                 }
-                                                <label class="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer border-t border-gray-50 dark:border-gray-850/60 first:border-t-0">
+                                                var catConfigured = CategoryConfigured(cat);
+                                                <label class="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-850 border-t border-gray-50 dark:border-gray-850/60 first:border-t-0
+                                                            @(catConfigured ? "cursor-pointer" : "opacity-50 cursor-not-allowed")"
+                                                       title="@(catConfigured ? null : L["chat.tool_not_configured"])">
                                                     <input type="checkbox" checked="@IsCategoryEnabled(cat)"
+                                                           disabled="@(!catConfigured)"
                                                            @onchange="() => ToggleCategoryAsync(cat)" />
                                                     @CategoryIcon(cat)
                                                     <span class="truncate flex-1">@L[$"chat.tools_cat_{cat}"]</span>
+                                                    @if (!catConfigured)
+                                                    {
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 flex-none text-red-500"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                                                    }
                                                 </label>
                                                 @foreach (var tool in catTools)
                                                 {
-                                                    <label class="flex items-center gap-2 pl-7 pr-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer">
+                                                    <label class="flex items-center gap-2 pl-7 pr-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850
+                                                                  @(catConfigured ? "cursor-pointer" : "opacity-50 cursor-not-allowed")">
                                                         <input type="checkbox" checked="@_toolIds.Contains(tool.Id)"
+                                                               disabled="@(!catConfigured)"
                                                                @onchange="() => ToggleToolAsync(tool.Id)" />
                                                         <span class="truncate">@tool.Name</span>
                                                         @if (tool.RequiresApproval)
@@ -406,29 +416,47 @@
                         }
                         @if (CategoryHasTools("image"))
                         {
-                            <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
-                                           @(IsCategoryEnabled("image") ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                    title="@L["chat.generate_image"]" aria-label="@L["chat.generate_image"]" disabled="@_loading"
+                            <button class="relative size-8 flex items-center justify-center rounded-full transition disabled:opacity-40
+                                           @(CategoryIconClass("image"))"
+                                    title="@(CategoryConfigured("image") ? L["chat.generate_image"] : L["chat.tool_not_configured"])"
+                                    aria-label="@L["chat.generate_image"]"
+                                    disabled="@(_loading || !CategoryConfigured("image"))"
                                     @onclick='() => ToggleCategoryAsync("image")'>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
+                                @if (!CategoryConfigured("image"))
+                                {
+                                    <span class="absolute left-1.5 right-1.5 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-red-500 rounded-full pointer-events-none"></span>
+                                }
                             </button>
                         }
                         @if (CategoryHasTools("video"))
                         {
-                            <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
-                                           @(IsCategoryEnabled("video") ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                    title="@L["chat.generate_video"]" aria-label="@L["chat.generate_video"]" disabled="@_loading"
+                            <button class="relative size-8 flex items-center justify-center rounded-full transition disabled:opacity-40
+                                           @(CategoryIconClass("video"))"
+                                    title="@(CategoryConfigured("video") ? L["chat.generate_video"] : L["chat.tool_not_configured"])"
+                                    aria-label="@L["chat.generate_video"]"
+                                    disabled="@(_loading || !CategoryConfigured("video"))"
                                     @onclick='() => ToggleCategoryAsync("video")'>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                                @if (!CategoryConfigured("video"))
+                                {
+                                    <span class="absolute left-1.5 right-1.5 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-red-500 rounded-full pointer-events-none"></span>
+                                }
                             </button>
                         }
                         @if (CategoryHasTools("web") || _webSearchAvailable)
                         {
-                            <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
-                                           @(IsCategoryEnabled("web") ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                    title="@L["chat.web_search"]" aria-label="@L["chat.web_search"]" disabled="@_loading"
+                            <button class="relative size-8 flex items-center justify-center rounded-full transition disabled:opacity-40
+                                           @(CategoryIconClass("web"))"
+                                    title="@(CategoryConfigured("web") ? L["chat.web_search"] : L["chat.tool_not_configured"])"
+                                    aria-label="@L["chat.web_search"]"
+                                    disabled="@(_loading || !CategoryConfigured("web"))"
                                     @onclick='() => ToggleCategoryAsync("web")'>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5 0 4.5-4 4.5-9S14.5 3 12 3m0 18c-2.5 0-4.5-4-4.5-9S9.5 3 12 3m-8.7 6h17.4M3.3 15h17.4" /></svg>
+                                @if (!CategoryConfigured("web"))
+                                {
+                                    <span class="absolute left-1.5 right-1.5 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-red-500 rounded-full pointer-events-none"></span>
+                                }
                             </button>
                         }
                         <button class="size-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition cursor-pointer disabled:opacity-40"
@@ -536,6 +564,8 @@
     private HashSet<string> _toolIds = [];
     private bool _showToolsMenu;
     private bool _webSearchAvailable;
+    private bool _imageGenEnabled;
+    private bool _videoGenEnabled;
     private bool _webSearch;
     private string? _loadedChatId;
     private string _chatTitle = "New Chat";
@@ -609,18 +639,21 @@
         _tools = await Api.GetToolsAsync();
         _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
         // OnParametersSetAsync pode rodar antes das tools carregarem —
-        // garante o default "todas selecionadas" num chat novo.
+        // garante o default "genéricas ligadas" num chat novo.
         if (ChatId is null && _toolIds.Count == 0)
         {
-            _toolIds = _tools.Select(t => t.Id).ToHashSet();
+            _toolIds = DefaultToolIds();
         }
-        _webSearchAvailable = (await Api.GetAppConfigCachedAsync())?.Features.EnableWebSearch ?? false;
+        var features = (await Api.GetAppConfigCachedAsync())?.Features;
+        _webSearchAvailable = features?.EnableWebSearch ?? false;
+        _imageGenEnabled = features?.EnableImageGeneration ?? false;
+        _videoGenEnabled = features?.EnableVideoGeneration ?? false;
         try
         {
-            // Default ligado quando a busca web está configurada; a escolha
-            // explícita do usuário (localStorage) tem precedência.
+            // Busca web desligada por padrão (o usuário habilita no ícone);
+            // a escolha explícita do usuário (localStorage) tem precedência.
             var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch");
-            _webSearch = stored is null ? _webSearchAvailable : stored == "true";
+            _webSearch = stored == "true" && _webSearchAvailable;
         }
         catch (JSException ex)
         {
@@ -724,8 +757,8 @@
             _loadedChatId = null;
             _chatTitle = "New Chat";
             _messages.Clear();
-            // Chat novo: todas as tools vêm selecionadas por padrão.
-            _toolIds = _tools.Select(t => t.Id).ToHashSet();
+            // Chat novo: só as tools genéricas vêm selecionadas por padrão.
+            _toolIds = DefaultToolIds();
             await LoadComposerStateAsync(null);
             return;
         }
@@ -743,10 +776,10 @@
             _loadedChatId = chat.Id;
             await Realtime.JoinChatAsync(chat.Id);
             _chatTitle = chat.Title;
-            // Chat sem ToolIds persistidos (legado/nunca tocado): assume tudo ligado.
+            // Chat sem ToolIds persistidos (legado/nunca tocado): default genérico.
             _toolIds = chat.ToolIds.Count > 0
                 ? chat.ToolIds.ToHashSet()
-                : _tools.Select(t => t.Id).ToHashSet();
+                : DefaultToolIds();
             _approvalPreset = chat.ApprovalPreset;
             _messages.Clear();
             _messages.AddRange(chat.Messages);
@@ -1234,6 +1267,7 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -1291,8 +1325,17 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
-            await RefreshGitAsync();
-            await ReloadChatAsync();
+            // Render já: o avatar volta ao normal mesmo se o reload falhar.
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                await RefreshGitAsync();
+                await ReloadChatAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"reload pós-run falhou: {ex.Message}");
+            }
         }
     }
 
@@ -1335,8 +1378,16 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
-            await RefreshGitAsync();
-            await ReloadChatAsync();
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                await RefreshGitAsync();
+                await ReloadChatAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"reload pós-reattach falhou: {ex.Message}");
+            }
         }
     }
 
@@ -1413,6 +1464,10 @@
                             _paused = false;
                             _statusLabel = null;
                             break;
+                        case "completed" or "failed" or "stopped" or "interrupted":
+                            // Estado terminal da run: encerra sem depender do
+                            // fechamento do SSE (proxies podem segurar o FIN).
+                            return;
                         default:
                             _paused = false;
                             _statusLabel = phase.Status.Label;
@@ -1697,9 +1752,42 @@
     private bool CategoryHasTools(string category) =>
         _tools.Any(t => ToolCategory(t) == category);
 
+    /// <summary>
+    /// Categorias que dependem de recurso configurado no backend — começam
+    /// desligadas e só podem ser habilitadas quando o admin configura.
+    /// </summary>
+    private static readonly HashSet<string> GatedCategories = ["image", "video", "web"];
+
+    /// <summary>Default de chat novo: todas as tools, menos as categorias gated.</summary>
+    private HashSet<string> DefaultToolIds() =>
+        _tools.Where(t => !GatedCategories.Contains(ToolCategory(t)))
+            .Select(t => t.Id).ToHashSet();
+
+    /// <summary>Se a categoria tem o recurso correspondente configurado no backend.</summary>
+    private bool CategoryConfigured(string category) => category switch
+    {
+        "image" => _imageGenEnabled,
+        "video" => _videoGenEnabled,
+        "web" => _webSearchAvailable,
+        _ => true,
+    };
+
+    /// <summary>Classes dos ícones rápidos: azul ativo, cinza normal, riscado quando não configurado.</summary>
+    private string CategoryIconClass(string category) =>
+        !CategoryConfigured(category)
+            ? "text-gray-400 dark:text-gray-600 cursor-not-allowed"
+            : IsCategoryEnabled(category)
+                ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 cursor-pointer";
+
     /// <summary>Categoria ligada: todas as tools dela selecionadas (web exige também o flag de busca).</summary>
     private bool IsCategoryEnabled(string category)
     {
+        if (!CategoryConfigured(category))
+        {
+            return false;
+        }
+
         var ids = CategoryIds(category);
         var toolsOn = ids.Count > 0 && ids.All(_toolIds.Contains);
         return category == "web"
@@ -1710,6 +1798,11 @@
     /// <summary>Liga/desliga a categoria inteira de uma vez (ícones rápidos e cabeçalho do menu).</summary>
     private async Task ToggleCategoryAsync(string category)
     {
+        if (!CategoryConfigured(category))
+        {
+            return;
+        }
+
         var on = IsCategoryEnabled(category);
         var ids = CategoryIds(category);
         foreach (var id in ids)
@@ -1755,6 +1848,11 @@
 
     private async Task ToggleToolAsync(string toolId)
     {
+        var tool = _tools.FirstOrDefault(t => t.Id == toolId);
+        if (tool is not null && !CategoryConfigured(ToolCategory(tool)))
+        {
+            return;
+        }
         if (!_toolIds.Remove(toolId))
         {
             _toolIds.Add(toolId);

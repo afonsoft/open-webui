@@ -98,7 +98,7 @@ public sealed record AdminConfig(
         DefaultUserRole: "pending",
         EnableMessageRating: true,
         EnableFolders: true,
-        EnableMemories: false,
+        EnableMemories: true,
         WebUiName: "Open WebUI");
 }
 

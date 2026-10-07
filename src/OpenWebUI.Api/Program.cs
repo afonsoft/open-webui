@@ -29,6 +29,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ProviderService>();
+builder.Services.AddScoped<ProviderCapabilityService>();
+builder.Services.AddHostedService<ProviderCapabilityBootstrapper>();
 builder.Services.AddScoped<AutomationService>();
 builder.Services.AddHostedService<AutomationScheduler>();
 builder.Services.AddScoped<OAuthService>();

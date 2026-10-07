@@ -37,6 +37,7 @@ public static class ApiEndpoints
         var configs = app.MapGroup("/api/v1/configs").RequireAuthorization();
         configs.MapGet("/connections", GetConnectionsAsync);
         configs.MapPost("/connections", UpdateConnectionsAsync);
+        configs.MapGet("/capabilities", GetCapabilitiesAsync);
         configs.MapGet("/connections/models", ListConnectionModelsAsync);
         configs.MapGet("/export", ExportConfigAsync);
         configs.MapPost("/import", ImportConfigAsync);
@@ -75,10 +76,13 @@ public static class ApiEndpoints
     }
 
     private static async Task<IResult> GetAppConfigAsync(
-        HttpContext http, ConfigService config, ImageGenerationService images, CancellationToken ct)
+        HttpContext http, ConfigService config, ImageGenerationService images,
+        VideoGenerationService videos, AudioService audio, CancellationToken ct)
     {
         var adminConfig = await config.GetAdminConfigAsync(ct);
         var imagesConfig = await images.GetConfigAsync(ct);
+        var videoConfig = await videos.GetConfigAsync(ct);
+        var audioConfig = await audio.GetResolvedConfigAsync(ct);
         var modelsConfig = await ConfigEndpoints.GetModelsConfigInternalAsync(config, ct);
         var retrieval = await config.GetAsync("retrieval.config", RetrievalConfig.Default, ct);
 
@@ -100,7 +104,10 @@ public static class ApiEndpoints
                 EnableWebSearch: retrieval.Engine is not "none",
                 EnableImageGeneration: imagesConfig.Enabled,
                 EnableCodeExecution: true,
-                EnableCommunitySharing: true),
+                EnableCommunitySharing: true,
+                EnableVideoGeneration: videoConfig.Enabled,
+                EnableTextToSpeech: audioConfig.TtsEnabled,
+                EnableSpeechToText: audioConfig.SttEnabled),
             DefaultModels: modelsConfig.DefaultModels,
             DefaultPromptSuggestions: modelsConfig.PromptSuggestions,
             OAuthProviders: OAuthProviderCatalog.ConfiguredProviders()));
@@ -320,6 +327,45 @@ public static class ApiEndpoints
             connections.OpenAiNames));
     }
 
+    /// <summary>
+    /// Modelos detectados por capacidade (admin). Lê o kv persistido pela
+    /// detecção; se nunca rodou, faz uma classificação rápida do catálogo
+    /// (GET /models, sem probes) — suficiente para os combos.
+    /// </summary>
+    private static async Task<IResult> GetCapabilitiesAsync(
+        HttpContext http, ConfigService config,
+        ProviderCapabilityService capabilities, CancellationToken ct)
+    {
+        if (!IsAdmin(http))
+        {
+            return Results.Forbid();
+        }
+
+        var detected = await config.GetAsync<DetectedCapabilities?>(
+            "capabilities.detected", null, ct);
+        if (detected is null)
+        {
+            var connections = await config.GetConnectionsAsync(ct);
+            for (var i = 0; i < connections.OpenAiBaseUrls.Count && detected is null; i++)
+            {
+                try
+                {
+                    detected = await capabilities.DetectCandidatesAsync(
+                        connections.OpenAiBaseUrls[i],
+                        connections.OpenAiApiKeys.ElementAtOrDefault(i), ct);
+                }
+                catch (Exception)
+                {
+                    // Provider fora do ar: lista vazia, combos ficam em texto livre.
+                }
+            }
+        }
+
+        return detected is null
+            ? Results.Ok(new DetectedCapabilities([], [], [], [], [], null, 0))
+            : Results.Ok(detected);
+    }
+
     /// <summary>Lista modelos de uma conexão cadastrada (admin) — usado pelos combos da UI.</summary>
     private static async Task<IResult> ListConnectionModelsAsync(
         HttpContext http, ProviderService providers,
@@ -338,6 +384,8 @@ public static class ApiEndpoints
         ConnectionsConfig request,
         HttpContext http,
         ConfigService config,
+        IServiceScopeFactory scopeFactory,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         if (!IsAdmin(http))
@@ -364,6 +412,23 @@ public static class ApiEndpoints
 
         var updated = request with { OpenAiApiKeys = keys };
         await config.SetAsync("connections", updated, ct);
+
+        // Detecção de capacidades em background: classifica /models e
+        // probeia TTS/imagem/vídeo/embeddings, preenchendo configs ausentes.
+        _ = Task.Run(async () =>
+        {
+            var log = loggerFactory.CreateLogger("OpenWebUI.ProviderCapability");
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<ProviderCapabilityService>()
+                    .AutoConfigureAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                log.LogDebug(ex, "Auto-config de capacidades falhou.");
+            }
+        });
 
         return Results.Ok(new ConnectionsConfigResponse(
             updated.OllamaBaseUrls,

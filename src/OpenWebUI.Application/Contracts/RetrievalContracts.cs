@@ -36,9 +36,9 @@ public sealed record RetrievalConfig(
     string? RerankExternalUrl = null,
     string? RerankExternalApiKey = null)
 {
-    /// <summary>Config padrão (comportamento vetorial atual).</summary>
+    /// <summary>Config padrão — web search ligada via DuckDuckGo (não exige chave).</summary>
     public static readonly RetrievalConfig Default = new(
-        "none", null, null, null, 5, 1000, 100, false, 0.5, false);
+        "duckduckgo", null, null, null, 5, 1000, 100, false, 0.5, false);
 
     /// <summary>Mascara as chaves para respostas GET.</summary>
     public RetrievalConfig Masked() => this with

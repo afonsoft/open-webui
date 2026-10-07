@@ -812,6 +812,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ImageTestResponse?> TestImagesConfigAsync() =>
         SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/images/config/test");
 
+    /// <summary>Modelos detectados por capacidade nas conexões cadastradas (admin).</summary>
+    public Task<DetectedCapabilities?> GetDetectedCapabilitiesAsync() =>
+        SendAsync<DetectedCapabilities>(HttpMethod.Get, "/api/v1/configs/capabilities");
+
+    /// <summary>Testa o TTS configurado sintetizando uma palavra (admin).</summary>
+    public Task<ImageTestResponse?> TestAudioConfigAsync() =>
+        SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/audio/config/test");
+
     /// <summary>Edita uma imagem existente com um prompt (engines com suporte).</summary>
     public Task<GeneratedImage?> EditImageAsync(string imageId, string prompt, string? size = null) =>
         SendAsync<GeneratedImage>(HttpMethod.Post, "/api/v1/images/edit",
