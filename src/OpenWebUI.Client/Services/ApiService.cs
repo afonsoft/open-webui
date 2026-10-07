@@ -712,6 +712,61 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");
 
+    // ---------------- Automação (admin): n8n + webhooks ----------------
+
+    /// <summary>Configuração da integração n8n (somente admin).</summary>
+    public Task<N8nConfigResponse?> GetN8nConfigAsync() =>
+        SendAsync<N8nConfigResponse>(HttpMethod.Get, "/api/v1/n8n/config");
+
+    /// <summary>Atualiza a configuração n8n; ApiKey nula mantém a atual (somente admin).</summary>
+    public Task<N8nConfigResponse?> UpdateN8nConfigAsync(N8nConfigUpdateRequest request) =>
+        SendAsync<N8nConfigResponse>(HttpMethod.Put, "/api/v1/n8n/config", request);
+
+    /// <summary>Lista workflows do n8n via proxy (somente admin).</summary>
+    public async Task<List<N8nWorkflowResponse>> GetN8nWorkflowsAsync() =>
+        await SendAsync<List<N8nWorkflowResponse>>(HttpMethod.Get, "/api/v1/n8n/workflows") ?? [];
+
+    /// <summary>Lista os webhooks de automação do usuário.</summary>
+    public async Task<List<AutomationHookResponse>> GetAutomationHooksAsync() =>
+        await SendAsync<List<AutomationHookResponse>>(HttpMethod.Get, "/api/v1/hooks/") ?? [];
+
+    /// <summary>Cria um webhook de automação vinculado a um chat.</summary>
+    public Task<AutomationHookResponse?> CreateAutomationHookAsync(AutomationHookCreateRequest request) =>
+        SendAsync<AutomationHookResponse>(HttpMethod.Post, "/api/v1/hooks/", request);
+
+    /// <summary>Remove um webhook de automação.</summary>
+    public Task<bool> DeleteAutomationHookAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/hooks/{Uri.EscapeDataString(id)}");
+
+    // ---------------- Mídia e browser (admin) ----------------
+
+    /// <summary>Configuração de geração de vídeo (somente admin; ApiKey mascarada).</summary>
+    public Task<VideoConfig?> GetVideoConfigAsync() =>
+        SendAsync<VideoConfig>(HttpMethod.Get, "/api/v1/videos/config");
+
+    /// <summary>Atualiza a configuração de vídeo (somente admin).</summary>
+    public Task<VideoConfig?> UpdateVideoConfigAsync(VideoConfig config) =>
+        SendAsync<VideoConfig>(HttpMethod.Post, "/api/v1/videos/config", config);
+
+    /// <summary>Motores de vídeo disponíveis (somente admin).</summary>
+    public async Task<List<string>> GetVideoEnginesAsync() =>
+        await SendAsync<List<string>>(HttpMethod.Get, "/api/v1/videos/config/engines") ?? [];
+
+    /// <summary>Testa a configuração de vídeo com uma geração curta (somente admin).</summary>
+    public Task<ImageTestResponse?> TestVideoConfigAsync() =>
+        SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/videos/config/test");
+
+    /// <summary>Flag da tool builtin browser_screenshot (somente admin).</summary>
+    public Task<BrowserConfigResponse?> GetBrowserConfigAsync() =>
+        SendAsync<BrowserConfigResponse>(HttpMethod.Get, "/api/v1/browser/config");
+
+    /// <summary>Liga/desliga a tool builtin browser_screenshot (somente admin).</summary>
+    public Task<BrowserConfigResponse?> UpdateBrowserConfigAsync(bool enabled) =>
+        SendAsync<BrowserConfigResponse>(HttpMethod.Put, "/api/v1/browser/config", new { enabled });
+
+    /// <summary>Resposta de /api/v1/browser/config (shape anônimo do endpoint).</summary>
+    public sealed record BrowserConfigResponse(bool Enabled, string? BrowserPath);
+
     // ---------------- Gerenciamento de modelos Ollama (passthrough) ----------------
 
     /// <summary>Lista os modelos instalados na conexão Ollama configurada.</summary>
