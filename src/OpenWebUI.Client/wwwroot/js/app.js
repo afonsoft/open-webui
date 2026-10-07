@@ -5,6 +5,8 @@ window.openwebui = {
 			(theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 		document.documentElement.classList.toggle('dark', isDark);
 		document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+		const meta = document.querySelector('meta[name="theme-color"]');
+		if (meta) meta.setAttribute('content', isDark ? '#171717' : '#ffffff');
 	},
 	scrollToEnd: function (element) {
 		if (element) {
