@@ -7,6 +7,7 @@
 @inject MarkdownService Markdown
 @inject IJSRuntime JS
 @inject RealtimeService Realtime
+@inject BrowserStorage Storage
 @implements IDisposable
 
 <div class="flex h-full w-full min-w-0">
@@ -208,6 +209,16 @@
                         OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember, d.Message)" />
                 </div>
             }
+            else if (_pendingQuestion is { } pendingQuestion)
+            {
+                <div class="py-1">
+                    <QuestionPromptCard
+                        Question="@pendingQuestion.Question"
+                        Options="@pendingQuestion.Options"
+                        Multiple="@pendingQuestion.Multiple"
+                        OnAnswer="answer => AnswerQuestionAsync(pendingQuestion.CallId, answer)" />
+                </div>
+            }
             else if (_streaming && !string.IsNullOrEmpty(_statusLabel))
             {
                 @* No mobile o chip do header fica oculto — mantém o status inline *@
@@ -311,6 +322,7 @@
                         rows="1"
                         @bind="_input"
                         @bind:event="oninput"
+                        @bind:after="SaveDraftAsync"
                         @onkeydown="OnKeyDown"
                         disabled="@_loading"></textarea>
                 </div>
@@ -487,6 +499,8 @@
     private string _chatTitle = "New Chat";
     private string? _model;
     private string _input = string.Empty;
+    private List<string> _inputHistory = [];
+    private int _historyIndex = -1;
     private string? _error;
     private bool _loading;
     private bool _streaming;
@@ -525,6 +539,7 @@
     private List<ChatJobResponse> _jobs = [];
     private List<McpServerResponse> _mcps = [];
     private RunApprovalAskedEvent? _pendingApproval;
+    private RunQuestionAskedEvent? _pendingQuestion;
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
     private static readonly string[] ApprovalPresets =
@@ -646,6 +661,7 @@
         _runChanges = [];
         _git = null;
         _pendingApproval = null;
+        _pendingQuestion = null;
         _paused = false;
         _statusLabel = null;
         if (_loadedChatId is not null)
@@ -658,6 +674,7 @@
             _chatTitle = "New Chat";
             _messages.Clear();
             _toolIds.Clear();
+            await LoadComposerStateAsync(null);
             return;
         }
 
@@ -678,6 +695,7 @@
             _approvalPreset = chat.ApprovalPreset;
             _messages.Clear();
             _messages.AddRange(chat.Messages);
+            await LoadComposerStateAsync(chat.Id);
             if (chat.Models.Count > 0)
             {
                 _model = chat.Models[0];
@@ -770,7 +788,109 @@
             return;
         }
 
+        // Histórico do composer (RF-006): ↑/↓ no input vazio (ou navegando)
+        // percorre os prompts enviados deste chat.
+        if (e.Key == "ArrowUp" && _inputHistory.Count > 0
+            && (string.IsNullOrEmpty(_input) || _historyIndex >= 0))
+        {
+            _historyIndex = _historyIndex < 0
+                ? _inputHistory.Count - 1
+                : Math.Max(0, _historyIndex - 1);
+            _input = _inputHistory[_historyIndex];
+            return;
+        }
+        if (e.Key == "ArrowDown" && _historyIndex >= 0)
+        {
+            _historyIndex++;
+            if (_historyIndex >= _inputHistory.Count)
+            {
+                _historyIndex = -1;
+                _input = string.Empty;
+            }
+            else
+            {
+                _input = _inputHistory[_historyIndex];
+            }
+            return;
+        }
+
         UpdatePromptSuggestions();
+    }
+
+    /// <summary>
+    /// Rascunho persistido por chat (RF-006): o composer sobrevive a
+    /// reload/troca de aba — chave <c>chat:draft:{chatId|new}</c>.
+    /// </summary>
+    private async Task SaveDraftAsync()
+    {
+        _historyIndex = -1;
+        var key = $"chat:draft:{_loadedChatId ?? "new"}";
+        try
+        {
+            if (string.IsNullOrEmpty(_input))
+            {
+                await Storage.RemoveAsync(key);
+            }
+            else
+            {
+                await Storage.SetAsync(key, _input);
+            }
+        }
+        catch (JSException)
+        {
+            // localStorage indisponível — draft é best-effort.
+        }
+    }
+
+    /// <summary>Restaura draft + histórico de prompts do chat carregado.</summary>
+    private async Task LoadComposerStateAsync(string? chatId)
+    {
+        _historyIndex = -1;
+        _inputHistory = [];
+        var prefix = chatId ?? "new";
+        try
+        {
+            _input = await Storage.GetAsync($"chat:draft:{prefix}") ?? string.Empty;
+            var raw = await Storage.GetAsync($"chat:hist:{prefix}");
+            if (raw is not null)
+            {
+                _inputHistory = JsonSerializer.Deserialize<List<string>>(raw) ?? [];
+            }
+        }
+        catch (JSException)
+        {
+            _input = string.Empty;
+        }
+        catch (JsonException)
+        {
+            _inputHistory = [];
+        }
+    }
+
+    /// <summary>Grava o prompt enviado no histórico do chat (cap 50).</summary>
+    private async Task PushHistoryAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+        _inputHistory.Remove(text);
+        _inputHistory.Add(text);
+        if (_inputHistory.Count > 50)
+        {
+            _inputHistory.RemoveAt(0);
+        }
+        _historyIndex = -1;
+        try
+        {
+            await Storage.SetAsync(
+                $"chat:hist:{_loadedChatId ?? "new"}",
+                JsonSerializer.Serialize(_inputHistory));
+        }
+        catch (JSException)
+        {
+            // best-effort
+        }
     }
 
     private void UpdatePromptSuggestions()
@@ -826,6 +946,8 @@
         _promptSuggestions = [];
         _followUps = [];
         _error = null;
+        _ = PushHistoryAsync(text);
+        _ = Storage.RemoveAsync($"chat:draft:{_loadedChatId ?? "new"}");
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var content = text.Length > 0
@@ -1104,6 +1226,7 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _pendingQuestion = null;
             _paused = false;
             _statusLabel = null;
             if (ChatStream.LastArenaResult is { } arenaResult)
@@ -1151,6 +1274,7 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _pendingQuestion = null;
             _paused = false;
             _statusLabel = null;
             _streaming = false;
@@ -1243,6 +1367,9 @@
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
                     break;
+                case ChatStreamService.ChatStreamEvent.QuestionAsked question:
+                    _pendingQuestion = question.Asked;
+                    break;
             }
             await InvokeAsync(StateHasChanged);
             await ScrollToEndAsync();
@@ -1263,6 +1390,23 @@
         }
         await ChatStream.DecideApprovalAsync(
             _loadedChatId, _activeRunId, callId, decision, remember, message);
+    }
+
+    /// <summary>
+    /// Responde a pergunta do ask_user (RF-005): approve + message = a
+    /// resposta; null = o usuário pulou → deny (a run segue com "não
+    /// respondeu"). O tool_result chega depois pelo stream.
+    /// </summary>
+    private async Task AnswerQuestionAsync(string callId, string? answer)
+    {
+        _pendingQuestion = null;
+        if (_loadedChatId is null || _activeRunId is null)
+        {
+            return;
+        }
+        await ChatStream.DecideApprovalAsync(
+            _loadedChatId, _activeRunId, callId,
+            answer is null ? "deny" : "approve", false, answer);
     }
 
     /// <summary>Troca o preset de aprovação do chat (re-lido por call no servidor).</summary>

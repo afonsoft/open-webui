@@ -40,6 +40,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Aprovação pedida — a run pausou esperando decisão.</summary>
         public sealed record ApprovalAsked(RunApprovalAskedEvent Asked) : ChatStreamEvent;
 
+        /// <summary>Pergunta estruturada do ask_user aguardando resposta (RF-005).</summary>
+        public sealed record QuestionAsked(RunQuestionAskedEvent Asked) : ChatStreamEvent;
+
         /// <summary>
         /// Snapshot da lista de tarefas da run (evento <c>tasks</c> —
         /// SPEC-20261007-chat-agent-parity RF-010, emitido por todo_write).
@@ -331,6 +334,16 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                     ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
                                     : null,
                                 node["videoPath"]?.GetValue<string>()));
+                        break;
+                    case "question_asked":
+                        produced = new ChatStreamEvent.QuestionAsked(
+                            new RunQuestionAskedEvent(
+                                node["callId"]?.GetValue<string>() ?? string.Empty,
+                                node["question"]?.GetValue<string>() ?? string.Empty,
+                                (node["options"] as JsonArray)?
+                                    .Select(o => o?.GetValue<string>() ?? string.Empty)
+                                    .ToArray() ?? [],
+                                node["multiple"]?.GetValue<bool>() ?? false));
                         break;
                     case "approval_asked":
                         produced = new ChatStreamEvent.ApprovalAsked(

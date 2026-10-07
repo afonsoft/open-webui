@@ -1,0 +1,116 @@
+@inject LocalizationService L
+
+@*
+    Pergunta estruturada do ask_user (SPEC-20261007-chat-agent-ux RF-005):
+    o agente pausou a run esperando resposta do dono — opções clicáveis
+    (single ou multi-select), "Outro" com texto livre, e "Pular" para
+    devolver "o usuário não respondeu" e a run seguir.
+*@
+
+<div class="rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-900/20 px-3 py-2" role="alertdialog" aria-label="@L["chat.question_title"]">
+    <div class="flex items-center gap-2 text-xs font-medium text-blue-800 dark:text-blue-300">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 flex-none">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+        </svg>
+        <span>@L["chat.question_title"]</span>
+    </div>
+
+    <div class="mt-2 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">@Question</div>
+
+    @if (Options.Length > 0)
+    {
+        <div class="mt-2 flex flex-col gap-1">
+            @foreach (var option in Options)
+            {
+                var selected = _selected.Contains(option);
+                <button class="w-full text-left rounded-lg border px-3 py-1.5 text-xs transition cursor-pointer
+                               @(selected
+                                   ? "border-blue-500 bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 font-medium"
+                                   : "border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850")"
+                        @onclick="() => Toggle(option)">
+                    @(selected ? "● " : "○ ")@option
+                </button>
+            }
+        </div>
+        @if (!Multiple)
+        {
+            <div class="mt-2 flex items-center gap-2">
+                <input class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
+                       placeholder="@L["chat.question_other"]" @bind="_free" @bind:event="oninput" />
+                <button class="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium transition hover:opacity-85 cursor-pointer disabled:opacity-40"
+                        disabled="@(string.IsNullOrWhiteSpace(_free))"
+                        @onclick="SubmitFree">
+                    @L["chat.question_submit"]
+                </button>
+            </div>
+        }
+    }
+
+    @if (Multiple || Options.Length == 0)
+    {
+        <div class="mt-2 flex items-center gap-2">
+            <input class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
+                   placeholder="@L["chat.question_placeholder"]" @bind="_free" @bind:event="oninput" />
+            <button class="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium transition hover:opacity-85 cursor-pointer disabled:opacity-40"
+                    disabled="@(_selected.Count == 0 && string.IsNullOrWhiteSpace(_free))"
+                    @onclick="SubmitCombined">
+                @L["chat.question_submit"]
+            </button>
+        </div>
+    }
+
+    <div class="mt-2 flex justify-end">
+        <button class="text-[0.6875rem] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
+                @onclick="() => OnAnswer.InvokeAsync(null)">
+            @L["chat.question_skip"]
+        </button>
+    </div>
+</div>
+
+@code {
+    /// <summary>Texto da pergunta.</summary>
+    [Parameter] public string Question { get; set; } = "";
+
+    /// <summary>Opções clicáveis (vazio = só resposta livre).</summary>
+    [Parameter] public string[] Options { get; set; } = [];
+
+    /// <summary>Mais de uma opção pode ser escolhida.</summary>
+    [Parameter] public bool Multiple { get; set; }
+
+    /// <summary>Resposta (null = o usuário pulou a pergunta).</summary>
+    [Parameter] public EventCallback<string?> OnAnswer { get; set; }
+
+    private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
+    private string _free = "";
+
+    private void Toggle(string option)
+    {
+        if (Multiple)
+        {
+            if (!_selected.Add(option))
+            {
+                _selected.Remove(option);
+            }
+            return;
+        }
+        // Single-select: clicar já responde na hora.
+        _ = OnAnswer.InvokeAsync(option);
+    }
+
+    private Task SubmitFree() =>
+        string.IsNullOrWhiteSpace(_free)
+            ? Task.CompletedTask
+            : OnAnswer.InvokeAsync(_free.Trim());
+
+    private Task SubmitCombined()
+    {
+        var parts = _selected.ToList();
+        if (!string.IsNullOrWhiteSpace(_free))
+        {
+            parts.Add(_free.Trim());
+        }
+        return parts.Count == 0
+            ? Task.CompletedTask
+            : OnAnswer.InvokeAsync(string.Join(", ", parts));
+    }
+}

@@ -310,8 +310,12 @@ public static class ChatPipeline
                         string.IsNullOrWhiteSpace(gate.DenyMessage)
                             ? "Erro: execução negada pelo usuário."
                             : $"Erro: execução negada pelo usuário: {gate.DenyMessage}")
-                    : await toolExecutor.ExecuteAsync(
-                        tools, call.Name, call.ArgumentsJson, builtinContext, ct);
+                    // ask_user e gates parecidos podem devolver o resultado
+                    // direto via ToolGateDecision.Output (RF-005).
+                    : gate.Output is { Length: > 0 } gateOutput
+                        ? new ToolExecutionOutcome(gateOutput)
+                        : await toolExecutor.ExecuteAsync(
+                            tools, call.Name, call.ArgumentsJson, builtinContext, ct);
                 var output = outcome.Text;
 
                 if (callbacks?.OnResultAsync is not null)

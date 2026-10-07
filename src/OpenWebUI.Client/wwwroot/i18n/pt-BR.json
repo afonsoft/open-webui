@@ -565,5 +565,10 @@
   "chat": {
     "git_title": "Git do workspace — ver mudanças",
     "panel_diff_truncated": "diff truncado (repo grande)"
-  }
+  },
+  "chat.question_title": "O agente tem uma pergunta",
+  "chat.question_other": "Outro (digite sua resposta)",
+  "chat.question_submit": "Enviar resposta",
+  "chat.question_skip": "Pular",
+  "chat.question_placeholder": "Digite sua resposta…"
 }

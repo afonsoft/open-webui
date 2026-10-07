@@ -129,7 +129,9 @@ public class ToolStreamingTests
                 // Segunda chamada do loop: histórico já tem role=tool.
                 json = body.Contains("\"tool_call_id\"", StringComparison.Ordinal)
                     ? "{\"message\":{\"role\":\"assistant\",\"content\":\"resposta pós-tool\"}}"
-                    : body.Contains("file_write", StringComparison.Ordinal)
+                    : body.Contains("ask_user", StringComparison.Ordinal)
+                        ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-q\",\"function\":{\"name\":\"builtin:ask_user\",\"arguments\":{\"question\":\"Qual env?\",\"options\":[\"dev\",\"prod\"]}}}]}}"
+                        : body.Contains("file_write", StringComparison.Ordinal)
                         ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-fw\",\"function\":{\"name\":\"builtin:file_write\",\"arguments\":{\"path\":\"saida.txt\",\"content\":\"gerado\"}}}]}}"
                         : body.Contains("delegate_task", StringComparison.Ordinal)
                             ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-dl\",\"function\":{\"name\":\"builtin:delegate_task\",\"arguments\":{\"prompt\":\"resuma o arquivo\"}}}]}}"
@@ -554,6 +556,86 @@ public class ToolStreamingTests
             && e.Data.Contains("\"denied\":true")
             && e.Data.Contains("use outra abordagem")), Is.True,
             "instrução da negação não virou resultado da tool");
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task AskUser_EmiteQuestionAsked_RespostaViraResultado()
+    {
+        var auth = await SignUpAsync("AskQ", "askq@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "pergunta ask_user",
+            ["builtin:ask_user"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        // Espera o question_asked, responde via mesmo endpoint de aprovação.
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var respondeu = false;
+        while (DateTime.UtcNow < limite && !respondeu)
+        {
+            var resp = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-q",
+                new RunApprovalDecisionRequest("approve", Message: "prod"));
+            respondeu = resp.StatusCode == HttpStatusCode.OK;
+            if (!respondeu)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(respondeu, Is.True, "ask_user não pediu resposta em 30s");
+
+        var eventos = await streamTask;
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "question_asked"
+                    && e.Data.Contains("Qual env?")), Is.True,
+                "faltou question_asked no stream");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("prod")), Is.True,
+                "resposta não virou tool_result");
+        });
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task AskUser_Skip_RunSegueComNaoRespondeu()
+    {
+        var auth = await SignUpAsync("AskS", "asks@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "pergunta ask_user",
+            ["builtin:ask_user"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var pulou = false;
+        while (DateTime.UtcNow < limite && !pulou)
+        {
+            var resp = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-q",
+                new RunApprovalDecisionRequest("deny"));
+            pulou = resp.StatusCode == HttpStatusCode.OK;
+            if (!pulou)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(pulou, Is.True, "ask_user não pediu resposta em 30s");
+
+        var eventos = await streamTask;
+        // "não" serializa escapado no SSE (ã) — casa o trecho ASCII.
+        Assert.That(eventos.Any(e => e.Event == "tool_result"
+                && e.Data.Contains("respondeu")), Is.True,
+            "skip não virou tool_result 'não respondeu'");
 
         var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
         Assert.That(final.Status, Is.EqualTo("completed"), final.Error);

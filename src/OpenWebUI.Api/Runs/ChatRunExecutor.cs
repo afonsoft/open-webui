@@ -285,6 +285,15 @@ public sealed class ChatRunExecutor(
         // Checkpoint de pausa antes do gate (RF-013) — a call pendente
         // só resolve depois do resume.
         await pauses.WaitIfPausedAsync(run.Id, ct);
+
+        // ask_user (RF-005): sempre pausa — a pergunta é o próprio gate;
+        // não passa por preset nem por remembered. A resposta volta como
+        // ToolGateDecision.Output e vira o resultado da tool.
+        if (string.Equals(call.Name, "builtin:ask_user", StringComparison.OrdinalIgnoreCase))
+        {
+            return await AskUserAsync(run, call, ct);
+        }
+
         var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
         if (tool is null || !ToolExecutor.IsMutable(tool)
             || approvals.IsRemembered(run.ChatId, call.Name))
@@ -341,6 +350,55 @@ public sealed class ChatRunExecutor(
             ? null
             : Scrub(Truncate(result.Message!, PreviewChars));
         return new ToolGateDecision(result.Approved, message);
+    }
+
+    /// <summary>
+    /// Gate do <c>builtin:ask_user</c> (RF-005): publica
+    /// <c>question_asked</c> com a pergunta e opções dos args, espera a
+    /// decisão do dono pelo mesmo mecanismo de aprovação e devolve a
+    /// resposta como <see cref="ToolGateDecision.Output"/> — a tool não
+    /// executa de fato. Negar/pular → "o usuário não respondeu" (a run
+    /// segue; o modelo decide o próximo passo).
+    /// </summary>
+    private async Task<ToolGateDecision> AskUserAsync(
+        ChatRun run, ProviderToolCall call, CancellationToken ct)
+    {
+        var question = "?";
+        string[] options = [];
+        var multiple = false;
+        try
+        {
+            var args = JsonDocument.Parse(call.ArgumentsJson).RootElement;
+            question = args.TryGetProperty("question", out var q) && q.GetString() is { Length: > 0 } qt
+                ? qt
+                : question;
+            if (args.TryGetProperty("options", out var opts)
+                && opts.ValueKind == JsonValueKind.Array)
+            {
+                options = [.. opts.EnumerateArray()
+                    .Select(o => o.GetString())
+                    .Where(o => !string.IsNullOrWhiteSpace(o))
+                    .Select(o => o!)
+                    .Take(6)];
+            }
+            multiple = args.TryGetProperty("multiple", out var m)
+                && m.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return new ToolGateDecision(true, Output: "Pergunta malformada (args inválidos).");
+        }
+
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
+        broadcaster.Publish(run.Id,
+            $"event: question_asked\ndata: {JsonSerializer.Serialize(new RunQuestionAskedEvent(call.Id, Scrub(Truncate(question, PreviewChars)), options, multiple), JsonOptions)}");
+
+        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var answer = result.Approved && !string.IsNullOrWhiteSpace(result.Message)
+            ? Scrub(Truncate(result.Message!, PreviewChars))
+            : "O usuário não respondeu.";
+        return new ToolGateDecision(true, Output: answer);
     }
 
     /// <summary>Esconde padrões óbvios de secret antes de publicar no SSE.</summary>

@@ -512,5 +512,10 @@
   "chat": {
     "git_title": "Workspace-Git — Änderungen anzeigen",
     "panel_diff_truncated": "Diff gekürzt (großes Repo)"
-  }
+  },
+  "chat.question_title": "Der Agent hat eine Frage",
+  "chat.question_other": "Andere (Antwort eingeben)",
+  "chat.question_submit": "Antwort senden",
+  "chat.question_skip": "Überspringen",
+  "chat.question_placeholder": "Antwort eingeben…"
 }
