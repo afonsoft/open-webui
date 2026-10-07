@@ -23,6 +23,7 @@ public static class AudioEndpoints
         group.MapGet("/config", GetConfigAsync);
         group.MapGet("/capabilities", GetCapabilitiesAsync);
         group.MapPost("/config", UpdateConfigAsync);
+        group.MapPost("/config/test", TestConfigAsync);
         group.MapPost("/speech", SpeechAsync);
         group.MapPost("/transcriptions", TranscribeAsync).DisableAntiforgery();
         group.MapGet("/voices", GetVoicesAsync);
@@ -85,6 +86,35 @@ public static class AudioEndpoints
         };
         await audio.SetConfigAsync(merged, ct);
         return Results.Ok(merged.Masked());
+    }
+
+    /// <summary>Testa o TTS configurado sintetizando uma palavra (admin).</summary>
+    private static async Task<IResult> TestConfigAsync(
+        HttpContext http, AppDbContext db, AudioService audio, CancellationToken ct)
+    {
+        if (!await IsAdminAsync(http, db, ct))
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var result = await audio.SpeechAsync("test", null, null, ct);
+            return Results.Ok(new ImageTestResponse(
+                true, $"{result.ContentType}, {result.Audio.Length} bytes"));
+        }
+        catch (AudioDisabledException ex)
+        {
+            return Results.Ok(new ImageTestResponse(false, ex.Message));
+        }
+        catch (AudioProviderException ex)
+        {
+            return Results.Ok(new ImageTestResponse(false, ex.Message));
+        }
+        catch (HttpRequestException ex)
+        {
+            return Results.Ok(new ImageTestResponse(false, ex.Message));
+        }
     }
 
     private static async Task<IResult> SpeechAsync(

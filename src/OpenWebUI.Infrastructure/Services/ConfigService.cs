@@ -52,7 +52,10 @@ public class ConfigService(AppDbContext db, IMemoryCache cache)
         }
     }
 
-    private static string CacheKey<T>(string key) => $"cfg:{key}:{typeof(T).FullName}";
+    // Nullable<T> e T compartilham o slot — um SetAsync("k", false) deve
+    // invalidar o GetAsync<bool?>("k") (mesmo valor serializado no DB).
+    private static string CacheKey<T>(string key) =>
+        $"cfg:{key}:{(Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T)).FullName}";
 
     /// <summary>Grava uma configuração serializada em JSON.</summary>
     /// <typeparam name="T">Tipo do valor.</typeparam>

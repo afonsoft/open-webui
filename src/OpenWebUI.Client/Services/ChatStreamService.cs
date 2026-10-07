@@ -379,7 +379,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                         break;
                     }
                     case "status":
-                        if (node["phase"]?.GetValue<string>() is { } phase)
+                        // Fases do executor usam "phase"; transições de estado da
+                        // run (dispatcher/FinishAsync) usam "status".
+                        if ((node["phase"] ?? node["status"])?.GetValue<string>() is { } phase)
                         {
                             produced = new ChatStreamEvent.Phase(
                                 new RunPhaseEvent(

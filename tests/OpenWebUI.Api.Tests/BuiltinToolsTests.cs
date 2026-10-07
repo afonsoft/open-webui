@@ -519,9 +519,18 @@ public class BuiltinToolsTests
     {
         var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var db = NewDb();
+        // engine=none explícito: o default passou a ser duckduckgo.
+        db.ConfigEntries.Add(new ConfigEntry
+        {
+            Key = "retrieval.config",
+            ValueJson = JsonSerializer.Serialize(new { engine = "none" }),
+            UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        });
+        await db.SaveChangesAsync();
         var tool = new WebSearchBuiltinTool(
             new WebSearchService(new StubHttpClientFactory(),
-                new ConfigService(NewDb(), cache)));
+                new ConfigService(db, cache)));
 
         var semQuery = await tool.ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.That(semQuery.Text, Does.Contain("query").And.Contain("obrigatório"));

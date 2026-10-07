@@ -31,6 +31,26 @@ public sealed record ConnectionsConfigResponse(
     IReadOnlyList<string>? OllamaNames = null,
     IReadOnlyList<string>? OpenAiNames = null);
 
+/// <summary>
+/// Modelos detectados por capacidade nas conexões cadastradas — alimenta os
+/// combos de configuração (imagens, vídeo, TTS/STT, embeddings).
+/// </summary>
+/// <param name="Image">Candidatos a geração de imagem.</param>
+/// <param name="Video">Candidatos a geração de vídeo.</param>
+/// <param name="Tts">Candidatos a síntese de voz.</param>
+/// <param name="Stt">Candidatos a transcrição.</param>
+/// <param name="Embed">Candidatos a embeddings (RAG).</param>
+/// <param name="BaseUrl">Base URL da conexão analisada.</param>
+/// <param name="DetectedAt">Epoch seconds da última detecção.</param>
+public sealed record DetectedCapabilities(
+    IReadOnlyList<string> Image,
+    IReadOnlyList<string> Video,
+    IReadOnlyList<string> Tts,
+    IReadOnlyList<string> Stt,
+    IReadOnlyList<string> Embed,
+    string? BaseUrl,
+    long DetectedAt);
+
 /// <summary>Resposta de versão da API.</summary>
 /// <param name="Version">Versão do backend .NET.</param>
 public sealed record VersionResponse(string Version);
@@ -68,7 +88,8 @@ public sealed record AppConfigResponse(
 /// <param name="EnableNotes">Notas habilitadas.</param>
 /// <param name="EnableChannels">Canais habilitados (não implementado).</param>
 /// <param name="EnableWebSearch">Busca web habilitada (engine de retrieval configurada).</param>
-/// <param name="EnableImageGeneration">Geração de imagens habilitada (não implementado).</param>
+/// <param name="EnableImageGeneration">Geração de imagens habilitada.</param>
+/// <param name="EnableVideoGeneration">Geração de vídeo habilitada.</param>
 /// <param name="EnableCodeExecution">Execução de código habilitada (não implementado).</param>
 /// <param name="EnableCommunitySharing">Compartilhamento comunitário habilitado.</param>
 public sealed record AppFeatures(
@@ -84,7 +105,10 @@ public sealed record AppFeatures(
     bool EnableWebSearch,
     bool EnableImageGeneration,
     bool EnableCodeExecution,
-    bool EnableCommunitySharing);
+    bool EnableCommunitySharing,
+    bool EnableVideoGeneration = false,
+    bool EnableTextToSpeech = false,
+    bool EnableSpeechToText = false);
 
 /// <summary>Sugestão de prompt exibida no estado vazio do chat.</summary>
 /// <param name="Title">Rótulo da sugestão.</param>

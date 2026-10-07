@@ -297,17 +297,23 @@ public static class TerminalPtyEndpoints
                 statusCode: 403));
     }
 
-    /// <summary>Flag: <c>Terminal:Enabled</c>/env ou <c>terminal.enabled</c> persistido.</summary>
+    /// <summary>
+    /// Flag: ligado por padrão. Ordem de precedência:
+    /// <c>Terminal:Enabled</c>/<c>TERMINAL_ENABLED</c> (override booleano) →
+    /// <c>terminal.enabled</c> persistido → default <c>true</c>.
+    /// </summary>
     private static async Task<bool> IsEnabledAsync(
         ConfigService config, IConfiguration configuration, CancellationToken ct)
     {
-        if (string.Equals(configuration["Terminal:Enabled"], "true",
-                StringComparison.OrdinalIgnoreCase))
+        if (bool.TryParse(configuration["Terminal:Enabled"], out var fromConfig)
+            || bool.TryParse(Environment.GetEnvironmentVariable("TERMINAL_ENABLED"),
+                out fromConfig))
         {
-            return true;
+            return fromConfig;
         }
 
-        return await config.GetAsync("terminal.enabled", false, ct);
+        // bool? null = nunca configurado → default ligado.
+        return await config.GetAsync<bool?>("terminal.enabled", null, ct) ?? true;
     }
 
     private static Task<User?> CurrentUserAsync(HttpContext http, CancellationToken ct)

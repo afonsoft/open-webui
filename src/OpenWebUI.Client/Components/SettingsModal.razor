@@ -326,7 +326,19 @@
                             </div>
                             <div class="field">
                                 <label>@L["settings.images_model"]</label>
-                                <input class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
+                                @if (_capabilities?.Image.Count > 0)
+                                {
+                                    <select class="input" @bind="_imagesModel">
+                                        @foreach (var m in ModelOptions(_capabilities.Image, _imagesModel))
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
+                                }
                             </div>
                             <div class="field">
                                 <label>@L["settings.images_size"]</label>
@@ -345,6 +357,166 @@
                             <button class="auth-submit" type="button" @onclick="TestImagesAsync" disabled="@_imagesTesting">
                                 @(_imagesTesting ? L["settings.images_testing"] : L["settings.images_test"])
                             </button>
+                        }
+
+                        <div class="field"><strong>@L["settings.video_section"]</strong></div>
+                        <label class="check"><input type="checkbox" @bind="_videoEnabled" /> @L["settings.video_enabled"]</label>
+                        @if (_videoEnabled)
+                        {
+                            <div class="field">
+                                <label>@L["settings.video_engine"]</label>
+                                <select class="input" @bind="_videoEngine">
+                                    @foreach (var engine in _videoEngines)
+                                    {
+                                        <option value="@engine">@engine</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.video_base_url"]</label>
+                                <input class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.video_api_key"]</label>
+                                <input class="input" type="password" @bind="_videoApiKey" placeholder="@L["settings.keys_keep"]" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.video_model"]</label>
+                                @if (_capabilities?.Video.Count > 0)
+                                {
+                                    <select class="input" @bind="_videoModel">
+                                        @foreach (var m in ModelOptions(_capabilities.Video, _videoModel))
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_videoModel" placeholder="sora-2" />
+                                }
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.video_size"]</label>
+                                <select class="input" @bind="_videoSize">
+                                    <option value="1280x720">1280x720</option>
+                                    <option value="720x1280">720x1280</option>
+                                    <option value="1920x1080">1920x1080</option>
+                                    <option value="1080x1920">1080x1920</option>
+                                </select>
+                            </div>
+                            <button class="auth-submit" type="button" @onclick="TestVideoAsync" disabled="@_videoTesting">
+                                @(_videoTesting ? L["settings.video_testing"] : L["settings.video_test"])
+                            </button>
+                        }
+
+                        <div class="field"><strong>@L["settings.audio_admin_section"]</strong></div>
+                        <div class="field">
+                            <label>@L["settings.audio_tts_engine"]</label>
+                            <select class="input" @bind="_ttsEngine">
+                                @foreach (var engine in TtsEngines)
+                                {
+                                    <option value="@engine">@engine</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_ttsEngine == "provider")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_provider"]</label>
+                                <select class="input" @bind="_ttsProvider">
+                                    <option value="">—</option>
+                                    @foreach (var url in ProviderOptions(_capabilities?.BaseUrl, _ttsProvider))
+                                    {
+                                        <option value="@url">@url</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        @if (_ttsEngine is "openai" or "transformers" or "elevenlabs" or "azure")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_tts_base_url"]</label>
+                                <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.audio_tts_api_key"]</label>
+                                <input class="input" type="password" @bind="_ttsApiKey" placeholder="@L["settings.keys_keep"]" />
+                            </div>
+                        }
+                        @if (_ttsEngine is not "none")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_tts_model"]</label>
+                                @if (_capabilities?.Tts.Count > 0)
+                                {
+                                    <select class="input" @bind="_ttsModel">
+                                        @foreach (var m in ModelOptions(_capabilities.Tts, _ttsModel))
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_ttsModel" placeholder="tts-1" />
+                                }
+                            </div>
+                            <div class="field">
+                                <label>@L["settings.audio_tts_voice"]</label>
+                                <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                            </div>
+                            <button class="auth-submit" type="button" @onclick="TestAudioAsync" disabled="@_audioTesting">
+                                @(_audioTesting ? L["settings.audio_testing"] : L["settings.audio_test"])
+                            </button>
+                        }
+                        <div class="field">
+                            <label>@L["settings.audio_stt_engine"]</label>
+                            <select class="input" @bind="_sttEngine">
+                                @foreach (var engine in SttEngines)
+                                {
+                                    <option value="@engine">@engine</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_sttEngine == "provider")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_provider"]</label>
+                                <select class="input" @bind="_sttProvider">
+                                    <option value="">—</option>
+                                    @foreach (var url in ProviderOptions(_capabilities?.BaseUrl, _sttProvider))
+                                    {
+                                        <option value="@url">@url</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        @if (_sttEngine is "openai" or "deepgram" or "whisper")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_stt_base_url"]</label>
+                                <input class="input" @bind="_sttBaseUrl" placeholder="https://api.openai.com/v1" />
+                            </div>
+                        }
+                        @if (_sttEngine is not "none")
+                        {
+                            <div class="field">
+                                <label>@L["settings.audio_stt_model"]</label>
+                                @if (_capabilities?.Stt.Count > 0)
+                                {
+                                    <select class="input" @bind="_sttModel">
+                                        @foreach (var m in ModelOptions(_capabilities.Stt, _sttModel))
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_sttModel" placeholder="whisper-1" />
+                                }
+                            </div>
                         }
                         <hr class="modal-sep" />
                         <div class="field"><strong>@L["settings.webhook_admin_section"]</strong></div>
@@ -504,6 +676,37 @@
     private string _imagesEngineParams = "{}";
     private bool _imagesTesting;
     private List<string> _imageEngines = ["openai", "a1111", "gemini", "comfyui"];
+
+    // Capacidades detectadas nas conexões (modelos candidatos por tipo).
+    private DetectedCapabilities? _capabilities;
+
+    // Vídeo (admin)
+    private bool _videoEnabled;
+    private string _videoEngine = "openai";
+    private string _videoBaseUrl = "https://api.openai.com/v1";
+    private string _videoApiKey = string.Empty;
+    private string _videoModel = "sora-2";
+    private string _videoSize = "1280x720";
+    private string _videoEngineParams = "{}";
+    private bool _videoTesting;
+    private List<string> _videoEngines = ["openai", "comfyui"];
+
+    // Áudio TTS/STT (admin)
+    private string _ttsEngine = "none";
+    private string _ttsProvider = string.Empty;
+    private string _ttsBaseUrl = string.Empty;
+    private string _ttsApiKey = string.Empty;
+    private string _ttsModel = string.Empty;
+    private string _ttsVoice = "alloy";
+    private string _sttEngine = "none";
+    private string _sttProvider = string.Empty;
+    private string _sttBaseUrl = string.Empty;
+    private string _sttApiKey = string.Empty;
+    private string _sttModel = string.Empty;
+    private bool _audioTesting;
+    private static readonly string[] TtsEngines = ["none", "provider", "openai", "transformers", "elevenlabs", "azure"];
+    private static readonly string[] SttEngines = ["none", "provider", "openai", "deepgram", "whisper"];
+
     private string? _adminMessage;
 
     private NotificationWebhookResponse? _webhook;
@@ -600,6 +803,8 @@
                 _adminEnableFolders = adminConfig.EnableFolders;
                 _adminEnableMemories = adminConfig.EnableMemories;
 
+                _capabilities = await Api.GetDetectedCapabilitiesAsync();
+
                 var images = await Api.GetImagesConfigAsync();
                 if (images is not null)
                 {
@@ -610,6 +815,33 @@
                     _imagesModel = images.Model;
                     _imagesSize = images.Size;
                     _imagesEngineParams = images.EngineParams;
+                }
+
+                var video = await Api.GetVideoConfigAsync();
+                if (video is not null)
+                {
+                    _videoEnabled = video.Enabled;
+                    _videoEngine = video.Engine;
+                    _videoBaseUrl = video.BaseUrl;
+                    _videoApiKey = string.Empty;
+                    _videoModel = video.Model;
+                    _videoSize = video.Size;
+                    _videoEngineParams = video.EngineParams;
+                }
+                _videoEngines = await Api.GetVideoEnginesAsync();
+
+                var audio = await Api.GetAudioConfigAsync();
+                if (audio is not null)
+                {
+                    _ttsEngine = audio.TtsEngine;
+                    _ttsProvider = audio.TtsProvider ?? string.Empty;
+                    _ttsBaseUrl = audio.TtsBaseUrl ?? string.Empty;
+                    _ttsModel = audio.TtsModel ?? string.Empty;
+                    _ttsVoice = audio.TtsVoice ?? "alloy";
+                    _sttEngine = audio.SttEngine;
+                    _sttProvider = audio.SttProvider ?? string.Empty;
+                    _sttBaseUrl = audio.SttBaseUrl ?? string.Empty;
+                    _sttModel = audio.SttModel ?? string.Empty;
                 }
 
                 _adminWebhook = await Api.GetAdminWebhookAsync();
@@ -876,10 +1108,37 @@
             _imagesSize,
             120,
             string.IsNullOrWhiteSpace(_imagesEngineParams) ? "{}" : _imagesEngineParams.Trim()));
-        _adminMessage = result is null || images is null
+        var video = await Api.UpdateVideoConfigAsync(new VideoConfig(
+            _videoEnabled,
+            _videoEngine,
+            _videoBaseUrl.Trim(),
+            _videoApiKey.Trim(),
+            _videoModel.Trim(),
+            _videoSize,
+            600,
+            string.IsNullOrWhiteSpace(_videoEngineParams) ? "{}" : _videoEngineParams.Trim()));
+        var audio = await SaveAudioAsync();
+        _adminMessage = result is null || images is null || video is null || audio is null
             ? L["settings.save_failed"]
             : L["settings.admin_saved"];
     }
+
+    /// <summary>Persiste apenas a configuração de áudio (admin).</summary>
+    private Task<AudioConfig?> SaveAudioAsync() =>
+        Api.UpdateAudioConfigAsync(new AudioConfig(
+            _sttEngine,
+            _sttEngine is "openai" or "deepgram" or "whisper" ? _sttBaseUrl.Trim() : null,
+            null,
+            string.IsNullOrWhiteSpace(_sttModel) ? null : _sttModel.Trim(),
+            _ttsEngine,
+            _ttsEngine is "openai" or "transformers" or "elevenlabs" or "azure"
+                ? _ttsBaseUrl.Trim() : null,
+            null,
+            string.IsNullOrWhiteSpace(_ttsModel) ? null : _ttsModel.Trim(),
+            _ttsVoice.Trim(),
+            null,
+            _sttEngine == "provider" ? _sttProvider : null,
+            _ttsEngine == "provider" ? _ttsProvider : null));
 
     private async Task TestImagesAsync()
     {
@@ -890,6 +1149,62 @@
             ? L["settings.save_failed"]
             : result.Ok ? L["settings.images_test_ok"] : $"{L["settings.images_test_fail"]}: {result.Detail}";
         _imagesTesting = false;
+    }
+
+    private async Task TestVideoAsync()
+    {
+        _videoTesting = true;
+        _adminMessage = null;
+        var result = await Api.TestVideoConfigAsync();
+        _adminMessage = result is null
+            ? L["settings.save_failed"]
+            : result.Ok ? L["settings.video_test_ok"] : $"{L["settings.video_test_fail"]}: {result.Detail}";
+        _videoTesting = false;
+    }
+
+    private async Task TestAudioAsync()
+    {
+        _audioTesting = true;
+        _adminMessage = null;
+        await SaveAudioAsync();
+        var result = await Api.TestAudioConfigAsync();
+        _adminMessage = result is null
+            ? L["settings.save_failed"]
+            : result.Ok ? L["settings.audio_test_ok"] : $"{L["settings.audio_test_fail"]}: {result.Detail}";
+        _audioTesting = false;
+    }
+
+    /// <summary>Opções do combo: modelos detectados + valor atual caso ausente.</summary>
+    private static IEnumerable<string> ModelOptions(
+        IReadOnlyList<string> detected, string current)
+    {
+        if (!string.IsNullOrWhiteSpace(current) && !detected.Contains(current))
+        {
+            yield return current;
+        }
+        foreach (var m in detected)
+        {
+            yield return m;
+        }
+    }
+
+    /// <summary>URLs das conexões cadastradas + base detectada + valor atual.</summary>
+    private IEnumerable<string> ProviderOptions(string? detectedBase, string current)
+    {
+        var urls = _connections?.OpenAiBaseUrls ?? (IReadOnlyList<string>)[];
+        foreach (var url in urls.Where(u => !string.IsNullOrWhiteSpace(u)))
+        {
+            yield return url.TrimEnd('/');
+        }
+        if (!string.IsNullOrWhiteSpace(detectedBase) && !urls.Contains(detectedBase))
+        {
+            yield return detectedBase;
+        }
+        if (!string.IsNullOrWhiteSpace(current) && !urls.Contains(current)
+            && current != detectedBase)
+        {
+            yield return current;
+        }
     }
 
     private static string FormatDate(long unixSeconds) =>

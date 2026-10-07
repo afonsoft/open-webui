@@ -80,7 +80,9 @@ public sealed class ChatRunExecutor(
             if (request.Model.StartsWith("pipeline:", StringComparison.Ordinal))
             {
                 await RunPipelineAsync(request, run, ct);
+                // [DONE] só depois do FinishAsync — ver caminho principal.
                 await FinishAsync(run, string.Empty, ct);
+                broadcaster.Publish(run.Id, "data: [DONE]");
                 return;
             }
 
@@ -90,10 +92,19 @@ public sealed class ChatRunExecutor(
                 : request.Model;
             if (await ChatPipeline.TryRunArenaAsync(
                 request, arenaModel, user, db, config, rag, providers, webSearch,
-                line => { broadcaster.Publish(run.Id, line); return Task.CompletedTask; },
+                line =>
+                {
+                    // O [DONE] do arena é retido: sai depois do FinishAsync.
+                    if (line != "data: [DONE]")
+                    {
+                        broadcaster.Publish(run.Id, line);
+                    }
+                    return Task.CompletedTask;
+                },
                 ct))
             {
                 await FinishAsync(run, string.Empty, ct);
+                broadcaster.Publish(run.Id, "data: [DONE]");
                 return;
             }
 
@@ -166,14 +177,16 @@ public sealed class ChatRunExecutor(
                 }
             }
 
-            broadcaster.Publish(run.Id, "data: [DONE]");
+            // [DONE] depois do FinishAsync: o cliente recarrega o chat ao ver o
+            // marcador — a mensagem precisa já estar persistida.
             await FinishAsync(run, content.ToString(), ct, toolMessages: toolMessages);
+            broadcaster.Publish(run.Id, "data: [DONE]");
         }
         catch (OperationCanceledException)
         {
             approvals.Cancel(run.Id);
-            broadcaster.Publish(run.Id, "data: [DONE]");
             await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Stopped, toolMessages);
+            broadcaster.Publish(run.Id, "data: [DONE]");
         }
         catch (Exception ex)
         {
@@ -189,9 +202,9 @@ public sealed class ChatRunExecutor(
                 : ex.Message;
             approvals.Cancel(run.Id);
             broadcaster.Publish(run.Id, $"data: {JsonSerializer.Serialize(new { error = message })}");
-            broadcaster.Publish(run.Id, "data: [DONE]");
             run.Error = message;
             await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Failed, toolMessages);
+            broadcaster.Publish(run.Id, "data: [DONE]");
         }
     }
 
@@ -425,7 +438,6 @@ public sealed class ChatRunExecutor(
         if (server is null)
         {
             broadcaster.Publish(run.Id, $"data: {JsonSerializer.Serialize(new { error = $"Pipe '{pipeId}' não encontrado." })}");
-            broadcaster.Publish(run.Id, "data: [DONE]");
             return;
         }
 
@@ -433,7 +445,6 @@ public sealed class ChatRunExecutor(
         if (proxied.Response is null)
         {
             broadcaster.Publish(run.Id, $"data: {JsonSerializer.Serialize(new { error = $"Falha no servidor de pipelines: {proxied.Error}" })}");
-            broadcaster.Publish(run.Id, "data: [DONE]");
             return;
         }
 
@@ -442,7 +453,6 @@ public sealed class ChatRunExecutor(
         {
             var body_ = await upstream.Content.ReadAsStringAsync(ct);
             broadcaster.Publish(run.Id, $"data: {JsonSerializer.Serialize(new { error = $"Pipeline devolveu {(int)upstream.StatusCode}: {Truncate(body_, 500)}" })}");
-            broadcaster.Publish(run.Id, "data: [DONE]");
             return;
         }
 
@@ -459,7 +469,6 @@ public sealed class ChatRunExecutor(
             AccumulateDelta(line, accumulated);
         }
 
-        broadcaster.Publish(run.Id, "data: [DONE]");
         run.PartialContent = accumulated.ToString();
         await db.SaveChangesAsync(CancellationToken.None);
     }

@@ -50,13 +50,13 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
         }
 
+        var openAiModel = await ResolveOpenAiModelAsync(ct);
         for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
         {
             try
             {
                 var baseUrl = connections.OpenAiBaseUrls[i].TrimEnd('/');
-                var model = Environment.GetEnvironmentVariable(OpenAiModelEnv)
-                    ?? "text-embedding-3-small";
+                var model = openAiModel;
                 using var request = new HttpRequestMessage(
                     HttpMethod.Post, $"{baseUrl}/embeddings");
                 if (i < connections.OpenAiApiKeys.Count &&
@@ -141,13 +141,13 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
         }
 
+        var openAiModel = await ResolveOpenAiModelAsync(ct);
         for (var i = 0; i < connections.OpenAiBaseUrls.Count; i++)
         {
             try
             {
                 var baseUrl = connections.OpenAiBaseUrls[i].TrimEnd('/');
-                var model = Environment.GetEnvironmentVariable(OpenAiModelEnv)
-                    ?? "text-embedding-3-small";
+                var model = openAiModel;
                 using var request = new HttpRequestMessage(
                     HttpMethod.Post, $"{baseUrl}/embeddings");
                 if (i < connections.OpenAiApiKeys.Count &&
@@ -180,6 +180,16 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
 
         return null;
     }
+
+    /// <summary>
+    /// Modelo de embedding OpenAI: env <c>RAG_EMBEDDING_MODEL_OPENAI</c> →
+    /// kv <c>rag.embedding.model</c> (preenchido pela detecção de
+    /// capacidades) → <c>text-embedding-3-small</c>.
+    /// </summary>
+    private async Task<string> ResolveOpenAiModelAsync(CancellationToken ct) =>
+        Environment.GetEnvironmentVariable(OpenAiModelEnv)
+        ?? await config.GetAsync<string?>("rag.embedding.model", null, ct)
+        ?? "text-embedding-3-small";
 
     private sealed record OllamaEmbedResponse(
         [property: JsonPropertyName("embeddings")] float[][]? Embeddings);
