@@ -18,7 +18,7 @@ services:
       - path: .env
         required: false
     volumes:
-      - openwebui:/app/data
+      - openwebui:/data
     deploy:
       resources:
         limits:
