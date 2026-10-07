@@ -115,12 +115,82 @@ public class RunCoverageTests
             }
             _received.Enqueue($"{ctx.Request.HttpMethod} {ctx.Request.Url!.AbsolutePath} {body[..Math.Min(body.Length, 120)]}");
 
+            var path = ctx.Request.Url!.AbsolutePath;
+            if (path == "/v1/chat/completions")
+            {
+                await ServeChatCompletionsAsync(ctx, body, ct);
+                continue;
+            }
+            if (path == "/pipes/models")
+            {
+                await WriteJsonAsync(ctx, 200, "[{\"id\":\"covpipe\",\"name\":\"Cov Pipe\"}]", ct);
+                continue;
+            }
+            if (path == "/pipes/chat/completions")
+            {
+                await ServeSseAsync(ctx, "resposta do pipe", ct);
+                continue;
+            }
+            if (path == "/tool/x")
+            {
+                await WriteJsonAsync(ctx, 200, "{\"ok\":true,\"value\":42}", ct);
+                continue;
+            }
+
             // Webhook e push service: 201 = entregue.
-            var bytes = Encoding.UTF8.GetBytes("{}");
-            ctx.Response.StatusCode = 201;
-            await ctx.Response.OutputStream.WriteAsync(bytes, ct);
-            ctx.Response.Close();
+            await WriteJsonAsync(ctx, 201, "{}", ct);
         }
+    }
+
+    /// <summary>Delay artificial nas completions stream (teste de attach ao vivo).</summary>
+    private volatile int _chatDelayMs;
+
+    /// <summary>Completion OpenAI-compatível: stream → SSE; não-stream → loop de tools.</summary>
+    private async Task ServeChatCompletionsAsync(
+        HttpListenerContext ctx, string body, CancellationToken ct)
+    {
+        if (body.Contains("\"stream\":true", StringComparison.Ordinal))
+        {
+            if (_chatDelayMs > 0)
+            {
+                await Task.Delay(_chatDelayMs, ct);
+            }
+            await ServeSseAsync(ctx, "resposta mock openai", ct);
+            return;
+        }
+
+        // Loop de tools: pedido já contém uma mensagem role=tool → resposta final;
+        // senão devolve uma tool_call para a tool "x".
+        var json = body.Contains("\"role\":\"tool\"", StringComparison.Ordinal)
+            ? "{\"choices\":[{\"message\":{\"content\":\"resposta via tool\"}}]}"
+            : "{\"choices\":[{\"message\":{\"content\":\"\","
+                + "\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\","
+                + "\"function\":{\"name\":\"x\",\"arguments\":\"{}\"}}]}}]}";
+        await WriteJsonAsync(ctx, 200, json, ct);
+    }
+
+    private static async Task ServeSseAsync(
+        HttpListenerContext ctx, string content, CancellationToken ct)
+    {
+        var payload =
+            $"data: {{\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"{content}\"}}}}]}}\n\n"
+            + "data: {\"choices\":[{\"index\":0,\"delta\":{}}],\"finish_reason\":\"stop\"}\n\n"
+            + "data: [DONE]\n\n";
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        ctx.Response.StatusCode = 200;
+        ctx.Response.ContentType = "text/event-stream";
+        await ctx.Response.OutputStream.WriteAsync(bytes, ct);
+        ctx.Response.Close();
+    }
+
+    private static async Task WriteJsonAsync(
+        HttpListenerContext ctx, int status, string json, CancellationToken ct)
+    {
+        var bytes = Encoding.UTF8.GetBytes(json);
+        ctx.Response.StatusCode = status;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.OutputStream.WriteAsync(bytes, ct);
+        ctx.Response.Close();
     }
 
     private async Task<AuthResponse> SignUpAsync(string name, string email)
@@ -195,20 +265,18 @@ public class RunCoverageTests
     }
 
     [Test]
-    public async Task Tools_SemProvider_RunFalhaNoLoop()
+    public async Task Run_ProviderBogus_FalhaNaExecucao()
     {
-        var auth = await SignUpAsync("Tool", "tool@cov.local");
+        // Model com connection inválida: ResolveProviderAsync lança e o
+        // catch-all do executor fecha a run como failed (caminho do meio).
+        var auth = await SignUpAsync("Bogus", $"bogus-{Guid.NewGuid():N}@cov.local");
         UseToken(auth.Token);
-        var spec = "{\"type\":\"function\",\"function\":{\"name\":\"x\"}}";
-        var toolResponse = await _client.PostAsJsonAsync("/api/v1/tools/",
-            new ToolUpsertRequest("X", "x", spec, $"{_mockBase}/tool/x"));
-        Assert.That(toolResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-        var tool = await toolResponse.Content.ReadFromJsonAsync<ToolResponse>();
-
         var chat = await CriarChatAsync();
-        var run = await EnfileirarAsync(chat.Id, "usa tool", toolIds: [tool!.Id]);
-        var final = await AguardarFinalAsync(chat.Id, run.Id);
-        Assert.That(final.Status, Is.EqualTo("failed"), final.Error);
+        var run = await ExecutarDiretoAsync(chat.Id, auth.User.Id,
+            "{\"model\":\"llama3\",\"connection\":\"bogus\","
+            + "\"messages\":[{\"role\":\"user\",\"content\":\"oi\"}]}");
+        Assert.That(run.Status, Is.EqualTo(ChatRunStatus.Failed));
+        Assert.That(run.Error, Is.Not.Null.And.Not.Empty);
     }
 
     [Test]
@@ -325,7 +393,8 @@ public class RunCoverageTests
         var chat = await CriarChatAsync();
         var run = await EnfileirarAsync(chat.Id, "notifica");
         var final = await AguardarFinalAsync(chat.Id, run.Id);
-        Assert.That(final.Status, Is.EqualTo("failed")); // sem provider — só o push importa
+        // O push dispara em qualquer desfecho terminal (completed ou failed).
+        Assert.That(final.Status, Is.AnyOf("completed", "failed"));
 
         var limite = DateTime.UtcNow.AddSeconds(15);
         while (!_received.Any(r => r.Contains("/push/")) && DateTime.UtcNow < limite)
@@ -393,6 +462,237 @@ public class RunCoverageTests
             await Task.Delay(200);
         }
         Assert.That(run!.Status, Is.EqualTo("interrupted"));
+    }
+
+    // ---- Caminho de sucesso (provider OpenAI-compatível mockado) ----
+
+    private async Task ConfigurarOpenAiMockAsync()
+    {
+        var admin = await _client.PostAsJsonAsync("/api/v1/auths/signin",
+            new SignInRequest("admin@cov.local", "senha123"));
+        var adminAuth = await admin.Content.ReadFromJsonAsync<AuthResponse>();
+        UseToken(adminAuth!.Token);
+        var conn = await _client.PostAsJsonAsync("/api/v1/configs/connections",
+            new ConnectionsConfig([], [$"{_mockBase}/v1"], ["sk-cov"]));
+        Assert.That(conn.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await conn.Content.ReadAsStringAsync());
+    }
+
+    [Test]
+    public async Task Run_Sucesso_Streaming_PersisteAssistant()
+    {
+        await ConfigurarOpenAiMockAsync();
+        var auth = await SignUpAsync("Ok", $"ok-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "oi", model: "gpt-mock");
+        var final = await AguardarFinalAsync(chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+
+        // Replay do backlog: o attach de uma run finalizada devolve tudo.
+        using var stream = await _client.GetAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/stream?lastSeq=0");
+        var body = await stream.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Contain("resposta mock openai"));
+        Assert.That(body, Does.Contain("[DONE]"));
+
+        // Mensagem persistida no chat.
+        var chatAfter = await _client.GetFromJsonAsync<ChatResponse>($"/api/v1/chats/{chat.Id}");
+        Assert.That(chatAfter!.Messages.Any(
+            m => m.Role == "assistant" && m.Content.Contains("resposta mock openai")), Is.True);
+    }
+
+    [Test]
+    public async Task Run_AttachAoVivo_RecebeEventosLive()
+    {
+        await ConfigurarOpenAiMockAsync();
+        var auth = await SignUpAsync("Live", $"live-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        _chatDelayMs = 1200;
+        try
+        {
+            var run = await EnfileirarAsync(chat.Id, "oi", model: "gpt-mock");
+
+            // Attach enquanto a run ainda executa → caminho de assinante vivo.
+            using var stream = await _client.GetAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/stream?lastSeq=0");
+            var body = await stream.Content.ReadAsStringAsync();
+            Assert.That(body, Does.Contain("resposta mock openai"));
+
+            var final = await AguardarFinalAsync(chat.Id, run.Id);
+            Assert.That(final.Status, Is.EqualTo("completed"));
+        }
+        finally
+        {
+            _chatDelayMs = 0;
+        }
+    }
+
+    [Test]
+    public async Task Run_Tools_LoopExecuta_AteRespostaFinal()
+    {
+        await ConfigurarOpenAiMockAsync();
+        var auth = await SignUpAsync("Loop", $"loop-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var spec = "{\"type\":\"function\",\"function\":{\"name\":\"x\"}}";
+        var toolResponse = await _client.PostAsJsonAsync("/api/v1/tools/",
+            new ToolUpsertRequest("X", "x", spec, $"{_mockBase}/tool/x"));
+        Assert.That(toolResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var tool = await toolResponse.Content.ReadFromJsonAsync<ToolResponse>();
+
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "usa tool", model: "gpt-mock",
+            toolIds: [tool!.Id]);
+        var final = await AguardarFinalAsync(chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+
+        // O provider pediu a tool e o executor chamou o endpoint mockado.
+        var limite = DateTime.UtcNow.AddSeconds(10);
+        while (!_received.Any(r => r.StartsWith("POST /tool/x")) && DateTime.UtcNow < limite)
+        {
+            await Task.Delay(100);
+        }
+        Assert.That(_received.Any(r => r.StartsWith("POST /tool/x")), Is.True);
+
+        using var stream = await _client.GetAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/stream?lastSeq=0");
+        var body = await stream.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Contain("resposta via tool"));
+    }
+
+    [Test]
+    public async Task Pipeline_Sucesso_StreamingCompleto()
+    {
+        await ConfigurarOpenAiMockAsync();
+        var auth = await SignUpAsync("PipeOk", $"pipeok-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+
+        // Precisa de admin para registrar o servidor de pipelines.
+        var admin = await _client.PostAsJsonAsync("/api/v1/auths/signin",
+            new SignInRequest("admin@cov.local", "senha123"));
+        var adminAuth = await admin.Content.ReadFromJsonAsync<AuthResponse>();
+        UseToken(adminAuth!.Token);
+        var server = await _client.PostAsJsonAsync("/api/v1/pipelines/",
+            new PipelineServerRequest("covpipes", $"{_mockBase}/pipes", null));
+        Assert.That(server.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await server.Content.ReadAsStringAsync());
+
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "oi", model: "pipeline:covpipe");
+        var final = await AguardarFinalAsync(chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+
+        using var stream = await _client.GetAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/stream?lastSeq=0");
+        var body = await stream.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Contain("resposta do pipe"));
+    }
+
+    [Test]
+    public async Task Arena_SemEntry_CompletaComErroNoStream()
+    {
+        var auth = await SignUpAsync("Arena", $"arena-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "oi", model: "arena:ghost");
+        var final = await AguardarFinalAsync(chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"));
+    }
+
+    // ---- Executor direto: falhas antes do provider ----
+
+    private async Task<ChatRun> ExecutarDiretoAsync(
+        string chatId, string userId, string requestJson)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var run = new ChatRun
+        {
+            ChatId = chatId,
+            UserId = userId,
+            Model = "llama3",
+            Status = ChatRunStatus.Running,
+            RequestJson = requestJson,
+            CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            StartedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        };
+        db.ChatRuns.Add(run);
+        await db.SaveChangesAsync();
+
+        var executor = scope.ServiceProvider
+            .GetRequiredService<OpenWebUI.Api.Runs.ChatRunExecutor>();
+        await executor.ExecuteAsync(run, CancellationToken.None);
+        return run;
+    }
+
+    [Test]
+    public async Task Executor_RequestJsonInvalido_FalhaAntesDeExecutar()
+    {
+        var auth = await SignUpAsync("BadJson", $"badjson-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var run = await ExecutarDiretoAsync(chat.Id, "qualquer", "nao-e-json{");
+        Assert.That(run.Status, Is.EqualTo(ChatRunStatus.Failed));
+        Assert.That(run.Error, Does.Contain("inválido"));
+    }
+
+    [Test]
+    public async Task Executor_UsuarioInexistente_FalhaAntesDeExecutar()
+    {
+        var auth = await SignUpAsync("NoUser", $"nouser-{Guid.NewGuid():N}@cov.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var run = await ExecutarDiretoAsync(chat.Id, "user-que-nao-existe",
+            "{\"model\":\"llama3\",\"messages\":[]}");
+        Assert.That(run.Status, Is.EqualTo(ChatRunStatus.Failed));
+        Assert.That(run.Error, Does.Contain("não encontrado"));
+    }
+
+    // ---- Broadcaster unitário (backlog trim, closed, subscribe vivo) ----
+
+    [Test]
+    public async Task Broadcaster_RunFechada_DescartaPublishEReplayaBacklog()
+    {
+        var broadcaster = new OpenWebUI.Infrastructure.Services.ChatRunBroadcaster();
+        broadcaster.Publish("r", "data: a");
+        broadcaster.Complete("r");
+        broadcaster.Publish("r", "data: b"); // cai fora — stream fechada
+        broadcaster.Complete("inexistente"); // no-op
+
+        var eventos = new List<OpenWebUI.Infrastructure.Services.ChatRunBroadcaster.RunEvent>();
+        await foreach (var e in broadcaster.SubscribeAsync("r"))
+        {
+            eventos.Add(e);
+        }
+        Assert.That(eventos, Has.Count.EqualTo(1));
+        Assert.That(eventos[0].Payload, Is.EqualTo("data: a"));
+    }
+
+    [Test]
+    public async Task Broadcaster_SubscribeVivo_RecebePublishEEncerra()
+    {
+        var broadcaster = new OpenWebUI.Infrastructure.Services.ChatRunBroadcaster();
+        var eventos = new List<OpenWebUI.Infrastructure.Services.ChatRunBroadcaster.RunEvent>();
+
+        var leitura = Task.Run(async () =>
+        {
+            await foreach (var e in broadcaster.SubscribeAsync("r"))
+            {
+                eventos.Add(e);
+            }
+        });
+
+        // Garante a inscrição antes de publicar.
+        await Task.Delay(50);
+        broadcaster.Publish("r", "data: live");
+        broadcaster.Complete("r");
+
+        await leitura.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.That(eventos.Select(e => e.Payload), Does.Contain("data: live"));
     }
 
     private async Task<string> DbChatRunIdAsync(string chatId)
