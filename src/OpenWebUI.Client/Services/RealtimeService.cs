@@ -46,6 +46,9 @@ public class RealtimeService : IAsyncDisposable
     /// <summary>Cursor remoto em movimento (noteId, userId, name, color, offset).</summary>
     public event Action<string, string, string, string, int>? OnNoteCursor;
 
+    /// <summary>Run de chat terminou no servidor (SPEC-20261007-chat-notifications).</summary>
+    public event Action<RunCompletedInfo>? OnRunCompleted;
+
     /// <summary>Se a conexão com o hub está ativa.</summary>
     public bool Connected => _connection?.State == HubConnectionState.Connected;
 
@@ -97,6 +100,8 @@ public class RealtimeService : IAsyncDisposable
             "note:presence", (n, roster) => OnNotePresence?.Invoke(n, roster));
         _connection.On<string, string, string, string, int>(
             "note:cursor", (n, u, name, color, c) => OnNoteCursor?.Invoke(n, u, name, color, c));
+        _connection.On<RunCompletedInfo>(
+            "run.completed", e => OnRunCompleted?.Invoke(e));
 
         try
         {
@@ -219,6 +224,17 @@ public class RealtimeService : IAsyncDisposable
         [property: System.Text.Json.Serialization.JsonPropertyName("channel_id")] string ChannelId,
         string Id,
         [property: System.Text.Json.Serialization.JsonPropertyName("is_pinned")] bool IsPinned);
+
+    /// <summary>Payload do evento run.completed (SPEC-20261007-chat-notifications).</summary>
+    /// <param name="RunId">Run finalizada.</param>
+    /// <param name="ChatId">Chat da run.</param>
+    /// <param name="Title">Título do chat.</param>
+    /// <param name="Status">Status terminal.</param>
+    /// <param name="Error">Erro, quando failed.</param>
+    /// <param name="Snippet">Trecho da resposta (≤160 chars).</param>
+    public sealed record RunCompletedInfo(
+        string RunId, string ChatId, string? Title,
+        string Status, string? Error, string? Snippet);
 
     /// <summary>Entrada de awareness de uma nota (roster do hub).</summary>
     /// <param name="UserId">Usuário.</param>

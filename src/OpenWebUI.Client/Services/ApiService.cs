@@ -66,6 +66,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<ChatResponse?> UpdateChatAsync(string id, ChatUpsertRequest request) =>
         SendAsync<ChatResponse>(HttpMethod.Post, $"/api/v1/chats/{id}", request);
 
+    /// <summary>
+    /// Atualizações parciais do chat (SPEC-20261007-chat-tool-streaming):
+    /// hoje só o <paramref name="approvalPreset"/>.
+    /// </summary>
+    public Task<ChatResponse?> PatchChatAsync(string id, string approvalPreset) =>
+        SendAsync<ChatResponse>(HttpMethod.Patch,
+            $"/api/v1/chats/{id}", new ChatPatchRequest(approvalPreset));
+
     /// <summary>Alterna o estado de fixado de um chat.</summary>
     public Task<ChatResponse?> TogglePinChatAsync(string id) =>
         SendAsync<ChatResponse>(HttpMethod.Post, $"/api/v1/chats/{id}/pin");
@@ -460,6 +468,14 @@ public class ApiService(HttpClient http, AuthService auth)
     /// <summary>Atualiza as configurações de UI do usuário.</summary>
     public async Task<bool> UpdateUserSettingsAsync(object settings) =>
         await SendStatusAsync(HttpMethod.Post, "/api/v1/users/user/settings/update", settings);
+
+    /// <summary>Chave pública VAPID para pushManager.subscribe (null quando push desligado).</summary>
+    public async Task<string?> GetVapidPublicKeyAsync()
+    {
+        var response = await SendAsync<VapidPublicKeyResponse>(
+            HttpMethod.Get, "/api/v1/notifications/push/vapid-key");
+        return response?.PublicKey;
+    }
 
     /// <summary>Obtém a configuração pública da aplicação.</summary>
     public Task<AppConfigResponse?> GetAppConfigAsync() =>

@@ -451,5 +451,17 @@
   "settings.pulling": "Pulling…",
   "settings.model_pulled": "Model pulled successfully.",
   "settings.pull_failed": "Failed to pull the model.",
-  "notes.cursor_at": "{{pos}} "
+  "notes.cursor_at": "{{pos}} ",
+  "chat.tool_running": "执行中…",
+  "chat.tool_denied": "已拒绝",
+  "chat.tool_error": "错误",
+  "chat.tool_approval_title": "工具批准",
+  "chat.tool_approval_wants": "工具 {name} 请求执行",
+  "chat.tool_approval_remember": "在此对话中记住",
+  "chat.tool_approve": "批准",
+  "chat.tool_deny": "拒绝",
+  "chat.approval_preset": "工具批准",
+  "chat.preset_allow-readonly": "仅只读工具",
+  "chat.preset_approve-mutations": "批准变更",
+  "chat.preset_always-allow": "始终允许"
 }

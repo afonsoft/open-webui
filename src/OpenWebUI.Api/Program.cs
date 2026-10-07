@@ -7,6 +7,9 @@ using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Api.Endpoints;
+using OpenWebUI.Api.Runs;
+using OpenWebUI.Api.Notifications;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Infrastructure.Services.Image;
 using OpenWebUI.Application.Contracts;
@@ -45,6 +48,22 @@ builder.Services.AddScoped<SamlService>();
 builder.Services.AddScoped<PipelineClientService>();
 builder.Services.AddScoped<McpClientService>();
 builder.Services.AddSingleton<RateLimitService>();
+
+// Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).
+builder.Services.AddSingleton<ChatRunBroadcaster>();
+builder.Services.AddSingleton<ChatRunApprovals>();
+builder.Services.AddSingleton<ChatRunDispatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRunDispatcher>());
+builder.Services.AddScoped<ChatRunExecutor>();
+
+// Notificações de run (SPEC-20261007-chat-notifications): SignalR para abas
+// conectadas + Web Push quando nenhuma aba está conectada.
+builder.Services.AddScoped<VapidKeyService>();
+builder.Services.AddScoped<IWebPushSender, WebPushSender>();
+builder.Services.AddScoped<IChatRunNotifier, SignalRChatRunNotifier>();
+builder.Services.AddScoped<IChatRunNotifier, WebPushChatRunNotifier>();
+builder.Services.AddHttpClient("webpush");
+
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();

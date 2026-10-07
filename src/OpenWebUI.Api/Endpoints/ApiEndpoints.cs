@@ -5,6 +5,7 @@ using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Api.Completions;
 
 namespace OpenWebUI.Api.Endpoints;
 
@@ -176,11 +177,36 @@ public static class ApiEndpoints
         }
 
         await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
+        Task EmitAsync(string line) { writer.WriteLine(line); writer.WriteLine(); return writer.FlushAsync(); }
 
         // Modelos pipeline:{id} são roteados ao servidor de pipelines externo.
         if (request.Model.StartsWith("pipeline:", StringComparison.Ordinal))
         {
-            await RoutePipelineAsync(request, http, db, pipelines, writer, ct);
+            var pipeId = request.Model["pipeline:".Length..];
+            var (server, body, valvesJson) = await ChatPipeline.PreparePipelineRouteAsync(
+                request, db, pipelines, ct);
+            if (server is null)
+            {
+                http.Response.StatusCode = 404;
+                await writer.WriteLineAsync(
+                    JsonSerializer.Serialize(new { error = $"Pipe '{pipeId}' não encontrado." }));
+                await writer.FlushAsync();
+                return;
+            }
+
+            var proxied = await pipelines.RouteCompletionAsync(server, body, valvesJson, ct);
+            if (proxied.Response is null)
+            {
+                http.Response.StatusCode = proxied.StatusCode;
+                await writer.WriteLineAsync(
+                    JsonSerializer.Serialize(new { error = $"Falha no servidor de pipelines: {proxied.Error}" }));
+                await writer.FlushAsync();
+                return;
+            }
+
+            using var upstream = proxied.Response;
+            http.Response.StatusCode = (int)upstream.StatusCode;
+            await upstream.Content.CopyToAsync(http.Response.Body, ct);
             return;
         }
 
@@ -188,13 +214,14 @@ public static class ApiEndpoints
         var arenaModel = request.Model.StartsWith("arena:", StringComparison.Ordinal)
             ? request.Model["arena:".Length..]
             : request.Model;
-        if (await TryRunArenaAsync(
-            request, arenaModel, user, db, config, rag, providers, webSearch, writer, ct))
+        if (await ChatPipeline.TryRunArenaAsync(
+            request, arenaModel, user, db, config, rag, providers, webSearch, EmitAsync, ct))
         {
             return;
         }
 
-        var effective = await EnrichRequestAsync(request, user, db, config, rag, webSearch, ct);
+        var effective = await ChatPipeline.EnrichRequestAsync(
+            request, user, db, config, rag, webSearch, ct);
 
         // Filtros outlet do modelo custom: redação por regex nas linhas SSE.
         var outletRules = ModelFilterService.OutletRules(
@@ -216,8 +243,9 @@ public static class ApiEndpoints
                         .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
                         .ToList(),
                 };
-                var finished = await RunToolLoopAsync(effective, tools, toolExecutor, providers, ct);
-                if (finished is not null)
+                var outcome = await ChatPipeline.RunToolLoopAsync(
+                    effective, tools, toolExecutor, providers, ct);
+                if (outcome?.FinalContent is { } finished)
                 {
                     foreach (var (regex, replacement) in outletRules)
                     {
@@ -246,191 +274,13 @@ public static class ApiEndpoints
         }
         catch (InvalidOperationException ex)
         {
-            var error = JsonSerializer.Serialize(new { error = ex.Message });
-            await writer.WriteLineAsync($"data: {error}");
-            await writer.WriteLineAsync();
-            await writer.FlushAsync();
-            await writer.WriteLineAsync("data: [DONE]");
-            await writer.WriteLineAsync();
-            await writer.FlushAsync();
+            await WriteSseErrorAsync(writer, ex.Message);
         }
         catch (HttpRequestException ex)
         {
-            var error = JsonSerializer.Serialize(new { error = $"Falha ao contactar o provedor: {ex.Message}" });
-            await writer.WriteLineAsync($"data: {error}");
-            await writer.WriteLineAsync();
-            await writer.FlushAsync();
-            await writer.WriteLineAsync("data: [DONE]");
-            await writer.WriteLineAsync();
-            await writer.FlushAsync();
+            await WriteSseErrorAsync(writer, $"Falha ao contactar o provedor: {ex.Message}");
         }
     }
-
-    /// <summary>
-    /// Executa uma batalha de arena quando o modelo pedido é do tipo arena:
-    /// sorteia 2 concorrentes do MetaJson, completa ambos e emite um payload
-    /// {"arena": {battle_id, responses:[{label, content}]}} no SSE.
-    /// Retorna true quando tratou a requisição (mesmo em erro já serializado).
-    /// </summary>
-    private static async Task<bool> TryRunArenaAsync(
-        ChatCompletionRequest request,
-        string modelKey,
-        User user,
-        AppDbContext db,
-        ConfigService config,
-        RagService rag,
-        ProviderService providers,
-        WebSearchService webSearch,
-        StreamWriter writer,
-        CancellationToken ct)
-    {
-        var arenaEntry = await db.ModelEntries.AsNoTracking()
-            .FirstOrDefaultAsync(
-                m => m.IsActive && (m.Id == modelKey || m.Name == modelKey)
-                    && (m.UserId == user.Id || m.UserId == "public"), ct);
-        var arena = arenaEntry is null ? null : ModelEndpoints.ParseArenaMeta(arenaEntry.MetaJson);
-        if (arena is null)
-        {
-            return request.Model.StartsWith("arena:", StringComparison.Ordinal);
-        }
-        if (!await ModelEndpoints.HasModelAccessAsync(user, arenaEntry!, db, ct))
-        {
-            await WriteArenaErrorAsync(writer, "Acesso negado ao modelo arena.");
-            return true;
-        }
-
-        var competitors = arena.Value.ModelIds
-            .OrderBy(_ => Random.Shared.Next())
-            .Take(2)
-            .ToList();
-        if (competitors.Count < 2)
-        {
-            await WriteArenaErrorAsync(writer, "Modelo arena sem concorrentes suficientes.");
-            return true;
-        }
-
-        var responses = new List<string>(2);
-        try
-        {
-            foreach (var competitor in competitors)
-            {
-                var effective = await EnrichRequestAsync(
-                    request with { Model = competitor, Stream = false },
-                    user, db, config, rag, webSearch, ct);
-                responses.Add(await providers.CompleteAsync(effective, ct));
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
-        {
-            await WriteArenaErrorAsync(writer, $"Falha ao gerar respostas da arena: {ex.Message}");
-            return true;
-        }
-
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var battle = new ArenaBattle
-        {
-            UserId = user.Id,
-            ArenaModelId = arenaEntry!.Id,
-            ModelA = competitors[0],
-            ModelB = competitors[1],
-            ResponseA = responses[0],
-            ResponseB = responses[1],
-            CreatedAt = now,
-        };
-        db.ArenaBattles.Add(battle);
-        await db.SaveChangesAsync(ct);
-
-        var payload = JsonSerializer.Serialize(new
-        {
-            arena = new
-            {
-                battle_id = battle.Id,
-                responses = new[]
-                {
-                    new { label = "A", content = responses[0] },
-                    new { label = "B", content = responses[1] },
-                },
-            },
-        });
-        await writer.WriteLineAsync($"data: {payload}");
-        await writer.WriteLineAsync();
-        await writer.WriteLineAsync("data: [DONE]");
-        await writer.WriteLineAsync();
-        await writer.FlushAsync();
-        return true;
-    }
-
-    /// <summary>
-    /// Roteia uma completion `pipeline:{id}` ao servidor de pipelines que
-    /// hospeda o pipe: 404 quando nenhum servidor conhece o id, 502 quando o
-    /// servidor falha, e passthrough do corpo upstream (SSE) no sucesso.
-    /// Valves das functions ativas são enviadas no corpo (`valves`).
-    /// </summary>
-    private static async Task RoutePipelineAsync(
-        ChatCompletionRequest request,
-        HttpContext http,
-        AppDbContext db,
-        PipelineClientService pipelines,
-        StreamWriter writer,
-        CancellationToken ct)
-    {
-        var pipeId = request.Model["pipeline:".Length..];
-        var server = await pipelines.FindServerForPipeAsync(pipeId, ct);
-        if (server is null)
-        {
-            http.Response.StatusCode = 404;
-            await writer.WriteLineAsync(
-                JsonSerializer.Serialize(new { error = $"Pipe '{pipeId}' não encontrado." }));
-            await writer.FlushAsync();
-            return;
-        }
-
-        // Valves de functions ativas — enviadas ao servidor como {"valves": {id: {...}}}.
-        var functions = await db.Functions.AsNoTracking()
-            .Where(f => f.Active && f.ValvesJson != null)
-            .Select(f => new { f.Id, f.ValvesJson }).ToListAsync(ct);
-        string? valvesJson = null;
-        if (functions.Count > 0)
-        {
-            var map = new Dictionary<string, JsonElement>();
-            foreach (var f in functions)
-            {
-                try
-                {
-                    map[f.Id] = JsonSerializer.Deserialize<JsonElement>(f.ValvesJson!);
-                }
-                catch (JsonException)
-                {
-                }
-            }
-
-            valvesJson = JsonSerializer.Serialize(map);
-        }
-
-        var body = JsonSerializer.Serialize(new
-        {
-            model = pipeId,
-            messages = request.Messages,
-            stream = request.Stream,
-        });
-        var proxied = await pipelines.RouteCompletionAsync(server, body, valvesJson, ct);
-        if (proxied.Response is null)
-        {
-            http.Response.StatusCode = proxied.StatusCode;
-            await writer.WriteLineAsync(
-                JsonSerializer.Serialize(new { error = $"Falha no servidor de pipelines: {proxied.Error}" }));
-            await writer.FlushAsync();
-            return;
-        }
-
-        using var upstream = proxied.Response;
-        http.Response.StatusCode = (int)upstream.StatusCode;
-        await upstream.Content.CopyToAsync(http.Response.Body, ct);
-        await writer.FlushAsync();
-    }
-
-    private static Task WriteArenaErrorAsync(StreamWriter writer, string message) =>
-        WriteSseErrorAsync(writer, message);
 
     private static async Task WriteSseErrorAsync(StreamWriter writer, string message)
     {
@@ -440,254 +290,6 @@ public static class ApiEndpoints
         await writer.WriteLineAsync("data: [DONE]");
         await writer.WriteLineAsync();
         await writer.FlushAsync();
-    }
-
-    /// <summary>
-    /// Loop de tool calling: chama o modelo com tools até resposta final
-    /// (sem tool_calls) ou teto de 5 iterações. Retorna o conteúdo final
-    /// para ser emitido como SSE, ou null para seguir o stream normal.
-    /// </summary>
-    private static async Task<string?> RunToolLoopAsync(
-        ChatCompletionRequest effective,
-        IReadOnlyList<Tool> tools,
-        ToolExecutor toolExecutor,
-        ProviderService providers,
-        CancellationToken ct)
-    {
-        const int maxRounds = 5;
-        var messages = effective.Messages.ToList();
-
-        for (var round = 0; round < maxRounds; round++)
-        {
-            var step = await providers.CompleteWithToolsAsync(
-                effective with { Messages = messages }, ct);
-            if (step.ToolCalls.Count == 0)
-            {
-                return step.Content;
-            }
-
-            messages.Add(new ChatCompletionMessage(
-                "assistant", step.Content, ToolCallsJson: step.ToolCallsJson));
-            foreach (var call in step.ToolCalls)
-            {
-                var output = await toolExecutor.ExecuteAsync(
-                    tools, call.Name, call.ArgumentsJson, ct);
-                messages.Add(new ChatCompletionMessage(
-                    "tool", output, ToolCallId: call.Id));
-            }
-        }
-
-        // Teto de iterações atingido: resposta final sem tools.
-        var final = await providers.CompleteAsync(
-            effective with { Messages = messages, Tools = null }, ct);
-        return final;
-    }
-
-    /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>
-    private static async Task<ChatCompletionRequest> EnrichRequestAsync(
-        ChatCompletionRequest request,
-        User user,
-        AppDbContext db,
-        ConfigService config,
-        RagService rag,
-        WebSearchService webSearch,
-        CancellationToken ct)
-    {
-        var model = request.Model;
-        var messages = request.Messages.ToList();
-        var parameters = request.Params?.ToDictionary(kv => kv.Key, kv => kv.Value);
-        var systemParts = new List<string>();
-
-        // 1. Modelo personalizado do workspace → redireciona para o modelo base e aplica config.
-        var customModel = await db.ModelEntries.AsNoTracking()
-            .FirstOrDefaultAsync(
-                m => m.IsActive && (m.Id == model || m.Name == model)
-                    && (m.UserId == user.Id || m.UserId == "public"), ct);
-        if (customModel is not null
-            && !await ModelEndpoints.HasModelAccessAsync(user, customModel, db, ct))
-        {
-            customModel = null;
-        }
-        if (customModel is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(customModel.BaseModelId))
-            {
-                model = customModel.BaseModelId;
-            }
-            if (!string.IsNullOrWhiteSpace(customModel.SystemPrompt))
-            {
-                systemParts.Add(customModel.SystemPrompt);
-            }
-
-            if (!string.IsNullOrWhiteSpace(customModel.ParamsJson))
-            {
-                try
-                {
-                    var customParams = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                        customModel.ParamsJson);
-                    if (customParams is not null)
-                    {
-                        parameters ??= [];
-                        foreach (var (key, value) in customParams)
-                        {
-                            parameters.TryAdd(key, value);
-                        }
-                    }
-                }
-                catch (JsonException)
-                {
-                }
-            }
-        }
-
-        // 1.5. Skills anexadas ao modelo custom (MetaJson.skill_ids) → system prompt.
-        if (customModel?.MetaJson is not null)
-        {
-            try
-            {
-                using var meta = JsonDocument.Parse(customModel.MetaJson);
-                if (meta.RootElement.TryGetProperty("skill_ids", out var skillIds)
-                    && skillIds.ValueKind == JsonValueKind.Array)
-                {
-                    var ids = skillIds.EnumerateArray()
-                        .Select(e => e.GetString()).Where(s => s is not null).ToList();
-                    var contents = await db.Skills.AsNoTracking()
-                        .Where(s => ids.Contains(s.Id) && s.IsActive)
-                        .Select(s => s.Content).ToListAsync(ct);
-                    systemParts.AddRange(contents.Where(c => !string.IsNullOrWhiteSpace(c)));
-                }
-            }
-            catch (JsonException)
-            {
-            }
-        }
-
-        // 2. Contexto de arquivos/referências: anexos + #arquivo/#coleção.
-        //    Com embeddings disponíveis injeta os top-K chunks por similaridade;
-        //    sem provider cai no fallback de texto integral atual.
-        var lastUserText = messages.LastOrDefault(m => m.Role == "user")?.Content ?? string.Empty;
-        var referenced = await ResolveReferenceFileIdsAsync(lastUserText, user.Id, db, ct);
-        var scopedFileIds = (request.FileIds ?? [])
-            .Concat(referenced).Distinct().ToList();
-        if (scopedFileIds.Count > 0)
-        {
-            var fileContext = lastUserText.Length > 0
-                ? await rag.RetrieveAsync(user.Id, lastUserText, scopedFileIds, ct)
-                : null;
-            fileContext ??= await FileEndpoints.BuildFileContextAsync(
-                scopedFileIds, user.Id, db, ct);
-            if (!string.IsNullOrEmpty(fileContext))
-            {
-                systemParts.Add(fileContext);
-            }
-        }
-
-        // 2.5. Busca web opcional: injeta os resultados como contexto com fontes.
-        if (request.WebSearch == true && lastUserText.Length > 0)
-        {
-            try
-            {
-                var results = await webSearch.SearchAsync(lastUserText, count: 5, ct);
-                if (results is { Count: > 0 })
-                {
-                    var lines = results.Select((r, i) =>
-                        $"[{i + 1}] {r.Title}\nURL: {r.Url}\n{r.Snippet}");
-                    systemParts.Add(
-                        "Resultados da busca web (use-os para responder e cite as fontes como [n]):\n"
-                        + string.Join("\n\n", lines));
-                }
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
-            {
-                // Engine indisponível: segue sem contexto web.
-            }
-        }
-
-        // 3. Memórias persistentes do usuário.
-        var adminConfig = await config.GetAdminConfigAsync(ct);
-        if (adminConfig.EnableMemories)
-        {
-            var memories = await db.Memories.AsNoTracking()
-                .Where(m => m.UserId == user.Id)
-                .Select(m => m.Content)
-                .ToListAsync(ct);
-            if (memories.Count > 0)
-            {
-                systemParts.Add(
-                    "Memórias do usuário:\n" + string.Join("\n", memories.Select(m => $"- {m}")));
-            }
-        }
-
-        // 4. Mescla partes de sistema numa única mensagem inicial.
-        if (systemParts.Count > 0)
-        {
-            var merged = string.Join("\n\n", systemParts);
-            var existing = messages.FindIndex(m => m.Role == "system");
-            if (existing >= 0)
-            {
-                messages[existing] = messages[existing] with { Content = $"{merged}\n\n{messages[existing].Content}" };
-            }
-            else
-            {
-                messages.Insert(0, new ChatCompletionMessage("system", merged));
-            }
-        }
-
-        var built = request with
-        {
-            Model = model,
-            Messages = messages,
-            Params = parameters,
-            FileIds = null,
-        };
-
-        // 5. Filtros declarativos do modelo custom (inlet) em ordem estável.
-        var inletFilters = ModelFilterService.Parse(customModel?.MetaJson);
-        return inletFilters.Count > 0
-            ? ModelFilterService.ApplyInlet(built, inletFilters)
-            : built;
-    }
-
-    /// <summary>Resolve referências #nome (arquivo ou coleção) para ids de arquivo.</summary>
-    private static async Task<List<string>> ResolveReferenceFileIdsAsync(
-        string text, string userId, AppDbContext db, CancellationToken ct)
-    {
-        var fileIds = new List<string>();
-        if (!text.Contains('#'))
-        {
-            return fileIds;
-        }
-
-        var tokens = System.Text.RegularExpressions.Regex
-            .Matches(text, @"#([\w.\-]+)")
-            .Select(m => m.Groups[1].Value)
-            .Distinct()
-            .ToList();
-        if (tokens.Count == 0)
-        {
-            return fileIds;
-        }
-
-        // #coleção → todos os arquivos vinculados.
-        var collections = await db.KnowledgeCollections.AsNoTracking()
-            .Where(k => k.UserId == userId && tokens.Contains(k.Name))
-            .Select(k => k.Id)
-            .ToListAsync(ct);
-        if (collections.Count > 0)
-        {
-            fileIds.AddRange(await db.KnowledgeFiles.AsNoTracking()
-                .Where(f => collections.Contains(f.CollectionId))
-                .Select(f => f.FileId)
-                .ToListAsync(ct));
-        }
-
-        // #arquivo → arquivo do usuário com esse nome.
-        fileIds.AddRange(await db.Files.AsNoTracking()
-            .Where(f => f.UserId == userId && tokens.Contains(f.Filename))
-            .Select(f => f.Id)
-            .ToListAsync(ct));
-
-        return fileIds;
     }
 
     private static async Task<IResult> GetConnectionsAsync(

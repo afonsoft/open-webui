@@ -3,6 +3,7 @@
 @inject ThemeService Theme
 @inject LocalizationService L
 @inject IJSRuntime JS
+@inject ChatNotificationsService ChatNotify
 
 @if (IsOpen)
 {
@@ -19,6 +20,7 @@
                     <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
                     <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
                     <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
+                    <button class="modal-tab @(_tab == "notifications" ? "active" : "")" @onclick='() => SelectTab("notifications")'>@L["settings.notifications"]</button>
                     @if (Auth.CurrentUser?.Role == "admin")
                     {
                         <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
@@ -171,6 +173,30 @@
                     </div>
                     <button class="auth-submit" disabled="@string.IsNullOrWhiteSpace(_newMemory)"
                             @onclick="AddMemoryAsync">@L["settings.add"]</button>
+                }
+                else if (_tab == "notifications")
+                {
+                    <label class="check">
+                        <input type="checkbox" checked="@_notifyChatDone" @onchange="OnNotifyChatDoneChanged" />
+                        @L["settings.notify_chat_done"]
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" checked="@_notifyBrowser" @onchange="OnNotifyBrowserChanged" />
+                        @L["settings.notify_browser"]
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" checked="@_notifyPush" @onchange="OnNotifyPushChanged" />
+                        @L["settings.notify_push"]
+                    </label>
+                    @if (_notifyPermission is "denied" or "unsupported")
+                    {
+                        <p class="hint text-red-600 dark:text-red-400">
+                            @L[_notifyPermission == "denied"
+                                ? "settings.notify_permission_denied"
+                                : "settings.notify_permission_unsupported"]
+                        </p>
+                    }
+                    <p class="hint">@L["settings.notify_hint"]</p>
                 }
                 else if (_tab == "connections")
                 {
@@ -376,6 +402,52 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private string _tab = "general";
+
+    private async Task SelectTab(string tab)
+    {
+        _tab = tab;
+        if (tab == "notifications")
+        {
+            _notifyChatDone = await ChatNotify.GetPrefAsync(
+                ChatNotificationsService.PrefInApp, defaultValue: true);
+            _notifyBrowser = await ChatNotify.GetPrefAsync(
+                ChatNotificationsService.PrefBrowser, defaultValue: false);
+            _notifyPush = await ChatNotify.GetPrefAsync(
+                ChatNotificationsService.PrefPush, defaultValue: false);
+            _notifyPermission = await ChatNotify.BrowserPermissionAsync();
+        }
+    }
+
+    private async Task OnNotifyChatDoneChanged(ChangeEventArgs e)
+    {
+        _notifyChatDone = e.Value is true;
+        await ChatNotify.SetPrefAsync(ChatNotificationsService.PrefInApp, _notifyChatDone);
+    }
+
+    private async Task OnNotifyBrowserChanged(ChangeEventArgs e)
+    {
+        _notifyBrowser = e.Value is true;
+        _notifyPermission = await ChatNotify.SetPrefAsync(
+            ChatNotificationsService.PrefBrowser, _notifyBrowser);
+        // Permissão negada no browser: o toggle não consegue notificar.
+        if (_notifyPermission is "denied" or "unsupported")
+        {
+            _notifyBrowser = false;
+            await ChatNotify.SetPrefAsync(ChatNotificationsService.PrefBrowser, false);
+        }
+    }
+
+    private async Task OnNotifyPushChanged(ChangeEventArgs e)
+    {
+        _notifyPush = e.Value is true;
+        _notifyPermission = await ChatNotify.SetPrefAsync(
+            ChatNotificationsService.PrefPush, _notifyPush);
+        if (_notifyPermission is "denied" or "unsupported")
+        {
+            _notifyPush = false;
+            await ChatNotify.SetPrefAsync(ChatNotificationsService.PrefPush, false);
+        }
+    }
     private ConnectionsConfigResponse? _connections;
     private List<OllamaModelInfo>? _ollamaModels;
     private string _ollamaPullName = string.Empty;
@@ -402,6 +474,12 @@
     private string? _apiKeyCreated;
     private ApiKeyInfoResponse? _apiKeyInfo;
     private string? _accountMessage;
+
+    // Preferências de notificação (SPEC-20261007-chat-notifications RF-005).
+    private bool _notifyChatDone = true;
+    private bool _notifyBrowser;
+    private bool _notifyPush;
+    private string? _notifyPermission;
 
     private List<MemoryResponse> _memories = [];
     private string _newMemory = string.Empty;

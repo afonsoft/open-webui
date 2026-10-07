@@ -1,0 +1,526 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
+using Microsoft.AspNetCore.Mvc.Testing;
+using OpenWebUI.Api.Runs;
+using OpenWebUI.Application.Contracts;
+
+namespace OpenWebUI.Api.Tests;
+
+/// <summary>
+/// Cobertura do SPEC-20261007-chat-tool-streaming: eventos tipados no SSE
+/// (tool_call/tool_result/status/approval_asked), gate de aprovação por
+/// preset, endpoint de decisão e persistência das mensagens do loop.
+/// O mock local (HttpListener) faz de Ollama + endpoint da tool HTTP.
+/// </summary>
+[TestFixture]
+public class ToolStreamingTests
+{
+    private WebApplicationFactory<Program> _factory = null!;
+    private HttpClient _client = null!;
+    private string _dbPath = null!;
+    private string _mockBase = null!;
+    private HttpListener _mock = null!;
+    private CancellationTokenSource _mockCts = null!;
+
+    [OneTimeSetUp]
+    public async Task OneTimeSetUp()
+    {
+        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-tools-{Guid.NewGuid():N}.db");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
+        _factory = new WebApplicationFactory<Program>();
+        _client = _factory.CreateClient();
+        _mockBase = StartMock();
+
+        var admin = await SignUpAsync("Admin", "admin@tools.local");
+        UseToken(admin.Token);
+        var config = AdminConfig.Default with { DefaultUserRole = "user" };
+        var updated = await _client.PostAsJsonAsync("/api/v1/auths/admin/config", config);
+        Assert.That(updated.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await updated.Content.ReadAsStringAsync());
+
+        // Ollama fake: /api/tags lista modelos; /api/chat pede a tool
+        // "eco" na primeira chamada e devolve conteúdo quando o histórico
+        // já tem mensagem role=tool.
+        var connections = new ConnectionsConfig([_mockBase], [], []);
+        var connResponse = await _client.PostAsJsonAsync("/api/v1/configs/connections", connections);
+        Assert.That(connResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        _client.DefaultRequestHeaders.Authorization = null;
+    }
+
+    [OneTimeTearDown]
+    public void OneTimeTearDown()
+    {
+        _mockCts.Cancel();
+        _mock.Stop();
+        _client.Dispose();
+        _factory.Dispose();
+        if (File.Exists(_dbPath))
+        {
+            File.Delete(_dbPath);
+        }
+    }
+
+    private string StartMock()
+    {
+        var random = new Random();
+        var port = 0;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            port = random.Next(40000, 60000);
+            _mock = new HttpListener();
+            _mock.Prefixes.Add($"http://localhost:{port}/");
+            try
+            {
+                _mock.Start();
+                break;
+            }
+            catch (HttpListenerException)
+            {
+                _mock.Close();
+            }
+        }
+        if (!_mock.IsListening)
+        {
+            throw new InvalidOperationException("Nenhuma porta livre para o mock.");
+        }
+        _mockCts = new CancellationTokenSource();
+        _ = Task.Run(() => MockLoopAsync(_mockCts.Token));
+        return $"http://localhost:{port}";
+    }
+
+    private async Task MockLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            HttpListenerContext ctx;
+            try
+            {
+                ctx = await _mock.GetContextAsync();
+            }
+            catch (HttpListenerException)
+            {
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            string body = string.Empty;
+            if (ctx.Request.HasEntityBody)
+            {
+                using var reader = new StreamReader(ctx.Request.InputStream);
+                body = await reader.ReadToEndAsync(ct);
+            }
+
+            var path = ctx.Request.Url!.AbsolutePath;
+            string json;
+            if (path == "/api/tags")
+            {
+                json = "{\"models\":[{\"model\":\"fake:1\",\"name\":\"fake:1\"}]}";
+            }
+            else if (path == "/api/chat")
+            {
+                // Segunda chamada do loop: histórico já tem role=tool.
+                json = body.Contains("\"tool_call_id\"", StringComparison.Ordinal)
+                    ? "{\"message\":{\"role\":\"assistant\",\"content\":\"resposta pós-tool\"}}"
+                    : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
+            }
+            else if (path == "/tool/eco")
+            {
+                json = "resultado-eco";
+            }
+            else
+            {
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+                continue;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(json);
+            ctx.Response.StatusCode = 200;
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.OutputStream.WriteAsync(bytes, ct);
+            ctx.Response.Close();
+        }
+    }
+
+    private async Task<AuthResponse> SignUpAsync(string name, string email)
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/auths/signup", new SignUpRequest(name, email, "senha123"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
+    }
+
+    private void UseToken(string token) =>
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+    private async Task<ChatResponse> CriarChatAsync()
+    {
+        var created = await _client.PostAsJsonAsync(
+            "/api/v1/chats/", new ChatUpsertRequest("Chat tools", ["fake:1"], []));
+        Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await created.Content.ReadAsStringAsync());
+        return (await created.Content.ReadFromJsonAsync<ChatResponse>())!;
+    }
+
+    private async Task<string> CriarToolAsync(bool requiresApproval = false)
+    {
+        var spec = "{\"type\":\"function\",\"function\":{\"name\":\"eco\","
+            + "\"description\":\"Eco de teste\",\"parameters\":{\"type\":\"object\","
+            + "\"properties\":{\"texto\":{\"type\":\"string\"}}}}}";
+        var response = await _client.PostAsJsonAsync("/api/v1/tools/",
+            new ToolUpsertRequest("Eco", "eco", spec, $"{_mockBase}/tool/eco",
+                RequiresApproval: requiresApproval));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        var tool = await response.Content.ReadFromJsonAsync<ToolResponse>();
+        return tool!.Id;
+    }
+
+    private async Task<ChatRunResponse> EnfileirarAsync(
+        string chatId, string content, IReadOnlyList<string>? toolIds = null)
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chatId}/messages",
+            new EnqueueChatRunRequest(content, "fake:1", ToolIds: toolIds));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Accepted),
+            await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<ChatRunResponse>())!;
+    }
+
+    /// <summary>
+    /// Lê o stream de attach até a run fechar (ou timeout), retornando os
+    /// pares (evento, payload) na ordem — replay incluído.
+    /// </summary>
+    private async Task<List<(string Event, string Data)>> LerStreamAteFecharAsync(
+        string chatId, string runId, CancellationToken ct)
+    {
+        var eventos = new List<(string, string)>();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs/{runId}/stream?lastSeq=0");
+        using var response = await _client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, ct);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+        var evento = "";
+        while (await reader.ReadLineAsync(ct) is { } linha)
+        {
+            if (linha.StartsWith("event:", StringComparison.Ordinal))
+            {
+                evento = linha["event:".Length..].Trim();
+            }
+            else if (linha.StartsWith("data:", StringComparison.Ordinal))
+            {
+                var payload = linha["data:".Length..].Trim();
+                eventos.Add((evento, payload));
+                if (evento == "status"
+                    && (payload.Contains("\"completed\"") || payload.Contains("\"failed\"")
+                        || payload.Contains("\"stopped\"") || payload.Contains("\"interrupted\"")))
+                {
+                    break; // status terminal
+                }
+                evento = "";
+            }
+        }
+        return eventos;
+    }
+
+    private static async Task<ChatRunResponse> AguardarFinalAsync(
+        HttpClient client, string chatId, string runId)
+    {
+        var limite = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < limite)
+        {
+            var run = await client.GetFromJsonAsync<ChatRunResponse>(
+                $"/api/v1/chats/{chatId}/runs/{runId}");
+            Assert.That(run, Is.Not.Null);
+            if (run!.Status is not ("queued" or "running"))
+            {
+                return run;
+            }
+            await Task.Delay(150);
+        }
+        Assert.Fail($"Run {runId} não finalizou em 60s.");
+        return null!;
+    }
+
+    // ---- ChatRunApprovals (unitário) ----
+
+    [Test]
+    public async Task Approval_ResolveAprova_LiberaWaitComTrue()
+    {
+        var approvals = new ChatRunApprovals();
+        var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
+
+        Assert.That(approvals.Resolve("run-1", "chat-1", "call-1", approved: true, remember: false), Is.True);
+        Assert.That(await wait, Is.True);
+        Assert.That(approvals.IsPending("run-1", "call-1"), Is.False);
+    }
+
+    [Test]
+    public async Task Approval_ResolveNega_LiberaWaitComFalse()
+    {
+        var approvals = new ChatRunApprovals();
+        var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
+
+        Assert.That(approvals.Resolve("run-1", "chat-1", "call-1", approved: false, remember: false), Is.True);
+        Assert.That(await wait, Is.False);
+    }
+
+    [Test]
+    public async Task Approval_ResolveComRemember_MarcaToolNoChat()
+    {
+        var approvals = new ChatRunApprovals();
+        var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
+
+        Assert.That(
+            approvals.Resolve("run-1", "chat-1", "call-1", approved: true, remember: true), Is.True);
+        Assert.That(await wait, Is.True);
+        Assert.That(approvals.IsRemembered("chat-1", "eco"), Is.True);
+        // "Lembrar" é por chat — outro chat não herda.
+        Assert.That(approvals.IsRemembered("chat-2", "eco"), Is.False);
+    }
+
+    [Test]
+    public void Approval_ResolveSemPendente_RetornaFalse()
+    {
+        var approvals = new ChatRunApprovals();
+        Assert.That(
+            approvals.Resolve("run-1", "chat-1", "call-x", approved: true, remember: false), Is.False);
+    }
+
+    [Test]
+    public async Task Approval_Cancel_NegaPendentesDaRun()
+    {
+        var approvals = new ChatRunApprovals();
+        var wait = approvals.WaitAsync("run-1", "chat-1", "call-1", "eco", CancellationToken.None);
+
+        approvals.Cancel("run-1");
+        Assert.That(await wait, Is.False);
+        Assert.That(approvals.IsPending("run-1", "call-1"), Is.False);
+    }
+
+    // ---- Endpoints ----
+
+    [Test]
+    public async Task Patch_PresetValido_AtualizaChat()
+    {
+        var auth = await SignUpAsync("PatchA", "patcha@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("always-allow"));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        var updated = await response.Content.ReadFromJsonAsync<ChatResponse>();
+        Assert.That(updated!.ApprovalPreset, Is.EqualTo("always-allow"));
+    }
+
+    [Test]
+    public async Task Patch_PresetInvalido_Retorna400()
+    {
+        var auth = await SignUpAsync("PatchB", "patchb@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("yolo"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Patch_ChatDeOutroUsuario_Retorna404()
+    {
+        var dono = await SignUpAsync("PatchC", "patchc@tools.local");
+        UseToken(dono.Token);
+        var chat = await CriarChatAsync();
+
+        var intruso = await SignUpAsync("PatchD", "patchd@tools.local");
+        UseToken(intruso.Token);
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("always-allow"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task DecideApproval_CallNaoPendente_Retorna404()
+    {
+        var auth = await SignUpAsync("ApprA", "appra@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "oi");
+        await AguardarFinalAsync(_client, chat.Id, run.Id); // sem provider a run falha rápido
+
+        // Run já terminada: decisão em run fechada → 410; call que nunca
+        // existiu numa run aberta também não se aplica.
+        var closed = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-x",
+            new RunApprovalDecisionRequest("approve"));
+        Assert.That(closed.StatusCode, Is.EqualTo(HttpStatusCode.Gone));
+    }
+
+    [Test]
+    public async Task DecideApproval_DecisaoInvalida_Retorna400()
+    {
+        var auth = await SignUpAsync("ApprB", "apprb@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var run = await EnfileirarAsync(chat.Id, "oi");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-x",
+            new RunApprovalDecisionRequest("talvez"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    // ---- Loop de tools ponta a ponta ----
+
+    [Test]
+    public async Task ToolLoop_EmiteEventosEPersisteMensagens()
+    {
+        var auth = await SignUpAsync("LoopA", "loopa@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync();
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "chama a tool", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "tool_call" && e.Data.Contains("\"eco\"")),
+                Is.True, "faltou event: tool_call");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("resultado-eco") && e.Data.Contains("\"ok\":true")),
+                Is.True, "faltou event: tool_result");
+            Assert.That(eventos.Any(e => e.Event == "status" && e.Data.Contains("running_tool")),
+                Is.True, "faltou status running_tool");
+        });
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+
+        // Mensagens do loop persistidas: assistant com tool_calls + role=tool.
+        var detalhe = await _client.GetFromJsonAsync<ChatResponse>($"/api/v1/chats/{chat.Id}");
+        var roles = detalhe!.Messages.Select(m => m.Role).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(roles, Does.Contain("tool"));
+            Assert.That(detalhe.Messages.Any(m => m.Role == "assistant"
+                && m.ToolCallsJson is not null), Is.True, "faltou tool_calls persistido");
+            Assert.That(detalhe.Messages.Last(m => m.Role == "assistant").Content,
+                Is.EqualTo("resposta pós-tool"));
+        });
+    }
+
+    [Test]
+    public async Task Approval_Aprova_ExecutaTool()
+    {
+        var auth = await SignUpAsync("GateA", "gatea@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync(); // preset default approve-mutations
+
+        var run = await EnfileirarAsync(chat.Id, "executa com gate", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        // Espera o approval_asked no stream, depois aprova e lê o resto.
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var temPedido = false;
+        while (DateTime.UtcNow < limite && !temPedido)
+        {
+            // Enquanto a call não está pendente o endpoint devolve 404 —
+            // 200 marca que o gate pediu aprovação.
+            var decidido = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-1",
+                new RunApprovalDecisionRequest("approve"));
+            temPedido = decidido.StatusCode == HttpStatusCode.OK;
+            if (!temPedido)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(temPedido, Is.True, "gate não pediu aprovação em 30s");
+
+        var eventos = await streamTask;
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "approval_asked"), Is.True);
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("resultado-eco")), Is.True,
+                "tool não executou após aprovação");
+        });
+    }
+
+    [Test]
+    public async Task Approval_Nega_InjetaResultadoNegado()
+    {
+        var auth = await SignUpAsync("GateB", "gateb@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync();
+
+        var run = await EnfileirarAsync(chat.Id, "nega a tool", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var negou = false;
+        while (DateTime.UtcNow < limite && !negou)
+        {
+            var resp = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-1",
+                new RunApprovalDecisionRequest("deny"));
+            negou = resp.StatusCode == HttpStatusCode.OK;
+            if (!negou)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(negou, Is.True, "gate não pediu aprovação em 30s");
+
+        var eventos = await streamTask;
+        Assert.That(eventos.Any(e => e.Event == "tool_result"
+            && e.Data.Contains("\"denied\":true")), Is.True, "faltou tool_result negado");
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task Preset_AlwaysAllow_PulaGate()
+    {
+        var auth = await SignUpAsync("GateC", "gatec@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync();
+
+        var patch = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("always-allow"));
+        Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var run = await EnfileirarAsync(chat.Id, "sem gate", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "approval_asked"), Is.False,
+                "always-allow não pode pedir aprovação");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("resultado-eco")), Is.True);
+        });
+    }
+}
