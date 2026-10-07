@@ -25,7 +25,7 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       WHISPER_URL: ${WHISPER_URL:-http://whisper:8000}
     volumes:
-      - openwebui:/app/data
+      - openwebui:/data
     depends_on:
       - ollama
       - whisper

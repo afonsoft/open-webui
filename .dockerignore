@@ -9,6 +9,10 @@
 
 .git
 .gitignore
+.claude/
+.specs/
+publish/
+skills-lock.json
 .env
 .env.*
 .devin
@@ -19,6 +23,7 @@
 .idea
 
 docs/
+scripts/
 tests/
 *.md
 LICENSE*

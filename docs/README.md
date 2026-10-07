@@ -42,6 +42,8 @@ Primeiro usuário registrado vira admin — ou semeado no primeiro boot via `ADM
 
 ## Referências
 
+- [en/DEPLOY-DOCKER.md](./en/DEPLOY-DOCKER.md) / [pt/DEPLOY-DOCKER.md](./pt/DEPLOY-DOCKER.md) — deploy com Docker (imagem publicada, compose, `.env`, volumes)
+- [dockerhub/overview.md](./dockerhub/overview.md) — overview publicado na página do Docker Hub
 - [technologies.md](./technologies.md) — tecnologias e versões
 - [packages.md](./packages.md) — dependências NuGet
 - [plugins.md](./plugins.md) — integrações e extensões

@@ -145,6 +145,8 @@ docker run -p 3032:8080 ghcr.io/afonsoft/open-webui:latest
 # ou docker.io/afonsoft/open-webui:latest
 ```
 
+Guia completo de deploy Docker: [docs/pt/DEPLOY-DOCKER.md](docs/pt/DEPLOY-DOCKER.md) / [docs/en/DEPLOY-DOCKER.md](docs/en/DEPLOY-DOCKER.md).
+
 ## Testes
 
 ```bash
