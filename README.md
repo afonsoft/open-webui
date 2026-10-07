@@ -19,13 +19,28 @@ mantendo o layout, as funcionalidades e a configuração do original.
 |---|---|---|
 | ![Administração](docs/screenshots/admin-dark.png) | ![Workspace](docs/screenshots/workspace-dark.png) | ![Chat mobile](docs/screenshots/chat-mobile.png) |
 
+| Tools no chat | Terminal embutido | MCPs no Admin |
+|---|---|---|
+| ![Tool calls e aprovação](docs/screenshots/chat-tools.png) | ![Terminal PTY](docs/screenshots/terminal.png) | ![Servidores MCP](docs/screenshots/mcp-settings.png) |
+
 ## Funcionalidades
 
 - **Chat** com streaming SSE (Ollama / OpenAI-compat), anexos, avaliação 👍/👎,
   edição, regeneração, título/follow-ups/tags gerados por LLM
+- **Runs desacopladas** — a resposta roda no servidor: fechar/recarregar a aba não
+  interrompe; ao reabrir, o cliente anexa na run ativa com replay do stream
+- **Notificações** — toast in-app, Notification API e Web Push (VAPID) para avisar
+  quando a resposta termina com o site fechado
+- **Tool streaming + aprovação** — `tool_call`/`tool_result`/status no SSE, gate de
+  aprovação para tools mutáveis com preset por conversa (readonly/aprovar/sempre)
+- **Builtin agent tools** — `generate_image` (imagem inline), `code_interpreter`,
+  `shell_exec` + jobs em background, `fetch_url`, `web_search`
+- **Terminal embutido** — PTY real via WebSocket + xterm.js (`/terminal`, flag admin)
 - **Canais em grupo** com realtime (SignalR `/ws`), menção `@modelo`, typing/presence
 - **Knowledge/RAG** — coleções com embeddings e retrieval vetorial em SQLite
   (cosseno + BM25 híbrido, chunking por frase, rerank por provider externo)
+- **MCP** — servidores Model Context Protocol configurados em Configurações → Admin,
+  com teste de conexão e tools expansíveis; tools MCP entram no loop do chat
 - **Tools** — tools HTTP com function calling (loop no servidor, URL de execução nunca exposta)
 - **Geração de imagens** — provider OpenAI Images, botão por mensagem
 - **Execução de código** — blocos do chat: JS em Web Worker e Python via Pyodide WASM

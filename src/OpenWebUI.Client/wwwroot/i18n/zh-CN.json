@@ -462,7 +462,7 @@
   "chat.tool_denied": "已拒绝",
   "chat.tool_error": "错误",
   "chat.tool_approval_title": "工具批准",
-  "chat.tool_approval_wants": "工具 {name} 请求执行",
+  "chat.tool_approval_wants": "工具 {{name}} 请求执行",
   "chat.tool_approval_remember": "在此对话中记住",
   "chat.tool_approve": "批准",
   "chat.tool_deny": "拒绝",

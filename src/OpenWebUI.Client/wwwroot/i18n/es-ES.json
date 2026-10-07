@@ -462,7 +462,7 @@
   "chat.tool_denied": "rechazada",
   "chat.tool_error": "error",
   "chat.tool_approval_title": "Aprobación de herramienta",
-  "chat.tool_approval_wants": "La herramienta {name} quiere ejecutarse",
+  "chat.tool_approval_wants": "La herramienta {{name}} quiere ejecutarse",
   "chat.tool_approval_remember": "Recordar en este chat",
   "chat.tool_approve": "Aprobar",
   "chat.tool_deny": "Denegar",
