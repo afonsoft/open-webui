@@ -141,6 +141,9 @@ public static class PassthroughEndpoints
                 }
 
                 context.Response.Headers.Remove("transfer-encoding");
+                // Respostas SSE upstream (api/chat, api/pull) precisam passar
+                // sem buffering no proxy reverso.
+                context.Response.Headers["X-Accel-Buffering"] = "no";
                 await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
             }
         }

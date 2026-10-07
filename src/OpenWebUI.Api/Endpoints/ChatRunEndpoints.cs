@@ -209,6 +209,9 @@ public static class ChatRunEndpoints
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         http.Response.Headers.Connection = "keep-alive";
+        // Sem isso nginx/traefik bufferizam o SSE — eventos de tool só chegam
+        // no fim da run (o usuário "só vê depois de refresh").
+        http.Response.Headers["X-Accel-Buffering"] = "no";
 
         await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
         try

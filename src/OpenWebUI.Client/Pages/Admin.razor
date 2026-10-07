@@ -1038,6 +1038,77 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main">
+                                <div class="card-title">@L["settings.images_section"]</div>
+                                <div class="card-sub">@L["admin.images_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <label class="check">
+                                    <input type="checkbox" @bind="_imagesEnabled" /> @L["admin.video_enabled"]
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="text-xs text-gray-500">@L["settings.audio_provider"]</label>
+                                <select class="input" value="@_imagesProvider"
+                                        @onchange="OnImagesProviderChangedAsync">
+                                    <option value="">@L["admin.provider_custom"]</option>
+                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
+                                    {
+                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
+                                    }
+                                </select>
+                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
+                                {
+                                    <div class="field-note">
+                                        @L["admin.provider_register_hint"]
+                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
+                                    </div>
+                                }
+                                @if (string.IsNullOrWhiteSpace(_imagesProvider))
+                                {
+                                    <select class="input" @bind="_imagesEngine">
+                                        @foreach (var engine in _imageEngines)
+                                        {
+                                            <option value="@engine">@engine</option>
+                                        }
+                                    </select>
+                                    <input class="input" @bind="_imagesBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input class="input" type="password" @bind="_imagesApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                }
+                                @if (_imagesProviderModels.Count > 0)
+                                {
+                                    <select class="input" @bind="_imagesModel">
+                                        @foreach (var m in _imagesProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_imagesModel) ? [] : [_imagesModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
+                                }
+                                <div class="flex gap-2">
+                                    <input class="input w-32" @bind="_imagesSize" placeholder="1024x1024" />
+                                    <input class="input flex-1" @bind="_imagesEngineParams" placeholder="{}" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_imagesMessage is not null)
+                            {
+                                <div class="field-note">@_imagesMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveImagesConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="TestImagesConfigAsync">@L["admin.prov_test"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
                                 <div class="card-title">@L["admin.video_title"]</div>
                                 <div class="card-sub">@L["admin.video_sub"]</div>
                             </div>
@@ -1049,18 +1120,49 @@
                         </div>
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <select class="input" @bind="_videoEngine">
-                                    @foreach (var engine in _videoEngines)
+                                <label class="text-xs text-gray-500">@L["settings.audio_provider"]</label>
+                                <select class="input" value="@_videoProvider"
+                                        @onchange="OnVideoProviderChangedAsync">
+                                    <option value="">@L["admin.provider_custom"]</option>
+                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
                                     {
-                                        <option value="@engine">@engine</option>
+                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
                                     }
                                 </select>
-                                <input class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
-                                <input class="input" type="password" @bind="_videoApiKey" placeholder="@L["admin.prov_key_set"]" />
-                                <div class="flex gap-2">
+                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
+                                {
+                                    <div class="field-note">
+                                        @L["admin.provider_register_hint"]
+                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
+                                    </div>
+                                }
+                                @if (string.IsNullOrWhiteSpace(_videoProvider))
+                                {
+                                    <select class="input" @bind="_videoEngine">
+                                        @foreach (var engine in _videoEngines)
+                                        {
+                                            <option value="@engine">@engine</option>
+                                        }
+                                    </select>
+                                    <input class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input class="input" type="password" @bind="_videoApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                }
+                                @if (_videoProviderModels.Count > 0)
+                                {
+                                    <select class="input" @bind="_videoModel">
+                                        @foreach (var m in _videoProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_videoModel) ? [] : [_videoModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
                                     <input class="input flex-1" @bind="_videoModel" placeholder="sora-2" />
-                                    <input class="input w-32" @bind="_videoSize" placeholder="1280x720" />
-                                </div>
+                                }
+                                <input class="input w-32" @bind="_videoSize" placeholder="1280x720" />
                             </div>
                         </div>
                         <div class="card-row">
@@ -1446,6 +1548,21 @@
     private string _videoModel = string.Empty;
     private string _videoSize = "1280x720";
     private string? _videoMessage;
+    private string _videoProvider = string.Empty;
+    private List<string> _videoProviderModels = [];
+
+    // Geração de imagens (admin — mesma seção de integrações).
+    private bool _imagesEnabled;
+    private string _imagesEngine = "openai";
+    private List<string> _imageEngines = [];
+    private string _imagesProvider = string.Empty;
+    private string _imagesBaseUrl = string.Empty;
+    private string _imagesApiKey = string.Empty;
+    private string _imagesModel = string.Empty;
+    private string _imagesSize = "1024x1024";
+    private string _imagesEngineParams = "{}";
+    private string? _imagesMessage;
+    private List<string> _imagesProviderModels = [];
     private bool _browserEnabled;
     private string? _browserPath;
     private List<PromptSuggestion> _suggestions = [];
@@ -1676,7 +1793,10 @@
                         && _connections.OpenAiKeyConfigured[i],
                 }).ToList();
         }
-        _provOllamaInstalled = (await Api.GetOllamaTagsAsync())?.Models.ToList();
+        // Sem conexão Ollama cadastrada o proxy responde 503 — evita a chamada.
+        _provOllamaInstalled = _provOllamaRows.Count > 0
+            ? (await Api.GetOllamaTagsAsync())?.Models.ToList() ?? []
+            : [];
     }
 
     private async Task TestConnectionAsync(string type, int index)
@@ -1766,6 +1886,7 @@
         }
         _hooks = await Api.GetAutomationHooksAsync();
         _videoEngines = await Api.GetVideoEnginesAsync();
+        _imageEngines = await Api.GetImageEnginesAsync();
         var video = await Api.GetVideoConfigAsync();
         if (video is not null)
         {
@@ -1774,6 +1895,26 @@
             _videoBaseUrl = video.BaseUrl;
             _videoModel = video.Model;
             _videoSize = video.Size;
+            _videoProvider = video.Provider ?? string.Empty;
+        }
+        if (!string.IsNullOrWhiteSpace(_videoProvider))
+        {
+            await LoadVideoProviderModelsAsync();
+        }
+        var images = await Api.GetImagesConfigAsync();
+        if (images is not null)
+        {
+            _imagesEnabled = images.Enabled;
+            _imagesEngine = images.Engine;
+            _imagesBaseUrl = images.BaseUrl;
+            _imagesModel = images.Model;
+            _imagesSize = images.Size;
+            _imagesEngineParams = images.EngineParams;
+            _imagesProvider = images.Provider ?? string.Empty;
+        }
+        if (!string.IsNullOrWhiteSpace(_imagesProvider))
+        {
+            await LoadImagesProviderModelsAsync();
         }
         var browser = await Api.GetBrowserConfigAsync();
         if (browser is not null)
@@ -1801,6 +1942,11 @@
     {
         _n8nWorkflows = null;
         _n8nMessage = null;
+        if (!_n8nConfigured)
+        {
+            _n8nMessage = L["admin.n8n_not_configured"];
+            return;
+        }
         var workflows = await Api.GetN8nWorkflowsAsync();
         _n8nWorkflows = workflows;
         _n8nMessage = workflows.Count == 0 ? L["admin.n8n_no_workflows"] : null;
@@ -1825,6 +1971,61 @@
         }
     }
 
+    /// <summary>Provider de imagem mudou: recarrega os modelos compatíveis da conexão.</summary>
+    private async Task OnImagesProviderChangedAsync(ChangeEventArgs e)
+    {
+        _imagesProvider = e.Value as string ?? string.Empty;
+        _imagesProviderModels = [];
+        if (!string.IsNullOrWhiteSpace(_imagesProvider))
+        {
+            _imagesEngine = "openai";
+            _imagesBaseUrl = _imagesProvider;
+            await LoadImagesProviderModelsAsync();
+        }
+    }
+
+    /// <summary>Provider de vídeo mudou: idem.</summary>
+    private async Task OnVideoProviderChangedAsync(ChangeEventArgs e)
+    {
+        _videoProvider = e.Value as string ?? string.Empty;
+        _videoProviderModels = [];
+        if (!string.IsNullOrWhiteSpace(_videoProvider))
+        {
+            _videoEngine = "openai";
+            _videoBaseUrl = _videoProvider;
+            await LoadVideoProviderModelsAsync();
+        }
+    }
+
+    private async Task SaveImagesConfigAsync()
+    {
+        var current = await Api.GetImagesConfigAsync();
+        var result = await Api.UpdateImagesConfigAsync(new ImagesConfig(
+            _imagesEnabled,
+            _imagesEngine,
+            _imagesBaseUrl.Trim(),
+            string.IsNullOrWhiteSpace(_imagesApiKey) ? ImagesConfig.MaskedApiKey : _imagesApiKey.Trim(),
+            _imagesModel.Trim(),
+            _imagesSize.Trim(),
+            current?.TimeoutSeconds ?? 120,
+            string.IsNullOrWhiteSpace(_imagesEngineParams) ? "{}" : _imagesEngineParams.Trim(),
+            string.IsNullOrWhiteSpace(_imagesProvider) ? null : _imagesProvider));
+        _imagesMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
+        if (result is not null)
+        {
+            _imagesApiKey = string.Empty;
+        }
+    }
+
+    private async Task TestImagesConfigAsync()
+    {
+        _imagesMessage = L["admin.video_testing"];
+        var result = await Api.TestImagesConfigAsync();
+        _imagesMessage = result?.Ok == true
+            ? L["settings.images_test_ok"]
+            : result?.Detail ?? L["settings.save_failed"];
+    }
+
     private async Task SaveVideoConfigAsync()
     {
         var current = await Api.GetVideoConfigAsync();
@@ -1836,7 +2037,8 @@
             _videoModel.Trim(),
             _videoSize.Trim(),
             current?.TimeoutSeconds ?? 600,
-            current?.EngineParams ?? "{}"));
+            current?.EngineParams ?? "{}",
+            string.IsNullOrWhiteSpace(_videoProvider) ? null : _videoProvider));
         _videoMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
         if (result is not null)
         {
@@ -2160,19 +2362,33 @@
         return index < 0 ? null : index;
     }
 
-    private async Task LoadProviderModelsAsync(string? providerUrl, Action<List<string>> assign)
+    /// <summary>
+    /// Carrega apenas os modelos COMPATÍVEIS da conexão selecionada
+    /// (capabilities detectadas), não o catálogo inteiro do provider.
+    /// </summary>
+    private async Task LoadProviderModelsAsync(
+        string? providerUrl,
+        Func<DetectedCapabilities, IReadOnlyList<string>> pick,
+        Action<List<string>> assign)
     {
         var index = ProviderIndex(providerUrl);
-        assign(index is null
-            ? []
-            : (await Api.GetConnectionModelsAsync("openai", index.Value))?.Data.Select(m => m.Id).ToList() ?? []);
+        var caps = index is null
+            ? null
+            : await Api.GetConnectionCapabilitiesAsync("openai", index.Value);
+        assign(caps is null ? [] : pick(caps).ToList());
     }
 
     private Task LoadSttProviderModelsAsync() =>
-        LoadProviderModelsAsync(_sttProvider, list => _sttProviderModels = list);
+        LoadProviderModelsAsync(_sttProvider, c => c.Stt, list => _sttProviderModels = list);
 
     private Task LoadTtsProviderModelsAsync() =>
-        LoadProviderModelsAsync(_ttsProvider, list => _ttsProviderModels = list);
+        LoadProviderModelsAsync(_ttsProvider, c => c.Tts, list => _ttsProviderModels = list);
+
+    private Task LoadImagesProviderModelsAsync() =>
+        LoadProviderModelsAsync(_imagesProvider, c => c.Image, list => _imagesProviderModels = list);
+
+    private Task LoadVideoProviderModelsAsync() =>
+        LoadProviderModelsAsync(_videoProvider, c => c.Video, list => _videoProviderModels = list);
 
     private Task OnSttEngineChangedAsync() =>
         _sttEngine == "provider" && _sttProviderModels.Count == 0

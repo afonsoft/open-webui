@@ -9,6 +9,8 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="Size">Tamanho padrão das imagens geradas.</param>
 /// <param name="TimeoutSeconds">Tempo limite da chamada ao provedor, em segundos.</param>
 /// <param name="EngineParams">Parâmetros livres do motor em JSON (workflow ComfyUI, steps, cfg, negative_prompt...).</param>
+/// <param name="Provider">URL base de uma conexão OpenAI cadastrada — quando preenchida,
+/// a BaseUrl/ApiKey são resolvidas das conexões em runtime (mesma semântica do provider de áudio).</param>
 public sealed record ImagesConfig(
     bool Enabled,
     string Engine,
@@ -17,7 +19,8 @@ public sealed record ImagesConfig(
     string Model,
     string Size,
     int TimeoutSeconds,
-    string EngineParams = "{}")
+    string EngineParams = "{}",
+    string? Provider = null)
 {
     /// <summary>Placeholder exibido no lugar da chave real nas leituras.</summary>
     public const string MaskedApiKey = "********";
@@ -67,7 +70,8 @@ public sealed record VideoConfig(
     string Model,
     string Size,
     int TimeoutSeconds,
-    string EngineParams = "{}")
+    string EngineParams = "{}",
+    string? Provider = null)
 {
     /// <summary>Configuração padrão: desabilitada, motor OpenAI (Sora-compatible).</summary>
     public static VideoConfig Default { get; } = new(
@@ -82,7 +86,7 @@ public sealed record VideoConfig(
 
     /// <summary>Projeta para a config usada pelos motores de mídia.</summary>
     public ImagesConfig ToImagesConfig() => new(
-        Enabled, Engine, BaseUrl, ApiKey, Model, Size, TimeoutSeconds, EngineParams);
+        Enabled, Engine, BaseUrl, ApiKey, Model, Size, TimeoutSeconds, EngineParams, Provider);
 }
 
 /// <summary>Pedido de geração de vídeo.</summary>

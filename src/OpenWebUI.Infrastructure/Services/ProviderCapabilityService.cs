@@ -64,7 +64,7 @@ public class ProviderCapabilityService(
             try
             {
                 await DetectAsync(
-                    baseUrl, connections.OpenAiApiKeys.ElementAtOrDefault(i), ct);
+                    baseUrl, connections.OpenAiApiKeys.ElementAtOrDefault(i), ct, i);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -93,7 +93,92 @@ public class ProviderCapabilityService(
             DateTimeOffset.UtcNow.ToUnixTimeSeconds());
     }
 
-    private async Task DetectAsync(string baseUrl, string? apiKey, CancellationToken ct)
+    /// <summary>Chave da conexão no mapa persistido (<c>{type}:{index}</c>).</summary>
+    public static string ConnectionKey(string type, int index) => $"{type}:{index}";
+
+    /// <summary>
+    /// Detecta as capacidades de uma conexão cadastrada (rápido: /models +
+    /// heurística, sem probes) e persiste no mapa por conexão — alimenta os
+    /// combos do admin filtrados por provider (STT/TTS/imagem/vídeo).
+    /// </summary>
+    /// <param name="type">Tipo da conexão (<c>openai</c> ou <c>ollama</c>).</param>
+    /// <param name="index">Índice na lista de conexões.</param>
+    /// <param name="ct">Cancelamento.</param>
+    /// <returns>Capacidades detectadas, ou null quando a conexão não responde.</returns>
+    public async Task<DetectedCapabilities?> DetectConnectionAsync(
+        string type, int index, CancellationToken ct = default)
+    {
+        var connections = await config.GetConnectionsAsync(ct);
+        var urls = type == "ollama" ? connections.OllamaBaseUrls : connections.OpenAiBaseUrls;
+        if (index < 0 || index >= urls.Count || string.IsNullOrWhiteSpace(urls[index]))
+        {
+            return null;
+        }
+
+        var detected = type == "ollama"
+            ? await DetectOllamaAsync(urls[index], ct)
+            : await DetectCandidatesAsync(
+                urls[index], connections.OpenAiApiKeys.ElementAtOrDefault(index), ct);
+        var map = await GetConnectionMapAsync(ct);
+        var key = ConnectionKey(type, index);
+        if (detected is null)
+        {
+            map.Remove(key);
+        }
+        else
+        {
+            map[key] = detected;
+        }
+        await config.SetAsync(DetectedConnectionsKey, map, ct);
+        return detected;
+    }
+
+    /// <summary>Chave do kv com o mapa de capacidades por conexão.</summary>
+    public const string DetectedConnectionsKey = "capabilities.detected.connections";
+
+    /// <summary>Lê o mapa persistido de capacidades por conexão.</summary>
+    public async Task<Dictionary<string, DetectedCapabilities>> GetConnectionMapAsync(
+        CancellationToken ct = default) =>
+        await config.GetAsync<Dictionary<string, DetectedCapabilities>?>(
+            DetectedConnectionsKey, null, ct) ?? new();
+
+    /// <summary>
+    /// Agrega o mapa por conexão num único <see cref="DetectedCapabilities"/> —
+    /// compat com o formato antigo do kv <c>capabilities.detected</c>.
+    /// </summary>
+    public async Task<DetectedCapabilities?> GetAggregatedAsync(CancellationToken ct = default)
+    {
+        var map = await GetConnectionMapAsync(ct);
+        if (map.Count == 0)
+        {
+            return null;
+        }
+
+        static List<string> Union(
+            IEnumerable<DetectedCapabilities> all,
+            Func<DetectedCapabilities, IReadOnlyList<string>> pick) =>
+            all.SelectMany(pick).Where(m => !string.IsNullOrEmpty(m))
+               .Distinct().ToList();
+
+        var entries = map.Values.ToList();
+        return new DetectedCapabilities(
+            Union(entries, c => c.Image), Union(entries, c => c.Video),
+            Union(entries, c => c.Tts), Union(entries, c => c.Stt),
+            Union(entries, c => c.Embed),
+            entries.Select(e => e.BaseUrl).FirstOrDefault(u => u is not null),
+            entries.Max(e => e.DetectedAt));
+    }
+
+    private async Task PersistDetectedAsync(
+        string type, int index, DetectedCapabilities detected, CancellationToken ct)
+    {
+        var map = await GetConnectionMapAsync(ct);
+        map[ConnectionKey(type, index)] = detected;
+        await config.SetAsync(DetectedConnectionsKey, map, ct);
+    }
+
+    private async Task DetectAsync(
+        string baseUrl, string? apiKey, CancellationToken ct, int index)
     {
         var catalog = await FetchCatalogAsync(baseUrl, apiKey, ct);
         if (catalog.Count == 0)
@@ -104,9 +189,9 @@ public class ProviderCapabilityService(
         var url = baseUrl.TrimEnd('/');
         var report = new List<string>();
 
-        // Persiste os candidatos detectados (combos do admin) — sobrescreve a
-        // cada detecção, pois reflete o catálogo atual, não escolha do admin.
-        await config.SetAsync("capabilities.detected", new DetectedCapabilities(
+        // Persiste os candidatos detectados (combos do admin) — mapa por
+        // conexão para que cada combo filtre os modelos do provider certo.
+        await PersistDetectedAsync("openai", index, new DetectedCapabilities(
             ImageCandidates(catalog), VideoCandidates(catalog),
             TtsCandidates(catalog), SttCandidates(catalog),
             EmbedCandidates(catalog), url,
@@ -227,6 +312,69 @@ public class ProviderCapabilityService(
             .Select(m => m?.GetValue<string>() ?? string.Empty)
             .Where(m => m.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Detecção para conexão Ollama: tenta o catálogo OpenAI-compatível
+    /// (<c>/v1/models</c>) e cai no nativo <c>/api/tags</c> — a URL
+    /// cadastrada costuma ser a raiz (<c>http://host:11434</c>), então
+    /// <c>GET /models</c> daria 404 e o combo ficaria vazio.
+    /// </summary>
+    private async Task<DetectedCapabilities?> DetectOllamaAsync(
+        string baseUrl, CancellationToken ct)
+    {
+        var url = baseUrl.TrimEnd('/');
+        // Ollama também expõe /v1/models — traz ids canônicos quando existe.
+        var catalog = await FetchCatalogAsync(
+            url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? url : url + "/v1",
+            null, ct);
+        if (catalog.Count == 0)
+        {
+            catalog = await FetchOllamaTagsAsync(url, ct);
+        }
+        if (catalog.Count == 0)
+        {
+            return null;
+        }
+
+        return new DetectedCapabilities(
+            ImageCandidates(catalog), VideoCandidates(catalog),
+            TtsCandidates(catalog), SttCandidates(catalog),
+            EmbedCandidates(catalog), url,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+    }
+
+    /// <summary>Catálogo nativo do Ollama (<c>GET /api/tags</c>) → ids dos modelos.</summary>
+    private async Task<List<CatalogEntry>> FetchOllamaTagsAsync(
+        string baseUrl, CancellationToken ct)
+    {
+        try
+        {
+            var http = httpFactory.CreateClient(nameof(ProviderCapabilityService));
+            http.Timeout = TimeSpan.FromSeconds(15);
+            using var response = await http.GetAsync($"{baseUrl}/api/tags", ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return [];
+            }
+
+            var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+            var entries = new List<CatalogEntry>();
+            foreach (var item in node?["models"]?.AsArray() ?? [])
+            {
+                var id = item?["name"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    entries.Add(new CatalogEntry(id, [], []));
+                }
+            }
+            return entries;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+            or JsonException or OperationCanceledException)
+        {
+            return [];
+        }
+    }
 
     // ---------------- Seleção + probes ----------------
 

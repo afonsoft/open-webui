@@ -90,6 +90,32 @@ public class ConfigService(AppDbContext db, IMemoryCache cache)
     public Task<ConnectionsConfig> GetConnectionsAsync(CancellationToken ct = default) =>
         GetAsync("connections", ConnectionsConfig.Default, ct);
 
+    /// <summary>
+    /// Resolve uma conexão OpenAI cadastrada pela URL base (compara ignorando
+    /// <c>/</c> final e maiúsculas) — usado pelos providers de áudio, imagem e
+    /// vídeo que referenciam uma conexão em vez de duplicar URL+chave.
+    /// </summary>
+    /// <param name="baseUrl">URL base gravada no campo Provider da config.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    /// <returns>URL e chave da conexão, ou null quando não encontrada.</returns>
+    public async Task<(string Url, string? Key)?> FindOpenAiConnectionAsync(
+        string? baseUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
+        }
+
+        var connections = await GetConnectionsAsync(ct);
+        var index = connections.OpenAiBaseUrls.ToList().FindIndex(u =>
+            string.Equals(u?.TrimEnd('/'), baseUrl.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase));
+        return index < 0
+            ? null
+            : (connections.OpenAiBaseUrls[index],
+                connections.OpenAiApiKeys.ElementAtOrDefault(index));
+    }
+
     /// <summary>Obtém a configuração administrativa (flags de auth e features).</summary>
     /// <param name="ct">Token de cancelamento.</param>
     public Task<AdminConfig> GetAdminConfigAsync(CancellationToken ct = default) =>

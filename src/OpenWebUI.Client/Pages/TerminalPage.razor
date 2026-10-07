@@ -68,6 +68,7 @@
     private string? _active;
     private bool? _enabled;
     private DotNetObjectReference<TerminalPage>? _selfRef;
+    private CancellationTokenSource? _pollCts;
 
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
@@ -76,6 +77,26 @@
         if (_enabled == true)
         {
             await RefreshAsync();
+            // Sessões criadas por tools do chat (builtin:terminal) aparecem sem refresh manual.
+            _pollCts = new CancellationTokenSource();
+            _ = PollSessionsAsync(_pollCts.Token);
+        }
+    }
+
+    private async Task PollSessionsAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Descarte da página.
         }
     }
 
@@ -163,6 +184,8 @@
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
         foreach (var session in _sessions)
         {
             await CloseTermAsync(session.Id);

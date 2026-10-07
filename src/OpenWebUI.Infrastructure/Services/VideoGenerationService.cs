@@ -34,13 +34,37 @@ public class VideoGenerationService(
     public Task SetConfigAsync(VideoConfig video, CancellationToken ct = default) =>
         config.SetAsync("video.config", video, ct);
 
+    /// <summary>
+    /// Config resolvida projetada para <see cref="ImagesConfig"/>: quando
+    /// <see cref="VideoConfig.Provider"/> aponta para uma conexão OpenAI
+    /// cadastrada, URL base e chave vêm dela (engine openai).
+    /// </summary>
+    /// <param name="ct">Token de cancelamento.</param>
+    private async Task<ImagesConfig> GetResolvedImagesConfigAsync(CancellationToken ct = default)
+    {
+        var video = await GetConfigAsync(ct);
+        var resolved = video.ToImagesConfig();
+        if (string.IsNullOrWhiteSpace(video.Provider))
+        {
+            return resolved;
+        }
+
+        return await config.FindOpenAiConnectionAsync(video.Provider, ct) is { } conn
+            ? resolved with
+            {
+                Engine = "openai", BaseUrl = conn.Url,
+                ApiKey = conn.Key ?? string.Empty,
+            }
+            : resolved with { BaseUrl = string.Empty, ApiKey = string.Empty };
+    }
+
     /// <summary>Gera vídeo(s) com o motor configurado e grava os arquivos em disco.</summary>
     /// <exception cref="InvalidOperationException">Feature desabilitada ou motor inválido.</exception>
     public async Task<List<FileEntry>> GenerateAsync(
         string prompt, int? seconds, string? size, string userId, string uploadDir,
         CancellationToken ct = default)
     {
-        var video = await GetConfigAsync(ct);
+        var video = await GetResolvedImagesConfigAsync(ct);
         if (!video.Enabled || string.IsNullOrWhiteSpace(video.BaseUrl))
         {
             throw new InvalidOperationException("Geração de vídeos desabilitada.");
@@ -48,7 +72,7 @@ public class VideoGenerationService(
 
         var engine = engineFactory.Resolve(video.Engine);
         var results = await engine.GenerateAsync(
-            video.ToImagesConfig(), prompt, seconds,
+            video, prompt, seconds,
             string.IsNullOrWhiteSpace(size) ? video.Size : size, ct);
         if (results.Count == 0)
         {
@@ -61,9 +85,9 @@ public class VideoGenerationService(
     /// <summary>Testa conectividade do motor configurado (admin).</summary>
     public async Task<(bool Ok, string Detail)> TestAsync(CancellationToken ct = default)
     {
-        var video = await GetConfigAsync(ct);
+        var video = await GetResolvedImagesConfigAsync(ct);
         var engine = engineFactory.Resolve(video.Engine);
-        return await engine.TestAsync(video.ToImagesConfig(), ct);
+        return await engine.TestAsync(video, ct);
     }
 
     private async Task<List<FileEntry>> PersistAsync(
