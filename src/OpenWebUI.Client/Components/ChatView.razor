@@ -9,6 +9,7 @@
 @inject RealtimeService Realtime
 @implements IDisposable
 
+<div class="flex h-full w-full min-w-0">
 <div class="flex flex-col flex-1 h-full w-full min-w-0">
     <div class="sticky top-0 z-30 w-full">
         <div class="flex items-center w-full pl-1.5 pr-1">
@@ -45,6 +46,11 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                             </button>
                         }
+                        <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg transition
+                                       @(_showPanel ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200")"
+                                title="@L["chat.panel_title"]" aria-label="@L["chat.panel_title"]" @onclick="TogglePanelAsync">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 20.25h16.5a.75.75 0 0 0 0-1.5H3.75a.75.75 0 0 0 0 1.5ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v12a2.25 2.25 0 0 1-2.25 2.25h-2.25A2.25 2.25 0 0 1 13.5 18V6Z" /></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -409,6 +415,31 @@
                  OnClose="() => _callActive = false" />
 </div>
 
+@if (_showPanel)
+{
+    @* Painel de workspace (RF-015): coluna ≥lg, drawer no mobile. *@
+    <aside class="hidden lg:flex w-80 xl:w-96 flex-none">
+        <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
+                            Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
+                            Model="@_model" RunId="@_activeRunId"
+                            IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                            OnClose="() => _showPanel = false"
+                            OnKillJob="KillJobAsync" />
+    </aside>
+    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+        <div class="absolute inset-0 bg-black/40" @onclick="() => _showPanel = false"></div>
+        <aside class="absolute inset-y-0 right-0 w-80 max-w-[85vw] shadow-xl">
+            <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
+                                Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
+                                Model="@_model" RunId="@_activeRunId"
+                                IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                                OnClose="() => _showPanel = false"
+                                OnKillJob="KillJobAsync" />
+        </aside>
+    </div>
+}
+</div>
+
 @code {
     /// <summary>Id do chat carregado; null para um chat novo.</summary>
     [Parameter] public string? ChatId { get; set; }
@@ -459,6 +490,14 @@
 
     /// <summary>Snapshot da lista de tarefas da run (evento <c>tasks</c>, RF-010).</summary>
     private List<RunTaskItem> _runTasks = [];
+
+    /// <summary>Arquivos alterados pela run (evento <c>changes</c>, RF-015 — aba Changes).</summary>
+    private List<RunChangeItem> _runChanges = [];
+
+    /// <summary>Painel de workspace lateral (abas Tasks/Changes/Jobs/MCPs/Info).</summary>
+    private bool _showPanel;
+    private List<ChatJobResponse> _jobs = [];
+    private List<McpServerResponse> _mcps = [];
     private RunApprovalAskedEvent? _pendingApproval;
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
@@ -578,6 +617,7 @@
         _attachedFiles.Clear();
         _liveToolCalls.Clear();
         _runTasks = [];
+        _runChanges = [];
         _pendingApproval = null;
         _paused = false;
         _statusLabel = null;
@@ -1100,6 +1140,7 @@
     {
         _liveToolCalls.Clear();
         _runTasks = [];
+        _runChanges = [];
 
         await foreach (var evt in ChatStream.StreamRunEventsAsync(
             chatId, runId, lastSeq: 0, ct))
@@ -1127,10 +1168,20 @@
                         _liveToolCalls.Add(entry);
                     }
                     entry.Result = result.Result;
+                    // Job criado/atualizado por job_* ou shell_exec background
+                    // reflete na aba Jobs do painel, se aberto.
+                    if (_showPanel
+                        && result.Result.Name.Contains("job", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _ = RefreshPanelAsync();
+                    }
                     break;
                 }
                 case ChatStreamService.ChatStreamEvent.Tasks tasks:
                     _runTasks = tasks.Snapshot.Tasks.ToList();
+                    break;
+                case ChatStreamService.ChatStreamEvent.Changes changes:
+                    _runChanges = changes.Snapshot.Changes.ToList();
                     break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
                     switch (phase.Status.Phase)
@@ -1276,7 +1327,47 @@
             _paused = false;
             _ = ChatStream.ResumeRunAsync(_loadedChatId, _activeRunId);
         }
-        _cts?.Cancel();
+    }
+
+    /// <summary>Abre/fecha o painel de workspace; carrega jobs/MCPs na abertura.</summary>
+    private async Task TogglePanelAsync()
+    {
+        _showPanel = !_showPanel;
+        if (_showPanel)
+        {
+            await RefreshPanelAsync();
+        }
+    }
+
+    /// <summary>Recarrega jobs do usuário e servidores MCP (admin).</summary>
+    private async Task RefreshPanelAsync()
+    {
+        try
+        {
+            _jobs = await Api.GetJobsAsync(_loadedChatId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"jobs indisponíveis: {ex.Message}");
+        }
+        if (Auth.CurrentUser?.Role == UserRoles.Admin)
+        {
+            try
+            {
+                _mcps = await Api.GetMcpServersAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MCPs indisponíveis: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>Mata um job em background a partir do painel.</summary>
+    private async Task KillJobAsync(string jobId)
+    {
+        await Api.KillJobAsync(jobId);
+        await RefreshPanelAsync();
     }
 
     private async Task ToggleToolAsync(string toolId)

@@ -83,6 +83,37 @@ public sealed record RunTaskItem(string Id, string Content, string Status);
 /// </summary>
 public sealed record RunTasksEvent(IReadOnlyList<RunTaskItem> Tasks);
 
+/// <summary>
+/// Arquivo alterado por file_write/file_edit numa run (SPEC-20261007-
+/// chat-agent-parity RF-015): <paramref name="Diff"/> é o unificado da
+/// última alteração naquele path.
+/// </summary>
+public sealed record RunChangeItem(
+    string Path, int Added, int Removed, string? Diff);
+
+/// <summary>
+/// Evento SSE <c>changes</c> (RF-015): snapshot dos arquivos alterados
+/// pela run — o executor acumula por path e republica a cada file_*,
+/// para a aba Changes do painel de workspace.
+/// </summary>
+public sealed record RunChangesEvent(IReadOnlyList<RunChangeItem> Changes);
+
+/// <summary>
+/// Projeção de um <c>ChatJob</c> para o cliente (lista da aba Jobs do
+/// painel, <c>GET /api/v1/jobs</c>).
+/// </summary>
+public sealed record ChatJobResponse(
+    string Id,
+    string? ChatId,
+    string? RunId,
+    string Command,
+    string Status,
+    int? Pid,
+    int? ExitCode,
+    string? Error,
+    long StartedAt,
+    long? FinishedAt);
+
 /// <summary>Decisão do dono sobre uma aprovação pendente (RF-003).</summary>
 /// <param name="Decision"><c>approve</c> | <c>deny</c>.</param>
 /// <param name="Remember">Quando true, aprova a tool pelo resto da conversa.</param>

@@ -567,6 +567,19 @@ public class ApiService(HttpClient http, AuthService auth)
 
     // ---------------- Terminal PTY (SPEC-20261007-chat-agent-tools) ----------------
 
+    /// <summary>Lista os jobs de background do usuário (aba Jobs do painel; <c>chatId</c> filtra).</summary>
+    public async Task<List<ChatJobResponse>> GetJobsAsync(string? chatId = null, bool all = false)
+    {
+        var query = $"?all={(all ? "true" : "false")}"
+            + (chatId is null ? "" : $"&chatId={Uri.EscapeDataString(chatId)}");
+        return await SendAsync<List<ChatJobResponse>>(
+            HttpMethod.Get, $"/api/v1/jobs/{query}") ?? [];
+    }
+
+    /// <summary>Mata um job de background em execução (aba Jobs do painel).</summary>
+    public Task<bool> KillJobAsync(string jobId) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/jobs/{jobId}/kill");
+
     /// <summary>Lê a feature flag do terminal PTY (off por default).</summary>
     public async Task<bool> GetTerminalEnabledAsync()
     {

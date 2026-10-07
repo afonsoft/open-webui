@@ -1,0 +1,284 @@
+@inject LocalizationService L
+
+@* Painel de workspace da run (SPEC-20261007-chat-agent-parity RF-015):
+   tabs Tasks | Changes | Jobs | MCPs | Info — o "canvas" do agente ao
+   lado do chat, no padrão Devin/OpenHands/opencode. Renderizado como
+   coluna ≥lg e como drawer no mobile pelo ChatView. *@
+
+<div class="flex h-full w-full flex-col bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-800">
+    <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+        <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">@L["chat.panel_title"]</div>
+        <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                title="@L["chat.panel_close"]" aria-label="@L["chat.panel_close"]" @onclick="OnClose">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+        </button>
+    </div>
+
+    <div class="flex gap-1 overflow-x-auto px-2 py-1.5 border-b border-gray-100 dark:border-gray-800">
+        @foreach (var tab in Tabs)
+        {
+            var active = _tab == tab;
+            <button class="rounded-lg px-2.5 py-1 text-[0.6875rem] font-medium transition cursor-pointer flex-none
+                           @(active ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                                    : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
+                    @onclick="() => _tab = tab">
+                @L["chat.panel_tab_" + tab]
+            </button>
+        }
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-2">
+        @switch (_tab)
+        {
+            case "tasks":
+                @if (Tasks.Count == 0)
+                {
+                    <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_tasks"]</div>
+                }
+                else
+                {
+                    <ul class="flex flex-col gap-1">
+                        @foreach (var task in Tasks)
+                        {
+                            <li class="flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-xs">
+                                @if (task.Status == "completed")
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-3.5 flex-none text-green-600 dark:text-green-400">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span class="text-gray-400 dark:text-gray-500 line-through decoration-gray-300 dark:decoration-gray-600">@task.Content</span>
+                                }
+                                else if (task.Status == "in_progress")
+                                {
+                                    <svg class="mt-0.5 size-3 flex-none animate-spin text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                    </svg>
+                                    <span class="text-gray-800 dark:text-gray-200 font-medium">@task.Content</span>
+                                }
+                                else
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="mt-0.5 size-3.5 flex-none text-gray-300 dark:text-gray-600">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                    <span class="text-gray-600 dark:text-gray-400">@task.Content</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                break;
+
+            case "changes":
+                @if (Changes.Count == 0)
+                {
+                    <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_changes"]</div>
+                }
+                else
+                {
+                    <ul class="flex flex-col gap-1">
+                        @foreach (var change in Changes)
+                        {
+                            var expanded = _expandedChange == change.Path;
+                            <li class="rounded-lg border border-gray-100 dark:border-gray-800">
+                                <button class="flex w-full items-center gap-2 px-2 py-1.5 text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg"
+                                        @onclick="() => _expandedChange = expanded ? null : change.Path">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                                         class="size-3 flex-none text-gray-400 transition @(expanded ? "rotate-90" : "")">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 flex-none text-gray-400 dark:text-gray-500">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                    </svg>
+                                    <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-700 dark:text-gray-300" title="@change.Path">@change.Path</span>
+                                    <span class="flex-none font-mono text-[0.625rem] text-green-600 dark:text-green-400">+@change.Added</span>
+                                    <span class="flex-none font-mono text-[0.625rem] text-red-500 dark:text-red-400">−@change.Removed</span>
+                                </button>
+                                @if (expanded)
+                                {
+                                    @if (change.Diff is { Length: > 0 })
+                                    {
+                                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in DiffLines(change.Diff)){<span class="@line.Css">@line.Text
+</span>}</pre>
+                                    }
+                                    else
+                                    {
+                                        <div class="border-t border-gray-100 dark:border-gray-800 px-2 py-1.5 text-[0.625rem] text-gray-400">@L["chat.panel_no_diff"]</div>
+                                    }
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                break;
+
+            case "jobs":
+                @if (Jobs.Count == 0)
+                {
+                    <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_jobs"]</div>
+                }
+                else
+                {
+                    <ul class="flex flex-col gap-1">
+                        @foreach (var job in Jobs.OrderByDescending(j => j.StartedAt))
+                        {
+                            <li class="rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="size-1.5 flex-none rounded-full @JobDotCss(job.Status)"></span>
+                                    <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-700 dark:text-gray-300" title="@job.Command">@job.Command</span>
+                                    @if (job.Status == "running")
+                                    {
+                                        <button class="flex-none cursor-pointer rounded p-0.5 text-gray-400 hover:text-red-500"
+                                                title="@L["chat.job_kill"]" aria-label="@L["chat.job_kill"]"
+                                                @onclick="() => OnKillJob.InvokeAsync(job.Id)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-3.536-10.95a.75.75 0 1 0-1.06 1.06L8.94 10l-3.536 3.536a.75.75 0 1 0 1.06 1.06L10 11.061l3.536 3.535a.75.75 0 1 0 1.06-1.06L11.061 10l3.535-3.536a.75.75 0 1 0-1.06-1.06L10 8.94 6.464 5.404Z" clip-rule="evenodd" /></svg>
+                                        </button>
+                                    }
+                                </div>
+                                <div class="mt-0.5 flex items-center gap-2 pl-3 text-[0.625rem] text-gray-400 dark:text-gray-500">
+                                    <span>@job.Status@(job.ExitCode is { } code ? $" · exit {code}" : "")</span>
+                                    <span>@FormatTime(job.StartedAt)</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                break;
+
+            case "mcps":
+                @if (Mcps.Count == 0)
+                {
+                    <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_mcps"]</div>
+                }
+                else
+                {
+                    <ul class="flex flex-col gap-1">
+                        @foreach (var server in Mcps)
+                        {
+                            <li class="flex items-center gap-1.5 rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
+                                <span class="size-1.5 flex-none rounded-full @(server.Enabled && server.LastError is null ? "bg-green-500" : server.Enabled ? "bg-amber-500" : "bg-gray-300 dark:bg-gray-600")"></span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-[0.6875rem] font-medium text-gray-700 dark:text-gray-300" title="@server.Name">@server.Name</div>
+                                    <div class="truncate text-[0.625rem] text-gray-400 dark:text-gray-500">
+                                        @server.Transport
+                                        @if (server.LastError is not null)
+                                        {
+                                            <span title="@server.LastError"> · @L["chat.panel_mcp_error"]</span>
+                                        }
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    <a href="/admin/settings/mcp" class="mt-2 block rounded-lg px-2 py-1.5 text-[0.6875rem] text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30">
+                        @L["chat.panel_mcp_manage"] →
+                    </a>
+                }
+                break;
+
+            default:
+                <dl class="flex flex-col gap-1.5 px-1 text-xs">
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_info_state"]</dt>
+                        <dd class="text-gray-700 dark:text-gray-300">@(PhaseLabel ?? L["chat.panel_info_idle"])</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_info_preset"]</dt>
+                        <dd class="text-gray-700 dark:text-gray-300">@L["chat.preset_" + Preset]</dd>
+                    </div>
+                    @if (Model is not null)
+                    {
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_info_model"]</dt>
+                            <dd class="truncate text-gray-700 dark:text-gray-300">@Model</dd>
+                        </div>
+                    }
+                    @if (RunId is not null)
+                    {
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_info_run"]</dt>
+                            <dd class="truncate font-mono text-[0.6875rem] text-gray-500 dark:text-gray-400" title="@RunId">@RunId[..Math.Min(12, RunId.Length)]</dd>
+                        </div>
+                    }
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_tab_tasks"]</dt>
+                        <dd class="text-gray-700 dark:text-gray-300">@Tasks.Count</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_tab_changes"]</dt>
+                        <dd class="text-gray-700 dark:text-gray-300">@Changes.Count</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-gray-400 dark:text-gray-500">@L["chat.panel_tab_jobs"]</dt>
+                        <dd class="text-gray-700 dark:text-gray-300">@Jobs.Count(j => j.Status == "running")/@Jobs.Count</dd>
+                    </div>
+                </dl>
+                break;
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Snapshot de tarefas da run (evento <c>tasks</c>).</summary>
+    [Parameter] public IReadOnlyList<RunTaskItem> Tasks { get; set; } = [];
+
+    /// <summary>Arquivos alterados pela run (evento <c>changes</c>).</summary>
+    [Parameter] public IReadOnlyList<RunChangeItem> Changes { get; set; } = [];
+
+    /// <summary>Jobs de background do usuário (GET /api/v1/jobs).</summary>
+    [Parameter] public IReadOnlyList<ChatJobResponse> Jobs { get; set; } = [];
+
+    /// <summary>Servidores MCP configurados (admin).</summary>
+    [Parameter] public IReadOnlyList<McpServerResponse> Mcps { get; set; } = [];
+
+    /// <summary>Rótulo da fase atual da run (chip de estado).</summary>
+    [Parameter] public string? PhaseLabel { get; set; }
+
+    /// <summary>Preset de aprovação do chat.</summary>
+    [Parameter] public string Preset { get; set; } = "approve-mutations";
+
+    /// <summary>Modelo da run ativa.</summary>
+    [Parameter] public string? Model { get; set; }
+
+    /// <summary>Id da run ativa.</summary>
+    [Parameter] public string? RunId { get; set; }
+
+    /// <summary>Mostra a aba MCPs (endpoints são admin-only).</summary>
+    [Parameter] public bool IsAdmin { get; set; }
+
+    /// <summary>Fecha o painel.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Pede o kill de um job (id).</summary>
+    [Parameter] public EventCallback<string> OnKillJob { get; set; }
+
+    private string _tab = "tasks";
+    private string? _expandedChange;
+
+    private IEnumerable<string> Tabs => IsAdmin
+        ? ["tasks", "changes", "jobs", "mcps", "info"]
+        : ["tasks", "changes", "jobs", "info"];
+
+    private static string JobDotCss(string status) => status switch
+    {
+        "running" => "bg-blue-500 animate-pulse",
+        "completed" => "bg-green-500",
+        "killed" or "failed" => "bg-red-500",
+        _ => "bg-gray-300 dark:bg-gray-600",
+    };
+
+    private static string FormatTime(long unixMs) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime().ToString("HH:mm:ss");
+
+    private static IEnumerable<(string Text, string Css)> DiffLines(string diff)
+    {
+        foreach (var line in diff.Split('\n'))
+        {
+            var css = line.StartsWith('+') ? "text-green-600 dark:text-green-400"
+                : line.StartsWith('-') ? "text-red-500 dark:text-red-400"
+                : line.StartsWith("@@") ? "text-blue-600 dark:text-blue-400"
+                : "text-gray-500 dark:text-gray-400";
+            yield return (line, css);
+        }
+    }
+}

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
@@ -93,17 +94,7 @@ public static class ChatJobEndpoints
     }
 
     /// <summary>Projeção do job para o cliente (sem caminhos internos do host).</summary>
-    private static object ToResponse(ChatJob j) => new
-    {
-        id = j.Id,
-        chatId = j.ChatId,
-        runId = j.RunId,
-        command = j.Command,
-        status = j.Status,
-        pid = j.Pid,
-        exitCode = j.ExitCode,
-        error = j.Error,
-        startedAt = j.StartedAt,
-        finishedAt = j.FinishedAt,
-    };
+    private static ChatJobResponse ToResponse(ChatJob j) => new(
+        j.Id, j.ChatId, j.RunId, j.Command, j.Status, j.Pid, j.ExitCode,
+        j.Error, j.StartedAt, j.FinishedAt);
 }
