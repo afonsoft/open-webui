@@ -30,6 +30,7 @@ public static class ChatRunEndpoints
         group.MapPost("/{id}/runs/{runId}/pause", PauseRunAsync);
         group.MapPost("/{id}/runs/{runId}/resume", ResumeRunAsync);
         group.MapPost("/{id}/runs/{runId}/approvals/{callId}", DecideApprovalAsync);
+        group.MapGet("/{id}/runs/{runId}/diff", GetRunDiffAsync);
     }
 
     /// <summary>
@@ -434,6 +435,45 @@ public static class ChatRunEndpoints
             approved ? null : request.Message)
             ? Results.Ok(new StatusResponse(true))
             : Results.NotFound(new { detail = "Aprovação não está pendente." });
+    }
+
+    /// <summary>
+    /// Snapshot git do workspace do chat (RF-018): branch, numstat
+    /// agregado e unified diff de <c>HEAD</c> — alimenta a git bar do
+    /// header e a aba Changes do painel. <c>Git=false</c> quando o
+    /// workdir não é repo (ou git ausente) — o cliente cai pro agregado
+    /// de diffs das tools <c>file_*</c>.
+    /// </summary>
+    private static async Task<IResult> GetRunDiffAsync(
+        string id,
+        string runId,
+        HttpContext http,
+        AppDbContext db,
+        IWebHostEnvironment env,
+        WorkspaceGitService git,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var exists = await db.ChatRuns.AsNoTracking()
+            .AnyAsync(r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (!exists)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+
+        var workdir = Path.Combine(
+            env.ContentRootPath, "data", "workspaces", user.Id);
+        var info = await git.GetInfoAsync(workdir, ct);
+        return Results.Ok(new WorkspaceGitResponse(
+            info.IsRepo, info.Branch, info.Added, info.Removed,
+            info.Files.Select(f => new WorkspaceGitFileResponse(
+                f.Path, f.Added, f.Removed, f.Status)).ToList(),
+            info.Diff, info.DiffTruncated));
     }
 
     private static ChatRunResponse ToResponse(ChatRun run) => new(

@@ -70,7 +70,67 @@
                 break;
 
             case "changes":
-                @if (Changes.Count == 0)
+                @if (Git is { Git: true } git)
+                {
+                    @* Workspace é repo git: branch + numstat + diff real (RF-018). *@
+                    <div class="mb-1.5 flex items-center gap-1.5 rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 flex-none text-gray-400">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12" />
+                            <circle cx="18" cy="6" r="3" />
+                            <circle cx="6" cy="18" r="3" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 9a9 9 0 0 1-9 9" />
+                        </svg>
+                        <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] font-medium text-gray-700 dark:text-gray-300" title="@git.Branch">@git.Branch</span>
+                        <span class="flex-none font-mono text-[0.625rem] text-green-600 dark:text-green-400">+@git.Added</span>
+                        <span class="flex-none font-mono text-[0.625rem] text-red-500 dark:text-red-400">−@git.Removed</span>
+                    </div>
+                    @if (git.Files.Count == 0)
+                    {
+                        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_changes"]</div>
+                    }
+                    else
+                    {
+                        <ul class="flex flex-col gap-1">
+                            @foreach (var file in git.Files)
+                            {
+                                var expanded = _expandedChange == file.Path;
+                                <li class="rounded-lg border border-gray-100 dark:border-gray-800">
+                                    <button class="flex w-full items-center gap-2 px-2 py-1.5 text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg"
+                                            @onclick="() => _expandedChange = expanded ? null : file.Path">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                                             class="size-3 flex-none text-gray-400 transition @(expanded ? "rotate-90" : "")">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                                        </svg>
+                                        <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-700 dark:text-gray-300" title="@file.Path">@file.Path</span>
+                                        @if (file.Status == "A")
+                                        {
+                                            <span class="flex-none rounded bg-green-100 dark:bg-green-900/40 px-1 text-[0.5625rem] font-medium text-green-700 dark:text-green-400">new</span>
+                                        }
+                                        <span class="flex-none font-mono text-[0.625rem] text-green-600 dark:text-green-400">+@file.Added</span>
+                                        <span class="flex-none font-mono text-[0.625rem] text-red-500 dark:text-red-400">−@file.Removed</span>
+                                    </button>
+                                    @if (expanded)
+                                    {
+                                        @if (GitFileDiff(file.Path) is { Length: > 0 } fileDiff)
+                                        {
+                                            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in DiffLines(fileDiff)){<span class="@line.Css">@line.Text
+</span>}</pre>
+                                        }
+                                        else
+                                        {
+                                            <div class="border-t border-gray-100 dark:border-gray-800 px-2 py-1.5 text-[0.625rem] text-gray-400">@L["chat.panel_no_diff"]</div>
+                                        }
+                                    }
+                                </li>
+                            }
+                        </ul>
+                        @if (git.DiffTruncated)
+                        {
+                            <div class="mt-1 px-2 text-[0.625rem] text-gray-400 dark:text-gray-500">@L["chat.panel_diff_truncated"]</div>
+                        }
+                    }
+                }
+                else if (Changes.Count == 0)
                 {
                     <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.panel_no_changes"]</div>
                 }
@@ -243,6 +303,12 @@
     /// <summary>Id da run ativa.</summary>
     [Parameter] public string? RunId { get; set; }
 
+    /// <summary>Snapshot git do workspace (aba Changes em modo repo — RF-018).</summary>
+    [Parameter] public WorkspaceGitResponse? Git { get; set; }
+
+    /// <summary>Aba a abrir quando o valor muda (chip git do header → "changes").</summary>
+    [Parameter] public string? RequestedTab { get; set; }
+
     /// <summary>Mostra a aba MCPs (endpoints são admin-only).</summary>
     [Parameter] public bool IsAdmin { get; set; }
 
@@ -254,6 +320,67 @@
 
     private string _tab = "tasks";
     private string? _expandedChange;
+    private string? _consumedTab;
+    private Dictionary<string, string>? _gitDiffByFile;
+    private string? _gitDiffSource;
+
+    /// <summary>Consome <see cref="RequestedTab"/> uma vez por valor — clique manual não é revertido.</summary>
+    protected override void OnParametersSet()
+    {
+        if (RequestedTab is { } requested && requested != _consumedTab
+            && Tabs.Contains(requested))
+        {
+            _consumedTab = requested;
+            _tab = requested;
+        }
+    }
+
+    /// <summary>Seção do unified diff que cobre <paramref name="path"/> (split por <c>diff --git</c>).</summary>
+    private string? GitFileDiff(string path)
+    {
+        if (Git?.Diff is null)
+        {
+            return null;
+        }
+        if (!string.Equals(_gitDiffSource, Git.Diff, StringComparison.Ordinal))
+        {
+            _gitDiffSource = Git.Diff;
+            _gitDiffByFile = SplitGitDiff(Git.Diff);
+        }
+        return _gitDiffByFile!.GetValueOrDefault(path);
+    }
+
+    /// <summary>Quebra o unified diff em seções por arquivo (chave = path do lado b).</summary>
+    private static Dictionary<string, string> SplitGitDiff(string diff)
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? current = null;
+        var sb = new System.Text.StringBuilder();
+        void Flush()
+        {
+            if (current is not null)
+            {
+                map[current] = sb.ToString();
+            }
+            sb.Clear();
+        }
+
+        foreach (var line in diff.Split('\n'))
+        {
+            if (line.StartsWith("diff --git ", StringComparison.Ordinal))
+            {
+                Flush();
+                var bIdx = line.LastIndexOf(" b/", StringComparison.Ordinal);
+                current = bIdx >= 0 ? line[(bIdx + 3)..].Trim() : null;
+            }
+            if (current is not null)
+            {
+                sb.AppendLine(line);
+            }
+        }
+        Flush();
+        return map;
+    }
 
     private IEnumerable<string> Tabs => IsAdmin
         ? ["tasks", "changes", "jobs", "mcps", "info"]

@@ -580,6 +580,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<bool> KillJobAsync(string jobId) =>
         SendStatusAsync(HttpMethod.Post, $"/api/v1/jobs/{jobId}/kill");
 
+    /// <summary>
+    /// Snapshot git do workspace do chat (git bar / aba Changes — RF-018).
+    /// Null em falha de rede; <c>Git=false</c> quando o workdir não é repo.
+    /// </summary>
+    public Task<WorkspaceGitResponse?> GetRunDiffAsync(string chatId, string runId) =>
+        SendAsync<WorkspaceGitResponse>(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs/{runId}/diff");
+
     /// <summary>Lê a feature flag do terminal PTY (off por default).</summary>
     public async Task<bool> GetTerminalEnabledAsync()
     {

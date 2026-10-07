@@ -147,3 +147,22 @@ public sealed record ToolGateDecision(bool Approved, string? DenyMessage = null)
 /// (RF-004). Null não altera.
 /// </param>
 public sealed record ChatPatchRequest(string? ApprovalPreset);
+
+/// <summary>Arquivo alterado num workdir git (numstat + status M/A).</summary>
+public sealed record WorkspaceGitFileResponse(
+    string Path, int Added, int Removed, string Status);
+
+/// <summary>
+/// Snapshot git do workspace do chat (SPEC-20261007-chat-agent-parity
+/// RF-018): branch, totais +a/-d, por-arquivo e o unified diff truncado.
+/// <c>Git=false</c> quando o workdir não é repo (cliente cai pro
+/// agregado de <c>file_*</c> da run).
+/// </summary>
+public sealed record WorkspaceGitResponse(
+    bool Git,
+    string? Branch,
+    int Added,
+    int Removed,
+    IReadOnlyList<WorkspaceGitFileResponse> Files,
+    string? Diff,
+    bool DiffTruncated);

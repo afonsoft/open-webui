@@ -1,0 +1,188 @@
+using System.Diagnostics;
+
+namespace OpenWebUI.Infrastructure.Services;
+
+/// <summary>Arquivo alterado no workdir git (path + numstat + status).</summary>
+public sealed record GitChangedFile(string Path, int Added, int Removed, string Status);
+
+/// <summary>Snapshot do workdir git para a git bar/aba Changes do chat.</summary>
+public sealed record GitWorkspaceInfo(
+    bool IsRepo,
+    string? Branch,
+    int Added,
+    int Removed,
+    IReadOnlyList<GitChangedFile> Files,
+    string? Diff,
+    bool DiffTruncated);
+
+/// <summary>
+/// Inspeção git do workspace do chat (SPEC-20261007-chat-agent-parity
+/// RF-018): quando <c>data/workspaces/{userId}/.git</c> existe, expõe
+/// branch, numstat agregado e o unified diff de <c>HEAD</c> (staged +
+/// unstaged + untracked listados). Invoca o binário <c>git</c> — zero
+/// deps novas; sem git ou sem repo retorna <c>IsRepo=false</c>.
+/// </summary>
+public sealed class WorkspaceGitService
+{
+    /// <summary>Cap do diff unificado devolvido (linhas grandes demais são cortadas).</summary>
+    private const int MaxDiffChars = 96_000;
+
+    /// <summary>Timeout por invocação do git.</summary>
+    private static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>Limite para contar linhas de arquivo untracked (acima disso vira binário).</summary>
+    private const long MaxUntrackedCountBytes = 1_000_000;
+
+    /// <summary>
+    /// Snapshot do repo no <paramref name="workdir"/>: branch corrente,
+    /// numstat de <c>git diff HEAD</c> mais untracked (<c>??</c>) como
+    /// adições, e o unified diff truncado em ~96KB.
+    /// </summary>
+    public async Task<GitWorkspaceInfo> GetInfoAsync(string workdir, CancellationToken ct)
+    {
+        if (!Directory.Exists(Path.Combine(workdir, ".git")))
+        {
+            return Empty;
+        }
+
+        var branch = await RunGitAsync(workdir, ct, "rev-parse", "--abbrev-ref", "HEAD");
+        if (branch is null)
+        {
+            // Sem git no PATH ou repo corrompido → trata como "não-repo".
+            return Empty;
+        }
+
+        var files = new List<GitChangedFile>();
+        var numstat = await RunGitAsync(
+            workdir, ct, "diff", "HEAD", "--numstat", "--no-renames") ?? string.Empty;
+        var added = 0;
+        var removed = 0;
+        foreach (var line in numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split('\t');
+            if (parts.Length < 3)
+            {
+                continue;
+            }
+
+            var a = int.TryParse(parts[0], out var av) ? av : 0; // "-" = binário
+            var r = int.TryParse(parts[1], out var rv) ? rv : 0;
+            added += a;
+            removed += r;
+            files.Add(new GitChangedFile(parts[2].Trim(), a, r, "M"));
+        }
+
+        // Untracked (?? no porcelain) não aparece no diff HEAD — conta
+        // linhas do arquivo quando pequeno, senão só lista como novo.
+        var status = await RunGitAsync(
+            workdir, ct, "status", "--porcelain=v1", "--untracked-files=all") ?? string.Empty;
+        foreach (var line in status.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!line.StartsWith("?? ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var path = line[3..].Trim();
+            // git cita paths com caracteres especiais (core.quotePath).
+            if (path.Length > 1 && path.StartsWith('"') && path.EndsWith('"'))
+            {
+                path = path[1..^1].Replace("\\\"", "\"");
+            }
+            if (path.Length == 0)
+            {
+                continue;
+            }
+
+            var a = CountLines(Path.Combine(workdir, path));
+            added += a;
+            files.Add(new GitChangedFile(path, a, 0, "A"));
+        }
+
+        var diff = await RunGitAsync(workdir, ct, "diff", "HEAD", "--no-renames");
+        var truncated = false;
+        if (diff is not null && diff.Length > MaxDiffChars)
+        {
+            diff = diff[..MaxDiffChars] + "\n… [diff truncado]";
+            truncated = true;
+        }
+
+        return new GitWorkspaceInfo(
+            true, branch.Trim(), added, removed, files, diff, truncated);
+    }
+
+    private static GitWorkspaceInfo Empty => new(false, null, 0, 0, [], null, false);
+
+    private static int CountLines(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                || info.Length > MaxUntrackedCountBytes)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            using var reader = new StreamReader(path);
+            while (reader.ReadLine() is not null)
+            {
+                count++;
+                if (count > 50_000)
+                {
+                    break;
+                }
+            }
+            return count;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Roda <c>git -C workdir args…</c> e devolve stdout; null quando o
+    /// processo falha, excede o timeout ou o binário não existe.
+    /// </summary>
+    private static async Task<string?> RunGitAsync(
+        string workdir, CancellationToken ct, params string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = workdir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        try
+        {
+            using var process = Process.Start(psi);
+            if (process is null)
+            {
+                return null;
+            }
+
+            await process.WaitForExitAsync(ct).WaitAsync(GitTimeout, ct);
+            return process.ExitCode == 0
+                ? await process.StandardOutput.ReadToEndAsync(ct)
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw; // cancelamento do request propaga, não vira "sem git"
+        }
+        catch
+        {
+            return null; // git ausente, timeout ou spawn falhou
+        }
+    }
+}
