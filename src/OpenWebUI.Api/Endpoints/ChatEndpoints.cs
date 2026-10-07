@@ -41,6 +41,7 @@ public static class ChatEndpoints
         group.MapGet("/all", ListAllChatsAdminAsync);
         group.MapGet("/{id}", GetChatAsync);
         group.MapPost("/{id}", UpdateChatAsync);
+        group.MapPatch("/{id}", PatchChatAsync);
         group.MapDelete("/{id}", DeleteChatAsync);
         group.MapPost("/{id}/pin", TogglePinAsync);
         group.MapGet("/{id}/pinned", GetPinnedAsync);
@@ -246,7 +247,8 @@ public static class ChatEndpoints
                 .OrderBy(m => m.Position)
                 .Select(m => new ChatMessageModel(
                 m.Id, m.Role, m.Content, m.Model, m.Timestamp,
-                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions)))
+                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions),
+                m.ToolCallId, m.ToolCallsJson))
                 .ToList(),
             chat.CreatedAt,
             chat.UpdatedAt,
@@ -383,6 +385,41 @@ public static class ChatEndpoints
         }
 
         await db.SaveChangesAsync(ct);
+        return Results.Ok(ToResponse(chat));
+    }
+
+    /// <summary>
+    /// Atualização parcial do chat (SPEC-20261007-chat-tool-streaming
+    /// RF-004): hoje só o preset de aprovação de tools —
+    /// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>always-allow</c>.
+    /// </summary>
+    private static async Task<IResult> PatchChatAsync(
+        string id,
+        ChatPatchRequest request,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var chat = await LoadChatAsync(id, user?.Id, db, ct, tracking: true);
+        if (chat is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (request.ApprovalPreset is not null)
+        {
+            if (request.ApprovalPreset is not ("allow-readonly"
+                or "approve-mutations" or "always-allow"))
+            {
+                return Results.BadRequest(
+                    new { detail = "approvalPreset inválido." });
+            }
+            chat.ApprovalPreset = request.ApprovalPreset;
+            chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            await db.SaveChangesAsync(ct);
+        }
+
         return Results.Ok(ToResponse(chat));
     }
 
@@ -803,6 +840,8 @@ public static class ChatEndpoints
                 Role = m.Role,
                 Content = m.Content,
                 Model = m.Model,
+                ToolCallId = m.ToolCallId,
+                ToolCallsJson = m.ToolCallsJson,
                 Position = i,
                 Timestamp = m.Timestamp > 0 ? m.Timestamp : now,
             })
@@ -839,7 +878,8 @@ public static class ChatEndpoints
             .OrderBy(m => m.Position)
             .Select(m => new ChatMessageModel(
                 m.Id, m.Role, m.Content, m.Model, m.Timestamp,
-                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions)))
+                JsonSerializer.Deserialize<List<ChatMessageVersionModel>>(m.VersionsJson, JsonOptions),
+                m.ToolCallId, m.ToolCallsJson))
             .ToList(),
         chat.Pinned,
         chat.Archived,
@@ -848,7 +888,8 @@ public static class ChatEndpoints
         chat.ShareId,
         JsonSerializer.Deserialize<List<string>>(chat.ToolIdsJson, JsonOptions) ?? [],
         chat.CreatedAt,
-        chat.UpdatedAt);
+        chat.UpdatedAt,
+        chat.ApprovalPreset);
 
     /// <summary>Filtro por tags.</summary>
     public sealed record TagQueryRequest(IReadOnlyList<string> Tags);

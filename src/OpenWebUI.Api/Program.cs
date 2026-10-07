@@ -51,6 +51,7 @@ builder.Services.AddSingleton<RateLimitService>();
 
 // Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).
 builder.Services.AddSingleton<ChatRunBroadcaster>();
+builder.Services.AddSingleton<ChatRunApprovals>();
 builder.Services.AddSingleton<ChatRunDispatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRunDispatcher>());
 builder.Services.AddScoped<ChatRunExecutor>();

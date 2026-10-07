@@ -225,44 +225,100 @@ public static class ChatPipeline
     }
 
     /// <summary>
-    /// Loop de tool calling: chama o modelo com tools até resposta final
-    /// (sem tool_calls) ou teto de 5 iterações. Retorna o conteúdo final
-    /// para ser emitido como SSE, ou null para seguir o stream normal.
+    /// Resultado do loop de tools: o conteúdo final do modelo e as
+    /// mensagens geradas durante o loop (assistant com ToolCallsJson +
+    /// respostas role=tool) para persistência na run
+    /// (SPEC-20261007-chat-tool-streaming).
     /// </summary>
-    public static async Task<string?> RunToolLoopAsync(
+    public sealed record ToolLoopOutcome(
+        string? FinalContent,
+        IReadOnlyList<ChatCompletionMessage> ToolMessages);
+
+    /// <summary>
+    /// Callbacks do loop de tools para streaming/gate
+    /// (SPEC-20261007-chat-tool-streaming): <paramref name="OnPhaseAsync"/>
+    /// recebe a fase (generating|running_tool|awaiting_approval) antes de
+    /// cada etapa; <paramref name="OnCallAsync"/> antes de executar;
+    /// <paramref name="GateAsync"/> decide se a tool mutável executa
+    /// (false injeta "negado pelo usuário"); <paramref name="OnResultAsync"/>
+    /// recebe (call, output, denied) após cada execução/decisão.
+    /// </summary>
+    public sealed record ToolLoopCallbacks(
+        Func<string, string?, CancellationToken, Task>? OnPhaseAsync = null,
+        Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
+        Func<ProviderToolCall, CancellationToken, Task<bool>>? GateAsync = null,
+        Func<ProviderToolCall, string, bool, CancellationToken, Task>? OnResultAsync = null);
+
+    /// <summary>
+    /// Loop de tool calling: chama o modelo com tools até resposta final
+    /// (sem tool_calls) ou teto de 5 iterações. <paramref name="callbacks"/>
+    /// recebe os eventos de fase/call/gate/resultado (runs desacopladas
+    /// emitem no SSE; o endpoint legado passa null — tools invisíveis lá).
+    /// </summary>
+    public static async Task<ToolLoopOutcome?> RunToolLoopAsync(
         ChatCompletionRequest effective,
         IReadOnlyList<Tool> tools,
         ToolExecutor toolExecutor,
         ProviderService providers,
-        CancellationToken ct)
+        CancellationToken ct,
+        ToolLoopCallbacks? callbacks = null)
     {
         const int maxRounds = 5;
         var messages = effective.Messages.ToList();
+        var toolMessages = new List<ChatCompletionMessage>();
 
         for (var round = 0; round < maxRounds; round++)
         {
+            if (callbacks?.OnPhaseAsync is not null)
+            {
+                await callbacks.OnPhaseAsync("generating", null, ct);
+            }
             var step = await providers.CompleteWithToolsAsync(
                 effective with { Messages = messages }, ct);
             if (step.ToolCalls.Count == 0)
             {
-                return step.Content;
+                return new ToolLoopOutcome(step.Content, toolMessages);
             }
 
-            messages.Add(new ChatCompletionMessage(
-                "assistant", step.Content, ToolCallsJson: step.ToolCallsJson));
+            var assistantMessage = new ChatCompletionMessage(
+                "assistant", step.Content, ToolCallsJson: step.ToolCallsJson);
+            messages.Add(assistantMessage);
+            toolMessages.Add(assistantMessage);
+
             foreach (var call in step.ToolCalls)
             {
-                var output = await toolExecutor.ExecuteAsync(
-                    tools, call.Name, call.ArgumentsJson, ct);
-                messages.Add(new ChatCompletionMessage(
-                    "tool", output, ToolCallId: call.Id));
+                if (callbacks?.OnPhaseAsync is not null)
+                {
+                    await callbacks.OnPhaseAsync("running_tool", call.Name, ct);
+                }
+                if (callbacks?.OnCallAsync is not null)
+                {
+                    await callbacks.OnCallAsync(call, ct);
+                }
+
+                var denied = callbacks?.GateAsync is not null
+                    && !await callbacks.GateAsync(call, ct);
+                var output = denied
+                    ? "Erro: execução negada pelo usuário."
+                    : await toolExecutor.ExecuteAsync(
+                        tools, call.Name, call.ArgumentsJson, ct);
+
+                if (callbacks?.OnResultAsync is not null)
+                {
+                    await callbacks.OnResultAsync(call, output, denied, ct);
+                }
+
+                var toolMessage = new ChatCompletionMessage(
+                    "tool", output, ToolCallId: call.Id);
+                messages.Add(toolMessage);
+                toolMessages.Add(toolMessage);
             }
         }
 
         // Teto de iterações atingido: resposta final sem tools.
         var final = await providers.CompleteAsync(
             effective with { Messages = messages, Tools = null }, ct);
-        return final;
+        return new ToolLoopOutcome(final, toolMessages);
     }
 
     /// <summary>

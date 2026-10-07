@@ -133,6 +133,14 @@ public class Chat
     /// <summary>Id público de compartilhamento (rota /s/{shareId}), quando compartilhado.</summary>
     public string? ShareId { get; set; }
 
+    /// <summary>
+    /// Preset de permissão de tools da conversa
+    /// (SPEC-20261007-chat-tool-streaming RF-004): <c>allow-readonly</c>
+    /// (mutáveis negadas), <c>approve-mutations</c> (mutáveis pedem aprovação
+    /// — default) ou <c>always-allow</c> (tudo executa sem perguntar).
+    /// </summary>
+    public string ApprovalPreset { get; set; } = "approve-mutations";
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 
@@ -172,6 +180,17 @@ public class ChatMessage
 
     /// <summary>Versões anteriores do conteúdo (JSON: [{content, model, timestamp}]).</summary>
     public string VersionsJson { get; set; } = "[]";
+
+    /// <summary>
+    /// Tool calls emitidas pelo modelo nesta mensagem (JSON — somente
+    /// <c>assistant</c>; SPEC-20261007-chat-tool-streaming).
+    /// </summary>
+    public string? ToolCallsJson { get; set; }
+
+    /// <summary>
+    /// Id do tool call que originou esta mensagem (somente <c>tool</c>).
+    /// </summary>
+    public string? ToolCallId { get; set; }
 }
 
 /// <summary>Status possíveis de uma run desacoplada de chat.</summary>
@@ -671,6 +690,14 @@ public class Tool
     /// subprocess Python em vez de HTTP — com os privilégios do servidor.
     /// </summary>
     public string? Code { get; set; }
+
+    /// <summary>
+    /// Se a tool exige aprovação antes de executar
+    /// (SPEC-20261007-chat-tool-streaming RF-003). Tools com
+    /// <see cref="Code"/> Python ou URL virtual MCP são sempre tratadas como
+    /// mutáveis, independente deste flag.
+    /// </summary>
+    public bool RequiresApproval { get; set; }
 
     /// <summary>Se a tool está habilitada.</summary>
     public bool Enabled { get; set; } = true;

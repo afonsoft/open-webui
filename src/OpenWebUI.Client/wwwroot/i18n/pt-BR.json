@@ -504,5 +504,17 @@
   "settings.notify_push": "Notificação push mesmo com o site fechado",
   "settings.notify_permission_denied": "Notificações bloqueadas pelo navegador — libere nas configurações do site na barra de endereço.",
   "settings.notify_permission_unsupported": "Este navegador não suporta notificações.",
-  "settings.notify_hint": "A permissão do navegador só é solicitada ao ligar um toggle. O push usa uma assinatura por dispositivo."
+  "settings.notify_hint": "A permissão do navegador só é solicitada ao ligar um toggle. O push usa uma assinatura por dispositivo.",
+  "chat.tool_running": "executando…",
+  "chat.tool_denied": "negado",
+  "chat.tool_error": "erro",
+  "chat.tool_approval_title": "Aprovação de tool",
+  "chat.tool_approval_wants": "A tool {name} quer executar",
+  "chat.tool_approval_remember": "Lembrar nesta conversa",
+  "chat.tool_approve": "Aprovar",
+  "chat.tool_deny": "Negar",
+  "chat.approval_preset": "Aprovação de tools",
+  "chat.preset_allow-readonly": "Somente tools de leitura",
+  "chat.preset_approve-mutations": "Aprovar mutações",
+  "chat.preset_always-allow": "Sempre permitir"
 }

@@ -27,6 +27,7 @@ public static class ChatRunEndpoints
         group.MapGet("/{id}/runs/{runId}", GetRunAsync);
         group.MapGet("/{id}/runs/{runId}/stream", StreamRunAsync);
         group.MapPost("/{id}/runs/{runId}/stop", StopRunAsync);
+        group.MapPost("/{id}/runs/{runId}/approvals/{callId}", DecideApprovalAsync);
     }
 
     /// <summary>
@@ -85,7 +86,8 @@ public static class ChatRunEndpoints
         // Histórico reconstruído no servidor — a fonte da verdade é o banco.
         var history = chat.Messages
             .OrderBy(m => m.Position)
-            .Select(m => new ChatCompletionMessage(m.Role, m.Content))
+            .Select(m => new ChatCompletionMessage(
+                m.Role, m.Content, m.ToolCallId, m.ToolCallsJson))
             .ToList();
         var completionRequest = new ChatCompletionRequest(
             request.Model, history, Stream: true,
@@ -260,6 +262,53 @@ public static class ChatRunEndpoints
         }
 
         return Results.Conflict(new { detail = $"Run já finalizada ({run.Status})." });
+    }
+
+    /// <summary>
+    /// Decisão do dono sobre uma aprovação de tool pendente
+    /// (SPEC-20261007-chat-tool-streaming RF-003): <c>approve</c> | <c>deny</c>
+    /// + <c>remember</c> opcional (válido só nesta conversa, em memória).
+    /// 404 quando a call não está pendente; 410 quando a run já finalizou.
+    /// </summary>
+    private static async Task<IResult> DecideApprovalAsync(
+        string id,
+        string runId,
+        string callId,
+        RunApprovalDecisionRequest request,
+        HttpContext http,
+        AppDbContext db,
+        ChatRunApprovals approvals,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (request.Decision is not ("approve" or "deny"))
+        {
+            return Results.BadRequest(new { detail = "decision deve ser approve|deny." });
+        }
+
+        var run = await db.ChatRuns.AsNoTracking()
+            .FirstOrDefaultAsync(
+                r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (run is null)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+        if (run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running))
+        {
+            return Results.Json(
+                new { detail = $"Run já finalizada ({run.Status})." },
+                statusCode: StatusCodes.Status410Gone);
+        }
+
+        var approved = request.Decision == "approve";
+        return approvals.Resolve(
+            run.Id, run.ChatId, callId, approved, request.Remember)
+            ? Results.Ok(new StatusResponse(true))
+            : Results.NotFound(new { detail = "Aprovação não está pendente." });
     }
 
     private static ChatRunResponse ToResponse(ChatRun run) => new(

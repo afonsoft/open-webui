@@ -243,9 +243,9 @@ public static class ApiEndpoints
                         .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
                         .ToList(),
                 };
-                var finished = await ChatPipeline.RunToolLoopAsync(
+                var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct);
-                if (finished is not null)
+                if (outcome?.FinalContent is { } finished)
                 {
                     foreach (var (regex, replacement) in outletRules)
                     {
