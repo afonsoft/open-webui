@@ -87,18 +87,23 @@ public class WebLoaderService(IHttpClientFactory httpFactory)
             $"https://www.youtube.com/watch?v={videoId}", ct);
 
         var marker = "\"captionTracks\":[";
-        var start = page.IndexOf(marker, StringComparison.Ordinal);
-        if (start < 0)
+        var markerAt = page.IndexOf(marker, StringComparison.Ordinal);
+        if (markerAt < 0)
         {
             throw new WebLoaderException("Vídeo sem transcrição disponível.");
         }
-        start += marker.Length;
+        var start = markerAt + marker.Length - 1;
         var depth = 0;
         var end = start;
+        var closed = false;
         for (; end < page.Length; end++)
         {
             if (page[end] == '[') depth++;
-            else if (page[end] == ']') { depth--; if (depth == 0) break; }
+            else if (page[end] == ']') { depth--; if (depth == 0) { closed = true; break; } }
+        }
+        if (!closed)
+        {
+            throw new WebLoaderException("Transcrição malformada na página.");
         }
         var tracksJson = page[start..(end + 1)];
         using var doc = JsonDocument.Parse(tracksJson);
