@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -75,6 +76,9 @@ public class McpTests
 
     private AppDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={_dbPath}").Options);
+
+    private static BuiltinToolRegistry EmptyRegistry() =>
+        new([], new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
     private sealed class StubHttpClientFactory : IHttpClientFactory
     {
@@ -271,19 +275,19 @@ public class McpTests
         await using var db = CreateContext();
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
-            new McpClientService(db, new MemoryCache(new MemoryCacheOptions())));
+            new McpClientService(db, new MemoryCache(new MemoryCacheOptions())), EmptyRegistry());
 
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 
-        var result = await executor.ExecuteAsync(tools, NomeFuncao(tools, "echo"), "{\"msg\":\"ola\"}");
+        var result = (await executor.ExecuteAsync(tools, NomeFuncao(tools, "echo"), "{\"msg\":\"ola\"}")).Text;
         Assert.That(result, Is.EqualTo("echo:ola"));
 
         // Erro de protocolo vira mensagem para o modelo — nunca exceção.
-        var boom = await executor.ExecuteAsync(tools, NomeFuncao(tools, "boom"), "{}");
+        var boom = (await executor.ExecuteAsync(tools, NomeFuncao(tools, "boom"), "{}")).Text;
         Assert.That(boom, Does.Contain("Erro").And.Contain("kaboom"));
 
         // Saída grande trunca em 4000 chars, igual às tools HTTP.
-        var longResult = await executor.ExecuteAsync(tools, NomeFuncao(tools, "long"), "{}");
+        var longResult = (await executor.ExecuteAsync(tools, NomeFuncao(tools, "long"), "{}")).Text;
         Assert.That(longResult, Has.Length.EqualTo(4000));
     }
 
@@ -307,8 +311,8 @@ public class McpTests
         await _client.DeleteAsync($"/api/v1/mcp/servers/{server.Id}");
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
-            mcp);
-        var gone = await executor.ExecuteAsync(tools, NomeFuncao(tools, "echo"), "{}");
+            mcp, EmptyRegistry());
+        var gone = (await executor.ExecuteAsync(tools, NomeFuncao(tools, "echo"), "{}")).Text;
         Assert.That(gone, Does.Contain("não existe mais"));
     }
 }

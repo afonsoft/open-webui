@@ -7,8 +7,10 @@
 @inject MarkdownService Markdown
 @inject IJSRuntime JS
 @inject RealtimeService Realtime
+@inject BrowserStorage Storage
 @implements IDisposable
 
+<div class="flex h-full w-full min-w-0">
 <div class="flex flex-col flex-1 h-full w-full min-w-0">
     <div class="sticky top-0 z-30 w-full">
         <div class="flex items-center w-full pl-1.5 pr-1">
@@ -20,6 +22,35 @@
                         </div>
                     </div>
                     <div class="lg:mr-1 flex flex-none items-center gap-2 self-center">
+                        @if (_streaming && !string.IsNullOrEmpty(_statusLabel))
+                        {
+                            <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 dark:text-gray-400"
+                                  role="status" aria-live="polite">
+                                <svg class="size-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                </svg>
+                                @_statusLabel
+                            </span>
+                        }
+                        @if (_git is { Git: true } g)
+                        {
+                            <button class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 cursor-pointer"
+                                    title="@L["chat.git_title"]" @onclick="OpenPanelAtChangesAsync">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12" />
+                                    <circle cx="18" cy="6" r="3" />
+                                    <circle cx="6" cy="18" r="3" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 9a9 9 0 0 1-9 9" />
+                                </svg>
+                                <span class="max-w-24 truncate font-mono">@g.Branch</span>
+                                @if (g.Added > 0 || g.Removed > 0)
+                                {
+                                    <span class="font-mono text-green-600 dark:text-green-400">+@g.Added</span>
+                                    <span class="font-mono text-red-500 dark:text-red-400">−@g.Removed</span>
+                                }
+                            </button>
+                        }
                         @if (_voiceSupported)
                         {
                             <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
@@ -34,6 +65,11 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                             </button>
                         }
+                        <button class="flex size-6 cursor-pointer items-center justify-center rounded-lg transition
+                                       @(_showPanel ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200")"
+                                title="@L["chat.panel_title"]" aria-label="@L["chat.panel_title"]" @onclick="TogglePanelAsync">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 20.25h16.5a.75.75 0 0 0 0-1.5H3.75a.75.75 0 0 0 0 1.5ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v12a2.25 2.25 0 0 1-2.25 2.25h-2.25A2.25 2.25 0 0 1 13.5 18V6Z" /></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -116,10 +152,50 @@
                             ArgsPreview="@t.Call.ArgsPreview"
                             ResultPreview="@t.Result?.Preview"
                             ImagePath="@t.Result?.ImagePath"
+                            VideoPath="@t.Result?.VideoPath"
+                            Result="@t.Result?.Result"
                             Running="@(t.Result is null && _streaming)"
                             Denied="@(t.Result?.Denied ?? false)"
                             Ok="@(t.Result is null ? null : t.Result.Ok)" />
                     }
+                </div>
+            }
+
+            @if (_runTasks.Count > 0)
+            {
+                <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-3 py-2 my-1.5">
+                    <div class="mb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        @L["chat.tasks"]
+                    </div>
+                    <ul class="flex flex-col gap-0.5">
+                        @foreach (var task in _runTasks)
+                        {
+                            <li class="flex items-center gap-1.5 text-xs">
+                                @if (task.Status == "completed")
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5 flex-none text-green-600 dark:text-green-400">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span class="text-gray-400 dark:text-gray-500 line-through decoration-gray-300 dark:decoration-gray-600">@task.Content</span>
+                                }
+                                else if (task.Status == "in_progress")
+                                {
+                                    <svg class="size-3 flex-none animate-spin text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                    </svg>
+                                    <span class="text-gray-800 dark:text-gray-200 font-medium">@task.Content</span>
+                                }
+                                else
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 flex-none text-gray-300 dark:text-gray-600">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                    <span class="text-gray-600 dark:text-gray-400">@task.Content</span>
+                                }
+                            </li>
+                        }
+                    </ul>
                 </div>
             }
 
@@ -130,12 +206,23 @@
                         ToolName="@pendingApproval.ToolName"
                         Kind="@pendingApproval.Kind"
                         ArgsPreview="@pendingApproval.ArgsPreview"
-                        OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember)" />
+                        OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember, d.Message)" />
+                </div>
+            }
+            else if (_pendingQuestion is { } pendingQuestion)
+            {
+                <div class="py-1">
+                    <QuestionPromptCard
+                        Question="@pendingQuestion.Question"
+                        Options="@pendingQuestion.Options"
+                        Multiple="@pendingQuestion.Multiple"
+                        OnAnswer="answer => AnswerQuestionAsync(pendingQuestion.CallId, answer)" />
                 </div>
             }
             else if (_streaming && !string.IsNullOrEmpty(_statusLabel))
             {
-                <div class="py-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                @* No mobile o chip do header fica oculto — mantém o status inline *@
+                <div class="sm:hidden py-1 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
                     <svg class="size-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
@@ -235,6 +322,7 @@
                         rows="1"
                         @bind="_input"
                         @bind:event="oninput"
+                        @bind:after="SaveDraftAsync"
                         @onkeydown="OnKeyDown"
                         disabled="@_loading"></textarea>
                 </div>
@@ -317,6 +405,20 @@
                     <div class="self-end flex items-center gap-1 mr-1">
                         @if (_streaming)
                         {
+                            if (_paused)
+                            {
+                                <button class="size-8 flex items-center justify-center rounded-full bg-blue-600 text-white transition cursor-pointer"
+                                        title="@L["chat.resume"]" aria-label="@L["chat.resume"]" @onclick="ResumeStreaming">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" /></svg>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="size-8 flex items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900 transition cursor-pointer"
+                                        title="@L["chat.pause"]" aria-label="@L["chat.pause"]" @onclick="PauseStreaming">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Zm7.5 0a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" /></svg>
+                                </button>
+                            }
                             <button class="size-8 flex items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900 transition cursor-pointer"
                                     title="@L["chat.stop"]" aria-label="@L["chat.stop"]" @onclick="StopStreaming">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clip-rule="evenodd" /></svg>
@@ -345,6 +447,33 @@
                  OnClose="() => _callActive = false" />
 </div>
 
+@if (_showPanel)
+{
+    @* Painel de workspace (RF-015): coluna ≥lg, drawer no mobile. *@
+    <aside class="hidden lg:flex w-80 xl:w-96 flex-none">
+        <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
+                            Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
+                            Model="@_model" RunId="@_activeRunId" Git="_git"
+                            IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                            RequestedTab="_requestedPanelTab"
+                            OnClose="() => _showPanel = false"
+                            OnKillJob="KillJobAsync" />
+    </aside>
+    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+        <div class="absolute inset-0 bg-black/40" @onclick="() => _showPanel = false"></div>
+        <aside class="absolute inset-y-0 right-0 w-80 max-w-[85vw] shadow-xl">
+            <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
+                                Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
+                                Model="@_model" RunId="@_activeRunId" Git="_git"
+                                IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
+                                RequestedTab="_requestedPanelTab"
+                                OnClose="() => _showPanel = false"
+                                OnKillJob="KillJobAsync" />
+        </aside>
+    </div>
+}
+</div>
+
 @code {
     /// <summary>Id do chat carregado; null para um chat novo.</summary>
     [Parameter] public string? ChatId { get; set; }
@@ -370,6 +499,8 @@
     private string _chatTitle = "New Chat";
     private string? _model;
     private string _input = string.Empty;
+    private List<string> _inputHistory = [];
+    private int _historyIndex = -1;
     private string? _error;
     private bool _loading;
     private bool _streaming;
@@ -384,6 +515,10 @@
     private bool _uploading;
     private CancellationTokenSource? _cts;
     private string? _activeRunId;
+    /// <summary>Snapshot git do workspace (git bar do header + aba Changes).</summary>
+    private WorkspaceGitResponse? _git;
+    /// <summary>Aba que o painel abre na próxima renderização (clique no chip git).</summary>
+    private string? _requestedPanelTab;
     private ElementReference _scrollContainer;
     private InputFile? _fileInput;
     private string? _pendingNavigateId;
@@ -392,10 +527,23 @@
     // fase atual, calls ao vivo e pedido de aprovação pendente.
     private string? _statusLabel;
     private readonly List<ToolCallView> _liveToolCalls = [];
+
+    /// <summary>Snapshot da lista de tarefas da run (evento <c>tasks</c>, RF-010).</summary>
+    private List<RunTaskItem> _runTasks = [];
+
+    /// <summary>Arquivos alterados pela run (evento <c>changes</c>, RF-015 — aba Changes).</summary>
+    private List<RunChangeItem> _runChanges = [];
+
+    /// <summary>Painel de workspace lateral (abas Tasks/Changes/Jobs/MCPs/Info).</summary>
+    private bool _showPanel;
+    private List<ChatJobResponse> _jobs = [];
+    private List<McpServerResponse> _mcps = [];
     private RunApprovalAskedEvent? _pendingApproval;
+    private RunQuestionAskedEvent? _pendingQuestion;
+    private bool _paused;
     private string _approvalPreset = "approve-mutations";
     private static readonly string[] ApprovalPresets =
-        ["allow-readonly", "approve-mutations", "always-allow"];
+        ["allow-readonly", "approve-mutations", "always-allow", "auto"];
 
     /// <summary>Estado vivo de uma tool_call + seu tool_result.</summary>
     private sealed class ToolCallView
@@ -509,7 +657,12 @@
         _followUps = [];
         _attachedFiles.Clear();
         _liveToolCalls.Clear();
+        _runTasks = [];
+        _runChanges = [];
+        _git = null;
         _pendingApproval = null;
+        _pendingQuestion = null;
+        _paused = false;
         _statusLabel = null;
         if (_loadedChatId is not null)
         {
@@ -521,6 +674,7 @@
             _chatTitle = "New Chat";
             _messages.Clear();
             _toolIds.Clear();
+            await LoadComposerStateAsync(null);
             return;
         }
 
@@ -541,6 +695,7 @@
             _approvalPreset = chat.ApprovalPreset;
             _messages.Clear();
             _messages.AddRange(chat.Messages);
+            await LoadComposerStateAsync(chat.Id);
             if (chat.Models.Count > 0)
             {
                 _model = chat.Models[0];
@@ -551,6 +706,11 @@
             if (activeRun is not null)
             {
                 _ = AttachActiveRunAsync(activeRun);
+            }
+            else
+            {
+                // Git bar: snapshot do workspace quando há runs anteriores.
+                _ = RefreshGitAsync();
             }
         }
         finally
@@ -628,7 +788,109 @@
             return;
         }
 
+        // Histórico do composer (RF-006): ↑/↓ no input vazio (ou navegando)
+        // percorre os prompts enviados deste chat.
+        if (e.Key == "ArrowUp" && _inputHistory.Count > 0
+            && (string.IsNullOrEmpty(_input) || _historyIndex >= 0))
+        {
+            _historyIndex = _historyIndex < 0
+                ? _inputHistory.Count - 1
+                : Math.Max(0, _historyIndex - 1);
+            _input = _inputHistory[_historyIndex];
+            return;
+        }
+        if (e.Key == "ArrowDown" && _historyIndex >= 0)
+        {
+            _historyIndex++;
+            if (_historyIndex >= _inputHistory.Count)
+            {
+                _historyIndex = -1;
+                _input = string.Empty;
+            }
+            else
+            {
+                _input = _inputHistory[_historyIndex];
+            }
+            return;
+        }
+
         UpdatePromptSuggestions();
+    }
+
+    /// <summary>
+    /// Rascunho persistido por chat (RF-006): o composer sobrevive a
+    /// reload/troca de aba — chave <c>chat:draft:{chatId|new}</c>.
+    /// </summary>
+    private async Task SaveDraftAsync()
+    {
+        _historyIndex = -1;
+        var key = $"chat:draft:{_loadedChatId ?? "new"}";
+        try
+        {
+            if (string.IsNullOrEmpty(_input))
+            {
+                await Storage.RemoveAsync(key);
+            }
+            else
+            {
+                await Storage.SetAsync(key, _input);
+            }
+        }
+        catch (JSException)
+        {
+            // localStorage indisponível — draft é best-effort.
+        }
+    }
+
+    /// <summary>Restaura draft + histórico de prompts do chat carregado.</summary>
+    private async Task LoadComposerStateAsync(string? chatId)
+    {
+        _historyIndex = -1;
+        _inputHistory = [];
+        var prefix = chatId ?? "new";
+        try
+        {
+            _input = await Storage.GetAsync($"chat:draft:{prefix}") ?? string.Empty;
+            var raw = await Storage.GetAsync($"chat:hist:{prefix}");
+            if (raw is not null)
+            {
+                _inputHistory = JsonSerializer.Deserialize<List<string>>(raw) ?? [];
+            }
+        }
+        catch (JSException)
+        {
+            _input = string.Empty;
+        }
+        catch (JsonException)
+        {
+            _inputHistory = [];
+        }
+    }
+
+    /// <summary>Grava o prompt enviado no histórico do chat (cap 50).</summary>
+    private async Task PushHistoryAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+        _inputHistory.Remove(text);
+        _inputHistory.Add(text);
+        if (_inputHistory.Count > 50)
+        {
+            _inputHistory.RemoveAt(0);
+        }
+        _historyIndex = -1;
+        try
+        {
+            await Storage.SetAsync(
+                $"chat:hist:{_loadedChatId ?? "new"}",
+                JsonSerializer.Serialize(_inputHistory));
+        }
+        catch (JSException)
+        {
+            // best-effort
+        }
     }
 
     private void UpdatePromptSuggestions()
@@ -684,6 +946,8 @@
         _promptSuggestions = [];
         _followUps = [];
         _error = null;
+        _ = PushHistoryAsync(text);
+        _ = Storage.RemoveAsync($"chat:draft:{_loadedChatId ?? "new"}");
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var content = text.Length > 0
@@ -962,6 +1226,8 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _pendingQuestion = null;
+            _paused = false;
             _statusLabel = null;
             if (ChatStream.LastArenaResult is { } arenaResult)
             {
@@ -970,6 +1236,7 @@
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+            await RefreshGitAsync();
             await ReloadChatAsync();
         }
     }
@@ -985,6 +1252,8 @@
 
         _streaming = true;
         _activeRunId = run.Id;
+        // Reattach numa run pausada já entra com o botão de resume.
+        _paused = run.Status == "paused";
         _cts = new CancellationTokenSource();
         var content = new System.Text.StringBuilder();
         await InvokeAsync(StateHasChanged);
@@ -1005,10 +1274,13 @@
         {
             _activeRunId = null;
             _pendingApproval = null;
+            _pendingQuestion = null;
+            _paused = false;
             _statusLabel = null;
             _streaming = false;
             _cts?.Dispose();
             _cts = null;
+            await RefreshGitAsync();
             await ReloadChatAsync();
         }
     }
@@ -1025,6 +1297,8 @@
         ChatMessageModel placeholder, int index, CancellationToken ct)
     {
         _liveToolCalls.Clear();
+        _runTasks = [];
+        _runChanges = [];
 
         await foreach (var evt in ChatStream.StreamRunEventsAsync(
             chatId, runId, lastSeq: 0, ct))
@@ -1052,13 +1326,49 @@
                         _liveToolCalls.Add(entry);
                     }
                     entry.Result = result.Result;
+                    // Job criado/atualizado por job_* ou shell_exec background
+                    // reflete na aba Jobs do painel, se aberto.
+                    if (_showPanel
+                        && result.Result.Name.Contains("job", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _ = RefreshPanelAsync();
+                    }
                     break;
                 }
+                case ChatStreamService.ChatStreamEvent.Tasks tasks:
+                    _runTasks = tasks.Snapshot.Tasks.ToList();
+                    break;
+                case ChatStreamService.ChatStreamEvent.Changes changes:
+                    _runChanges = changes.Snapshot.Changes.ToList();
+                    // file_* escreveu no workdir — a git bar/aba Changes atualiza.
+                    await RefreshGitAsync();
+                    break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
-                    _statusLabel = phase.Status.Label;
+                    switch (phase.Status.Phase)
+                    {
+                        case "auto_approved":
+                            _statusLabel = L.T("chat.status_auto_approved",
+                                ("name", phase.Status.Label ?? ""));
+                            break;
+                        case "paused":
+                            _paused = true;
+                            _statusLabel = L["chat.status_paused"];
+                            break;
+                        case "resumed":
+                            _paused = false;
+                            _statusLabel = null;
+                            break;
+                        default:
+                            _paused = false;
+                            _statusLabel = phase.Status.Label;
+                            break;
+                    }
                     break;
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
+                    break;
+                case ChatStreamService.ChatStreamEvent.QuestionAsked question:
+                    _pendingQuestion = question.Asked;
                     break;
             }
             await InvokeAsync(StateHasChanged);
@@ -1070,7 +1380,8 @@
     /// Envia a decisão (approve|deny) de uma aprovação pendente e limpa o
     /// prompt — a tool_result chega depois pelo stream.
     /// </summary>
-    private async Task DecideApprovalAsync(string callId, string decision, bool remember)
+    private async Task DecideApprovalAsync(
+        string callId, string decision, bool remember, string? message = null)
     {
         _pendingApproval = null;
         if (_loadedChatId is null || _activeRunId is null)
@@ -1078,7 +1389,24 @@
             return;
         }
         await ChatStream.DecideApprovalAsync(
-            _loadedChatId, _activeRunId, callId, decision, remember);
+            _loadedChatId, _activeRunId, callId, decision, remember, message);
+    }
+
+    /// <summary>
+    /// Responde a pergunta do ask_user (RF-005): approve + message = a
+    /// resposta; null = o usuário pulou → deny (a run segue com "não
+    /// respondeu"). O tool_result chega depois pelo stream.
+    /// </summary>
+    private async Task AnswerQuestionAsync(string callId, string? answer)
+    {
+        _pendingQuestion = null;
+        if (_loadedChatId is null || _activeRunId is null)
+        {
+            return;
+        }
+        await ChatStream.DecideApprovalAsync(
+            _loadedChatId, _activeRunId, callId,
+            answer is null ? "deny" : "approve", false, answer);
     }
 
     /// <summary>Troca o preset de aprovação do chat (re-lido por call no servidor).</summary>
@@ -1160,7 +1488,116 @@
         {
             _ = ChatStream.StopRunAsync(_loadedChatId, _activeRunId);
         }
-        _cts?.Cancel();
+    }
+
+    /// <summary>Pausa a run ativa no servidor — ela bloqueia no próximo checkpoint.</summary>
+    private void PauseStreaming()
+    {
+        if (_activeRunId is not null && _loadedChatId is not null)
+        {
+            _ = ChatStream.PauseRunAsync(_loadedChatId, _activeRunId);
+        }
+    }
+
+    /// <summary>Retoma a run pausada de onde ela parou.</summary>
+    private void ResumeStreaming()
+    {
+        if (_activeRunId is not null && _loadedChatId is not null)
+        {
+            _paused = false;
+            _ = ChatStream.ResumeRunAsync(_loadedChatId, _activeRunId);
+        }
+    }
+
+    /// <summary>Abre/fecha o painel de workspace; carrega jobs/MCPs na abertura.</summary>
+    private async Task TogglePanelAsync()
+    {
+        _showPanel = !_showPanel;
+        if (_showPanel)
+        {
+            await RefreshPanelAsync();
+        }
+    }
+
+    /// <summary>Chip git do header → abre o painel já na aba Changes.</summary>
+    private async Task OpenPanelAtChangesAsync()
+    {
+        _requestedPanelTab = "changes";
+        if (!_showPanel)
+        {
+            _showPanel = true;
+            await RefreshPanelAsync();
+        }
+    }
+
+    /// <summary>
+    /// Snapshot git do workspace (RF-018): usa a run ativa, senão a mais
+    /// recente do chat. Silencioso — sem repo retorna <c>Git=false</c>.
+    /// </summary>
+    private async Task RefreshGitAsync()
+    {
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+
+        var runId = _activeRunId;
+        if (runId is null)
+        {
+            try
+            {
+                runId = (await ChatStream.GetRunsAsync(_loadedChatId))
+                    .FirstOrDefault()?.Id;
+            }
+            catch
+            {
+                return;
+            }
+        }
+        if (runId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _git = await Api.GetRunDiffAsync(_loadedChatId, runId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"git diff indisponível: {ex.Message}");
+        }
+    }
+
+    /// <summary>Recarrega jobs do usuário e servidores MCP (admin).</summary>
+    private async Task RefreshPanelAsync()
+    {
+        try
+        {
+            _jobs = await Api.GetJobsAsync(_loadedChatId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"jobs indisponíveis: {ex.Message}");
+        }
+        if (Auth.CurrentUser?.Role == UserRoles.Admin)
+        {
+            try
+            {
+                _mcps = await Api.GetMcpServersAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MCPs indisponíveis: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>Mata um job em background a partir do painel.</summary>
+    private async Task KillJobAsync(string jobId)
+    {
+        await Api.KillJobAsync(jobId);
+        await RefreshPanelAsync();
     }
 
     private async Task ToggleToolAsync(string toolId)

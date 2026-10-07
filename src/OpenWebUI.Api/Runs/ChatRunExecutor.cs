@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Api.Completions;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -27,6 +28,8 @@ public sealed class ChatRunExecutor(
     WebSearchService webSearch,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
+    ChatRunPauses pauses,
+    IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
     /// <summary>Bytes de delta acumulados antes de gravar um checkpoint.</summary>
@@ -34,6 +37,15 @@ public sealed class ChatRunExecutor(
 
     /// <summary>Tamanho máximo do preview de args/resultado publicado no SSE.</summary>
     private const int PreviewChars = 2048;
+
+    /// <summary>Tamanho máximo de um diff publicado no evento <c>changes</c>.</summary>
+    private const int ChangeDiffChars = 8192;
+
+    /// <summary>
+    /// Arquivos alterados pela run (RF-015): acumulado por path a cada
+    /// file_write/file_edit — alimenta a aba Changes do painel.
+    /// </summary>
+    private readonly Dictionary<string, RunChangeItem> _changes = new();
 
     /// <summary>Roda a run até o fim e atualiza o registro com o resultado.</summary>
     public async Task ExecuteAsync(ChatRun run, CancellationToken ct)
@@ -106,13 +118,20 @@ public sealed class ChatRunExecutor(
                         .ToList(),
                 };
                 var callbacks = new ChatPipeline.ToolLoopCallbacks(
-                    OnPhaseAsync: (phase, label, t) => PublishPhaseAsync(run, phase, label),
+                    // Checkpoint de pausa em cada iteração do loop (RF-013):
+                    // fase nova só começa depois do resume.
+                    OnPhaseAsync: async (phase, label, t) =>
+                    {
+                        await pauses.WaitIfPausedAsync(run.Id, t);
+                        await PublishPhaseAsync(run, phase, label);
+                    },
                     OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
                     GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
-                    OnResultAsync: (call, output, denied, t)
-                        => PublishToolResultAsync(run, call, output, denied));
+                    OnResultAsync: (call, output, result, denied, t)
+                        => PublishToolResultAsync(run, call, output, result, denied));
+                var builtinContext = BuildToolContext(run, user);
                 var outcome = await ChatPipeline.RunToolLoopAsync(
-                    effective, tools, toolExecutor, providers, ct, callbacks);
+                    effective, tools, toolExecutor, providers, ct, callbacks, builtinContext);
                 if (outcome?.FinalContent is { } final)
                 {
                     toolMessages = outcome.ToolMessages;
@@ -133,6 +152,7 @@ public sealed class ChatRunExecutor(
             {
                 await foreach (var line in providers.StreamCompletionAsync(effective, ct))
                 {
+                    await pauses.WaitIfPausedAsync(run.Id, ct);
                     var processed = ModelFilterService.ProcessSseLine(line, outletRules);
                     broadcaster.Publish(run.Id, processed);
                     AccumulateDelta(processed, content);
@@ -191,13 +211,63 @@ public sealed class ChatRunExecutor(
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Contexto das tools built-in da run (SPEC-20261007-chat-agent-tools):
+    /// workspace confinado em <c>data/workspaces/{userId}</c> e uploads em
+    /// <c>data/uploads/{userId}</c> (mesma raiz das telas de Imagens).
+    /// </summary>
+    private BuiltinToolContext BuildToolContext(ChatRun run, User user) => new(
+        user.Id,
+        run.ChatId,
+        run.Id,
+        Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
+        Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
+
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
     private Task PublishToolResultAsync(
-        ChatRun run, ProviderToolCall call, string output, bool denied)
+        ChatRun run, ProviderToolCall call, string output, JsonElement? result, bool denied)
     {
         var ok = !denied && !output.StartsWith("Erro", StringComparison.Ordinal);
+        string? imagePath = null;
+        string? videoPath = null;
+        if (result is { } el && el.ValueKind == JsonValueKind.Object)
+        {
+            if (el.TryGetProperty("imagePath", out var img))
+            {
+                imagePath = img.GetString();
+            }
+            if (el.TryGetProperty("videoPath", out var vid))
+            {
+                videoPath = vid.GetString();
+            }
+        }
+
+        // todo_write publica o snapshot de tarefas como evento `tasks`
+        // (RF-010 chat-agent-parity) — replay cobre attach tardio.
+        if (result is { } res && res.ValueKind == JsonValueKind.Object
+            && res.TryGetProperty("tasks", out var tasks)
+            && tasks.ValueKind == JsonValueKind.Array)
+        {
+            broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
+        }
+
+        // file_write/file_edit acumulam o diff por path e publicam o
+        // snapshot `changes` (RF-015) — aba Changes do painel lateral.
+        if (result is { } chg && chg.ValueKind == JsonValueKind.Object
+            && chg.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String
+            && chg.TryGetProperty("added", out var a) && a.ValueKind == JsonValueKind.Number
+            && chg.TryGetProperty("removed", out var r) && r.ValueKind == JsonValueKind.Number)
+        {
+            var diff = chg.TryGetProperty("diff", out var d) && d.ValueKind == JsonValueKind.String
+                ? Truncate(d.GetString()!, ChangeDiffChars)
+                : null;
+            _changes[p.GetString()!] = new RunChangeItem(
+                p.GetString()!, a.GetInt32(), r.GetInt32(), diff);
+            broadcaster.Publish(run.Id,
+                $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
+        }
         broadcaster.Publish(run.Id,
-            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), Denied: denied), JsonOptions)}");
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result, VideoPath: videoPath), JsonOptions)}");
         return Task.CompletedTask;
     }
 
@@ -205,17 +275,30 @@ public sealed class ChatRunExecutor(
     /// Gate de aprovação por tool call (RF-003/RF-004): tool não-mutável
     /// ou já lembrada executa direto; preset <c>always-allow</c> libera,
     /// <c>allow-readonly</c> nega; <c>approve-mutations</c> emite
-    /// <c>approval_asked</c> e espera a decisão do dono (timeout → deny).
+    /// <c>approval_asked</c> e espera a decisão do dono (timeout → deny);
+    /// uma negação pode carregar a instrução do dono (RF-002 chat-agent-ux).
     /// O preset é relido a cada call — mudança mid-run vale já no próximo.
     /// </summary>
-    private async Task<bool> GateToolCallAsync(
+    private async Task<ToolGateDecision> GateToolCallAsync(
         ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call, CancellationToken ct)
     {
+        // Checkpoint de pausa antes do gate (RF-013) — a call pendente
+        // só resolve depois do resume.
+        await pauses.WaitIfPausedAsync(run.Id, ct);
+
+        // ask_user (RF-005): sempre pausa — a pergunta é o próprio gate;
+        // não passa por preset nem por remembered. A resposta volta como
+        // ToolGateDecision.Output e vira o resultado da tool.
+        if (string.Equals(call.Name, "builtin:ask_user", StringComparison.OrdinalIgnoreCase))
+        {
+            return await AskUserAsync(run, call, ct);
+        }
+
         var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
         if (tool is null || !ToolExecutor.IsMutable(tool)
             || approvals.IsRemembered(run.ChatId, call.Name))
         {
-            return true;
+            return ToolGateDecision.Allow;
         }
 
         var preset = await db.Chats.AsNoTracking()
@@ -226,9 +309,31 @@ public sealed class ChatRunExecutor(
         switch (preset)
         {
             case "always-allow":
-                return true;
+                return ToolGateDecision.Allow;
             case "allow-readonly":
-                return false;
+                return ToolGateDecision.Deny;
+            case "auto":
+            {
+                // RF-012 (paridade OpenHands): LOW executa direto; MEDIUM
+                // executa com notice no stream; HIGH cai no fluxo de
+                // pergunta abaixo.
+                var risk = ToolCallRiskClassifier.Classify(
+                    tool, call.ArgumentsJson,
+                    Path.Combine(env.ContentRootPath, "data", "workspaces", run.UserId));
+                if (risk == ToolCallRisk.Low)
+                {
+                    return ToolGateDecision.Allow;
+                }
+
+                if (risk == ToolCallRisk.Medium)
+                {
+                    broadcaster.Publish(run.Id,
+                        $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("auto_approved", call.Name), JsonOptions)}");
+                    return ToolGateDecision.Allow;
+                }
+
+                break;
+            }
         }
 
         var argsPreview = Scrub(Truncate(call.ArgumentsJson, PreviewChars));
@@ -240,7 +345,60 @@ public sealed class ChatRunExecutor(
             $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
         broadcaster.Publish(run.Id,
             $"event: approval_asked\ndata: {JsonSerializer.Serialize(new RunApprovalAskedEvent(call.Id, call.Name, kind, argsPreview), JsonOptions)}");
-        return await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var message = string.IsNullOrWhiteSpace(result.Message)
+            ? null
+            : Scrub(Truncate(result.Message!, PreviewChars));
+        return new ToolGateDecision(result.Approved, message);
+    }
+
+    /// <summary>
+    /// Gate do <c>builtin:ask_user</c> (RF-005): publica
+    /// <c>question_asked</c> com a pergunta e opções dos args, espera a
+    /// decisão do dono pelo mesmo mecanismo de aprovação e devolve a
+    /// resposta como <see cref="ToolGateDecision.Output"/> — a tool não
+    /// executa de fato. Negar/pular → "o usuário não respondeu" (a run
+    /// segue; o modelo decide o próximo passo).
+    /// </summary>
+    private async Task<ToolGateDecision> AskUserAsync(
+        ChatRun run, ProviderToolCall call, CancellationToken ct)
+    {
+        var question = "?";
+        string[] options = [];
+        var multiple = false;
+        try
+        {
+            var args = JsonDocument.Parse(call.ArgumentsJson).RootElement;
+            question = args.TryGetProperty("question", out var q) && q.GetString() is { Length: > 0 } qt
+                ? qt
+                : question;
+            if (args.TryGetProperty("options", out var opts)
+                && opts.ValueKind == JsonValueKind.Array)
+            {
+                options = [.. opts.EnumerateArray()
+                    .Select(o => o.GetString())
+                    .Where(o => !string.IsNullOrWhiteSpace(o))
+                    .Select(o => o!)
+                    .Take(6)];
+            }
+            multiple = args.TryGetProperty("multiple", out var m)
+                && m.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return new ToolGateDecision(true, Output: "Pergunta malformada (args inválidos).");
+        }
+
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
+        broadcaster.Publish(run.Id,
+            $"event: question_asked\ndata: {JsonSerializer.Serialize(new RunQuestionAskedEvent(call.Id, Scrub(Truncate(question, PreviewChars)), options, multiple), JsonOptions)}");
+
+        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var answer = result.Approved && !string.IsNullOrWhiteSpace(result.Message)
+            ? Scrub(Truncate(result.Message!, PreviewChars))
+            : "O usuário não respondeu.";
+        return new ToolGateDecision(true, Output: answer);
     }
 
     /// <summary>Esconde padrões óbvios de secret antes de publicar no SSE.</summary>

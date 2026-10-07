@@ -16,10 +16,13 @@ public sealed class ChatRunApprovals
     /// <summary>Tempo máximo esperando uma decisão antes de negar.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
+    /// <summary>Resultado da espera: aprovado, ou negado com mensagem.</summary>
+    public sealed record ApprovalResult(bool Approved, string? Message);
+
     private sealed record Pending(
         string ChatId,
         string ToolName,
-        TaskCompletionSource<bool> Completion);
+        TaskCompletionSource<ApprovalResult> Completion);
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new();
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> _remembered =
@@ -36,18 +39,19 @@ public sealed class ChatRunApprovals
         _pending.ContainsKey(Key(runId, callId));
 
     /// <summary>
-    /// Registra a pendência e espera a decisão. Resolve <c>true</c> aprovado,
-    /// <c>false</c> negado (decisão, timeout ou cancelamento da run).
+    /// Registra a pendência e espera a decisão. Resolve aprovado, ou negado
+    /// (decisão — com a mensagem de instrução opcional —, timeout ou
+    /// cancelamento da run).
     /// </summary>
-    public async Task<bool> WaitAsync(
+    public async Task<ApprovalResult> WaitAsync(
         string runId, string chatId, string callId, string toolName,
         CancellationToken ct)
     {
-        var pending = new Pending(chatId, toolName, new TaskCompletionSource<bool>(
+        var pending = new Pending(chatId, toolName, new TaskCompletionSource<ApprovalResult>(
             TaskCreationOptions.RunContinuationsAsynchronously));
         if (!_pending.TryAdd(Key(runId, callId), pending))
         {
-            return false;
+            return new ApprovalResult(false, null);
         }
 
         try
@@ -57,11 +61,12 @@ public sealed class ChatRunApprovals
             await Task.WhenAny(pending.Completion.Task,
                 Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, timeout.Token));
             return pending.Completion.Task is { IsCompletedSuccessfully: true } task
-                && task.Result;
+                ? task.Result
+                : new ApprovalResult(false, null);
         }
         catch (OperationCanceledException)
         {
-            return false;
+            return new ApprovalResult(false, null);
         }
         finally
         {
@@ -75,7 +80,7 @@ public sealed class ChatRunApprovals
     /// </summary>
     public bool Resolve(
         string runId, string chatId, string callId,
-        bool approved, bool remember)
+        bool approved, bool remember, string? message = null)
     {
         if (!_pending.TryGetValue(Key(runId, callId), out var pending)
             || pending.ChatId != chatId)
@@ -89,7 +94,7 @@ public sealed class ChatRunApprovals
                 [pending.ToolName] = true;
         }
 
-        return pending.Completion.TrySetResult(approved);
+        return pending.Completion.TrySetResult(new ApprovalResult(approved, message));
     }
 
     /// <summary>Nega todas as aprovações pendentes da run (stop/shutdown).</summary>
@@ -99,7 +104,7 @@ public sealed class ChatRunApprovals
         {
             if (key.StartsWith($"{runId}:", StringComparison.Ordinal))
             {
-                pending.Completion.TrySetResult(false);
+                pending.Completion.TrySetResult(new ApprovalResult(false, null));
             }
         }
     }

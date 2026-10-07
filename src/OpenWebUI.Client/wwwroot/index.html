@@ -3,16 +3,17 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<meta name="theme-color" content="#171717" />
+		<meta name="theme-color" content="#ffffff" />
 		<title>Open WebUI</title>
 		<base href="/" />
 		<link rel="manifest" href="manifest.webmanifest" />
 		<link rel="icon" type="image/png" href="favicon.png" />
 		<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 		<link rel="stylesheet" href="css/tailwind.css" />
+		<link rel="stylesheet" href="lib/xterm/xterm.css" />
 		<script>
 			// Aplica o tema antes do primeiro paint, como no upstream.
-			const theme = localStorage.getItem('webui.theme') || 'dark';
+			const theme = localStorage.getItem('webui.theme') || 'light';
 			const isDark =
 				theme === 'dark' ||
 				(theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -23,6 +24,9 @@
 		<script src="js/audio.js"></script>
 		<script src="js/codeexec.js"></script>
 		<script src="js/collab.js"></script>
+		<script src="lib/xterm/xterm.js"></script>
+		<script src="lib/xterm/xterm-addon-fit.js"></script>
+		<script src="js/terminal.js"></script>
 		<script>
 			if ('serviceWorker' in navigator) {
 				navigator.serviceWorker.register('service-worker.js');

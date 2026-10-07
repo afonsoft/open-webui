@@ -143,6 +143,41 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.ToTable("Automations");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.AutomationHook", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChatId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastFiredAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AutomationHooks");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.AutomationRun", b =>
                 {
                     b.Property<string>("Id")
@@ -453,6 +488,61 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.HasIndex("UserId", "UpdatedAt");
 
                     b.ToTable("Chats");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.ChatJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChatId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Command")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OutputPath")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Pid")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RunId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WorkspacePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatId", "Status");
+
+                    b.HasIndex("UserId", "StartedAt");
+
+                    b.ToTable("ChatJobs");
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.ChatMessage", b =>
@@ -1328,6 +1418,25 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.AutomationHook", b =>
+                {
+                    b.HasOne("OpenWebUI.Domain.Chat", "Chat")
+                        .WithMany()
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenWebUI.Domain.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chat");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.AutomationRun", b =>
                 {
                     b.HasOne("OpenWebUI.Domain.Automation", "Automation")
@@ -1407,6 +1516,15 @@ namespace OpenWebUI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("OpenWebUI.Domain.ChatJob", b =>
+                {
+                    b.HasOne("OpenWebUI.Domain.Chat", null)
+                        .WithMany()
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.ChatMessage", b =>

@@ -47,21 +47,21 @@ public class ClientServiceEdgeTests
     }
 
     [Test]
-    public async Task Theme_SemPreferenciaSalva_CaiEmDark()
+    public async Task Theme_SemPreferenciaSalva_CaiEmLight()
     {
         var js = new FakeJs();
         var theme = new ThemeService(js, new BrowserStorage(js));
         await theme.InitializeAsync();
-        Assert.That(theme.Current, Is.EqualTo("dark"));
+        Assert.That(theme.Current, Is.EqualTo("light"));
     }
 
     [Test]
-    public async Task Theme_ValorSalvoEInvalido_VoltaParaDark()
+    public async Task Theme_ValorSalvoEInvalido_VoltaParaLight()
     {
         var js = new FakeJs { ["webui.theme"] = "roxo" };
         var theme = new ThemeService(js, new BrowserStorage(js));
         await theme.InitializeAsync();
-        Assert.That(theme.Current, Is.EqualTo("dark"));
+        Assert.That(theme.Current, Is.EqualTo("light"));
     }
 
     [Test]

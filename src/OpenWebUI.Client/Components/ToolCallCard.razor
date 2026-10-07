@@ -1,10 +1,13 @@
+@using System.Text.Json
 @inject LocalizationService L
 
 @*
-    Card de uma chamada de tool (SPEC-20261007-chat-tool-streaming):
-    nome + estado (executando/ok/negado/erro) + argumentos e resultado
-    expansíveis. Serve tanto para os eventos vivos do SSE quanto para
-    mensagens persistidas (assistant.tool_calls / role=tool).
+    Card de uma chamada de tool (SPEC-20261007-chat-tool-streaming +
+    SPEC-20261007-chat-agent-ux RF-001): nome + estado + resumo de uma
+    linha por tool (comando/URL/query) e corpo rico por tipo —
+    shell_exec mostra `$ comando` + saída colapsada expansível,
+    code_interpreter mostra o código, generate_image a imagem inline.
+    Serve para eventos vivos do SSE e mensagens persistidas.
 *@
 
 <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 overflow-hidden">
@@ -14,10 +17,14 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" />
         </svg>
         <span class="font-mono truncate font-medium">@Name</span>
+        @if (Summary is { Length: > 0 } summary && !IsShell)
+        {
+            <span class="truncate text-gray-400 dark:text-gray-500 font-normal">· @summary</span>
+        }
 
         @if (Running)
         {
-            <span class="ml-auto flex items-center gap-1 text-blue-600 dark:text-blue-400">
+            <span class="ml-auto flex items-center gap-1 text-blue-600 dark:text-blue-400 flex-none">
                 <svg class="size-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
@@ -27,21 +34,29 @@
         }
         else if (Denied)
         {
-            <span class="ml-auto rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-amber-700 dark:text-amber-300">
+            <span class="ml-auto rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-amber-700 dark:text-amber-300 flex-none">
                 @L["chat.tool_denied"]
             </span>
         }
         else if (Ok == false)
         {
-            <span class="ml-auto rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-red-700 dark:text-red-300">
+            <span class="ml-auto rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-red-700 dark:text-red-300 flex-none">
                 @L["chat.tool_error"]
             </span>
         }
         else if (Ok == true)
         {
-            <span class="ml-auto rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-green-700 dark:text-green-300">
+            <span class="ml-auto rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-green-700 dark:text-green-300 flex-none">
                 ok
             </span>
+        }
+        @if (ChildChatId is { } childId)
+        {
+            @* delegate_task: link pro transcript completo da subtarefa (RF-016) *@
+            <a href="/c/@childId" class="flex-none rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[0.625rem] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/70"
+               @onclick:stopPropagation="true">
+                @L["chat.tool_delegate_open"]
+            </a>
         }
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
              class="size-3.5 flex-none transition-transform @(_open ? "rotate-180" : "")">
@@ -49,10 +64,19 @@
         </svg>
     </button>
 
-    @if (_open && (ArgsPreview is not null || ResultPreview is not null || ImagePath is not null))
+    @if (IsShell && Command is { Length: > 0 } cmd)
+    {
+        <div class="px-3 pb-1.5 font-mono text-[0.6875rem] text-gray-500 dark:text-gray-400 truncate" title="@cmd">$ @cmd</div>
+    }
+
+    @if (_open && HasBody)
     {
         <div class="border-t border-gray-200 dark:border-gray-800 px-3 py-2 flex flex-col gap-2">
-            @if (ArgsPreview is not null)
+            @if (IsCode && Code is { Length: > 0 } code)
+            {
+                <pre class="max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono text-gray-700 dark:text-gray-300"><code>@(code)</code></pre>
+            }
+            else if (ArgsPreview is not null && !IsShell)
             {
                 <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@ArgsPreview</pre>
             }
@@ -60,9 +84,27 @@
             {
                 <img src="@ImagePath" alt="@Name" class="max-w-sm rounded-lg border border-gray-200 dark:border-gray-800" />
             }
-            @if (ResultPreview is not null)
+            @if (VideoPath is not null)
             {
-                <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@ResultPreview</pre>
+                <video src="@VideoPath" controls preload="metadata"
+                       class="max-w-sm rounded-lg border border-gray-200 dark:border-gray-800"></video>
+            }
+            @if (ResultPreview is not null && IsDiff)
+            {
+                @* file_write/file_edit: saída é diff unificado — colorido por linha *@
+                <pre class="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono">@foreach (var line in DiffLines){<span class="@line.Css">@line.Text
+</span>}</pre>
+            }
+            else if (ResultPreview is not null)
+            {
+                <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@VisibleOutput</pre>
+                @if (OutputOverflow)
+                {
+                    <button class="self-start text-[0.6875rem] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            @onclick="() => _outputExpanded = !_outputExpanded" @onclick:stopPropagation="true">
+                        @(_outputExpanded ? L["chat.tool_collapse"] : L["chat.tool_expand"])
+                    </button>
+                }
             }
         </div>
     }
@@ -81,6 +123,9 @@
     /// <summary>Caminho da imagem gerada, quando a tool produziu uma.</summary>
     [Parameter] public string? ImagePath { get; set; }
 
+    /// <summary>Caminho do vídeo gerado, quando a tool produziu um.</summary>
+    [Parameter] public string? VideoPath { get; set; }
+
     /// <summary>True enquanto a tool executa (entre tool_call e tool_result).</summary>
     [Parameter] public bool Running { get; set; }
 
@@ -90,5 +135,56 @@
     /// <summary>Sucesso da execução; null = desconhecido.</summary>
     [Parameter] public bool? Ok { get; set; }
 
+    /// <summary>Payload estruturado do resultado (links/ids) quando publicado.</summary>
+    [Parameter] public JsonElement? Result { get; set; }
+
+    private const int OutputMaxLines = 10;
+
     private bool _open;
+    private bool _outputExpanded;
+
+    private string ToolSuffix => Name.Split(':', '/').Last();
+
+    private bool IsShell => ToolSuffix == "shell_exec";
+    private bool IsCode => ToolSuffix == "code_interpreter";
+    private bool IsDiff => ToolSuffix is "file_write" or "file_edit";
+
+    /// <summary>Chat da subtarefa delegada, quando a tool publicou childChatId.</summary>
+    private string? ChildChatId =>
+        ToolSuffix == "delegate_task"
+        && Result is { } r && r.ValueKind == JsonValueKind.Object
+        && r.TryGetProperty("childChatId", out var c) && c.ValueKind == JsonValueKind.String
+            ? c.GetString()
+            : null;
+
+    /// <summary>Linhas do diff com cor por prefixo (+/-/@@/cabeçalho).</summary>
+    private IEnumerable<(string Text, string Css)> DiffLines =>
+        (ResultPreview ?? string.Empty).Split('\n').Skip(1).Select<string, (string, string)>(l => l switch
+        {
+            _ when l.StartsWith("+++") || l.StartsWith("---")
+                => (l, "text-gray-400 dark:text-gray-500"),
+            _ when l.StartsWith("@@")
+                => (l, "text-blue-600 dark:text-blue-400"),
+            _ when l.StartsWith('+')
+                => (l, "text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40"),
+            _ when l.StartsWith('-')
+                => (l, "text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40"),
+            _ => (l, "text-gray-500 dark:text-gray-400"),
+        });
+
+    private string? Summary => ToolArgsPreview.Summary(Name, ArgsPreview);
+    private string? Command => IsShell ? ToolArgsPreview.TryGetField(ArgsPreview, "command") : null;
+    private string? Code => IsCode ? ToolArgsPreview.TryGetField(ArgsPreview, "code") : null;
+
+    private bool HasBody =>
+        ArgsPreview is not null || ResultPreview is not null || ImagePath is not null;
+
+    private string[] OutputLines =>
+        ResultPreview?.Split('\n') ?? [];
+
+    private bool OutputOverflow => !_outputExpanded && OutputLines.Length > OutputMaxLines;
+
+    private string VisibleOutput => OutputOverflow
+        ? string.Join('\n', OutputLines.Take(OutputMaxLines)) + "\n…"
+        : ResultPreview ?? "";
 }

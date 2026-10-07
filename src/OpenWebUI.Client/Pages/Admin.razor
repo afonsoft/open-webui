@@ -17,22 +17,41 @@
     }
     else
     {
-        <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-800 pb-2">
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "users" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("users")'>@L["admin.users"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("groups")'>@L["admin.groups"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "chats" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("chats")'>@L["admin.tab_chats"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("analytics")'>Analytics</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("evaluations")'>@L["admin.tab_evaluations"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "leaderboard" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("leaderboard")'>@L["admin.tab_leaderboard"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
-                    @onclick='() => SetTab("config")'>@L["admin.tab_config"]</button>
+        @* Mobile: pills horizontais roláveis *@
+        <div class="flex lg:hidden gap-2 mb-4 border-b border-gray-200 dark:border-gray-800 pb-2 overflow-x-auto whitespace-nowrap scrollbar-hidden">
+            @foreach (var item in NavItems())
+            {
+                <button class="text-sm px-3 py-1.5 rounded-full shrink-0 transition
+                               @(_tab == item.Id ? "bg-gray-900 text-white dark:bg-gray-200 dark:text-gray-900 font-medium" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200")"
+                        @onclick="() => SetTab(item.Id)">@L[item.LabelKey]</button>
+            }
         </div>
+
+        <div class="flex gap-6">
+        @* Desktop: rail de navegação lateral com ícones (padrão Devin/OpenHands) *@
+        <nav class="hidden lg:flex flex-col gap-0.5 w-44 shrink-0" aria-label="@L["admin.title"]">
+            @foreach (var group in NavGroups())
+            {
+                <div class="px-2 pt-3 pb-1 text-[0.625rem] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    @L[group.LabelKey]
+                </div>
+                @foreach (var item in group.Items)
+                {
+                    <button class="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-left transition
+                                   @(_tab == item.Id
+                                       ? "bg-gray-900 text-white dark:bg-gray-200 dark:text-gray-900 font-medium"
+                                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100")"
+                            @onclick="() => SetTab(item.Id)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 shrink-0">
+                            @((MarkupString)item.Icon)
+                        </svg>
+                        @L[item.LabelKey]
+                    </button>
+                }
+            }
+        </nav>
+
+        <div class="flex-1 min-w-0">
 
         @if (_tab == "users")
         {
@@ -323,10 +342,10 @@
             }
             else
             {
-                <div class="flex gap-1 mb-3">
-                    @foreach (var sub in new[] { "general", "models", "features", "audio", "retrieval", "mcp" })
+                <div class="flex gap-1 mb-3 overflow-x-auto whitespace-nowrap scrollbar-hidden">
+                    @foreach (var sub in new[] { "general", "providers", "models", "features", "audio", "retrieval", "mcp", "integrations" })
                     {
-                        <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                        <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
                     }
                 </div>
@@ -365,6 +384,137 @@
                             }
                             <button class="auth-submit" @onclick="SaveFlagsAsync">@L["common.save"]</button>
                         </div>
+                    </div>
+                }
+                else if (_configTab == "providers")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">Ollama</div>
+                                <div class="card-sub">@L["admin.prov_ollama_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <button class="button-sm" @onclick="() => _provOllamaRows.Add(new())">+ @L["common.add"]</button>
+                            </div>
+                        </div>
+                        @for (var i = 0; i < _provOllamaRows.Count; i++)
+                        {
+                            var row = _provOllamaRows[i];
+                            var idx = i;
+                            <div class="card-row">
+                                <div class="flex flex-col sm:flex-row gap-2 w-full">
+                                    <input class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" />
+                                    <div class="flex gap-2 items-center">
+                                        <button class="button-sm" disabled="@_provTesting"
+                                                @onclick='() => TestConnectionAsync("ollama", idx)'>@L["admin.prov_test"]</button>
+                                        <button class="msg-action danger" @onclick="() => _provOllamaRows.Remove(row)">🗑</button>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (_provConnModels.TryGetValue(("ollama", idx), out var ollamaModels) && ollamaModels.Count > 0)
+                            {
+                                <div class="card-row">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach (var m in ollamaModels)
+                                        {
+                                            <span class="role-badge">@m</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">OpenAI-compatible</div>
+                                <div class="card-sub">@L["admin.prov_openai_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <button class="button-sm" @onclick="() => _provOpenAiRows.Add(new())">+ @L["common.add"]</button>
+                            </div>
+                        </div>
+                        @for (var i = 0; i < _provOpenAiRows.Count; i++)
+                        {
+                            var row = _provOpenAiRows[i];
+                            var idx = i;
+                            <div class="card-row">
+                                <div class="flex flex-col sm:flex-row gap-2 w-full">
+                                    <input class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" />
+                                    <input class="input sm:w-48" type="password" @bind="row.Key"
+                                           placeholder="@(row.KeyConfigured ? L["admin.prov_key_set"] : "sk-…")" />
+                                    <div class="flex gap-2 items-center">
+                                        <button class="button-sm" disabled="@_provTesting"
+                                                @onclick='() => TestConnectionAsync("openai", idx)'>@L["admin.prov_test"]</button>
+                                        <button class="msg-action danger" @onclick="() => _provOpenAiRows.Remove(row)">🗑</button>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (_provConnModels.TryGetValue(("openai", idx), out var openAiModels) && openAiModels.Count > 0)
+                            {
+                                <div class="card-row">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach (var m in openAiModels.Take(20))
+                                        {
+                                            <span class="role-badge">@m</span>
+                                        }
+                                        @if (openAiModels.Count > 20)
+                                        {
+                                            <span class="role-badge">+@(openAiModels.Count - 20)</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        <div class="card-row">
+                            @if (_provMessage is not null)
+                            {
+                                <div class="field-note">@_provMessage</div>
+                            }
+                            <button class="auth-submit" @onclick="SaveProvidersAsync">@L["common.save"]</button>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.prov_ollama_models"]</div>
+                                <div class="card-sub">@L["admin.prov_ollama_models_sub"]</div>
+                            </div>
+                        </div>
+                        @if (_provOllamaInstalled is not null)
+                        {
+                            @foreach (var model in _provOllamaInstalled)
+                            {
+                                <div class="card-row">
+                                    <div class="card-main">
+                                        <div class="card-title text-sm font-normal">@model.Name</div>
+                                        @if (model.Size > 0)
+                                        {
+                                            <div class="card-sub">@FormatBytes(model.Size)</div>
+                                        }
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="msg-action danger" @onclick="() => DeleteOllamaModelAsync(model)">🗑</button>
+                                    </div>
+                                </div>
+                            }
+                            @if (_provOllamaInstalled.Count == 0)
+                            {
+                                <div class="card-row"><div class="sidebar-empty">@L["admin.prov_no_models"]</div></div>
+                            }
+                        }
+                        <div class="card-row">
+                            <div class="flex gap-2 w-full items-center">
+                                <input class="input flex-1" @bind="_provPullName" placeholder="llama3.2" />
+                                <button class="button-sm" disabled="@(_provPulling || string.IsNullOrWhiteSpace(_provPullName))"
+                                        @onclick="PullOllamaModelAsync">
+                                    @(_provPulling ? L["admin.prov_pulling"] : L["admin.prov_pull"])
+                                </button>
+                            </div>
+                        </div>
+                        @if (_provPullMessage is not null)
+                        {
+                            <div class="card-row"><div class="field-note">@_provPullMessage</div></div>
+                        }
                     </div>
                 }
                 else if (_configTab == "models")
@@ -675,29 +825,53 @@
                                 <div class="card-sub">@L["admin.mcp_servers_hint"]</div>
                             </div>
                         </div>
+                        @if (_mcpServers.Count == 0)
+                        {
+                            <div class="card-row">
+                                <div class="card-sub">@L["admin.mcp_empty"]</div>
+                            </div>
+                        }
                         @foreach (var server in _mcpServers)
                         {
                             <div class="card-row flex-col items-stretch">
                                 <div class="flex items-center justify-between gap-2 flex-wrap">
                                     <div class="card-main">
-                                        <div class="card-title">
+                                        <div class="card-title flex items-center gap-2">
+                                            <span class="inline-block size-2 rounded-full flex-none @(McpStatusClass(server))"
+                                                  title="@McpStatusTitle(server)"></span>
                                             @server.Name <span class="role-badge">@server.Transport</span>
                                             @if (!server.Enabled)
                                             {
                                                 <span class="role-badge">@L["common.disabled"]</span>
                                             }
+                                            else if (_mcpTools.TryGetValue(server.Id, out var badgeTools))
+                                            {
+                                                <span class="role-badge">@L.T("admin.mcp_tools_badge", ("count", badgeTools.Count.ToString()))</span>
+                                            }
                                         </div>
                                         <div class="card-sub">
                                             @(server.Transport == "stdio" ? server.Command : server.Url)
-                                            @if (server.LastError is not null)
-                                            {
-                                                <span class="text-red-500"> — @server.LastError</span>
-                                            }
                                         </div>
+                                        @if (server.LastError is not null)
+                                        {
+                                            <div class="card-sub text-red-500">@server.LastError</div>
+                                        }
                                     </div>
                                     <div class="card-actions">
-                                        <button class="msg-action" @onclick="() => RefreshMcpAsync(server)"
-                                                aria-label="@L["admin.mcp_refresh"]">⟳</button>
+                                        @if (_mcpBusy.Contains(server.Id))
+                                        {
+                                            <span class="msg-action" aria-busy="true">
+                                                <svg class="size-3.5 animate-spin inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                                                </svg>
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <button class="msg-action" @onclick="() => RefreshMcpAsync(server)"
+                                                    title="@L["admin.mcp_test"]" aria-label="@L["admin.mcp_test"]">⟳</button>
+                                        }
                                         <button class="msg-action" @onclick="() => EditMcpServer(server)"
                                                 aria-label="@L["common.edit"]">✎</button>
                                         <button class="msg-action" @onclick="() => ToggleMcpServerAsync(server)"
@@ -705,11 +879,35 @@
                                         <button class="msg-action danger" @onclick="() => DeleteMcpServerAsync(server)">🗑</button>
                                     </div>
                                 </div>
+                                @if (_mcpTestResults.TryGetValue(server.Id, out var testResult))
+                                {
+                                    <div class="text-xs mt-1 @(testResult.Ok ? "text-green-600 dark:text-green-400" : "text-red-500")">
+                                        @testResult.Message
+                                    </div>
+                                }
                                 @if (_mcpTools.TryGetValue(server.Id, out var mcpTools) && mcpTools.Count > 0)
                                 {
-                                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        @string.Join(" · ", mcpTools.Select(t => t.Name))
-                                    </div>
+                                    <button class="text-left text-xs text-gray-500 dark:text-gray-400 mt-1 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+                                            @onclick="() => ToggleMcpTools(server.Id)"
+                                            aria-expanded="@_mcpExpanded.Contains(server.Id)">
+                                        <span class="inline-block transition-transform @(_mcpExpanded.Contains(server.Id) ? "rotate-90" : "")">▸</span>
+                                        @L.T("admin.mcp_tools_badge", ("count", mcpTools.Count.ToString()))
+                                    </button>
+                                    @if (_mcpExpanded.Contains(server.Id))
+                                    {
+                                        <div class="mt-1 flex flex-col gap-1 rounded-lg bg-gray-50 dark:bg-gray-900/50 px-2 py-1.5">
+                                            @foreach (var tool in mcpTools)
+                                            {
+                                                <div class="text-xs">
+                                                    <span class="font-mono font-medium text-gray-700 dark:text-gray-300">@tool.Name</span>
+                                                    @if (!string.IsNullOrWhiteSpace(tool.Description))
+                                                    {
+                                                        <span class="text-gray-500 dark:text-gray-400"> — @tool.Description</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
                                 }
                             </div>
                         }
@@ -740,7 +938,156 @@
                             {
                                 <div class="field-note">@_mcpMessage</div>
                             }
-                            <button class="auth-submit" @onclick="SaveMcpServerAsync">@L["common.save"]</button>
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveMcpServerAsync">@L["common.save"]</button>
+                                @if (_editingMcpId is not null)
+                                {
+                                    <button class="msg-action" @onclick="ResetMcpForm">@L["common.cancel"]</button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (_configTab == "integrations")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">n8n</div>
+                                <div class="card-sub">@L["admin.n8n_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                @if (_n8nConfigured)
+                                {
+                                    <span class="role-badge">@L["admin.n8n_connected"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input class="input" @bind="_n8nBaseUrl" placeholder="https://n8n.example.com" />
+                                <input class="input" type="password" @bind="_n8nApiKey"
+                                       placeholder="@(_n8nHasKey ? L["admin.prov_key_set"] : "n8n API key")" />
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_n8nMessage is not null)
+                            {
+                                <div class="field-note">@_n8nMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveN8nConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="LoadN8nWorkflowsAsync">@L["admin.n8n_list_workflows"]</button>
+                            </div>
+                        </div>
+                        @if (_n8nWorkflows is not null)
+                        {
+                            @foreach (var wf in _n8nWorkflows)
+                            {
+                                <div class="card-row">
+                                    <div class="card-main">
+                                        <div class="card-title text-sm font-normal">@wf.Name</div>
+                                        <div class="card-sub">@wf.Id</div>
+                                    </div>
+                                    <div class="card-actions">
+                                        <span class="role-badge">@(wf.Active ? "active" : "inactive")</span>
+                                    </div>
+                                </div>
+                            }
+                            @if (_n8nWorkflows.Count == 0)
+                            {
+                                <div class="card-row"><div class="sidebar-empty">@L["admin.n8n_no_workflows"]</div></div>
+                            }
+                        }
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.hooks_title"]</div>
+                                <div class="card-sub">@L["admin.hooks_sub"]</div>
+                            </div>
+                        </div>
+                        @foreach (var hook in _hooks)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title text-sm font-normal">@hook.Name</div>
+                                    <div class="card-sub font-mono text-[0.7rem] break-all">
+                                        @Nav.BaseUri.TrimEnd('/')@hook.Url
+                                    </div>
+                                    @if (hook.LastFiredAt is { } fired)
+                                    {
+                                        <div class="card-sub">@L["admin.hooks_last_fired"]: @FormatTs(fired)</div>
+                                    }
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" title="@L["common.copy"]"
+                                            @onclick="() => CopyTextAsync(Nav.BaseUri.TrimEnd('/') + hook.Url)">⧉</button>
+                                    <button class="msg-action danger" @onclick="() => DeleteHookAsync(hook)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        @if (_hooks.Count == 0)
+                        {
+                            <div class="card-row"><div class="sidebar-empty">@L["admin.hooks_empty"]</div></div>
+                        }
+                        <div class="card-row">
+                            <div class="flex gap-2 w-full items-center">
+                                <input class="input flex-1" @bind="_hookName" placeholder="@L["admin.hooks_name_ph"]" />
+                                <button class="button-sm" disabled="@string.IsNullOrWhiteSpace(_hookName)"
+                                        @onclick="CreateHookAsync">+ @L["common.add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.video_title"]</div>
+                                <div class="card-sub">@L["admin.video_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <label class="check">
+                                    <input type="checkbox" @bind="_videoEnabled" /> @L["admin.video_enabled"]
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <select class="input" @bind="_videoEngine">
+                                    @foreach (var engine in _videoEngines)
+                                    {
+                                        <option value="@engine">@engine</option>
+                                    }
+                                </select>
+                                <input class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
+                                <input class="input" type="password" @bind="_videoApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                <div class="flex gap-2">
+                                    <input class="input flex-1" @bind="_videoModel" placeholder="sora-2" />
+                                    <input class="input w-32" @bind="_videoSize" placeholder="1280x720" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_videoMessage is not null)
+                            {
+                                <div class="field-note">@_videoMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveVideoConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="TestVideoConfigAsync">@L["admin.prov_test"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">browser_screenshot</div>
+                                <div class="card-sub">@L["admin.browser_sub"]</div>
+                                @if (_browserPath is not null)
+                                {
+                                    <div class="card-sub font-mono text-[0.7rem]">@_browserPath</div>
+                                }
+                            </div>
+                            <div class="card-actions">
+                                <label class="check">
+                                    <input type="checkbox" checked="@_browserEnabled"
+                                           @onchange="args => ToggleBrowserAsync((bool)(args.Value ?? false))" /> @L["admin.video_enabled"]
+                                </label>
+                            </div>
                         </div>
                     </div>
                 }
@@ -968,6 +1315,8 @@
                 </div>
             }
         }
+        </div>
+        </div>
     }
 </div>
 
@@ -985,6 +1334,32 @@
     private List<GroupResponse>? _groups;
     private string? _permUserId;
     private Dictionary<string, bool?> _permValues = new();
+
+    /// <summary>Item de nav do rail/pills (ícone é o conteúdo do path SVG 24x24).</summary>
+    private sealed record AdminNavItem(string Id, string LabelKey, string Icon);
+
+    /// <summary>Grupo do rail lateral.</summary>
+    private sealed record AdminNavGroup(string LabelKey, AdminNavItem[] Items);
+
+    private static readonly AdminNavItem[] AllNavItems =
+    [
+        new("users", "admin.users", "M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"),
+        new("groups", "admin.groups", "M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"),
+        new("chats", "admin.tab_chats", "M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"),
+        new("analytics", "admin.tab_analytics", "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"),
+        new("evaluations", "admin.tab_evaluations", "M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"),
+        new("leaderboard", "admin.tab_leaderboard", "M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0"),
+        new("config", "admin.tab_config", "M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.273.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.93.78-.165.398-.143.854.108 1.204l.526.738a1.125 1.125 0 0 1-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.318-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.107-1.204a1.125 1.125 0 0 0-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"),
+    ];
+
+    private static AdminNavItem[] NavItems() => AllNavItems;
+
+    private static AdminNavGroup[] NavGroups() =>
+    [
+        new("admin.nav_manage", [AllNavItems[0], AllNavItems[1], AllNavItems[2]]),
+        new("admin.nav_insights", [AllNavItems[3], AllNavItems[4], AllNavItems[5]]),
+        new("admin.nav_system", [AllNavItems[6]]),
+    ];
 
     private (string Key, string Label)[] PermFlags =>
     [
@@ -1011,6 +1386,9 @@
     private string _configTab = "general";
     private List<McpServerResponse> _mcpServers = [];
     private Dictionary<string, List<McpToolResponse>> _mcpTools = new();
+    private readonly HashSet<string> _mcpExpanded = [];
+    private readonly HashSet<string> _mcpBusy = [];
+    private readonly Dictionary<string, (bool Ok, string Message)> _mcpTestResults = new();
     private string? _editingMcpId;
     private string _mcpName = "";
     private string _mcpTransport = "http";
@@ -1028,6 +1406,45 @@
     private bool _showDefaultModelsMenu;
     private string _defaultModelsQuery = "";
     private ConnectionsConfigResponse? _connections;
+
+    // Providers (conexões Ollama/OpenAI + modelos Ollama)
+    /// <summary>Linha editável de conexão de provider.</summary>
+    private sealed class ProvConnectionRow
+    {
+        public string Name = string.Empty;
+        public string Url = string.Empty;
+        public string Key = string.Empty;
+        public bool KeyConfigured;
+    }
+    private List<ProvConnectionRow> _provOllamaRows = [];
+    private List<ProvConnectionRow> _provOpenAiRows = [];
+    private Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
+    private bool _provTesting;
+    private string? _provMessage;
+    private List<OllamaModelInfo>? _provOllamaInstalled;
+    private string _provPullName = string.Empty;
+    private bool _provPulling;
+    private string? _provPullMessage;
+
+    // Integrations (n8n, webhooks, vídeo, browser)
+    private bool _n8nConfigured;
+    private bool _n8nHasKey;
+    private string _n8nBaseUrl = string.Empty;
+    private string _n8nApiKey = string.Empty;
+    private string? _n8nMessage;
+    private List<N8nWorkflowResponse>? _n8nWorkflows;
+    private List<AutomationHookResponse> _hooks = [];
+    private string _hookName = string.Empty;
+    private bool _videoEnabled;
+    private string _videoEngine = "openai";
+    private List<string> _videoEngines = [];
+    private string _videoBaseUrl = string.Empty;
+    private string _videoApiKey = string.Empty;
+    private string _videoModel = string.Empty;
+    private string _videoSize = "1280x720";
+    private string? _videoMessage;
+    private bool _browserEnabled;
+    private string? _browserPath;
     private List<PromptSuggestion> _suggestions = [];
     private List<BannerResponse> _banners = [];
     private string _bannerType = "info";
@@ -1231,7 +1648,227 @@
         _scimHasToken = scim?.HasToken ?? false;
         _functions = await Api.GetFunctionsAsync() ?? [];
         _pipelineServers = await Api.GetPipelineServersAsync() ?? [];
+        await LoadProvidersAsync();
+        await LoadIntegrationsAsync();
     }
+
+    // ---------------- Providers ----------------
+
+    private async Task LoadProvidersAsync()
+    {
+        if (_connections is not null)
+        {
+            _provOllamaRows = _connections.OllamaBaseUrls
+                .Select((u, i) => new ProvConnectionRow
+                {
+                    Url = u,
+                    Name = _connections.OllamaNames is { } names && i < names.Count ? names[i] : "",
+                }).ToList();
+            _provOpenAiRows = _connections.OpenAiBaseUrls
+                .Select((u, i) => new ProvConnectionRow
+                {
+                    Url = u,
+                    Name = _connections.OpenAiNames is { } names && i < names.Count ? names[i] : "",
+                    KeyConfigured = i < _connections.OpenAiKeyConfigured.Count
+                        && _connections.OpenAiKeyConfigured[i],
+                }).ToList();
+        }
+        _provOllamaInstalled = (await Api.GetOllamaTagsAsync())?.Models.ToList();
+    }
+
+    private async Task TestConnectionAsync(string type, int index)
+    {
+        _provTesting = true;
+        _provConnModels.Remove((type, index));
+        _provMessage = null;
+        try
+        {
+            var result = await Api.GetConnectionModelsAsync(type, index);
+            _provConnModels[(type, index)] = result?.Data.Select(m => m.Id).ToList() ?? [];
+            _provMessage = result is null || result.Data.Count == 0
+                ? L["admin.prov_test_empty"]
+                : string.Format(L["admin.prov_test_ok"], result.Data.Count);
+        }
+        finally
+        {
+            _provTesting = false;
+        }
+    }
+
+    private async Task SaveProvidersAsync()
+    {
+        var ollama = _provOllamaRows.Select(r => r.Url.Trim()).Where(u => u.Length > 0).ToList();
+        var ollamaNames = _provOllamaRows.Where(r => r.Url.Trim().Length > 0)
+            .Select(r => r.Name.Trim()).ToList();
+        var openAiRows = _provOpenAiRows.Where(r => r.Url.Trim().Length > 0).ToList();
+        var result = await Api.UpdateConnectionsAsync(new ConnectionsConfig(
+            ollama,
+            openAiRows.Select(r => r.Url.Trim()).ToList(),
+            openAiRows.Select(r => r.Key.Trim()).ToList(),
+            ollamaNames,
+            openAiRows.Select(r => r.Name.Trim()).ToList()));
+        _provMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
+        _connections = result;
+        if (result is not null)
+        {
+            _availableModels = await Api.GetModelsAsync();
+            for (var i = 0; i < _provOpenAiRows.Count && i < result.OpenAiKeyConfigured.Count; i++)
+            {
+                _provOpenAiRows[i].KeyConfigured = result.OpenAiKeyConfigured[i];
+                _provOpenAiRows[i].Key = string.Empty;
+            }
+        }
+    }
+
+    private async Task PullOllamaModelAsync()
+    {
+        _provPulling = true;
+        _provPullMessage = null;
+        try
+        {
+            var name = _provPullName.Trim();
+            var ok = await Api.PullOllamaModelAsync(name);
+            _provPullMessage = ok
+                ? string.Format(L["admin.prov_pull_ok"], name)
+                : L["settings.save_failed"];
+            if (ok)
+            {
+                _provOllamaInstalled = (await Api.GetOllamaTagsAsync())?.Models.ToList();
+            }
+        }
+        finally
+        {
+            _provPulling = false;
+        }
+    }
+
+    private async Task DeleteOllamaModelAsync(OllamaModelInfo model)
+    {
+        if (model.Name is not null && await Api.DeleteOllamaModelAsync(model.Name))
+        {
+            _provOllamaInstalled?.Remove(model);
+        }
+    }
+
+    // ---------------- Integrations ----------------
+
+    private async Task LoadIntegrationsAsync()
+    {
+        var n8n = await Api.GetN8nConfigAsync();
+        if (n8n is not null)
+        {
+            _n8nConfigured = n8n.Configured;
+            _n8nBaseUrl = n8n.BaseUrl ?? string.Empty;
+            _n8nHasKey = n8n.HasApiKey;
+        }
+        _hooks = await Api.GetAutomationHooksAsync();
+        _videoEngines = await Api.GetVideoEnginesAsync();
+        var video = await Api.GetVideoConfigAsync();
+        if (video is not null)
+        {
+            _videoEnabled = video.Enabled;
+            _videoEngine = video.Engine;
+            _videoBaseUrl = video.BaseUrl;
+            _videoModel = video.Model;
+            _videoSize = video.Size;
+        }
+        var browser = await Api.GetBrowserConfigAsync();
+        if (browser is not null)
+        {
+            _browserEnabled = browser.Enabled;
+            _browserPath = browser.BrowserPath;
+        }
+    }
+
+    private async Task SaveN8nConfigAsync()
+    {
+        var result = await Api.UpdateN8nConfigAsync(new N8nConfigUpdateRequest(
+            _n8nBaseUrl.Trim(),
+            string.IsNullOrWhiteSpace(_n8nApiKey) ? null : _n8nApiKey.Trim()));
+        _n8nMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
+        if (result is not null)
+        {
+            _n8nConfigured = result.Configured;
+            _n8nHasKey = result.HasApiKey;
+            _n8nApiKey = string.Empty;
+        }
+    }
+
+    private async Task LoadN8nWorkflowsAsync()
+    {
+        _n8nWorkflows = null;
+        _n8nMessage = null;
+        var workflows = await Api.GetN8nWorkflowsAsync();
+        _n8nWorkflows = workflows;
+        _n8nMessage = workflows.Count == 0 ? L["admin.n8n_no_workflows"] : null;
+    }
+
+    private async Task CreateHookAsync()
+    {
+        var created = await Api.CreateAutomationHookAsync(
+            new AutomationHookCreateRequest(_hookName.Trim(), null));
+        if (created is not null)
+        {
+            _hooks.Insert(0, created);
+            _hookName = string.Empty;
+        }
+    }
+
+    private async Task DeleteHookAsync(AutomationHookResponse hook)
+    {
+        if (await Api.DeleteAutomationHookAsync(hook.Id))
+        {
+            _hooks.Remove(hook);
+        }
+    }
+
+    private async Task SaveVideoConfigAsync()
+    {
+        var current = await Api.GetVideoConfigAsync();
+        var result = await Api.UpdateVideoConfigAsync(new VideoConfig(
+            _videoEnabled,
+            _videoEngine,
+            _videoBaseUrl.Trim(),
+            string.IsNullOrWhiteSpace(_videoApiKey) ? ImagesConfig.MaskedApiKey : _videoApiKey.Trim(),
+            _videoModel.Trim(),
+            _videoSize.Trim(),
+            current?.TimeoutSeconds ?? 600,
+            current?.EngineParams ?? "{}"));
+        _videoMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
+        if (result is not null)
+        {
+            _videoApiKey = string.Empty;
+        }
+    }
+
+    private async Task TestVideoConfigAsync()
+    {
+        _videoMessage = L["admin.video_testing"];
+        var result = await Api.TestVideoConfigAsync();
+        _videoMessage = result?.Ok == true
+            ? L["admin.video_test_ok"]
+            : result?.Detail ?? L["settings.save_failed"];
+    }
+
+    private async Task ToggleBrowserAsync(bool enabled)
+    {
+        var result = await Api.UpdateBrowserConfigAsync(enabled);
+        _browserEnabled = result?.Enabled ?? enabled;
+    }
+
+    private async Task CopyTextAsync(string text) =>
+        await JS.InvokeVoidAsync("openwebui.copyText", text);
+
+    private static string FormatTs(long unixSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+
+    private static string FormatBytes(long? bytes) => bytes switch
+    {
+        null or 0 => "",
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):F1} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):F1} MB",
+        _ => $"{bytes / 1024.0:F0} KB",
+    };
 
     private async Task SaveTerminalAsync()
     {
@@ -1328,16 +1965,47 @@
         }
     }
 
+    private void ToggleMcpTools(string serverId)
+    {
+        if (!_mcpExpanded.Remove(serverId))
+        {
+            _mcpExpanded.Add(serverId);
+        }
+    }
+
+    private string McpStatusClass(McpServerResponse server) =>
+        !server.Enabled ? "bg-gray-400"
+        : server.LastError is not null ? "bg-red-500"
+        : "bg-green-500";
+
+    private string McpStatusTitle(McpServerResponse server) =>
+        !server.Enabled ? L["common.disabled"]
+        : server.LastError ?? L["admin.mcp_status_ok"];
+
     private async Task RefreshMcpAsync(McpServerResponse server)
     {
-        var count = await Api.RefreshMcpServerAsync(server.Id);
-        _mcpMessage = count >= 0
-            ? L.T("admin.mcp_tools_found", ("count", count.ToString()))
-            : L["settings.save_failed"];
-        _mcpServers = await Api.GetMcpServersAsync();
-        if (count >= 0)
+        _mcpBusy.Add(server.Id);
+        _mcpTestResults.Remove(server.Id);
+        try
         {
-            _mcpTools[server.Id] = await Api.GetMcpToolsAsync(server.Id);
+            var count = await Api.RefreshMcpServerAsync(server.Id);
+            _mcpServers = await Api.GetMcpServersAsync();
+            var updated = _mcpServers.FirstOrDefault(s => s.Id == server.Id);
+            if (count >= 0)
+            {
+                _mcpTools[server.Id] = await Api.GetMcpToolsAsync(server.Id);
+                _mcpTestResults[server.Id] = (true,
+                    L.T("admin.mcp_tools_found", ("count", count.ToString())));
+            }
+            else
+            {
+                _mcpTestResults[server.Id] = (false,
+                    updated?.LastError ?? L["settings.save_failed"]);
+            }
+        }
+        finally
+        {
+            _mcpBusy.Remove(server.Id);
         }
     }
 

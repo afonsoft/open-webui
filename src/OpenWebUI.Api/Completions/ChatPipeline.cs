@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -240,14 +241,17 @@ public static class ChatPipeline
     /// recebe a fase (generating|running_tool|awaiting_approval) antes de
     /// cada etapa; <paramref name="OnCallAsync"/> antes de executar;
     /// <paramref name="GateAsync"/> decide se a tool mutável executa
-    /// (false injeta "negado pelo usuário"); <paramref name="OnResultAsync"/>
-    /// recebe (call, output, denied) após cada execução/decisão.
+    /// (negado injeta "negado pelo usuário", com a instrução opcional do
+    /// dono — SPEC-20261007-chat-agent-ux RF-002); <paramref name="OnResultAsync"/>
+    /// recebe (call, output, result, denied) após cada execução/decisão —
+    /// <c>result</c> é o payload estruturado opcional (ex.: imagePath de
+    /// generate_image).
     /// </summary>
     public sealed record ToolLoopCallbacks(
         Func<string, string?, CancellationToken, Task>? OnPhaseAsync = null,
         Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
-        Func<ProviderToolCall, CancellationToken, Task<bool>>? GateAsync = null,
-        Func<ProviderToolCall, string, bool, CancellationToken, Task>? OnResultAsync = null);
+        Func<ProviderToolCall, CancellationToken, Task<ToolGateDecision>>? GateAsync = null,
+        Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null);
 
     /// <summary>
     /// Loop de tool calling: chama o modelo com tools até resposta final
@@ -261,7 +265,8 @@ public static class ChatPipeline
         ToolExecutor toolExecutor,
         ProviderService providers,
         CancellationToken ct,
-        ToolLoopCallbacks? callbacks = null)
+        ToolLoopCallbacks? callbacks = null,
+        BuiltinToolContext? builtinContext = null)
     {
         const int maxRounds = 5;
         var messages = effective.Messages.ToList();
@@ -296,16 +301,26 @@ public static class ChatPipeline
                     await callbacks.OnCallAsync(call, ct);
                 }
 
-                var denied = callbacks?.GateAsync is not null
-                    && !await callbacks.GateAsync(call, ct);
-                var output = denied
-                    ? "Erro: execução negada pelo usuário."
-                    : await toolExecutor.ExecuteAsync(
-                        tools, call.Name, call.ArgumentsJson, ct);
+                var gate = callbacks?.GateAsync is not null
+                    ? await callbacks.GateAsync(call, ct)
+                    : ToolGateDecision.Allow;
+                var denied = !gate.Approved;
+                var outcome = denied
+                    ? new ToolExecutionOutcome(
+                        string.IsNullOrWhiteSpace(gate.DenyMessage)
+                            ? "Erro: execução negada pelo usuário."
+                            : $"Erro: execução negada pelo usuário: {gate.DenyMessage}")
+                    // ask_user e gates parecidos podem devolver o resultado
+                    // direto via ToolGateDecision.Output (RF-005).
+                    : gate.Output is { Length: > 0 } gateOutput
+                        ? new ToolExecutionOutcome(gateOutput)
+                        : await toolExecutor.ExecuteAsync(
+                            tools, call.Name, call.ArgumentsJson, builtinContext, ct);
+                var output = outcome.Text;
 
                 if (callbacks?.OnResultAsync is not null)
                 {
-                    await callbacks.OnResultAsync(call, output, denied, ct);
+                    await callbacks.OnResultAsync(call, output, outcome.Result, denied, ct);
                 }
 
                 var toolMessage = new ChatCompletionMessage(

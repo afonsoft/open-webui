@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -20,7 +21,9 @@ namespace OpenWebUI.Api.Runs;
 public sealed class ChatRunDispatcher(
     IServiceScopeFactory scopeFactory,
     ChatRunBroadcaster broadcaster,
-    ILogger<ChatRunDispatcher> logger) : BackgroundService
+    ChatJobService jobs,
+    ChatRunPauses pauses,
+    ILogger<ChatRunDispatcher> logger) : BackgroundService, IChatRunDispatcher
 {
     /// <summary>Máximo de runs executando em paralelo.</summary>
     public const int MaxConcurrent = 4;
@@ -53,6 +56,9 @@ public sealed class ChatRunDispatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await SweepOrphansAsync(stoppingToken);
+        // Jobs running órfãos de restart: o processo não existe mais —
+        // marca killed (SPEC-20261007-chat-agent-tools RF-004).
+        await jobs.SweepOrphansAsync(stoppingToken);
 
         var workers = Enumerable.Range(0, MaxConcurrent)
             .Select(_ => WorkerAsync(stoppingToken))
@@ -68,7 +74,8 @@ public sealed class ChatRunDispatcher(
             using var scope = scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var orphans = await db.ChatRuns
-                .Where(r => r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running)
+                .Where(r => r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running
+                    || r.Status == ChatRunStatus.Paused)
                 .ToListAsync(ct);
             if (orphans.Count == 0)
             {
@@ -148,6 +155,7 @@ public sealed class ChatRunDispatcher(
             finally
             {
                 _runCancels.TryRemove(runId, out _);
+                pauses.Forget(runId);
                 broadcaster.Complete(runId);
                 await NotifyRunFinishedAsync(scope.ServiceProvider, run);
             }

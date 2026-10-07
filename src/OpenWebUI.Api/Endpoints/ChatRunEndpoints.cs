@@ -27,7 +27,10 @@ public static class ChatRunEndpoints
         group.MapGet("/{id}/runs/{runId}", GetRunAsync);
         group.MapGet("/{id}/runs/{runId}/stream", StreamRunAsync);
         group.MapPost("/{id}/runs/{runId}/stop", StopRunAsync);
+        group.MapPost("/{id}/runs/{runId}/pause", PauseRunAsync);
+        group.MapPost("/{id}/runs/{runId}/resume", ResumeRunAsync);
         group.MapPost("/{id}/runs/{runId}/approvals/{callId}", DecideApprovalAsync);
+        group.MapGet("/{id}/runs/{runId}/diff", GetRunDiffAsync);
     }
 
     /// <summary>
@@ -139,7 +142,8 @@ public static class ChatRunEndpoints
 
         var run = await db.ChatRuns.AsNoTracking()
             .Where(r => r.ChatId == id && r.UserId == user.Id
-                && (r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running))
+                && (r.Status == ChatRunStatus.Queued || r.Status == ChatRunStatus.Running
+                    || r.Status == ChatRunStatus.Paused))
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefaultAsync(ct);
         return run is null ? Results.Ok() : Results.Ok(ToResponse(run));
@@ -246,7 +250,8 @@ public static class ChatRunEndpoints
             return Results.NotFound(new { detail = "Run não encontrada." });
         }
 
-        if (run.Status == ChatRunStatus.Queued)
+        if (run.Status == ChatRunStatus.Queued
+            || (run.Status == ChatRunStatus.Paused && run.StartedAt is null))
         {
             // Ainda não iniciou: cancela direto (o dispatcher pula status != queued).
             run.Status = ChatRunStatus.Stopped;
@@ -255,13 +260,127 @@ public static class ChatRunEndpoints
             return Results.Ok(ToResponse(run));
         }
 
-        if (run.Status == ChatRunStatus.Running)
+        if (run.Status is ChatRunStatus.Running or ChatRunStatus.Paused)
         {
             dispatcher.TryStop(run.Id);
             return Results.Ok(ToResponse(run));
         }
 
         return Results.Conflict(new { detail = $"Run já finalizada ({run.Status})." });
+    }
+
+    /// <summary>
+    /// Suspende uma run ativa (RF-013 chat-agent-parity): queued → vira
+    /// paused e o dispatcher pula; running → drena o gate de pausa e o
+    /// executor bloqueia no próximo checkpoint. A transição usa
+    /// ExecuteUpdate condicional para não correr com o flip queued→running.
+    /// </summary>
+    private static async Task<IResult> PauseRunAsync(
+        string id,
+        string runId,
+        HttpContext http,
+        AppDbContext db,
+        ChatRunPauses pauses,
+        ChatRunBroadcaster broadcaster,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var run = await db.ChatRuns
+            .FirstOrDefaultAsync(
+                r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (run is null)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+        if (run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running))
+        {
+            return Results.Conflict(
+                new { detail = $"Run não está ativa ({run.Status})." });
+        }
+
+        var flipped = await db.ChatRuns
+            .Where(r => r.Id == run.Id && r.Status == run.Status)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(r => r.Status, ChatRunStatus.Paused), ct);
+        if (flipped == 0)
+        {
+            return Results.Conflict(
+                new { detail = "Run mudou de estado durante a pausa." });
+        }
+
+        if (run.Status == ChatRunStatus.Running)
+        {
+            pauses.Pause(run.Id);
+        }
+        run.Status = ChatRunStatus.Paused;
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("paused", null), JsonOptions)}");
+        return Results.Ok(ToResponse(run));
+    }
+
+    /// <summary>
+    /// Retoma uma run pausada (RF-013): nunca iniciada (StartedAt null)
+    /// volta pra fila do dispatcher; já em execução libera o gate — o
+    /// executor sai do checkpoint e continua de onde parou.
+    /// </summary>
+    private static async Task<IResult> ResumeRunAsync(
+        string id,
+        string runId,
+        HttpContext http,
+        AppDbContext db,
+        ChatRunDispatcher dispatcher,
+        ChatRunPauses pauses,
+        ChatRunBroadcaster broadcaster,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var run = await db.ChatRuns
+            .FirstOrDefaultAsync(
+                r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (run is null)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+        if (run.Status != ChatRunStatus.Paused)
+        {
+            return Results.Conflict(
+                new { detail = $"Run não está pausada ({run.Status})." });
+        }
+
+        var wasQueued = run.StartedAt is null;
+        var next = wasQueued ? ChatRunStatus.Queued : ChatRunStatus.Running;
+        var flipped = await db.ChatRuns
+            .Where(r => r.Id == run.Id && r.Status == ChatRunStatus.Paused)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(r => r.Status, next), ct);
+        if (flipped == 0)
+        {
+            return Results.Conflict(
+                new { detail = "Run mudou de estado durante o resume." });
+        }
+
+        run.Status = next;
+        if (wasQueued)
+        {
+            dispatcher.Enqueue(run.Id);
+        }
+        else
+        {
+            pauses.Resume(run.Id);
+            broadcaster.Publish(run.Id,
+                $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("resumed", null), JsonOptions)}");
+        }
+        return Results.Ok(ToResponse(run));
     }
 
     /// <summary>
@@ -297,18 +416,67 @@ public static class ChatRunEndpoints
         {
             return Results.NotFound(new { detail = "Run não encontrada." });
         }
-        if (run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running))
+        if (run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running
+            or ChatRunStatus.Paused))
         {
             return Results.Json(
                 new { detail = $"Run já finalizada ({run.Status})." },
                 statusCode: StatusCodes.Status410Gone);
         }
 
+        if (request.Message is { Length: > 2048 })
+        {
+            return Results.BadRequest(new { detail = "message deve ter até 2KB." });
+        }
+
         var approved = request.Decision == "approve";
+        // A mensagem vai mesmo em approve: no ask_user a resposta do dono
+        // é justamente decision=approve + message (RF-005); numa aprovação
+        // comum, message em approve é ignorada pelo gate.
         return approvals.Resolve(
-            run.Id, run.ChatId, callId, approved, request.Remember)
+            run.Id, run.ChatId, callId, approved, request.Remember,
+            request.Message)
             ? Results.Ok(new StatusResponse(true))
             : Results.NotFound(new { detail = "Aprovação não está pendente." });
+    }
+
+    /// <summary>
+    /// Snapshot git do workspace do chat (RF-018): branch, numstat
+    /// agregado e unified diff de <c>HEAD</c> — alimenta a git bar do
+    /// header e a aba Changes do painel. <c>Git=false</c> quando o
+    /// workdir não é repo (ou git ausente) — o cliente cai pro agregado
+    /// de diffs das tools <c>file_*</c>.
+    /// </summary>
+    private static async Task<IResult> GetRunDiffAsync(
+        string id,
+        string runId,
+        HttpContext http,
+        AppDbContext db,
+        IWebHostEnvironment env,
+        WorkspaceGitService git,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var exists = await db.ChatRuns.AsNoTracking()
+            .AnyAsync(r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (!exists)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+
+        var workdir = Path.Combine(
+            env.ContentRootPath, "data", "workspaces", user.Id);
+        var info = await git.GetInfoAsync(workdir, ct);
+        return Results.Ok(new WorkspaceGitResponse(
+            info.IsRepo, info.Branch, info.Added, info.Removed,
+            info.Files.Select(f => new WorkspaceGitFileResponse(
+                f.Path, f.Added, f.Removed, f.Status)).ToList(),
+            info.Diff, info.DiffTruncated));
     }
 
     private static ChatRunResponse ToResponse(ChatRun run) => new(

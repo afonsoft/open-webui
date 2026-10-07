@@ -56,6 +56,36 @@ public class ChatStreamServiceTests
         });
     }
 
+    [Test]
+    public async Task RunEvents_Changes_ParseSnapshot()
+    {
+        var sse = string.Join('\n',
+            "event: changes",
+            "data: {\"changes\":[{\"path\":\"saida.txt\",\"added\":3,\"removed\":0,\"diff\":\"+a\"}]}",
+            "",
+            "event: status",
+            "data: {\"status\":\"completed\"}",
+            "");
+
+        var service = CreateService(sse);
+        var eventos = new List<ChatStreamService.ChatStreamEvent>();
+        await foreach (var evt in service.StreamRunEventsAsync("c1", "r1"))
+        {
+            eventos.Add(evt);
+        }
+
+        var changes = eventos.OfType<ChatStreamService.ChatStreamEvent.Changes>()
+            .Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(changes.Snapshot.Changes, Has.Count.EqualTo(1));
+            Assert.That(changes.Snapshot.Changes[0].Path, Is.EqualTo("saida.txt"));
+            Assert.That(changes.Snapshot.Changes[0].Added, Is.EqualTo(3));
+            Assert.That(changes.Snapshot.Changes[0].Removed, Is.EqualTo(0));
+            Assert.That(changes.Snapshot.Changes[0].Diff, Is.EqualTo("+a"));
+        });
+    }
+
     private static ChatStreamService CreateService(string sseBody)
     {
         var http = new HttpClient(new StubHandler((_, _) =>

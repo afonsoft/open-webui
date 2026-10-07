@@ -31,11 +31,23 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Resultado/negação de uma tool call.</summary>
         public sealed record ToolResult(RunToolResultEvent Result) : ChatStreamEvent;
 
+        /// <summary>Snapshot <c>changes</c>: arquivos alterados pela run (aba Changes do painel).</summary>
+        public sealed record Changes(RunChangesEvent Snapshot) : ChatStreamEvent;
+
         /// <summary>Fase da run (generating|running_tool|awaiting_approval).</summary>
         public sealed record Phase(RunPhaseEvent Status) : ChatStreamEvent;
 
         /// <summary>Aprovação pedida — a run pausou esperando decisão.</summary>
         public sealed record ApprovalAsked(RunApprovalAskedEvent Asked) : ChatStreamEvent;
+
+        /// <summary>Pergunta estruturada do ask_user aguardando resposta (RF-005).</summary>
+        public sealed record QuestionAsked(RunQuestionAskedEvent Asked) : ChatStreamEvent;
+
+        /// <summary>
+        /// Snapshot da lista de tarefas da run (evento <c>tasks</c> —
+        /// SPEC-20261007-chat-agent-parity RF-010, emitido por todo_write).
+        /// </summary>
+        public sealed record Tasks(RunTasksEvent Snapshot) : ChatStreamEvent;
     }
 
     /// <summary>Resultado de arena da última requisição (payload {"arena": ...}), quando houver.</summary>
@@ -116,12 +128,55 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         }
     }
 
+    /// <summary>Runs recentes do chat (mais nova primeiro — máx. 20).</summary>
+    public async Task<List<ChatRunResponse>> GetRunsAsync(
+        string chatId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs");
+        using var response = await http.SendAsync(httpRequest, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return [];
+        }
+
+        try
+        {
+            return await response.Content
+                .ReadFromJsonAsync<List<ChatRunResponse>>(ct) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     /// <summary>Pede a interrupção de uma run ativa.</summary>
     public async Task<bool> StopRunAsync(
         string chatId, string runId, CancellationToken ct = default)
     {
         using var httpRequest = auth.CreateRequest(
             HttpMethod.Post, $"/api/v1/chats/{chatId}/runs/{runId}/stop");
+        using var response = await http.SendAsync(httpRequest, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Suspende uma run ativa — o executor bloqueia no próximo checkpoint.</summary>
+    public async Task<bool> PauseRunAsync(
+        string chatId, string runId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Post, $"/api/v1/chats/{chatId}/runs/{runId}/pause");
+        using var response = await http.SendAsync(httpRequest, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Retoma uma run pausada de onde ela parou.</summary>
+    public async Task<bool> ResumeRunAsync(
+        string chatId, string runId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Post, $"/api/v1/chats/{chatId}/runs/{runId}/resume");
         using var response = await http.SendAsync(httpRequest, ct);
         return response.IsSuccessStatusCode;
     }
@@ -179,17 +234,20 @@ public class ChatStreamService(HttpClient http, AuthService auth)
     /// <summary>
     /// Envia a decisão do usuário sobre uma aprovação pendente
     /// (<c>approve</c>|<c>deny</c>; <paramref name="remember"/> vale nesta
-    /// conversa). Retorna false quando a call não está mais pendente.
+    /// conversa; <paramref name="message"/> é instrução opcional numa
+    /// negação — vira o resultado da tool, SPEC-20261007-chat-agent-ux).
+    /// Retorna false quando a call não está mais pendente.
     /// </summary>
     public async Task<bool> DecideApprovalAsync(
         string chatId, string runId, string callId,
-        string decision, bool remember = false, CancellationToken ct = default)
+        string decision, bool remember = false, string? message = null,
+        CancellationToken ct = default)
     {
         using var httpRequest = auth.CreateRequest(
             HttpMethod.Post,
             $"/api/v1/chats/{chatId}/runs/{runId}/approvals/{callId}");
         httpRequest.Content = JsonContent.Create(
-            new RunApprovalDecisionRequest(decision, remember));
+            new RunApprovalDecisionRequest(decision, remember, message));
         using var response = await http.SendAsync(httpRequest, ct);
         return response.IsSuccessStatusCode;
     }
@@ -271,7 +329,21 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["ok"]?.GetValue<bool>() ?? false,
                                 node["preview"]?.GetValue<string>(),
                                 node["imagePath"]?.GetValue<string>(),
-                                node["denied"]?.GetValue<bool>() ?? false));
+                                node["denied"]?.GetValue<bool>() ?? false,
+                                node["result"] is { } resultNode
+                                    ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
+                                    : null,
+                                node["videoPath"]?.GetValue<string>()));
+                        break;
+                    case "question_asked":
+                        produced = new ChatStreamEvent.QuestionAsked(
+                            new RunQuestionAskedEvent(
+                                node["callId"]?.GetValue<string>() ?? string.Empty,
+                                node["question"]?.GetValue<string>() ?? string.Empty,
+                                (node["options"] as JsonArray)?
+                                    .Select(o => o?.GetValue<string>() ?? string.Empty)
+                                    .ToArray() ?? [],
+                                node["multiple"]?.GetValue<bool>() ?? false));
                         break;
                     case "approval_asked":
                         produced = new ChatStreamEvent.ApprovalAsked(
@@ -281,6 +353,31 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["kind"]?.GetValue<string>() ?? "http",
                                 node["argsPreview"]?.GetValue<string>()));
                         break;
+                    case "tasks":
+                    {
+                        var arr = node as JsonArray ?? node["tasks"] as JsonArray;
+                        var items = (arr ?? [])
+                            .Select(t => new RunTaskItem(
+                                t?["id"]?.GetValue<string>() ?? string.Empty,
+                                t?["content"]?.GetValue<string>() ?? string.Empty,
+                                t?["status"]?.GetValue<string>() ?? "pending"))
+                            .ToList();
+                        produced = new ChatStreamEvent.Tasks(new RunTasksEvent(items));
+                        break;
+                    }
+                    case "changes":
+                    {
+                        var arr = node["changes"] as JsonArray ?? node as JsonArray ?? [];
+                        var items = arr
+                            .Select(c => new RunChangeItem(
+                                c?["path"]?.GetValue<string>() ?? string.Empty,
+                                c?["added"]?.GetValue<int>() ?? 0,
+                                c?["removed"]?.GetValue<int>() ?? 0,
+                                c?["diff"]?.GetValue<string>()))
+                            .ToList();
+                        produced = new ChatStreamEvent.Changes(new RunChangesEvent(items));
+                        break;
+                    }
                     case "status":
                         if (node["phase"]?.GetValue<string>() is { } phase)
                         {

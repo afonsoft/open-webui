@@ -1,0 +1,181 @@
+using System.Text.Json;
+using OpenWebUI.Domain;
+
+namespace OpenWebUI.Infrastructure.ChatTools.Tools;
+
+/// <summary>
+/// <c>builtin:job_list</c> — lista os jobs de background do usuário/chat
+/// (SPEC-20261007-chat-agent-tools RF-004).
+/// </summary>
+public sealed class JobListBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
+{
+    /// <inheritdoc />
+    public string Name => "job_list";
+
+    /// <inheritdoc />
+    public string Description =>
+        "Lista os jobs de background iniciados pelo shell_exec com "
+        + "background=true — id, comando, status, pid e horário.";
+
+    /// <inheritdoc />
+    public string ParametersJson => """
+        {
+          "type": "object",
+          "properties": {
+            "all_chats": {
+              "type": "boolean",
+              "description": "true = jobs de todas as conversas do usuário; false = só desta conversa.",
+              "default": false
+            },
+            "include_finished": {
+              "type": "boolean",
+              "description": "true = inclui jobs já finalizados/mortos.",
+              "default": true
+            }
+          }
+        }
+        """;
+
+    /// <inheritdoc />
+    public bool RequiresApproval => false;
+
+    /// <inheritdoc />
+    public async Task<BuiltinToolResult> ExecuteAsync(
+        JsonElement args, BuiltinToolContext context, CancellationToken ct)
+    {
+        var allChats = args.TryGetProperty("all_chats", out var a)
+            && a.ValueKind is JsonValueKind.True;
+        var includeFinished = !args.TryGetProperty("include_finished", out var f)
+            || f.ValueKind is not JsonValueKind.False;
+
+        var list = await jobs.ListAsync(
+            context.UserId, allChats ? null : context.ChatId, includeFinished, ct);
+        if (list.Count == 0)
+        {
+            return new BuiltinToolResult("Nenhum job encontrado.", new { jobs = Array.Empty<object>() });
+        }
+
+        var items = list.Select(j => new
+        {
+            jobId = j.Id,
+            j.Command,
+            j.Status,
+            j.Pid,
+            j.ExitCode,
+            j.StartedAt,
+            j.FinishedAt,
+        }).ToList();
+
+        var text = string.Join("\n", list.Select(j =>
+            $"{j.Id} [{j.Status}] pid={j.Pid?.ToString() ?? "-"} exit={j.ExitCode?.ToString() ?? "-"} :: {j.Command}"));
+        return new BuiltinToolResult(text, new { jobs = items });
+    }
+}
+
+/// <summary>
+/// <c>builtin:job_output</c> — devolve stdout+stderr de um job de
+/// background (SPEC-20261007-chat-agent-tools RF-004).
+/// </summary>
+public sealed class JobOutputBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
+{
+    /// <inheritdoc />
+    public string Name => "job_output";
+
+    /// <inheritdoc />
+    public string Description =>
+        "Devolve a saída capturada (stdout+stderr) de um job de background "
+        + "pelo id — aceita tail em caracteres.";
+
+    /// <inheritdoc />
+    public string ParametersJson => """
+        {
+          "type": "object",
+          "properties": {
+            "job_id": { "type": "string", "description": "Id do job (devolvido pelo shell_exec/job_list)." },
+            "tail_chars": { "type": "integer", "description": "Máximo de caracteres do fim do log.", "default": 4000 }
+          },
+          "required": ["job_id"]
+        }
+        """;
+
+    /// <inheritdoc />
+    public bool RequiresApproval => false;
+
+    /// <inheritdoc />
+    public async Task<BuiltinToolResult> ExecuteAsync(
+        JsonElement args, BuiltinToolContext context, CancellationToken ct)
+    {
+        var jobId = args.TryGetProperty("job_id", out var j) ? j.GetString() : null;
+        if (string.IsNullOrWhiteSpace(jobId))
+        {
+            return new BuiltinToolResult("Parâmetro 'job_id' é obrigatório.");
+        }
+
+        var tailChars = args.TryGetProperty("tail_chars", out var t) && t.TryGetInt32(out var tc)
+            ? Math.Clamp(tc, 100, 16_000)
+            : 4_000;
+
+        var result = await jobs.GetOutputAsync(context.UserId, jobId, tailChars, ct);
+        if (result is null)
+        {
+            return new BuiltinToolResult($"Job '{jobId}' não encontrado.");
+        }
+
+        var (job, output) = result.Value;
+        var text = $"[job {job.Id} — {job.Status}"
+            + (job.ExitCode is not null ? $", exit {job.ExitCode}" : string.Empty)
+            + $"]\n{(output.Length > 0 ? output : "(sem saída ainda)")}";
+        return new BuiltinToolResult(text, new
+        {
+            jobId = job.Id,
+            status = job.Status,
+            exitCode = job.ExitCode,
+            truncated = output.StartsWith('…'),
+        });
+    }
+}
+
+/// <summary>
+/// <c>builtin:job_kill</c> — mata um job de background do usuário
+/// (SPEC-20261007-chat-agent-tools RF-004). Mutável → gate de aprovação.
+/// </summary>
+public sealed class JobKillBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
+{
+    /// <inheritdoc />
+    public string Name => "job_kill";
+
+    /// <inheritdoc />
+    public string Description =>
+        "Mata (SIGKILL na árvore de processo) um job de background do "
+        + "usuário pelo id.";
+
+    /// <inheritdoc />
+    public string ParametersJson => """
+        {
+          "type": "object",
+          "properties": {
+            "job_id": { "type": "string", "description": "Id do job a matar." }
+          },
+          "required": ["job_id"]
+        }
+        """;
+
+    /// <inheritdoc />
+    public bool RequiresApproval => true;
+
+    /// <inheritdoc />
+    public async Task<BuiltinToolResult> ExecuteAsync(
+        JsonElement args, BuiltinToolContext context, CancellationToken ct)
+    {
+        var jobId = args.TryGetProperty("job_id", out var j) ? j.GetString() : null;
+        if (string.IsNullOrWhiteSpace(jobId))
+        {
+            return new BuiltinToolResult("Parâmetro 'job_id' é obrigatório.");
+        }
+
+        var killed = await jobs.KillAsync(context.UserId, jobId, ct);
+        return killed
+            ? new BuiltinToolResult($"Job {jobId} morto.", new { jobId, status = ChatJobStatus.Killed })
+            : new BuiltinToolResult($"Job '{jobId}' não encontrado ou já finalizado.");
+    }
+}

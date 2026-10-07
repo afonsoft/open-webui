@@ -211,6 +211,9 @@ public static class ChatRunStatus
     /// <summary>Interrompida por stop do usuário.</summary>
     public const string Stopped = "stopped";
 
+    /// <summary>Suspensa pelo dono — retoma com resume (RF-013 chat-agent-parity).</summary>
+    public const string Paused = "paused";
+
     /// <summary>Órfã de restart: estava queued/running quando o servidor caiu.</summary>
     public const string Interrupted = "interrupted";
 }
@@ -257,6 +260,71 @@ public class ChatRun
 
     /// <summary>Finalização (epoch seconds); null enquanto ativa.</summary>
     public long? CompletedAt { get; set; }
+}
+
+/// <summary>Status possíveis de um job de background de chat.</summary>
+public static class ChatJobStatus
+{
+    /// <summary>Processo em execução.</summary>
+    public const string Running = "running";
+
+    /// <summary>Terminou com exit code 0.</summary>
+    public const string Completed = "completed";
+
+    /// <summary>Terminou com erro/exit code não-zero.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>Morto pelo dono via job_kill/DELETE.</summary>
+    public const string Killed = "killed";
+}
+
+/// <summary>
+/// Job de background spawnado pelo chat
+/// (SPEC-20261007-chat-agent-tools RF-004): um comando classificado pelo
+/// gateway de risco que roda desacoplado da run — sobrevive a ela, escreve
+/// stdout+stderr num arquivo próprio e é consultável via
+/// <c>job_list/job_output/job_kill</c> e os endpoints REST.
+/// </summary>
+public class ChatJob
+{
+    /// <summary>Identificador único (GUID curto — aparece no transcript).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
+
+    /// <summary>Chat ao qual o job pertence.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Dono (mesmo do chat — isolamento de leitura/kill).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Run que originou o job, quando conhecida.</summary>
+    public string? RunId { get; set; }
+
+    /// <summary>Comando executado (já validado pelo classifier).</summary>
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>Diretório de trabalho (workspace do usuário).</summary>
+    public string WorkspacePath { get; set; } = string.Empty;
+
+    /// <summary>Status atual (ver <see cref="ChatJobStatus"/>).</summary>
+    public string Status { get; set; } = ChatJobStatus.Running;
+
+    /// <summary>PID do processo no host, quando vivo.</summary>
+    public int? Pid { get; set; }
+
+    /// <summary>Caminho do arquivo com stdout+stderr capturados.</summary>
+    public string? OutputPath { get; set; }
+
+    /// <summary>Exit code final, quando terminou.</summary>
+    public int? ExitCode { get; set; }
+
+    /// <summary>Erro de spawn/monitoramento, quando houver.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long StartedAt { get; set; }
+
+    /// <summary>Finalização (epoch seconds); null enquanto vivo.</summary>
+    public long? FinishedAt { get; set; }
 }
 
 /// <summary>
@@ -899,6 +967,42 @@ public class AutomationRun
 
     /// <summary>Fim da execução (epoch seconds).</summary>
     public long FinishedAt { get; set; }
+}
+
+/// <summary>
+/// Webhook de automação (SPEC-20261007-chat-agent-parity RF-021):
+/// <c>POST /api/v1/hooks/{Id}</c> anônimo dispara uma run no
+/// <see cref="ChatId"/> vinculado — n8n, cron, CI ou qualquer sistema
+/// externo. O próprio Id (GUID) é o token da URL.
+/// </summary>
+public class AutomationHook
+{
+    /// <summary>Identificador único (GUID) — usado como token na URL do webhook.</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do hook (isola dados e executa a run como ele).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o dono.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Chat que recebe a mensagem e a run disparada pelo webhook.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o chat vinculado.</summary>
+    public Chat? Chat { get; set; }
+
+    /// <summary>Nome exibido na lista de hooks.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Indica se o hook aceita disparos.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Último disparo aceito (epoch seconds); null se nunca disparou.</summary>
+    public long? LastFiredAt { get; set; }
 }
 
 /// <summary>Banner de aviso exibido no topo do app (CRUD admin).</summary>

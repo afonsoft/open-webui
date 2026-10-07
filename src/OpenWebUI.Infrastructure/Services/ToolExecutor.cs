@@ -1,26 +1,40 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 
 namespace OpenWebUI.Infrastructure.Services;
 
+/// <summary>Resultado detalhado de uma execução de tool.</summary>
+/// <param name="Text">Texto retornado ao modelo (já truncado/higienizado).</param>
+/// <param name="Result">Payload estruturado opcional para renderização no cliente.</param>
+public sealed record ToolExecutionOutcome(string Text, JsonElement? Result = null);
+
 /// <summary>
 /// Executa tools registradas via HTTP POST server-side (URL nunca exposta
-/// ao cliente) ou, quando a tool tem <see cref="Tool.Code"/>, em subprocess
-/// Python (<see cref="PythonToolExecutor"/>, convenção class Tools do upstream).
-/// Timeout de 30s; erro vira resultado de erro para o modelo.
+/// ao cliente), em subprocess Python quando a tool tem
+/// <see cref="Tool.Code"/> (convenção class Tools do upstream), em MCP
+/// (URL virtual <c>mcp://</c>) ou in-process quando a URL é
+/// <c>builtin://</c> (<see cref="BuiltinToolRegistry"/>,
+/// SPEC-20261007-chat-agent-tools). Timeout de 30s nas HTTP; erro vira
+/// resultado de erro para o modelo.
 /// </summary>
 public class ToolExecutor(
     AppDbContext db,
     IHttpClientFactory httpClientFactory,
     PythonToolExecutor pythonExecutor,
-    McpClientService mcp)
+    McpClientService mcp,
+    BuiltinToolRegistry builtins)
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private const int MaxOutputChars = 4000;
 
-    /// <summary>Carrega tools habilitadas do usuário pelos ids selecionados.</summary>
+    /// <summary>
+    /// Carrega tools habilitadas do usuário pelos ids selecionados — ids
+    /// <c>builtin:*</c> resolvem no <see cref="BuiltinToolRegistry"/> sem
+    /// tocar o banco.
+    /// </summary>
     /// <param name="userId">Dono das tools.</param>
     /// <param name="toolIds">Ids selecionados no chat.</param>
     /// <param name="ct">Cancelamento.</param>
@@ -31,42 +45,85 @@ public class ToolExecutor(
         {
             return [];
         }
-        return await db.Tools.AsNoTracking()
-            .Where(t => toolIds.Contains(t.Id) && t.Enabled
-                && (t.UserId == userId || t.Url.StartsWith(McpClientService.VirtualUrlPrefix)))
-            .ToListAsync(ct);
+
+        var dbIds = new List<string>();
+        var tools = builtins.ResolveIds(toolIds, dbIds);
+        if (dbIds.Count > 0)
+        {
+            tools.AddRange(await db.Tools.AsNoTracking()
+                .Where(t => dbIds.Contains(t.Id) && t.Enabled
+                    && (t.UserId == userId || t.Url.StartsWith(McpClientService.VirtualUrlPrefix)))
+                .ToListAsync(ct));
+        }
+
+        return tools;
     }
+
+    /// <summary>Atalho sem contexto built-in (tools do banco/HTTP/MCP apenas).</summary>
+    public Task<ToolExecutionOutcome> ExecuteAsync(
+        IReadOnlyList<Tool> tools, string functionName, string argumentsJson,
+        CancellationToken ct) =>
+        ExecuteAsync(tools, functionName, argumentsJson, null, ct);
+
+    /// <summary>Localiza a tool pelo nome da função do spec.</summary>
+    private Tool? FindTool(IReadOnlyList<Tool> tools, string functionName) =>
+        tools.FirstOrDefault(t => FunctionName(t) == functionName);
 
     /// <summary>
     /// Executa a tool pelo nome da função chamada e retorna o texto do
-    /// resultado (truncado) ou mensagem de erro para o modelo.
+    /// resultado (truncado) ou mensagem de erro para o modelo, mais o
+    /// payload estruturado quando a tool o produz (builtins).
     /// </summary>
     /// <param name="tools">Tools habilitadas no contexto.</param>
     /// <param name="functionName">Nome da função pedida.</param>
     /// <param name="argumentsJson">Argumentos em JSON.</param>
+    /// <param name="builtinContext">Contexto das tools built-in (workspace/dono); null desabilita.</param>
     /// <param name="ct">Cancelamento.</param>
-    public async Task<string> ExecuteAsync(
+    public async Task<ToolExecutionOutcome> ExecuteAsync(
         IReadOnlyList<Tool> tools, string functionName, string argumentsJson,
+        BuiltinToolContext? builtinContext = null,
         CancellationToken ct = default)
     {
-        var tool = tools.FirstOrDefault(t => FunctionName(t) == functionName);
+        var tool = FindTool(tools, functionName);
         if (tool is null)
         {
-            return $"Erro: tool '{functionName}' não está habilitada neste chat.";
+            return new($"Erro: tool '{functionName}' não está habilitada neste chat.");
         }
 
         if (!string.IsNullOrWhiteSpace(tool.Code))
         {
-            return await pythonExecutor.ExecuteAsync(tool, functionName, argumentsJson, ct);
+            return new(await pythonExecutor.ExecuteAsync(tool, functionName, argumentsJson, ct));
         }
 
         if (McpClientService.ParseVirtualUrl(tool.Url) is { } mcpTarget)
         {
             var server = await db.McpServers.AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == mcpTarget.ServerId, ct);
-            return server is null
+            return new(server is null
                 ? $"Erro: servidor MCP da tool '{functionName}' não existe mais."
-                : await mcp.CallToolAsync(server, mcpTarget.ToolName, argumentsJson, ct);
+                : await mcp.CallToolAsync(server, mcpTarget.ToolName, argumentsJson, ct));
+        }
+
+        if (tool.Url?.StartsWith(BuiltinToolRegistry.UrlPrefix, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            if (builtinContext is null)
+            {
+                return new($"Erro: tool '{functionName}' requer contexto de execução built-in.");
+            }
+
+            var outcome = await builtins.ExecuteAsync(tool, argumentsJson, builtinContext, ct);
+            if (outcome is null)
+            {
+                return new($"Erro: tool '{functionName}' não é built-in registrada.");
+            }
+
+            var text = outcome.Refused
+                ? $"Erro: {outcome.RefuseReason ?? outcome.Text}"
+                : outcome.Text;
+            JsonElement? result = outcome.Result is null
+                ? null
+                : JsonSerializer.SerializeToElement(outcome.Result);
+            return new(text, result);
         }
 
         try
@@ -80,13 +137,13 @@ public class ToolExecutor(
             var body = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
             {
-                return $"Erro: tool '{functionName}' respondeu {(int)response.StatusCode}.";
+                return new($"Erro: tool '{functionName}' respondeu {(int)response.StatusCode}.");
             }
-            return body.Length > MaxOutputChars ? body[..MaxOutputChars] : body;
+            return new(body.Length > MaxOutputChars ? body[..MaxOutputChars] : body);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return $"Erro ao executar tool '{functionName}': {ex.Message}";
+            return new($"Erro ao executar tool '{functionName}': {ex.Message}");
         }
     }
 

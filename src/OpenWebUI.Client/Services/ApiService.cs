@@ -565,6 +565,53 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<bool> DeleteTerminalServerAsync(string id) =>
         SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminals/config/{id}");
 
+    // ---------------- Terminal PTY (SPEC-20261007-chat-agent-tools) ----------------
+
+    /// <summary>Lista os jobs de background do usuário (aba Jobs do painel; <c>chatId</c> filtra).</summary>
+    public async Task<List<ChatJobResponse>> GetJobsAsync(string? chatId = null, bool all = false)
+    {
+        var query = $"?all={(all ? "true" : "false")}"
+            + (chatId is null ? "" : $"&chatId={Uri.EscapeDataString(chatId)}");
+        return await SendAsync<List<ChatJobResponse>>(
+            HttpMethod.Get, $"/api/v1/jobs/{query}") ?? [];
+    }
+
+    /// <summary>Mata um job de background em execução (aba Jobs do painel).</summary>
+    public Task<bool> KillJobAsync(string jobId) =>
+        SendStatusAsync(HttpMethod.Post, $"/api/v1/jobs/{jobId}/kill");
+
+    /// <summary>
+    /// Snapshot git do workspace do chat (git bar / aba Changes — RF-018).
+    /// Null em falha de rede; <c>Git=false</c> quando o workdir não é repo.
+    /// </summary>
+    public Task<WorkspaceGitResponse?> GetRunDiffAsync(string chatId, string runId) =>
+        SendAsync<WorkspaceGitResponse>(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs/{runId}/diff");
+
+    /// <summary>Lê a feature flag do terminal PTY (off por default).</summary>
+    public async Task<bool> GetTerminalEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/terminal/config");
+        return node?["enabled"]?.GetValue<bool>() == true;
+    }
+
+    /// <summary>Lista as sessões de terminal PTY do usuário.</summary>
+    public async Task<List<TerminalSessionInfoResponse>> GetTerminalSessionsAsync() =>
+        await SendAsync<List<TerminalSessionInfoResponse>>(
+            HttpMethod.Get, "/api/v1/terminal/sessions") ?? [];
+
+    /// <summary>Cria uma sessão de terminal PTY; devolve o id ou null.</summary>
+    public async Task<string?> CreateTerminalSessionAsync(int cols = 120, int rows = 30)
+    {
+        var node = await SendAsync<JsonObject>(
+            HttpMethod.Post, "/api/v1/terminal/sessions", new { cols, rows });
+        return node?["id"]?.GetValue<string>();
+    }
+
+    /// <summary>Encerra uma sessão de terminal PTY.</summary>
+    public Task<bool> KillTerminalSessionAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminal/sessions/{id}");
+
     /// <summary>Configuração SAML (admin).</summary>
     public Task<SamlConfigResponse?> GetSamlConfigAsync() =>
         SendAsync<SamlConfigResponse>(HttpMethod.Get, "/api/v1/configs/saml");
@@ -664,6 +711,61 @@ public class ApiService(HttpClient http, AuthService auth)
     /// <summary>Obtém a versão do backend.</summary>
     public Task<VersionResponse?> GetVersionAsync() =>
         SendAsync<VersionResponse>(HttpMethod.Get, "/api/version");
+
+    // ---------------- Automação (admin): n8n + webhooks ----------------
+
+    /// <summary>Configuração da integração n8n (somente admin).</summary>
+    public Task<N8nConfigResponse?> GetN8nConfigAsync() =>
+        SendAsync<N8nConfigResponse>(HttpMethod.Get, "/api/v1/n8n/config");
+
+    /// <summary>Atualiza a configuração n8n; ApiKey nula mantém a atual (somente admin).</summary>
+    public Task<N8nConfigResponse?> UpdateN8nConfigAsync(N8nConfigUpdateRequest request) =>
+        SendAsync<N8nConfigResponse>(HttpMethod.Put, "/api/v1/n8n/config", request);
+
+    /// <summary>Lista workflows do n8n via proxy (somente admin).</summary>
+    public async Task<List<N8nWorkflowResponse>> GetN8nWorkflowsAsync() =>
+        await SendAsync<List<N8nWorkflowResponse>>(HttpMethod.Get, "/api/v1/n8n/workflows") ?? [];
+
+    /// <summary>Lista os webhooks de automação do usuário.</summary>
+    public async Task<List<AutomationHookResponse>> GetAutomationHooksAsync() =>
+        await SendAsync<List<AutomationHookResponse>>(HttpMethod.Get, "/api/v1/hooks/") ?? [];
+
+    /// <summary>Cria um webhook de automação vinculado a um chat.</summary>
+    public Task<AutomationHookResponse?> CreateAutomationHookAsync(AutomationHookCreateRequest request) =>
+        SendAsync<AutomationHookResponse>(HttpMethod.Post, "/api/v1/hooks/", request);
+
+    /// <summary>Remove um webhook de automação.</summary>
+    public Task<bool> DeleteAutomationHookAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/hooks/{Uri.EscapeDataString(id)}");
+
+    // ---------------- Mídia e browser (admin) ----------------
+
+    /// <summary>Configuração de geração de vídeo (somente admin; ApiKey mascarada).</summary>
+    public Task<VideoConfig?> GetVideoConfigAsync() =>
+        SendAsync<VideoConfig>(HttpMethod.Get, "/api/v1/videos/config");
+
+    /// <summary>Atualiza a configuração de vídeo (somente admin).</summary>
+    public Task<VideoConfig?> UpdateVideoConfigAsync(VideoConfig config) =>
+        SendAsync<VideoConfig>(HttpMethod.Post, "/api/v1/videos/config", config);
+
+    /// <summary>Motores de vídeo disponíveis (somente admin).</summary>
+    public async Task<List<string>> GetVideoEnginesAsync() =>
+        await SendAsync<List<string>>(HttpMethod.Get, "/api/v1/videos/config/engines") ?? [];
+
+    /// <summary>Testa a configuração de vídeo com uma geração curta (somente admin).</summary>
+    public Task<ImageTestResponse?> TestVideoConfigAsync() =>
+        SendAsync<ImageTestResponse>(HttpMethod.Post, "/api/v1/videos/config/test");
+
+    /// <summary>Flag da tool builtin browser_screenshot (somente admin).</summary>
+    public Task<BrowserConfigResponse?> GetBrowserConfigAsync() =>
+        SendAsync<BrowserConfigResponse>(HttpMethod.Get, "/api/v1/browser/config");
+
+    /// <summary>Liga/desliga a tool builtin browser_screenshot (somente admin).</summary>
+    public Task<BrowserConfigResponse?> UpdateBrowserConfigAsync(bool enabled) =>
+        SendAsync<BrowserConfigResponse>(HttpMethod.Put, "/api/v1/browser/config", new { enabled });
+
+    /// <summary>Resposta de /api/v1/browser/config (shape anônimo do endpoint).</summary>
+    public sealed record BrowserConfigResponse(bool Enabled, string? BrowserPath);
 
     // ---------------- Gerenciamento de modelos Ollama (passthrough) ----------------
 

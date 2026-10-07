@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Application.Contracts;
@@ -163,6 +164,7 @@ public static class ApiEndpoints
         ToolExecutor toolExecutor,
         PipelineClientService pipelines,
         WebSearchService webSearch,
+        IWebHostEnvironment env,
         CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
@@ -243,8 +245,15 @@ public static class ApiEndpoints
                         .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
                         .ToList(),
                 };
+                var builtinContext = new BuiltinToolContext(
+                    user.Id,
+                    ChatId: null,
+                    RunId: null,
+                    Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
+                    Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
                 var outcome = await ChatPipeline.RunToolLoopAsync(
-                    effective, tools, toolExecutor, providers, ct);
+                    effective, tools, toolExecutor, providers, ct,
+                    builtinContext: builtinContext);
                 if (outcome?.FinalContent is { } finished)
                 {
                     foreach (var (regex, replacement) in outletRules)

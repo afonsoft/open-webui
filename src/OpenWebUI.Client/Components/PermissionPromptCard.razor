@@ -1,9 +1,12 @@
 @inject LocalizationService L
 
 @*
-    Prompt de aprovação de tool mutável (SPEC-20261007-chat-tool-streaming):
-    mostra o que vai executar e oferece Aprovar/Negar com opção "lembrar
-    nesta conversa". A decisão vai pro endpoint de approvals da run.
+    Prompt de aprovação de tool mutável (SPEC-20261007-chat-tool-streaming +
+    SPEC-20261007-chat-agent-ux RF-002/RF-003): mostra o que vai executar
+    (campo-chave por tool + args) e oferece Aprovar/Negar — a negação pode
+    carregar uma instrução que vira o resultado da tool pro modelo corrigir
+    a rota (padrão do RejectPrompt do opencode). "Lembrar nesta conversa"
+    só vale para aprovação.
 *@
 
 <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2" role="alertdialog" aria-label="@L["chat.tool_approval_title"]">
@@ -15,26 +18,57 @@
         <span class="rounded-full bg-amber-200/60 dark:bg-amber-800/60 px-1.5 py-0.5 text-[0.625rem]">@Kind</span>
     </div>
 
+    @if (KeyField is { } field)
+    {
+        <div class="mt-2 rounded-lg bg-white/70 dark:bg-gray-950/70 px-2 py-1 text-[0.75rem] font-mono text-gray-700 dark:text-gray-300 break-all">
+            @if (field.Label is not null)
+            {
+                <span class="text-gray-400 dark:text-gray-500">@field.Label: </span>
+            }@field.Value
+        </div>
+    }
+
     @if (ArgsPreview is not null)
     {
         <pre class="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white/70 dark:bg-gray-950/70 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@ArgsPreview</pre>
     }
 
-    <label class="mt-2 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
-        <input type="checkbox" @bind="_remember" />
-        @L["chat.tool_approval_remember"]
-    </label>
+    @if (_rejecting)
+    {
+        <div class="mt-2 flex flex-col gap-2">
+            <textarea class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
+                      rows="2" placeholder="@L["chat.tool_deny_hint"]" @bind="_denyMessage"></textarea>
+            <div class="text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.tool_deny_hint_detail"]</div>
+            <div class="flex gap-2">
+                <button class="rounded-lg bg-amber-600 text-white px-3 py-1 text-xs font-medium transition hover:opacity-85 cursor-pointer"
+                        @onclick="ConfirmDenyAsync">
+                    @L["chat.tool_deny_confirm"]
+                </button>
+                <button class="rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 text-xs font-medium transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
+                        @onclick="() => _rejecting = false">
+                    @L["chat.tool_deny_cancel"]
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <label class="mt-2 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input type="checkbox" @bind="_remember" />
+            @L["chat.tool_approval_remember"]
+        </label>
 
-    <div class="mt-2 flex gap-2">
-        <button class="rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-3 py-1 text-xs font-medium transition hover:opacity-85 cursor-pointer"
-                @onclick='() => OnDecide.InvokeAsync(("approve", _remember))'>
-            @L["chat.tool_approve"]
-        </button>
-        <button class="rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 text-xs font-medium transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
-                @onclick='() => OnDecide.InvokeAsync(("deny", _remember))'>
-            @L["chat.tool_deny"]
-        </button>
-    </div>
+        <div class="mt-2 flex gap-2">
+            <button class="rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-3 py-1 text-xs font-medium transition hover:opacity-85 cursor-pointer"
+                    @onclick='() => OnDecide.InvokeAsync(("approve", _remember, null))'>
+                @L["chat.tool_approve"]
+            </button>
+            <button class="rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 text-xs font-medium transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
+                    @onclick="() => _rejecting = true">
+                @L["chat.tool_deny"]
+            </button>
+        </div>
+    }
 </div>
 
 @code {
@@ -47,8 +81,38 @@
     /// <summary>Preview dos argumentos (truncado, scrubbed).</summary>
     [Parameter] public string? ArgsPreview { get; set; }
 
-    /// <summary>Callback com (decision, remember).</summary>
-    [Parameter] public EventCallback<(string Decision, bool Remember)> OnDecide { get; set; }
+    /// <summary>Callback com (decision, remember, message).</summary>
+    [Parameter] public EventCallback<(string Decision, bool Remember, string? Message)> OnDecide { get; set; }
 
     private bool _remember;
+    private bool _rejecting;
+    private string? _denyMessage;
+
+    /// <summary>Campo-chave por tool (comando/URL/código) no corpo do prompt.</summary>
+    private (string? Label, string Value)? KeyField
+    {
+        get
+        {
+            var suffix = ToolName.Split(':', '/').Last();
+            return suffix switch
+            {
+                "shell_exec" => TryField("$", "command"),
+                "fetch_url" => TryField("URL", "url"),
+                "web_search" => TryField("Query", "query"),
+                "code_interpreter" => TryField(null, "code"),
+                "generate_image" => TryField(null, "prompt"),
+                _ => null,
+            };
+        }
+    }
+
+    private (string?, string)? TryField(string? label, string field)
+    {
+        var value = ToolArgsPreview.TryGetField(ArgsPreview, field);
+        return value is null ? null : (label, value);
+    }
+
+    private Task ConfirmDenyAsync() =>
+        OnDecide.InvokeAsync(("deny", _remember,
+            string.IsNullOrWhiteSpace(_denyMessage) ? null : _denyMessage.Trim()));
 }
