@@ -969,6 +969,42 @@ public class AutomationRun
     public long FinishedAt { get; set; }
 }
 
+/// <summary>
+/// Webhook de automação (SPEC-20261007-chat-agent-parity RF-021):
+/// <c>POST /api/v1/hooks/{Id}</c> anônimo dispara uma run no
+/// <see cref="ChatId"/> vinculado — n8n, cron, CI ou qualquer sistema
+/// externo. O próprio Id (GUID) é o token da URL.
+/// </summary>
+public class AutomationHook
+{
+    /// <summary>Identificador único (GUID) — usado como token na URL do webhook.</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono do hook (isola dados e executa a run como ele).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o dono.</summary>
+    public User? User { get; set; }
+
+    /// <summary>Chat que recebe a mensagem e a run disparada pelo webhook.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o chat vinculado.</summary>
+    public Chat? Chat { get; set; }
+
+    /// <summary>Nome exibido na lista de hooks.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Indica se o hook aceita disparos.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Último disparo aceito (epoch seconds); null se nunca disparou.</summary>
+    public long? LastFiredAt { get; set; }
+}
+
 /// <summary>Banner de aviso exibido no topo do app (CRUD admin).</summary>
 public class Banner
 {
