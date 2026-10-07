@@ -141,8 +141,15 @@ public sealed class ChatRunExecutor(
             broadcaster.Publish(run.Id, "data: [DONE]");
             await FinishAsync(run, content.ToString(), ct, ChatRunStatus.Stopped);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex)
         {
+            // Qualquer falha fecha a run como failed — uma exceção que escapasse
+            // deixaria a run eternamente "running" (o dispatcher só loga).
+            if (ex is not (InvalidOperationException or HttpRequestException or TaskCanceledException))
+            {
+                logger.LogError(ex, "Run {RunId} falhou com exceção inesperada.", run.Id);
+            }
+
             var message = ex is HttpRequestException or TaskCanceledException
                 ? $"Falha ao contactar o provedor: {ex.Message}"
                 : ex.Message;

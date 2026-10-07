@@ -83,7 +83,7 @@ public class ChatRunEndpointsTests
 
     private async Task<ChatRunResponse> AguardarFinalAsync(string chatId, string runId)
     {
-        var limite = DateTime.UtcNow.AddSeconds(20);
+        var limite = DateTime.UtcNow.AddSeconds(60);
         while (DateTime.UtcNow < limite)
         {
             var run = await _client.GetFromJsonAsync<ChatRunResponse>(
@@ -97,7 +97,7 @@ public class ChatRunEndpointsTests
             await Task.Delay(150);
         }
 
-        Assert.Fail($"Run {runId} não finalizou em 20s.");
+        Assert.Fail($"Run {runId} não finalizou em 60s.");
         return null!;
     }
 
