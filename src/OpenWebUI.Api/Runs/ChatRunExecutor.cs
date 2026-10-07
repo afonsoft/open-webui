@@ -260,6 +260,28 @@ public sealed class ChatRunExecutor(
                 return ToolGateDecision.Allow;
             case "allow-readonly":
                 return ToolGateDecision.Deny;
+            case "auto":
+            {
+                // RF-012 (paridade OpenHands): LOW executa direto; MEDIUM
+                // executa com notice no stream; HIGH cai no fluxo de
+                // pergunta abaixo.
+                var risk = ToolCallRiskClassifier.Classify(
+                    tool, call.ArgumentsJson,
+                    Path.Combine(env.ContentRootPath, "data", "workspaces", run.UserId));
+                if (risk == ToolCallRisk.Low)
+                {
+                    return ToolGateDecision.Allow;
+                }
+
+                if (risk == ToolCallRisk.Medium)
+                {
+                    broadcaster.Publish(run.Id,
+                        $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("auto_approved", call.Name), JsonOptions)}");
+                    return ToolGateDecision.Allow;
+                }
+
+                break;
+            }
         }
 
         var argsPreview = Scrub(Truncate(call.ArgumentsJson, PreviewChars));

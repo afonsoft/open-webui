@@ -878,6 +878,68 @@ public class BuiltinToolsTests
             handler is null ? new() : new HttpClient(handler);
     }
 
+    // ---------------- ToolCallRiskClassifier (preset auto) ----------------
+
+    [Test]
+    public void Risk_ToolSomenteLeitura_EhLow()
+    {
+        var tool = new Tool { Url = "builtin://file_read" };
+        Assert.That(ToolCallRiskClassifier.Classify(tool, "{}", _workspace),
+            Is.EqualTo(ToolCallRisk.Low));
+    }
+
+    [Test]
+    public void Risk_BuiltinsMutaveis_SaoMedium()
+    {
+        foreach (var name in new[]
+        {
+            "file_write", "file_edit", "generate_image", "code_interpreter", "job_kill",
+        })
+        {
+            var tool = new Tool { Url = $"builtin://{name}", RequiresApproval = true };
+            Assert.That(ToolCallRiskClassifier.Classify(tool, "{}", _workspace),
+                Is.EqualTo(ToolCallRisk.Medium), name);
+        }
+    }
+
+    [Test]
+    public void Risk_ShellExec_ClassificaPeloComando()
+    {
+        var tool = new Tool { Url = "builtin://shell_exec", RequiresApproval = true };
+        Assert.Multiple(() =>
+        {
+            Assert.That(ToolCallRiskClassifier.Classify(
+                    tool, "{\"command\":\"ls -la\"}", _workspace),
+                Is.EqualTo(ToolCallRisk.Low));
+            Assert.That(ToolCallRiskClassifier.Classify(
+                    tool, "{\"command\":\"echo oi > a.txt\"}", _workspace),
+                Is.EqualTo(ToolCallRisk.Medium));
+            Assert.That(ToolCallRiskClassifier.Classify(
+                    tool, "{\"command\":\"rm -rf /\"}", _workspace),
+                Is.EqualTo(ToolCallRisk.High));
+            Assert.That(ToolCallRiskClassifier.Classify(
+                    tool, "{\"command\":\"ls\",\"background\":true}", _workspace),
+                Is.EqualTo(ToolCallRisk.High));
+        });
+    }
+
+    [Test]
+    public void Risk_McpECustom_SaoHigh()
+    {
+        var mcp = new Tool { Url = "mcp://srv-1/eco" };
+        var http = new Tool { Url = "http://x/tool", RequiresApproval = true };
+        var python = new Tool { Url = "http://x/tool", Code = "print(1)" };
+        Assert.Multiple(() =>
+        {
+            Assert.That(ToolCallRiskClassifier.Classify(mcp, "{}", _workspace),
+                Is.EqualTo(ToolCallRisk.High));
+            Assert.That(ToolCallRiskClassifier.Classify(http, "{}", _workspace),
+                Is.EqualTo(ToolCallRisk.High));
+            Assert.That(ToolCallRiskClassifier.Classify(python, "{}", _workspace),
+                Is.EqualTo(ToolCallRisk.High));
+        });
+    }
+
     private sealed class FakeHandler(HttpStatusCode status, string content, string mediaType)
         : HttpMessageHandler
     {

@@ -448,7 +448,7 @@
     private RunApprovalAskedEvent? _pendingApproval;
     private string _approvalPreset = "approve-mutations";
     private static readonly string[] ApprovalPresets =
-        ["allow-readonly", "approve-mutations", "always-allow"];
+        ["allow-readonly", "approve-mutations", "always-allow", "auto"];
 
     /// <summary>Estado vivo de uma tool_call + seu tool_result.</summary>
     private sealed class ToolCallView
@@ -1113,7 +1113,10 @@
                     _runTasks = tasks.Snapshot.Tasks.ToList();
                     break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
-                    _statusLabel = phase.Status.Label;
+                    _statusLabel = phase.Status.Phase == "auto_approved"
+                        ? L.T("chat.status_auto_approved",
+                            ("name", phase.Status.Label ?? ""))
+                        : phase.Status.Label;
                     break;
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
