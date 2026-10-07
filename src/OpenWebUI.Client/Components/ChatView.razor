@@ -130,7 +130,7 @@
                         ToolName="@pendingApproval.ToolName"
                         Kind="@pendingApproval.Kind"
                         ArgsPreview="@pendingApproval.ArgsPreview"
-                        OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember)" />
+                        OnDecide="d => DecideApprovalAsync(pendingApproval.CallId, d.Decision, d.Remember, d.Message)" />
                 </div>
             }
             else if (_streaming && !string.IsNullOrEmpty(_statusLabel))
@@ -1070,7 +1070,8 @@
     /// Envia a decisão (approve|deny) de uma aprovação pendente e limpa o
     /// prompt — a tool_result chega depois pelo stream.
     /// </summary>
-    private async Task DecideApprovalAsync(string callId, string decision, bool remember)
+    private async Task DecideApprovalAsync(
+        string callId, string decision, bool remember, string? message = null)
     {
         _pendingApproval = null;
         if (_loadedChatId is null || _activeRunId is null)
@@ -1078,7 +1079,7 @@
             return;
         }
         await ChatStream.DecideApprovalAsync(
-            _loadedChatId, _activeRunId, callId, decision, remember);
+            _loadedChatId, _activeRunId, callId, decision, remember, message);
     }
 
     /// <summary>Troca o preset de aprovação do chat (re-lido por call no servidor).</summary>

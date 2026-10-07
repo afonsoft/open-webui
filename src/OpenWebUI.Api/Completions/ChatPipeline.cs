@@ -241,7 +241,8 @@ public static class ChatPipeline
     /// recebe a fase (generating|running_tool|awaiting_approval) antes de
     /// cada etapa; <paramref name="OnCallAsync"/> antes de executar;
     /// <paramref name="GateAsync"/> decide se a tool mutável executa
-    /// (false injeta "negado pelo usuário"); <paramref name="OnResultAsync"/>
+    /// (negado injeta "negado pelo usuário", com a instrução opcional do
+    /// dono — SPEC-20261007-chat-agent-ux RF-002); <paramref name="OnResultAsync"/>
     /// recebe (call, output, result, denied) após cada execução/decisão —
     /// <c>result</c> é o payload estruturado opcional (ex.: imagePath de
     /// generate_image).
@@ -249,7 +250,7 @@ public static class ChatPipeline
     public sealed record ToolLoopCallbacks(
         Func<string, string?, CancellationToken, Task>? OnPhaseAsync = null,
         Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
-        Func<ProviderToolCall, CancellationToken, Task<bool>>? GateAsync = null,
+        Func<ProviderToolCall, CancellationToken, Task<ToolGateDecision>>? GateAsync = null,
         Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null);
 
     /// <summary>
@@ -300,10 +301,15 @@ public static class ChatPipeline
                     await callbacks.OnCallAsync(call, ct);
                 }
 
-                var denied = callbacks?.GateAsync is not null
-                    && !await callbacks.GateAsync(call, ct);
+                var gate = callbacks?.GateAsync is not null
+                    ? await callbacks.GateAsync(call, ct)
+                    : ToolGateDecision.Allow;
+                var denied = !gate.Approved;
                 var outcome = denied
-                    ? new ToolExecutionOutcome("Erro: execução negada pelo usuário.")
+                    ? new ToolExecutionOutcome(
+                        string.IsNullOrWhiteSpace(gate.DenyMessage)
+                            ? "Erro: execução negada pelo usuário."
+                            : $"Erro: execução negada pelo usuário: {gate.DenyMessage}")
                     : await toolExecutor.ExecuteAsync(
                         tools, call.Name, call.ArgumentsJson, builtinContext, ct);
                 var output = outcome.Text;

@@ -179,17 +179,20 @@ public class ChatStreamService(HttpClient http, AuthService auth)
     /// <summary>
     /// Envia a decisão do usuário sobre uma aprovação pendente
     /// (<c>approve</c>|<c>deny</c>; <paramref name="remember"/> vale nesta
-    /// conversa). Retorna false quando a call não está mais pendente.
+    /// conversa; <paramref name="message"/> é instrução opcional numa
+    /// negação — vira o resultado da tool, SPEC-20261007-chat-agent-ux).
+    /// Retorna false quando a call não está mais pendente.
     /// </summary>
     public async Task<bool> DecideApprovalAsync(
         string chatId, string runId, string callId,
-        string decision, bool remember = false, CancellationToken ct = default)
+        string decision, bool remember = false, string? message = null,
+        CancellationToken ct = default)
     {
         using var httpRequest = auth.CreateRequest(
             HttpMethod.Post,
             $"/api/v1/chats/{chatId}/runs/{runId}/approvals/{callId}");
         httpRequest.Content = JsonContent.Create(
-            new RunApprovalDecisionRequest(decision, remember));
+            new RunApprovalDecisionRequest(decision, remember, message));
         using var response = await http.SendAsync(httpRequest, ct);
         return response.IsSuccessStatusCode;
     }
