@@ -126,7 +126,9 @@ public class ToolStreamingTests
                 // Segunda chamada do loop: histórico já tem role=tool.
                 json = body.Contains("\"tool_call_id\"", StringComparison.Ordinal)
                     ? "{\"message\":{\"role\":\"assistant\",\"content\":\"resposta pós-tool\"}}"
-                    : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
+                    : body.Contains("file_write", StringComparison.Ordinal)
+                        ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-fw\",\"function\":{\"name\":\"builtin:file_write\",\"arguments\":{\"path\":\"saida.txt\",\"content\":\"gerado\"}}}]}}"
+                        : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
             }
             else if (path == "/tool/eco")
             {
@@ -548,6 +550,76 @@ public class ToolStreamingTests
 
         var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
         Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task Auto_MediumRisk_ExecutaComNoticeSemPerguntar()
+    {
+        var auth = await SignUpAsync("AutoM", "autom@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var patch = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("auto"));
+        Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var run = await EnfileirarAsync(chat.Id, "escreve o arquivo",
+            ["builtin:file_write"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "status"
+                    && e.Data.Contains("auto_approved")), Is.True,
+                "faltou notice auto_approved");
+            Assert.That(eventos.Any(e => e.Event == "approval_asked"), Is.False,
+                "risco médio não pode pedir aprovação");
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("\"ok\":true")), Is.True,
+                "file_write não executou");
+        });
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
+    public async Task Auto_HighRisk_PedeAprovacao()
+    {
+        var auth = await SignUpAsync("AutoH", "autoh@tools.local");
+        UseToken(auth.Token);
+        var toolId = await CriarToolAsync(requiresApproval: true);
+        var chat = await CriarChatAsync();
+        var patch = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("auto"));
+        Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var run = await EnfileirarAsync(chat.Id, "tool arbitrária", [toolId]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        var streamTask = Task.Run(() => LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token));
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        var temPedido = false;
+        while (DateTime.UtcNow < limite && !temPedido)
+        {
+            var decidido = await _client.PostAsJsonAsync(
+                $"/api/v1/chats/{chat.Id}/runs/{run.Id}/approvals/call-1",
+                new RunApprovalDecisionRequest("approve"));
+            temPedido = decidido.StatusCode == HttpStatusCode.OK;
+            if (!temPedido)
+            {
+                await Task.Delay(200, cts.Token);
+            }
+        }
+        Assert.That(temPedido, Is.True, "HIGH não pediu aprovação em 30s");
+
+        var eventos = await streamTask;
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventos.Any(e => e.Event == "approval_asked"), Is.True);
+            Assert.That(eventos.Any(e => e.Event == "tool_result"
+                    && e.Data.Contains("resultado-eco")), Is.True,
+                "tool não executou após aprovação");
+        });
     }
 
     [Test]

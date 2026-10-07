@@ -36,6 +36,12 @@ public class ChatStreamService(HttpClient http, AuthService auth)
 
         /// <summary>Aprovação pedida — a run pausou esperando decisão.</summary>
         public sealed record ApprovalAsked(RunApprovalAskedEvent Asked) : ChatStreamEvent;
+
+        /// <summary>
+        /// Snapshot da lista de tarefas da run (evento <c>tasks</c> —
+        /// SPEC-20261007-chat-agent-parity RF-010, emitido por todo_write).
+        /// </summary>
+        public sealed record Tasks(RunTasksEvent Snapshot) : ChatStreamEvent;
     }
 
     /// <summary>Resultado de arena da última requisição (payload {"arena": ...}), quando houver.</summary>
@@ -284,6 +290,18 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["kind"]?.GetValue<string>() ?? "http",
                                 node["argsPreview"]?.GetValue<string>()));
                         break;
+                    case "tasks":
+                    {
+                        var arr = node as JsonArray ?? node["tasks"] as JsonArray;
+                        var items = (arr ?? [])
+                            .Select(t => new RunTaskItem(
+                                t?["id"]?.GetValue<string>() ?? string.Empty,
+                                t?["content"]?.GetValue<string>() ?? string.Empty,
+                                t?["status"]?.GetValue<string>() ?? "pending"))
+                            .ToList();
+                        produced = new ChatStreamEvent.Tasks(new RunTasksEvent(items));
+                        break;
+                    }
                     case "status":
                         if (node["phase"]?.GetValue<string>() is { } phase)
                         {

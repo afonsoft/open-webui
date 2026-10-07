@@ -217,6 +217,15 @@ public sealed class ChatRunExecutor(
         {
             imagePath = img.GetString();
         }
+
+        // todo_write publica o snapshot de tarefas como evento `tasks`
+        // (RF-010 chat-agent-parity) — replay cobre attach tardio.
+        if (result is { } res && res.ValueKind == JsonValueKind.Object
+            && res.TryGetProperty("tasks", out var tasks)
+            && tasks.ValueKind == JsonValueKind.Array)
+        {
+            broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
+        }
         broadcaster.Publish(run.Id,
             $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied), JsonOptions)}");
         return Task.CompletedTask;
@@ -251,6 +260,28 @@ public sealed class ChatRunExecutor(
                 return ToolGateDecision.Allow;
             case "allow-readonly":
                 return ToolGateDecision.Deny;
+            case "auto":
+            {
+                // RF-012 (paridade OpenHands): LOW executa direto; MEDIUM
+                // executa com notice no stream; HIGH cai no fluxo de
+                // pergunta abaixo.
+                var risk = ToolCallRiskClassifier.Classify(
+                    tool, call.ArgumentsJson,
+                    Path.Combine(env.ContentRootPath, "data", "workspaces", run.UserId));
+                if (risk == ToolCallRisk.Low)
+                {
+                    return ToolGateDecision.Allow;
+                }
+
+                if (risk == ToolCallRisk.Medium)
+                {
+                    broadcaster.Publish(run.Id,
+                        $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("auto_approved", call.Name), JsonOptions)}");
+                    return ToolGateDecision.Allow;
+                }
+
+                break;
+            }
         }
 
         var argsPreview = Scrub(Truncate(call.ArgumentsJson, PreviewChars));
