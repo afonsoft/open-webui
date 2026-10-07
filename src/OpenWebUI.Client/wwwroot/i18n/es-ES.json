@@ -468,6 +468,7 @@
   "chat.tool_deny": "Denegar",
   "chat.tool_expand": "expandir",
   "chat.tool_collapse": "contraer",
+  "chat.tasks": "Tareas",
   "chat.tool_deny_hint": "Indica al modelo qué hacer diferente (opcional)…",
   "chat.tool_deny_hint_detail": "La instrucción se envía como resultado de la tool para que el modelo corrija el rumbo.",
   "chat.tool_deny_confirm": "Confirmar rechazo",

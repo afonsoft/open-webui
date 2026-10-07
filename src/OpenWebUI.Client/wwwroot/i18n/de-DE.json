@@ -468,6 +468,7 @@
   "chat.tool_deny": "Ablehnen",
   "chat.tool_expand": "erweitern",
   "chat.tool_collapse": "einklappen",
+  "chat.tasks": "Aufgaben",
   "chat.tool_deny_hint": "Dem Modell sagen, was es anders machen soll (optional)…",
   "chat.tool_deny_hint_detail": "Die Anweisung wird als Tool-Ergebnis gesendet, damit das Modell den Kurs korrigiert.",
   "chat.tool_deny_confirm": "Ablehnung bestätigen",

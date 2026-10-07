@@ -710,6 +710,167 @@ public class BuiltinToolsTests
         Assert.That(r.Text, Does.Contain("Resultado um").Or.Contain("ex.com"));
     }
 
+    // ---------------- File tools (P11) ----------------
+
+    [Test]
+    public async Task FileWrite_CriaArquivo_ERetornaDiff()
+    {
+        var tool = new FileWriteBuiltinTool();
+        var r = await tool.ExecuteAsync(
+            Args("{\"path\":\"src/a.txt\",\"content\":\"linha1\\nlinha2\\n\"}"), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.ReadAllText(Path.Combine(_workspace, "src", "a.txt")),
+                Is.EqualTo("linha1\nlinha2\n"));
+            Assert.That(r.Text, Does.Contain("a.txt").And.Contain("+linha1"));
+            Assert.That(tool.RequiresApproval, Is.True);
+        });
+    }
+
+    [Test]
+    public async Task FileWrite_ForaDoWorkspace_ENegado()
+    {
+        var tool = new FileWriteBuiltinTool();
+        Assert.Multiple(async () =>
+        {
+            Assert.That((await tool.ExecuteAsync(
+                Args("{\"path\":\"../fora.txt\",\"content\":\"x\"}"), Ctx(), default)).Text,
+                Does.Contain("escapa do workspace"));
+            Assert.That((await tool.ExecuteAsync(
+                Args("{\"path\":\"/tmp/abs.txt\",\"content\":\"x\"}"), Ctx(), default)).Text,
+                Does.Contain("absoluto"));
+            Assert.That((await tool.ExecuteAsync(
+                Args("{\"path\":\"~/home.txt\",\"content\":\"x\"}"), Ctx(), default)).Text,
+                Does.Contain("não resolve"));
+        });
+        Assert.That(File.Exists(Path.Combine(_workspace, "..", "fora.txt")), Is.False);
+    }
+
+    [Test]
+    public async Task FileRead_LeComNumeracao_EPagina()
+    {
+        var path = Path.Combine(_workspace, "num.txt");
+        File.WriteAllLines(path, Enumerable.Range(1, 20).Select(i => $"l{i}"));
+
+        var tool = new FileReadBuiltinTool();
+        var r = await tool.ExecuteAsync(
+            Args("{\"path\":\"num.txt\",\"offset\":10,\"limit\":5}"), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Text, Does.Contain("10: l10").And.Contain("14: l14"));
+            Assert.That(r.Text, Does.Not.Contain("15: l15"));
+            Assert.That(r.Text, Does.Contain("truncado"));
+        });
+    }
+
+    [Test]
+    public async Task FileEdit_SubstituiUmaOcorrencia_ERetornaDiff()
+    {
+        File.WriteAllText(Path.Combine(_workspace, "e.txt"), "aaa bbb ccc\n");
+        var tool = new FileEditBuiltinTool();
+
+        var r = await tool.ExecuteAsync(
+            Args("{\"path\":\"e.txt\",\"old_string\":\"bbb\",\"new_string\":\"XXX\"}"), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.ReadAllText(Path.Combine(_workspace, "e.txt")), Is.EqualTo("aaa XXX ccc\n"));
+            Assert.That(r.Text, Does.Contain("-aaa bbb ccc").And.Contain("+aaa XXX ccc"));
+        });
+    }
+
+    [Test]
+    public async Task FileEdit_AmbiguoSemReplaceAll_FalhaComDica()
+    {
+        File.WriteAllText(Path.Combine(_workspace, "amb.txt"), "x x x\n");
+        var tool = new FileEditBuiltinTool();
+
+        var r = await tool.ExecuteAsync(
+            Args("{\"path\":\"amb.txt\",\"old_string\":\"x\",\"new_string\":\"y\"}"), Ctx(), default);
+        Assert.That(r.Text, Does.Contain("3×").And.Contain("replace_all"));
+
+        var ok = await tool.ExecuteAsync(
+            Args("{\"path\":\"amb.txt\",\"old_string\":\"x\",\"new_string\":\"y\",\"replace_all\":true}"),
+            Ctx(), default);
+        Assert.That(File.ReadAllText(Path.Combine(_workspace, "amb.txt")), Is.EqualTo("y y y\n"));
+        Assert.That(ok.Text, Does.Contain("editado"));
+    }
+
+    [Test]
+    public async Task FileEdit_TrechoNaoEncontrado_RetornaDica()
+    {
+        File.WriteAllText(Path.Combine(_workspace, "m.txt"), "conteudo\n");
+        var tool = new FileEditBuiltinTool();
+        var r = await tool.ExecuteAsync(
+            Args("{\"path\":\"m.txt\",\"old_string\":\"inexistente\",\"new_string\":\"z\"}"), Ctx(), default);
+        Assert.That(r.Text, Does.Contain("não encontrado").And.Contain("file_read"));
+    }
+
+    [Test]
+    public async Task FileGrep_FileGlob_FileList_Funcionam()
+    {
+        Directory.CreateDirectory(Path.Combine(_workspace, "sub"));
+        File.WriteAllText(Path.Combine(_workspace, "sub", "um.cs"), "class Foo {}\n// TODO: x\n");
+        File.WriteAllText(Path.Combine(_workspace, "dois.md"), "sem match\n");
+
+        var grep = new FileGrepBuiltinTool();
+        var g = await grep.ExecuteAsync(
+            Args("{\"pattern\":\"todo\",\"glob\":\"*.cs\"}"), Ctx(), default);
+        Assert.That(g.Text, Does.Contain("sub/um.cs:2:").And.Contain("TODO"));
+
+        var glob = new FileGlobBuiltinTool();
+        var m = await glob.ExecuteAsync(Args("{\"pattern\":\"**/*.md\"}"), Ctx(), default);
+        Assert.That(m.Text, Does.Contain("dois.md").And.Not.Contain("um.cs"));
+
+        var list = new FileListBuiltinTool();
+        var l = await list.ExecuteAsync(Args("{\"recursive\":true}"), Ctx(), default);
+        Assert.That(l.Text, Does.Contain("sub/").And.Contain("um.cs").And.Contain("dois.md"));
+    }
+
+    // ---------------- todo_write (P10) ----------------
+
+    [Test]
+    public async Task TodoWrite_SnapshotValido_RetornaTasks()
+    {
+        var tool = new TodoWriteBuiltinTool();
+        var r = await tool.ExecuteAsync(
+            Args("{\"todos\":[{\"content\":\"escrever spec\",\"status\":\"completed\"},"
+                 + "{\"content\":\"implementar\",\"status\":\"in_progress\"},"
+                 + "{\"content\":\"testar\",\"status\":\"pending\"}]}"),
+            Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Text, Does.Contain("3 tarefa(s)").And.Contain("1 concluída"));
+            var tasks = r.Result!.GetType().GetProperty("tasks")!.GetValue(r.Result)
+                as System.Collections.IEnumerable;
+            Assert.That(tasks!.Cast<object>().Count(), Is.EqualTo(3));
+        });
+    }
+
+    [Test]
+    public async Task TodoWrite_ItemInvalido_RetornaErro()
+    {
+        var tool = new TodoWriteBuiltinTool();
+        var r = await tool.ExecuteAsync(
+            Args("{\"todos\":[{\"content\":\"x\",\"status\":\"blocked\"}]}"), Ctx(), default);
+        Assert.That(r.Text, Does.Contain("pending|in_progress|completed"));
+    }
+
+    [Test]
+    public void Diff_MudancaDeLinha_EmiteHunkUnificado()
+    {
+        var d = UnifiedDiff.Compute("a.txt", "one\ntwo\nthree", "one\nTWO\nthree");
+        Assert.Multiple(() =>
+        {
+            Assert.That(d.Added, Is.EqualTo(1));
+            Assert.That(d.Removed, Is.EqualTo(1));
+            Assert.That(d.Text, Does.Contain("--- a/a.txt").And.Contain("-two").And.Contain("+TWO"));
+        });
+    }
+
     private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null)
         : IHttpClientFactory
     {

@@ -75,7 +75,13 @@
             {
                 <img src="@ImagePath" alt="@Name" class="max-w-sm rounded-lg border border-gray-200 dark:border-gray-800" />
             }
-            @if (ResultPreview is not null)
+            @if (ResultPreview is not null && IsDiff)
+            {
+                @* file_write/file_edit: saída é diff unificado — colorido por linha *@
+                <pre class="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono">@foreach (var line in DiffLines){<span class="@line.Css">@line.Text
+</span>}</pre>
+            }
+            else if (ResultPreview is not null)
             {
                 <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white dark:bg-gray-950 px-2 py-1 text-[0.6875rem] font-mono text-gray-600 dark:text-gray-400">@VisibleOutput</pre>
                 @if (OutputOverflow)
@@ -121,6 +127,22 @@
 
     private bool IsShell => ToolSuffix == "shell_exec";
     private bool IsCode => ToolSuffix == "code_interpreter";
+    private bool IsDiff => ToolSuffix is "file_write" or "file_edit";
+
+    /// <summary>Linhas do diff com cor por prefixo (+/-/@@/cabeçalho).</summary>
+    private IEnumerable<(string Text, string Css)> DiffLines =>
+        (ResultPreview ?? string.Empty).Split('\n').Skip(1).Select<string, (string, string)>(l => l switch
+        {
+            _ when l.StartsWith("+++") || l.StartsWith("---")
+                => (l, "text-gray-400 dark:text-gray-500"),
+            _ when l.StartsWith("@@")
+                => (l, "text-blue-600 dark:text-blue-400"),
+            _ when l.StartsWith('+')
+                => (l, "text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40"),
+            _ when l.StartsWith('-')
+                => (l, "text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40"),
+            _ => (l, "text-gray-500 dark:text-gray-400"),
+        });
 
     private string? Summary => ToolArgsPreview.Summary(Name, ArgsPreview);
     private string? Command => IsShell ? ToolArgsPreview.TryGetField(ArgsPreview, "command") : null;

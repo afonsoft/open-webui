@@ -22,6 +22,12 @@ public static class ToolArgsPreview
         ("generate_image", "prompt"),
         ("job_output", "job_id"),
         ("job_kill", "job_id"),
+        ("file_read", "path"),
+        ("file_write", "path"),
+        ("file_edit", "path"),
+        ("file_list", "path"),
+        ("file_grep", "pattern"),
+        ("file_glob", "pattern"),
     ];
 
     /// <summary>

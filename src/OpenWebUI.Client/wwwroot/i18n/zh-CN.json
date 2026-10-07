@@ -468,6 +468,7 @@
   "chat.tool_deny": "拒绝",
   "chat.tool_expand": "展开",
   "chat.tool_collapse": "折叠",
+  "chat.tasks": "任务",
   "chat.tool_deny_hint": "告诉模型应该怎么做（可选）…",
   "chat.tool_deny_hint_detail": "该指令会作为工具结果发送，帮助模型纠正方向。",
   "chat.tool_deny_confirm": "确认拒绝",

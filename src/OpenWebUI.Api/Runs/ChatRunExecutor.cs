@@ -217,6 +217,15 @@ public sealed class ChatRunExecutor(
         {
             imagePath = img.GetString();
         }
+
+        // todo_write publica o snapshot de tarefas como evento `tasks`
+        // (RF-010 chat-agent-parity) — replay cobre attach tardio.
+        if (result is { } res && res.ValueKind == JsonValueKind.Object
+            && res.TryGetProperty("tasks", out var tasks)
+            && tasks.ValueKind == JsonValueKind.Array)
+        {
+            broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
+        }
         broadcaster.Publish(run.Id,
             $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied), JsonOptions)}");
         return Task.CompletedTask;

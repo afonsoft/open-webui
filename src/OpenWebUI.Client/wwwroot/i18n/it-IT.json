@@ -468,6 +468,7 @@
   "chat.tool_deny": "Nega",
   "chat.tool_expand": "espandi",
   "chat.tool_collapse": "comprimi",
+  "chat.tasks": "Attività",
   "chat.tool_deny_hint": "Dì al modello cosa fare di diverso (opzionale)…",
   "chat.tool_deny_hint_detail": "L'istruzione viene inviata come risultato della tool affinché il modello corregga la rotta.",
   "chat.tool_deny_confirm": "Conferma rifiuto",

@@ -67,6 +67,22 @@ public sealed record RunPhaseEvent(string Phase, string? Label);
 public sealed record RunApprovalAskedEvent(
     string CallId, string ToolName, string Kind, string? ArgsPreview);
 
+/// <summary>
+/// Item da lista de tarefas da run (SPEC-20261007-chat-agent-parity
+/// RF-010): snapshot emitido pela builtin <c>todo_write</c>.
+/// </summary>
+/// <param name="Id">Id estável (t1, t2, ...).</param>
+/// <param name="Content">Descrição da tarefa.</param>
+/// <param name="Status">pending | in_progress | completed.</param>
+public sealed record RunTaskItem(string Id, string Content, string Status);
+
+/// <summary>
+/// Evento SSE <c>tasks</c> (RF-010): snapshot da lista de tarefas da run
+/// — o executor republica o array <c>tasks</c> do resultado estruturado
+/// de <c>todo_write</c> para o painel/checklist do cliente.
+/// </summary>
+public sealed record RunTasksEvent(IReadOnlyList<RunTaskItem> Tasks);
+
 /// <summary>Decisão do dono sobre uma aprovação pendente (RF-003).</summary>
 /// <param name="Decision"><c>approve</c> | <c>deny</c>.</param>
 /// <param name="Remember">Quando true, aprova a tool pelo resto da conversa.</param>

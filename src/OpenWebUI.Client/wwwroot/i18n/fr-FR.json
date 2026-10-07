@@ -468,6 +468,7 @@
   "chat.tool_deny": "Refuser",
   "chat.tool_expand": "développer",
   "chat.tool_collapse": "réduire",
+  "chat.tasks": "Tâches",
   "chat.tool_deny_hint": "Dites au modèle quoi faire différemment (optionnel)…",
   "chat.tool_deny_hint_detail": "L'instruction est envoyée comme résultat de la tool pour que le modèle corrige sa trajectoire.",
   "chat.tool_deny_confirm": "Confirmer le refus",

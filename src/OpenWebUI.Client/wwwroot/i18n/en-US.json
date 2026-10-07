@@ -521,6 +521,7 @@
   "chat.tool_deny": "Deny",
   "chat.tool_expand": "expand",
   "chat.tool_collapse": "collapse",
+  "chat.tasks": "Tasks",
   "chat.tool_deny_hint": "Tell the model what to do differently (optional)…",
   "chat.tool_deny_hint_detail": "The instruction is sent as the tool result so the model can correct its course.",
   "chat.tool_deny_confirm": "Confirm denial",
