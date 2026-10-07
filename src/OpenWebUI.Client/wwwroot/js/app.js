@@ -83,3 +83,141 @@ window.openwebui = {
 		}
 	}
 };
+
+// SPEC-20261007-chat-notifications: Notification API + Web Push para avisar
+// quando uma run de chat termina. Permissão só é pedida no gesto do usuário
+// (toggle em Settings) — nunca no boot. Toda falha degrada silenciosamente
+// para o toast in-app.
+window.openwebui.notify = {
+	// Notification.permission: 'default' | 'granted' | 'denied' | 'unsupported'.
+	permission: function () {
+		return ('Notification' in window) ? Notification.permission : 'unsupported';
+	},
+
+	// Notificação do SO só dispara com a aba fora de foco.
+	isHidden: function () {
+		return document.hidden === true;
+	},
+
+	// Pede a permissão (somente sob gesto do usuário — chamado pelo toggle).
+	ensurePermission: async function () {
+		try {
+			if (!('Notification' in window)) {
+				return 'unsupported';
+			}
+			if (Notification.permission !== 'default') {
+				return Notification.permission;
+			}
+			return await Notification.requestPermission();
+		} catch (e) {
+			return 'denied';
+		}
+	},
+
+	// Exibe notificação do SO; retorna true quando exibida.
+	notify: function (title, body, url, tag) {
+		try {
+			if (!('Notification' in window) || Notification.permission !== 'granted') {
+				return false;
+			}
+			var n = new Notification(title, { body: body || '', tag: tag || 'openwebui' });
+			n.onclick = function () {
+				try {
+					window.focus();
+					if (url) {
+						window.location.href = url;
+					}
+				} catch (e) { /* navegação best-effort */ }
+				n.close();
+			};
+			return true;
+		} catch (e) {
+			return false;
+		}
+	},
+
+	// ---- Web Push (entrega com a aba totalmente fechada) ----
+
+	_vapidB64ToBytes: function (b64) {
+		var pad = '='.repeat((4 - (b64.length % 4)) % 4);
+		var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+		var out = new Uint8Array(raw.length);
+		for (var i = 0; i < raw.length; i++) {
+			out[i] = raw.charCodeAt(i);
+		}
+		return out;
+	},
+
+	// O service worker do PWA já trata 'push' — usa o mesmo registro.
+	_swRegistration: async function () {
+		if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+			return null;
+		}
+		try {
+			return await navigator.serviceWorker.ready;
+		} catch (e) {
+			return null;
+		}
+	},
+
+	isPushSubscribed: async function () {
+		try {
+			var reg = await this._swRegistration();
+			var sub = reg ? await reg.pushManager.getSubscription() : null;
+			return sub ? sub.endpoint : null;
+		} catch (e) {
+			return null;
+		}
+	},
+
+	// Subscreve e grava o endpoint no servidor.
+	// Retorna { subscribed: true, endpoint } | { error }.
+	subscribePush: async function (vapidPublicKey, apiUrl) {
+		try {
+			var permission = await this.ensurePermission();
+			if (permission !== 'granted') {
+				return { error: 'permission ' + permission };
+			}
+			var reg = await this._swRegistration();
+			if (!reg) {
+				return { error: 'service worker unsupported' };
+			}
+			var sub = await reg.pushManager.subscribe({
+				userVisibleOnly: true,
+				applicationServerKey: this._vapidB64ToBytes(vapidPublicKey)
+			});
+			var json = sub.toJSON();
+			json.userAgent = navigator.userAgent;
+			var res = await fetch(apiUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify(json)
+			});
+			if (!res.ok) {
+				return { error: 'server rejected (' + res.status + ')' };
+			}
+			return { subscribed: true, endpoint: sub.endpoint };
+		} catch (e) {
+			return { error: String(e) };
+		}
+	},
+
+	// Remove a subscription no navegador e no servidor.
+	unsubscribePush: async function (apiUrl) {
+		try {
+			var reg = await this._swRegistration();
+			var sub = reg ? await reg.pushManager.getSubscription() : null;
+			if (sub) {
+				await fetch(apiUrl + '?endpoint=' + encodeURIComponent(sub.endpoint), {
+					method: 'DELETE',
+					credentials: 'same-origin'
+				});
+				await sub.unsubscribe();
+			}
+			return { unsubscribed: true };
+		} catch (e) {
+			return { error: String(e) };
+		}
+	}
+};

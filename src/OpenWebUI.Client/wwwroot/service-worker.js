@@ -53,3 +53,52 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// SPEC-20261007-chat-notifications RF-004: Web Push — entrega run.completed
+// mesmo com todas as abas fechadas. O clique foca uma aba existente ou abre
+// /c/{chatId}.
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: '', status: 'completed' };
+  }
+
+  const title = data.title && data.title.length > 0 ? data.title : 'Conversa';
+  const body =
+    data.status === 'completed' ? (data.snippet || 'Resposta concluída')
+    : data.status === 'stopped' ? 'Resposta interrompida'
+    : data.status === 'interrupted' ? 'Interrompida — abra para retomar'
+    : 'Falhou';
+
+  event.waitUntil(
+    self.registration.showNotification('Open WebUI — ' + title, {
+      body,
+      tag: 'openwebui-chat-' + (data.runId || ''),
+      data: { url: data.url || '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Reutiliza uma aba aberta quando existe — senão abre uma nova.
+        for (const client of clientList) {
+          if ('focus' in client) {
+            client.focus();
+            client.navigate(url);
+            return;
+          }
+        }
+        return self.clients.openWindow(url);
+      })
+  );
+});

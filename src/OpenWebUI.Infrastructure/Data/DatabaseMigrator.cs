@@ -32,6 +32,12 @@ public static class DatabaseMigrator
         }
 
         await db.Database.MigrateAsync(cancellationToken);
+
+        // WAL: escritas concorrentes (runs salvando checkpoints enquanto
+        // requests leem) não colidem com leitores — o pragma é persistente
+        // no arquivo e no-op em bases ":memory:".
+        await db.Database.ExecuteSqlRawAsync(
+            "PRAGMA journal_mode=WAL", cancellationToken);
     }
 
     private static bool TableExists(System.Data.Common.DbConnection connection, string table)

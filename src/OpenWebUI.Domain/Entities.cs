@@ -133,6 +133,14 @@ public class Chat
     /// <summary>Id público de compartilhamento (rota /s/{shareId}), quando compartilhado.</summary>
     public string? ShareId { get; set; }
 
+    /// <summary>
+    /// Preset de permissão de tools da conversa
+    /// (SPEC-20261007-chat-tool-streaming RF-004): <c>allow-readonly</c>
+    /// (mutáveis negadas), <c>approve-mutations</c> (mutáveis pedem aprovação
+    /// — default) ou <c>always-allow</c> (tudo executa sem perguntar).
+    /// </summary>
+    public string ApprovalPreset { get; set; } = "approve-mutations";
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 
@@ -172,6 +180,117 @@ public class ChatMessage
 
     /// <summary>Versões anteriores do conteúdo (JSON: [{content, model, timestamp}]).</summary>
     public string VersionsJson { get; set; } = "[]";
+
+    /// <summary>
+    /// Tool calls emitidas pelo modelo nesta mensagem (JSON — somente
+    /// <c>assistant</c>; SPEC-20261007-chat-tool-streaming).
+    /// </summary>
+    public string? ToolCallsJson { get; set; }
+
+    /// <summary>
+    /// Id do tool call que originou esta mensagem (somente <c>tool</c>).
+    /// </summary>
+    public string? ToolCallId { get; set; }
+}
+
+/// <summary>Status possíveis de uma run desacoplada de chat.</summary>
+public static class ChatRunStatus
+{
+    /// <summary>Na fila aguardando o dispatcher.</summary>
+    public const string Queued = "queued";
+
+    /// <summary>Em execução pelo dispatcher.</summary>
+    public const string Running = "running";
+
+    /// <summary>Finalizada com sucesso.</summary>
+    public const string Completed = "completed";
+
+    /// <summary>Finalizada com erro.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>Interrompida por stop do usuário.</summary>
+    public const string Stopped = "stopped";
+
+    /// <summary>Órfã de restart: estava queued/running quando o servidor caiu.</summary>
+    public const string Interrupted = "interrupted";
+}
+
+/// <summary>
+/// Run de chat desacoplada da conexão do cliente
+/// (SPEC-20261007-chat-detached-runs): a resposta do assistant é gerada no
+/// servidor e o cliente apenas anexa ao stream — fechar a aba não mata a run.
+/// </summary>
+public class ChatRun
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Chat ao qual a run pertence.</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Navegação para o chat.</summary>
+    public Chat? Chat { get; set; }
+
+    /// <summary>Dono (mesmo do chat — usado para isolamento).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Modelo pedido no envio.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Status atual (ver <see cref="ChatRunStatus"/>).</summary>
+    public string Status { get; set; } = ChatRunStatus.Queued;
+
+    /// <summary>Snapshot do request de completion (serializado no enqueue).</summary>
+    public string RequestJson { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo parcial do assistant (checkpoint a cada iteração).</summary>
+    public string? PartialContent { get; set; }
+
+    /// <summary>Erro final, quando <see cref="ChatRunStatus.Failed"/>.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Início da execução (epoch seconds); null enquanto queued.</summary>
+    public long? StartedAt { get; set; }
+
+    /// <summary>Finalização (epoch seconds); null enquanto ativa.</summary>
+    public long? CompletedAt { get; set; }
+}
+
+/// <summary>
+/// Subscription Web Push de um navegador
+/// (SPEC-20261007-chat-notifications): endpoint do push service (FCM/Mozilla)
+/// mais o material de criptografia do cliente, gravado quando o usuário opta
+/// por receber aviso de run concluída com a aba fechada. O endpoint é único —
+/// re-subscribe do mesmo navegador apenas rotaciona as chaves.
+/// </summary>
+public class ChatPushSubscription
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da subscription.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Endpoint do push service (único por navegador).</summary>
+    public string Endpoint { get; set; } = string.Empty;
+
+    /// <summary>Chave pública ECDH do cliente (base64url) para cifrar o payload.</summary>
+    public string P256dh { get; set; } = string.Empty;
+
+    /// <summary>Segredo de auth do cliente (base64url) para cifrar o payload.</summary>
+    public string Auth { get; set; } = string.Empty;
+
+    /// <summary>User-Agent do navegador (hint para ops/debug).</summary>
+    public string? UserAgent { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização/renovação (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
 }
 
 /// <summary>Entrada chave-valor de configuração persistida (espelha a tabela config do Open WebUI).</summary>
@@ -571,6 +690,14 @@ public class Tool
     /// subprocess Python em vez de HTTP — com os privilégios do servidor.
     /// </summary>
     public string? Code { get; set; }
+
+    /// <summary>
+    /// Se a tool exige aprovação antes de executar
+    /// (SPEC-20261007-chat-tool-streaming RF-003). Tools com
+    /// <see cref="Code"/> Python ou URL virtual MCP são sempre tratadas como
+    /// mutáveis, independente deste flag.
+    /// </summary>
+    public bool RequiresApproval { get; set; }
 
     /// <summary>Se a tool está habilitada.</summary>
     public bool Enabled { get; set; } = true;

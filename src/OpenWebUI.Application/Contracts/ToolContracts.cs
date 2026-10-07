@@ -18,7 +18,8 @@ public sealed record ToolResponse(
     string? Url,
     bool Enabled,
     long CreatedAt,
-    string Source = "user");
+    string Source = "user",
+    bool RequiresApproval = false);
 
 /// <summary>Criação/atualização de tool.</summary>
 /// <param name="Name">Nome.</param>
@@ -33,4 +34,5 @@ public sealed record ToolUpsertRequest(
     string SpecJson,
     string? Url,
     string? Code = null,
-    bool Enabled = true);
+    bool Enabled = true,
+    bool RequiresApproval = false);

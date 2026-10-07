@@ -82,6 +82,7 @@ public static class ToolEndpoints
             Url = request.Url?.Trim() ?? string.Empty,
             Code = hasCode ? request.Code : null,
             Enabled = request.Enabled,
+            RequiresApproval = request.RequiresApproval,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -139,6 +140,7 @@ public static class ToolEndpoints
             return Results.BadRequest(new { detail = "A tool precisa de URL de execução ou código Python." });
         }
         tool.Enabled = request.Enabled;
+        tool.RequiresApproval = request.RequiresApproval;
         tool.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await db.SaveChangesAsync(ct);
         return Results.Ok(ToResponse(tool));
@@ -188,5 +190,6 @@ public static class ToolEndpoints
 
     private static ToolResponse ToResponse(Tool t) =>
         new(t.Id, t.Name, t.Description, t.SpecJson, t.Code, t.Url, t.Enabled, t.CreatedAt,
-            t.Url.StartsWith(McpClientService.VirtualUrlPrefix) ? "mcp" : "user");
+            t.Url.StartsWith(McpClientService.VirtualUrlPrefix) ? "mcp" : "user",
+            t.RequiresApproval);
 }

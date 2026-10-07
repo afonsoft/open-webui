@@ -4,6 +4,7 @@
 @inject ThemeService Theme
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject ChatNotificationsService ChatNotify
 
 @if (_ready)
 {
@@ -27,6 +28,7 @@
         </div>
     </div>
     <SettingsModal IsOpen="_settingsOpen" OnClose="CloseSettings" />
+    <ToastHost />
 }
 
 @code {
@@ -53,6 +55,7 @@
         }
 
         L.Changed += OnLocaleChanged;
+        _ = ChatNotify.EnsureStartedAsync();
         _ready = true;
     }
 
