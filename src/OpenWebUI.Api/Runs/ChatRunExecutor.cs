@@ -38,6 +38,15 @@ public sealed class ChatRunExecutor(
     /// <summary>Tamanho máximo do preview de args/resultado publicado no SSE.</summary>
     private const int PreviewChars = 2048;
 
+    /// <summary>Tamanho máximo de um diff publicado no evento <c>changes</c>.</summary>
+    private const int ChangeDiffChars = 8192;
+
+    /// <summary>
+    /// Arquivos alterados pela run (RF-015): acumulado por path a cada
+    /// file_write/file_edit — alimenta a aba Changes do painel.
+    /// </summary>
+    private readonly Dictionary<string, RunChangeItem> _changes = new();
+
     /// <summary>Roda a run até o fim e atualiza o registro com o resultado.</summary>
     public async Task ExecuteAsync(ChatRun run, CancellationToken ct)
     {
@@ -233,6 +242,22 @@ public sealed class ChatRunExecutor(
             && tasks.ValueKind == JsonValueKind.Array)
         {
             broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
+        }
+
+        // file_write/file_edit acumulam o diff por path e publicam o
+        // snapshot `changes` (RF-015) — aba Changes do painel lateral.
+        if (result is { } chg && chg.ValueKind == JsonValueKind.Object
+            && chg.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String
+            && chg.TryGetProperty("added", out var a) && a.ValueKind == JsonValueKind.Number
+            && chg.TryGetProperty("removed", out var r) && r.ValueKind == JsonValueKind.Number)
+        {
+            var diff = chg.TryGetProperty("diff", out var d) && d.ValueKind == JsonValueKind.String
+                ? Truncate(d.GetString()!, ChangeDiffChars)
+                : null;
+            _changes[p.GetString()!] = new RunChangeItem(
+                p.GetString()!, a.GetInt32(), r.GetInt32(), diff);
+            broadcaster.Publish(run.Id,
+                $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
         }
         broadcaster.Publish(run.Id,
             $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied), JsonOptions)}");

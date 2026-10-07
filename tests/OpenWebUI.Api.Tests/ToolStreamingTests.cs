@@ -583,6 +583,37 @@ public class ToolStreamingTests
     }
 
     [Test]
+    public async Task Changes_FileWrite_PublicaSnapshotAcumulado()
+    {
+        // RF-015: file_write/file_edit acumulam {path,+a,-d,diff} e o
+        // executor republica `event: changes` — alimenta a aba Changes.
+        var auth = await SignUpAsync("Chg", "chg@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+        var patch = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("auto"));
+        Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var run = await EnfileirarAsync(chat.Id, "escreve o arquivo",
+            ["builtin:file_write"]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var eventos = await LerStreamAteFecharAsync(chat.Id, run.Id, cts.Token);
+
+        Assert.That(eventos.Any(e => e.Event == "changes"), Is.True,
+            "faltou evento changes");
+        var change = eventos.First(e => e.Event == "changes");
+        Assert.Multiple(() =>
+        {
+            Assert.That(change.Data, Does.Contain("\"path\":\"saida.txt\""));
+            Assert.That(change.Data, Does.Contain("\"added\":"));
+            Assert.That(change.Data, Does.Contain("\"removed\":"));
+        });
+
+        var final = await AguardarFinalAsync(_client, chat.Id, run.Id);
+        Assert.That(final.Status, Is.EqualTo("completed"), final.Error);
+    }
+
+    [Test]
     public async Task Auto_HighRisk_PedeAprovacao()
     {
         var auth = await SignUpAsync("AutoH", "autoh@tools.local");

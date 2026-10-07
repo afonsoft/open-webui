@@ -31,6 +31,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Resultado/negação de uma tool call.</summary>
         public sealed record ToolResult(RunToolResultEvent Result) : ChatStreamEvent;
 
+        /// <summary>Snapshot <c>changes</c>: arquivos alterados pela run (aba Changes do painel).</summary>
+        public sealed record Changes(RunChangesEvent Snapshot) : ChatStreamEvent;
+
         /// <summary>Fase da run (generating|running_tool|awaiting_approval).</summary>
         public sealed record Phase(RunPhaseEvent Status) : ChatStreamEvent;
 
@@ -320,6 +323,19 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 t?["status"]?.GetValue<string>() ?? "pending"))
                             .ToList();
                         produced = new ChatStreamEvent.Tasks(new RunTasksEvent(items));
+                        break;
+                    }
+                    case "changes":
+                    {
+                        var arr = node["changes"] as JsonArray ?? node as JsonArray ?? [];
+                        var items = arr
+                            .Select(c => new RunChangeItem(
+                                c?["path"]?.GetValue<string>() ?? string.Empty,
+                                c?["added"]?.GetValue<int>() ?? 0,
+                                c?["removed"]?.GetValue<int>() ?? 0,
+                                c?["diff"]?.GetValue<string>()))
+                            .ToList();
+                        produced = new ChatStreamEvent.Changes(new RunChangesEvent(items));
                         break;
                     }
                     case "status":

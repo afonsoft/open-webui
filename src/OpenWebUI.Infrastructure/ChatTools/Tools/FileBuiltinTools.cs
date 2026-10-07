@@ -506,6 +506,7 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
             created = !existed,
             added = diff.Added,
             removed = diff.Removed,
+            diff = Truncate(diff.Text, 8192),
         });
     }
 
@@ -609,6 +610,7 @@ public sealed class FileEditBuiltinTool : IBuiltinChatTool
             added = diff.Added,
             removed = diff.Removed,
             occurrences,
+            diff = FileWriteBuiltinTool.Truncate(diff.Text, 8192),
         });
     }
 
