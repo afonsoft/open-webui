@@ -17,20 +17,20 @@
     }
     else
     {
-        <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-800 pb-2">
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "users" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+        <div class="flex gap-2 mb-4 border-b border-gray-200 dark:border-gray-800 pb-2 overflow-x-auto whitespace-nowrap scrollbar-hidden">
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "users" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("users")'>@L["admin.users"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "groups" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("groups")'>@L["admin.groups"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "chats" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "chats" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("chats")'>@L["admin.tab_chats"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "analytics" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("analytics")'>Analytics</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "evaluations" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("evaluations")'>@L["admin.tab_evaluations"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "leaderboard" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "leaderboard" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("leaderboard")'>@L["admin.tab_leaderboard"]</button>
-            <button class="text-sm px-3 py-1.5 rounded-full @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+            <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_tab == "config" ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                     @onclick='() => SetTab("config")'>@L["admin.tab_config"]</button>
         </div>
 
@@ -323,10 +323,10 @@
             }
             else
             {
-                <div class="flex gap-1 mb-3">
+                <div class="flex gap-1 mb-3 overflow-x-auto whitespace-nowrap scrollbar-hidden">
                     @foreach (var sub in new[] { "general", "models", "features", "audio", "retrieval", "mcp" })
                     {
-                        <button class="text-sm px-3 py-1.5 rounded-full @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
+                        <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
                     }
                 </div>

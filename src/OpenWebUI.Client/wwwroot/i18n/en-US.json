@@ -515,7 +515,7 @@
   "chat.tool_denied": "denied",
   "chat.tool_error": "error",
   "chat.tool_approval_title": "Tool approval",
-  "chat.tool_approval_wants": "The tool {name} wants to run",
+  "chat.tool_approval_wants": "The tool {{name}} wants to run",
   "chat.tool_approval_remember": "Remember for this chat",
   "chat.tool_approve": "Approve",
   "chat.tool_deny": "Deny",

@@ -462,7 +462,7 @@
   "chat.tool_denied": "abgelehnt",
   "chat.tool_error": "Fehler",
   "chat.tool_approval_title": "Tool-Genehmigung",
-  "chat.tool_approval_wants": "Das Tool {name} möchte ausgeführt werden",
+  "chat.tool_approval_wants": "Das Tool {{name}} möchte ausgeführt werden",
   "chat.tool_approval_remember": "Für diesen Chat merken",
   "chat.tool_approve": "Genehmigen",
   "chat.tool_deny": "Ablehnen",
