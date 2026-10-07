@@ -20,8 +20,7 @@ public sealed class CodeInterpreterBuiltinTool : IBuiltinChatTool
 
     /// <inheritdoc />
     public string Description =>
-        "Executa um snippet de código (python3 ou node) no workspace do usuário "
-        + "e retorna stdout/stderr. Útil para cálculos, parsing e validações rápidas.";
+        "Run python3/node code — call for calcs, parse, verify.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -31,10 +30,10 @@ public sealed class CodeInterpreterBuiltinTool : IBuiltinChatTool
             "language": {
               "type": "string",
               "enum": ["python3", "node"],
-              "description": "Runtime do snippet."
+              "description": "Snippet runtime."
             },
-            "code": { "type": "string", "description": "Código-fonte a executar." },
-            "timeout_seconds": { "type": "integer", "description": "Timeout (máx. 300).", "default": 60 }
+            "code": { "type": "string", "description": "Source code to execute." },
+            "timeout_seconds": { "type": "integer", "description": "Timeout (max 300).", "default": 60 }
           },
           "required": ["language", "code"]
         }

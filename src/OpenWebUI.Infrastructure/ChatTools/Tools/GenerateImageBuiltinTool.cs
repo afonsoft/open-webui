@@ -19,17 +19,16 @@ public sealed class GenerateImageBuiltinTool(ImageGenerationService images) : IB
 
     /// <inheritdoc />
     public string Description =>
-        "Gera imagem a partir de um prompt usando o provider de imagens configurado. "
-        + "Retorna o caminho da imagem para exibir inline na conversa.";
+        "ALWAYS call to generate/draw any image, picture or art.";
 
     /// <inheritdoc />
     public string ParametersJson => """
         {
           "type": "object",
           "properties": {
-            "prompt": { "type": "string", "description": "Descrição da imagem desejada." },
-            "n": { "type": "integer", "description": "Quantidade de imagens (1-4).", "default": 1 },
-            "size": { "type": "string", "description": "Tamanho, ex.: 512x512, 1024x1024." }
+            "prompt": { "type": "string", "description": "Description of the desired image." },
+            "n": { "type": "integer", "description": "Number of images (1-4).", "default": 1 },
+            "size": { "type": "string", "description": "Size, e.g. 512x512, 1024x1024." }
           },
           "required": ["prompt"]
         }
