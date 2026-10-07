@@ -565,6 +565,32 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<bool> DeleteTerminalServerAsync(string id) =>
         SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminals/config/{id}");
 
+    // ---------------- Terminal PTY (SPEC-20261007-chat-agent-tools) ----------------
+
+    /// <summary>Lê a feature flag do terminal PTY (off por default).</summary>
+    public async Task<bool> GetTerminalEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/terminal/config");
+        return node?["enabled"]?.GetValue<bool>() == true;
+    }
+
+    /// <summary>Lista as sessões de terminal PTY do usuário.</summary>
+    public async Task<List<TerminalSessionInfoResponse>> GetTerminalSessionsAsync() =>
+        await SendAsync<List<TerminalSessionInfoResponse>>(
+            HttpMethod.Get, "/api/v1/terminal/sessions") ?? [];
+
+    /// <summary>Cria uma sessão de terminal PTY; devolve o id ou null.</summary>
+    public async Task<string?> CreateTerminalSessionAsync(int cols = 120, int rows = 30)
+    {
+        var node = await SendAsync<JsonObject>(
+            HttpMethod.Post, "/api/v1/terminal/sessions", new { cols, rows });
+        return node?["id"]?.GetValue<string>();
+    }
+
+    /// <summary>Encerra uma sessão de terminal PTY.</summary>
+    public Task<bool> KillTerminalSessionAsync(string id) =>
+        SendStatusAsync(HttpMethod.Delete, $"/api/v1/terminal/sessions/{id}");
+
     /// <summary>Configuração SAML (admin).</summary>
     public Task<SamlConfigResponse?> GetSamlConfigAsync() =>
         SendAsync<SamlConfigResponse>(HttpMethod.Get, "/api/v1/configs/saml");

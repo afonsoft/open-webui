@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Delete folder",
   "sidebar.playground": "Playground",
   "sidebar.notes": "Notes",
+  "sidebar.terminal": "Terminal",
   "sidebar.admin": "Admin Panel",
   "sidebar.settings": "Settings",
   "sidebar.archived": "Archived",
@@ -236,6 +237,7 @@
   "page.auth": "Sign in",
   "page.admin": "Admin Panel",
   "page.notes": "Notes",
+  "page.terminal": "Terminal",
   "page.archived": "Archived",
   "page.chat": "Chat",
   "page.playground": "Playground",
@@ -520,5 +522,11 @@
   "chat.approval_preset": "Tool approval",
   "chat.preset_allow-readonly": "Read-only tools only",
   "chat.preset_approve-mutations": "Approve mutations",
-  "chat.preset_always-allow": "Always allow"
+  "chat.preset_always-allow": "Always allow",
+  "terminal.new": "New session",
+  "terminal.refresh": "Refresh",
+  "terminal.kill": "End session",
+  "terminal.empty": "No sessions — create one above.",
+  "terminal.disabled": "Terminal is disabled by the administrator.",
+  "terminal.disabled_hint": "Ask an admin to enable it (PUT /api/v1/terminal/config or TERMINAL_ENABLED)."
 }

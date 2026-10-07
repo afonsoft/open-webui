@@ -17,3 +17,13 @@ public sealed record TerminalServerRequest(
 /// <summary>Terminal server exposto ao cliente (sem a key).</summary>
 public sealed record TerminalServerResponse(
     string Id, string Name, string Url, string AuthType, string Type, bool HasKey);
+
+/// <summary>Resumo de uma sessão de terminal PTY do usuário.</summary>
+/// <param name="Id">Identificador da sessão.</param>
+/// <param name="IsRunning">Se o processo ainda está vivo.</param>
+/// <param name="CreatedAtUtc">Criação.</param>
+/// <param name="LastActivityUtc">Último input.</param>
+/// <param name="ExitCode">Código de saída quando encerrada.</param>
+public sealed record TerminalSessionInfoResponse(
+    string Id, bool IsRunning, DateTimeOffset CreatedAtUtc,
+    DateTimeOffset LastActivityUtc, int? ExitCode);

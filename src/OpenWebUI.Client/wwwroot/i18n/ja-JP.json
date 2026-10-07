@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Delete folder",
   "sidebar.playground": "プレイグラウンド",
   "sidebar.notes": "ノート",
+  "sidebar.terminal": "ターミナル",
   "sidebar.admin": "管理者パネル",
   "sidebar.settings": "設定",
   "sidebar.archived": "Archived",
@@ -236,6 +237,7 @@
   "page.auth": "サインイン",
   "page.admin": "管理者パネル",
   "page.notes": "ノート",
+  "page.terminal": "ターミナル",
   "page.archived": "Archived",
   "page.chat": "チャット",
   "page.playground": "プレイグラウンド",
@@ -467,5 +469,11 @@
   "chat.approval_preset": "ツールの承認",
   "chat.preset_allow-readonly": "読み取り専用ツールのみ",
   "chat.preset_approve-mutations": "変更を承認",
-  "chat.preset_always-allow": "常に許可"
+  "chat.preset_always-allow": "常に許可",
+  "terminal.new": "セッション",
+  "terminal.refresh": "",
+  "terminal.kill": "セッションを",
+  "terminal.empty": "セッションがありません — でしてください。",
+  "terminal.disabled": "ターミナルはによりされています。",
+  "terminal.disabled_hint": "にをしてください（PUT /api/v1/terminal/config または TERMINAL_ENABLED）。"
 }

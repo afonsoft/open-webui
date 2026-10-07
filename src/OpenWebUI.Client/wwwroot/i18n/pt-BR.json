@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Excluir pasta",
   "sidebar.playground": "Playground",
   "sidebar.notes": "Notas",
+  "sidebar.terminal": "Terminal",
   "sidebar.admin": "Administração",
   "sidebar.settings": "Configurações",
   "sidebar.archived": "Arquivadas",
@@ -236,6 +237,7 @@
   "page.auth": "Entrar",
   "page.admin": "Administração",
   "page.notes": "Notas",
+  "page.terminal": "Terminal",
   "page.archived": "Arquivadas",
   "page.chat": "Chat",
   "page.playground": "Playground",
@@ -520,5 +522,11 @@
   "chat.approval_preset": "Aprovação de tools",
   "chat.preset_allow-readonly": "Somente tools de leitura",
   "chat.preset_approve-mutations": "Aprovar mutações",
-  "chat.preset_always-allow": "Sempre permitir"
+  "chat.preset_always-allow": "Sempre permitir",
+  "terminal.new": "Nova sessão",
+  "terminal.refresh": "Atualizar",
+  "terminal.kill": "Encerrar sessão",
+  "terminal.empty": "Nenhuma sessão — crie uma acima.",
+  "terminal.disabled": "Terminal desativado pelo administrador.",
+  "terminal.disabled_hint": "Peça a um admin para ativar (PUT /api/v1/terminal/config ou TERMINAL_ENABLED)."
 }

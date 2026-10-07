@@ -24,6 +24,7 @@
   "sidebar.delete_folder": "Delete folder",
   "sidebar.playground": "Playground",
   "sidebar.notes": "Note",
+  "sidebar.terminal": "Terminale",
   "sidebar.admin": "Pannello di amministrazione",
   "sidebar.settings": "Impostazioni",
   "sidebar.archived": "Archived",
@@ -236,6 +237,7 @@
   "page.auth": "Accedi",
   "page.admin": "Pannello di amministrazione",
   "page.notes": "Note",
+  "page.terminal": "Terminale",
   "page.archived": "Archived",
   "page.chat": "Chat",
   "page.playground": "Playground",
@@ -467,5 +469,11 @@
   "chat.approval_preset": "Approvazione strumenti",
   "chat.preset_allow-readonly": "Solo strumenti di lettura",
   "chat.preset_approve-mutations": "Approva mutazioni",
-  "chat.preset_always-allow": "Consenti sempre"
+  "chat.preset_always-allow": "Consenti sempre",
+  "terminal.new": "Nuova sessione",
+  "terminal.refresh": "Aggiorna",
+  "terminal.kill": "Termina sessione",
+  "terminal.empty": "Nessuna sessione — creane una sopra.",
+  "terminal.disabled": "Il terminale è disabilitato dall'amministratore.",
+  "terminal.disabled_hint": "Chiedi a un amministratore di abilitarlo (PUT /api/v1/terminal/config o TERMINAL_ENABLED)."
 }
