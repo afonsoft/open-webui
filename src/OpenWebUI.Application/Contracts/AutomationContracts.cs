@@ -40,3 +40,28 @@ public sealed record AutomationRunResponse(
     string? ChatId,
     long StartedAt,
     long FinishedAt);
+
+/// <summary>Webhook de automação vinculado a um chat (RF-021).</summary>
+public sealed record AutomationHookResponse(
+    string Id,
+    string Name,
+    string ChatId,
+    bool Enabled,
+    long CreatedAt,
+    long? LastFiredAt,
+    string Url);
+
+/// <summary>Criação de webhook de automação; ChatId nulo cria um chat novo.</summary>
+public sealed record AutomationHookCreateRequest(string Name, string? ChatId);
+
+/// <summary>Resposta do disparo de webhook (run enfileirada).</summary>
+public sealed record AutomationHookFireResponse(string RunId, string ChatId, string Status);
+
+/// <summary>Configuração da integração n8n (admin).</summary>
+public sealed record N8nConfigResponse(bool Configured, string? BaseUrl, bool HasApiKey);
+
+/// <summary>Atualização da configuração n8n; campos nulos mantêm o valor atual.</summary>
+public sealed record N8nConfigUpdateRequest(string? BaseUrl, string? ApiKey);
+
+/// <summary>Workflow do n8n exposto pela API pública.</summary>
+public sealed record N8nWorkflowResponse(string Id, string Name, bool Active);

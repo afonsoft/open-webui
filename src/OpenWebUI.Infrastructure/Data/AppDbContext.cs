@@ -89,6 +89,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Execuções registradas das automações.</summary>
     public DbSet<AutomationRun> AutomationRuns => Set<AutomationRun>();
 
+    /// <summary>Webhooks de automação (disparam runs no chat vinculado).</summary>
+    public DbSet<AutomationHook> AutomationHooks => Set<AutomationHook>();
+
     /// <summary>Configurações chave-valor.</summary>
     public DbSet<ConfigEntry> ConfigEntries => Set<ConfigEntry>();
 
@@ -245,6 +248,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.HasKey(r => r.Id);
             entity.HasIndex(r => new { r.AutomationId, r.StartedAt });
+        });
+
+        modelBuilder.Entity<AutomationHook>(entity =>
+        {
+            entity.HasKey(h => h.Id);
+            entity.HasIndex(h => h.UserId);
+            entity.HasOne(h => h.User)
+                .WithMany()
+                .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(h => h.Chat)
+                .WithMany()
+                .HasForeignKey(h => h.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ConfigEntry>(entity =>
