@@ -15,9 +15,9 @@
         <div class="sticky top-0 z-30 w-full">
             <div class="flex items-center w-full pl-1.5 pr-1">
                 <div class="flex-1 mt-0.5 py-0.5 pl-1">
-                    <div class="text-[0.9375rem] font-medium text-gray-800 dark:text-gray-200">
+                    <h1 class="text-[0.9375rem] font-medium text-gray-800 dark:text-gray-200" tabindex="-1">
                         @(_channel?.Type == "dm" ? "@" : "#") @(_channel?.Name ?? "…")
-                    </div>
+                    </h1>
                 </div>
                 <div class="flex flex-none items-center gap-2 self-center">
                     @if (_online.Count > 0)
