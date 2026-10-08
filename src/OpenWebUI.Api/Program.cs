@@ -101,6 +101,10 @@ builder.Services.AddSingleton<VideoEngineFactory>();
 builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
 builder.Services.AddSingleton<WorkspaceGitService>();
+builder.Services.AddScoped<WorkspaceRepoService>();
+builder.Services.AddScoped<GitHubService>();
+builder.Services.AddHttpClient(GitHubService.HttpClientName,
+    client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<N8nService>();
 builder.Services.AddHttpClient(N8nService.HttpClientName,
     client => client.Timeout = TimeSpan.FromSeconds(30));
@@ -330,6 +334,7 @@ app.MapAutomationHookEndpoints();
 app.MapN8nEndpoints();
 app.MapVideoEndpoints();
 app.MapConfigEndpoints();
+app.MapGitHubEndpoints();
 app.MapAudioEndpoints();
 app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();

@@ -21,6 +21,7 @@
                     <button class="modal-tab @(_tab == "account" ? "active" : "")" role="tab" aria-selected="@(_tab == "account")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
                     <button class="modal-tab @(_tab == "memories" ? "active" : "")" role="tab" aria-selected="@(_tab == "memories")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
                     <button class="modal-tab @(_tab == "notifications" ? "active" : "")" role="tab" aria-selected="@(_tab == "notifications")" @onclick='() => SelectTab("notifications")'>@L["settings.notifications"]</button>
+                    <button class="modal-tab @(_tab == "github" ? "active" : "")" role="tab" aria-selected="@(_tab == "github")" @onclick='() => SelectTab("github")'>@L["settings.github"]</button>
                     @if (Auth.CurrentUser?.Role == "admin")
                     {
                         <button class="modal-tab @(_tab == "connections" ? "active" : "")" role="tab" aria-selected="@(_tab == "connections")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
@@ -201,6 +202,35 @@
                         </p>
                     }
                     <p class="field-note">@L["settings.notify_hint"]</p>
+                }
+                else if (_tab == "github")
+                {
+                    <div class="field">
+                        <label for="gh-token">@L["settings.github_token"]</label>
+                        <input id="gh-token" class="input" type="password" autocomplete="off" spellcheck="false"
+                               placeholder="@L["settings.github_token_ph"]" @bind="_ghToken" />
+                        <div class="field-note">@L["settings.github_token_hint"]</div>
+                    </div>
+                    @if (_ghConfigured)
+                    {
+                        <div class="field-note">@L.T("settings.github_connected", ("login", _ghLogin ?? ""))</div>
+                    }
+                    <div class="field-actions">
+                        <button type="button" class="auth-submit"
+                                disabled="@(_ghSaving || string.IsNullOrWhiteSpace(_ghToken))"
+                                @onclick="SaveGitHubTokenAsync">@L["common.save"]</button>
+                        @if (_ghConfigured)
+                        {
+                            <button type="button" class="msg-action danger"
+                                    @onclick="RemoveGitHubTokenAsync">@L["settings.github_remove"]</button>
+                        }
+                    </div>
+                    @if (_ghMessage is not null)
+                    {
+                        <div class="field-note">@_ghMessage</div>
+                    }
+                    <hr class="modal-sep" />
+                    <div class="field-note">@L["settings.github_repos_hint"]</div>
                 }
                 else if (_tab == "connections")
                 {
@@ -477,6 +507,13 @@
     private async Task SelectTab(string tab)
     {
         _tab = tab;
+        if (tab == "github")
+        {
+            var gh = await Api.GetGitHubConfigAsync();
+            _ghConfigured = gh?.Configured == true;
+            _ghLogin = gh?.Login;
+            _ghMessage = null;
+        }
         if (tab == "notifications")
         {
             _notifyChatDone = await ChatNotify.GetPrefAsync(
@@ -519,6 +556,48 @@
             await ChatNotify.SetPrefAsync(ChatNotificationsService.PrefPush, false);
         }
     }
+    private string _ghToken = string.Empty;
+    private bool _ghConfigured;
+    private string? _ghLogin;
+    private bool _ghSaving;
+    private string? _ghMessage;
+
+    /// <summary>Valida e salva o PAT do GitHub (server-side, nunca retornado).</summary>
+    private async Task SaveGitHubTokenAsync()
+    {
+        _ghSaving = true;
+        _ghMessage = null;
+        var result = await Api.SetGitHubTokenAsync(_ghToken.Trim());
+        _ghSaving = false;
+        if (result?.Configured != true)
+        {
+            _ghMessage = L["settings.github_save_error"];
+            return;
+        }
+
+        _ghConfigured = true;
+        _ghLogin = result.Login;
+        _ghToken = string.Empty;
+        _ghMessage = L.T("settings.github_connected", ("login", _ghLogin ?? ""));
+    }
+
+    private async Task RemoveGitHubTokenAsync()
+    {
+        _ghMessage = await Api.ClearGitHubTokenAsync()
+            ? L["settings.github_removed"]
+            : L["settings.github_save_error"];
+        if (await Api.GetGitHubConfigAsync() is { } cfg)
+        {
+            _ghConfigured = cfg.Configured;
+            _ghLogin = cfg.Login;
+        }
+        else
+        {
+            _ghConfigured = false;
+            _ghLogin = null;
+        }
+    }
+
     private ConnectionsConfigResponse? _connections;
     private List<OllamaModelInfo>? _ollamaModels;
     private string _ollamaPullName = string.Empty;

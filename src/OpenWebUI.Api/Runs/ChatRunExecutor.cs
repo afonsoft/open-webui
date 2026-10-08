@@ -26,6 +26,7 @@ public sealed class ChatRunExecutor(
     ToolExecutor toolExecutor,
     PipelineClientService pipelines,
     WebSearchService webSearch,
+    WorkspaceRepoService repos,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
     ChatRunPauses pauses,
@@ -91,7 +92,7 @@ public sealed class ChatRunExecutor(
                 ? request.Model["arena:".Length..]
                 : request.Model;
             if (await ChatPipeline.TryRunArenaAsync(
-                request, arenaModel, user, db, config, rag, providers, webSearch,
+                request, arenaModel, user, db, config, rag, providers, webSearch, repos,
                 line =>
                 {
                     // O [DONE] do arena é retido: sai depois do FinishAsync.
@@ -109,7 +110,7 @@ public sealed class ChatRunExecutor(
             }
 
             var effective = await ChatPipeline.EnrichRequestAsync(
-                request, user, db, config, rag, webSearch, ct);
+                request, user, db, config, rag, webSearch, repos, ct);
 
             var outletRules = ModelFilterService.OutletRules(
                 ModelFilterService.Parse(await db.ModelEntries.AsNoTracking()
@@ -168,7 +169,7 @@ public sealed class ChatRunExecutor(
                             sinceCheckpoint = 0;
                         }
                     });
-                var builtinContext = BuildToolContext(run, user);
+                var builtinContext = await BuildToolContextAsync(run, user, ct);
                 var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct, callbacks, builtinContext);
                 toolMessages = outcome?.ToolMessages;
@@ -243,11 +244,13 @@ public sealed class ChatRunExecutor(
     /// workspace confinado em <c>data/workspaces/{userId}</c> e uploads em
     /// <c>data/uploads/{userId}</c> (mesma raiz das telas de Imagens).
     /// </summary>
-    private BuiltinToolContext BuildToolContext(ChatRun run, User user) => new(
+    private async Task<BuiltinToolContext> BuildToolContextAsync(
+        ChatRun run, User user, CancellationToken ct) => new(
         user.Id,
         run.ChatId,
         run.Id,
-        Path.Join(env.ContentRootPath, "data", "workspaces", user.Id),
+        // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
+        await repos.ResolveWorkdirAsync(user.Id, ct),
         Path.Join(env.ContentRootPath, "data", "uploads", user.Id));
 
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
