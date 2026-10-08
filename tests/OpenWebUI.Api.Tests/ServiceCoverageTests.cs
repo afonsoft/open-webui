@@ -28,7 +28,7 @@ public class ServiceCoverageTests
     [SetUp]
     public void SetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-svccov-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-svccov-{Guid.NewGuid():N}.db");
         using var db = NewDb();
         db.Database.EnsureCreated();
     }

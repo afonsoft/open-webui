@@ -30,9 +30,9 @@ public class PythonToolExecutor(IConfiguration configuration)
     public async Task<string> ExecuteAsync(
         Tool tool, string functionName, string argumentsJson, CancellationToken ct = default)
     {
-        var workDir = Path.Combine(Path.GetTempPath(), "openwebui-tools");
+        var workDir = Path.Join(Path.GetTempPath(), "openwebui-tools");
         Directory.CreateDirectory(workDir);
-        var scriptPath = Path.Combine(workDir, $"tool-{Guid.NewGuid():N}.py");
+        var scriptPath = Path.Join(workDir, $"tool-{Guid.NewGuid():N}.py");
         try
         {
             await File.WriteAllTextAsync(scriptPath, BuildScript(tool.Code ?? string.Empty), ct);

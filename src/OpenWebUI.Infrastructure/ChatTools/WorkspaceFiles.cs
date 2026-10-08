@@ -40,7 +40,7 @@ public static class WorkspaceFiles
         string full;
         try
         {
-            full = Path.GetFullPath(Path.Combine(workspace, rel));
+            full = Path.GetFullPath(Path.Join(workspace, rel));
         }
         catch (Exception)
         {

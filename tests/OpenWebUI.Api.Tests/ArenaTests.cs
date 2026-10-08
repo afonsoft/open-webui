@@ -24,7 +24,7 @@ public class ArenaTests
     public async Task OneTimeSetUp()
     {
         var mockBase = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-arena-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-arena-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", mockBase);
         _factory = new WebApplicationFactory<Program>();

@@ -30,7 +30,7 @@ public class ToolEndpointsTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-tools-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-tools-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OPENAI_API_BASE_URL", _mockBaseUrl);
         _factory = new WebApplicationFactory<Program>();

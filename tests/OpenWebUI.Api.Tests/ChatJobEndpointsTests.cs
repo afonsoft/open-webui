@@ -26,11 +26,11 @@ public class ChatJobEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-jobs-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-jobs-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
-        _workspace = Path.Combine(Path.GetTempPath(), $"owui-jobs-ws-{Guid.NewGuid():N}");
+        _workspace = Path.Join(Path.GetTempPath(), $"owui-jobs-ws-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_workspace);
 
         _user = await SignUpAsync("JobOwner", "jobs@jobs.local", "senha123");
@@ -107,7 +107,7 @@ public class ChatJobEndpointsTests
     public async Task Jobs_ListaFiltraDetalhaEDevolveOutput()
     {
         UseToken(_user.Token);
-        var outputPath = Path.Combine(_workspace, "job1.log");
+        var outputPath = Path.Join(_workspace, "job1.log");
         await File.WriteAllTextAsync(outputPath, "0123456789ABCDEF");
 
         SeedJob("job-list-1", "chat-a", ChatJobStatus.Completed, outputPath);

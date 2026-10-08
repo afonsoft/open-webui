@@ -40,7 +40,7 @@ public sealed class WorkspaceGitService
     /// </summary>
     public async Task<GitWorkspaceInfo> GetInfoAsync(string workdir, CancellationToken ct)
     {
-        if (!Directory.Exists(Path.Combine(workdir, ".git")))
+        if (!Directory.Exists(Path.Join(workdir, ".git")))
         {
             return Empty;
         }
@@ -94,7 +94,7 @@ public sealed class WorkspaceGitService
                 continue;
             }
 
-            var a = CountLines(Path.Combine(workdir, path));
+            var a = CountLines(Path.Join(workdir, path));
             added += a;
             files.Add(new GitChangedFile(path, a, 0, "A"));
         }

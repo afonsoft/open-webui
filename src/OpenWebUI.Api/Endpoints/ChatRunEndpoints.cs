@@ -510,7 +510,7 @@ public static class ChatRunEndpoints
             return Results.NotFound(new { detail = "Run não encontrada." });
         }
 
-        var workdir = Path.Combine(
+        var workdir = Path.Join(
             env.ContentRootPath, "data", "workspaces", user.Id);
         var info = await git.GetInfoAsync(workdir, ct);
         return Results.Ok(new WorkspaceGitResponse(

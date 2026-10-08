@@ -29,12 +29,12 @@ public class BuiltinToolsTests
     [SetUp]
     public void SetUp()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"owui-builtin-{Guid.NewGuid():N}");
-        _workspace = Path.Combine(root, "workspace");
-        _uploadDir = Path.Combine(root, "uploads");
+        var root = Path.Join(Path.GetTempPath(), $"owui-builtin-{Guid.NewGuid():N}");
+        _workspace = Path.Join(root, "workspace");
+        _uploadDir = Path.Join(root, "uploads");
         Directory.CreateDirectory(_workspace);
         Directory.CreateDirectory(_uploadDir);
-        _dbPath = Path.Combine(root, "test.db");
+        _dbPath = Path.Join(root, "test.db");
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(
@@ -481,7 +481,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task ShellExec_TimeoutForegroundReporta()
     {
-        await File.WriteAllTextAsync(Path.Combine(_workspace, "j.log"), "linha\n");
+        await File.WriteAllTextAsync(Path.Join(_workspace, "j.log"), "linha\n");
         var tool = new ShellExecBuiltinTool(NewJobService());
         var r = await tool.ExecuteAsync(
             Args("{\"command\":\"tail -f j.log\",\"timeout_seconds\":1}"), Ctx(), default);
@@ -730,7 +730,7 @@ public class BuiltinToolsTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(Path.Combine(_workspace, "src", "a.txt")),
+            Assert.That(File.ReadAllText(Path.Join(_workspace, "src", "a.txt")),
                 Is.EqualTo("linha1\nlinha2\n"));
             Assert.That(r.Text, Does.Contain("a.txt").And.Contain("+linha1"));
             Assert.That(tool.RequiresApproval, Is.True);
@@ -753,13 +753,13 @@ public class BuiltinToolsTests
                 Args("{\"path\":\"~/home.txt\",\"content\":\"x\"}"), Ctx(), default)).Text,
                 Does.Contain("não resolve"));
         });
-        Assert.That(File.Exists(Path.Combine(_workspace, "..", "fora.txt")), Is.False);
+        Assert.That(File.Exists(Path.Join(_workspace, "..", "fora.txt")), Is.False);
     }
 
     [Test]
     public async Task FileRead_LeComNumeracao_EPagina()
     {
-        var path = Path.Combine(_workspace, "num.txt");
+        var path = Path.Join(_workspace, "num.txt");
         File.WriteAllLines(path, Enumerable.Range(1, 20).Select(i => $"l{i}"));
 
         var tool = new FileReadBuiltinTool();
@@ -777,7 +777,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileEdit_SubstituiUmaOcorrencia_ERetornaDiff()
     {
-        File.WriteAllText(Path.Combine(_workspace, "e.txt"), "aaa bbb ccc\n");
+        File.WriteAllText(Path.Join(_workspace, "e.txt"), "aaa bbb ccc\n");
         var tool = new FileEditBuiltinTool();
 
         var r = await tool.ExecuteAsync(
@@ -785,7 +785,7 @@ public class BuiltinToolsTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(Path.Combine(_workspace, "e.txt")), Is.EqualTo("aaa XXX ccc\n"));
+            Assert.That(File.ReadAllText(Path.Join(_workspace, "e.txt")), Is.EqualTo("aaa XXX ccc\n"));
             Assert.That(r.Text, Does.Contain("-aaa bbb ccc").And.Contain("+aaa XXX ccc"));
         });
     }
@@ -793,7 +793,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileEdit_AmbiguoSemReplaceAll_FalhaComDica()
     {
-        File.WriteAllText(Path.Combine(_workspace, "amb.txt"), "x x x\n");
+        File.WriteAllText(Path.Join(_workspace, "amb.txt"), "x x x\n");
         var tool = new FileEditBuiltinTool();
 
         var r = await tool.ExecuteAsync(
@@ -803,14 +803,14 @@ public class BuiltinToolsTests
         var ok = await tool.ExecuteAsync(
             Args("{\"path\":\"amb.txt\",\"old_string\":\"x\",\"new_string\":\"y\",\"replace_all\":true}"),
             Ctx(), default);
-        Assert.That(File.ReadAllText(Path.Combine(_workspace, "amb.txt")), Is.EqualTo("y y y\n"));
+        Assert.That(File.ReadAllText(Path.Join(_workspace, "amb.txt")), Is.EqualTo("y y y\n"));
         Assert.That(ok.Text, Does.Contain("editado"));
     }
 
     [Test]
     public async Task FileEdit_TrechoNaoEncontrado_RetornaDica()
     {
-        File.WriteAllText(Path.Combine(_workspace, "m.txt"), "conteudo\n");
+        File.WriteAllText(Path.Join(_workspace, "m.txt"), "conteudo\n");
         var tool = new FileEditBuiltinTool();
         var r = await tool.ExecuteAsync(
             Args("{\"path\":\"m.txt\",\"old_string\":\"inexistente\",\"new_string\":\"z\"}"), Ctx(), default);
@@ -820,9 +820,9 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileGrep_FileGlob_FileList_Funcionam()
     {
-        Directory.CreateDirectory(Path.Combine(_workspace, "sub"));
-        File.WriteAllText(Path.Combine(_workspace, "sub", "um.cs"), "class Foo {}\n// TODO: x\n");
-        File.WriteAllText(Path.Combine(_workspace, "dois.md"), "sem match\n");
+        Directory.CreateDirectory(Path.Join(_workspace, "sub"));
+        File.WriteAllText(Path.Join(_workspace, "sub", "um.cs"), "class Foo {}\n// TODO: x\n");
+        File.WriteAllText(Path.Join(_workspace, "dois.md"), "sem match\n");
 
         var grep = new FileGrepBuiltinTool();
         var g = await grep.ExecuteAsync(

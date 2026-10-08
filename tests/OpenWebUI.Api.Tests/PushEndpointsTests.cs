@@ -23,7 +23,7 @@ public sealed class PushEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(
+        _dbPath = Path.Join(
             Path.GetTempPath(), $"openwebui-push-tests-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();

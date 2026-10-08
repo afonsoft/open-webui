@@ -55,7 +55,7 @@ public class OAuthEndpointsTests
         SetEnv("GITHUB_CLIENT_ID", "test-gh-client");
         SetEnv("GITHUB_CLIENT_SECRET", "test-gh-secret");
 
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-oauth-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-oauth-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient(
@@ -212,7 +212,7 @@ public class OAuthEndpointsTests
     }
 
     private static string NewServiceDbPath() =>
-        Path.Combine(Path.GetTempPath(), $"openwebui-oauthsvc-{Guid.NewGuid():N}.db");
+        Path.Join(Path.GetTempPath(), $"openwebui-oauthsvc-{Guid.NewGuid():N}.db");
 
     /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.</summary>
     private sealed class RewriteToMockHandler(Uri mockBase)

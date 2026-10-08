@@ -31,7 +31,7 @@ public class TerminalPtyTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-term-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-term-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable(
             "ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
@@ -84,7 +84,7 @@ public class TerminalPtyTests
             Assert.Ignore("binário 'script' indisponível neste host");
         }
 
-        var dir = Path.Combine(Path.GetTempPath(), $"pty-{Guid.NewGuid():N}");
+        var dir = Path.Join(Path.GetTempPath(), $"pty-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         var output = new StringBuilder();
         var exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -115,7 +115,7 @@ public class TerminalPtyTests
         public string EnvironmentName { get; set; } = "Test";
         public string ApplicationName { get; set; } = "Tests";
         public string ContentRootPath { get; set; } =
-            Path.Combine(Path.GetTempPath(), $"owui-term-root-{Guid.NewGuid():N}");
+            Path.Join(Path.GetTempPath(), $"owui-term-root-{Guid.NewGuid():N}");
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
             new Microsoft.Extensions.FileProviders.NullFileProvider();
     }

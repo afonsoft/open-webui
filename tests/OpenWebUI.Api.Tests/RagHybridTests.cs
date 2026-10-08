@@ -19,7 +19,7 @@ public class RagHybridTests
 
     [SetUp]
     public void SetUp() =>
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-hybrid-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-hybrid-{Guid.NewGuid():N}.db");
 
     [TearDown]
     public void TearDown()

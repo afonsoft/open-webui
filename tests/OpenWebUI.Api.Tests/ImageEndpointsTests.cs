@@ -29,7 +29,7 @@ public class ImageEndpointsTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-images-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-images-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
