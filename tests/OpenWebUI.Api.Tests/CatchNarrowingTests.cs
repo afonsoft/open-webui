@@ -131,7 +131,7 @@ public class CatchNarrowingTests
     public async Task FetchUrl_CharsetDesconhecido_CaiNoUtf8()
     {
         var html = "<html><head><meta charset=\"bogus-enc-99\"></head><body>ok</body></html>";
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(html, Encoding.UTF8, "text/html"),
         };
