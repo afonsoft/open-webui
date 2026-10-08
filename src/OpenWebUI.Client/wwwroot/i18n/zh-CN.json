@@ -596,5 +596,6 @@
   "settings.audio_test": "测试 TTS",
   "settings.audio_testing": "测试中…",
   "settings.audio_test_ok": "TTS 正常",
-  "settings.audio_test_fail": "TTS 测试失败"
+  "settings.audio_test_fail": "TTS 测试失败",
+  "terminal.load_error": "无法加载终端。请检查连接后重试。"
 }

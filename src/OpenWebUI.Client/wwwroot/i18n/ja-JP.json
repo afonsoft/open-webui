@@ -596,5 +596,6 @@
   "settings.audio_test": "TTSテスト",
   "settings.audio_testing": "テスト中…",
   "settings.audio_test_ok": "TTS OK",
-  "settings.audio_test_fail": "TTSテスト失敗"
+  "settings.audio_test_fail": "TTSテスト失敗",
+  "terminal.load_error": "ターミナルを読み込めませんでした。接続を確認して再試行してください。"
 }

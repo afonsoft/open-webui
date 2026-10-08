@@ -654,5 +654,6 @@
   "admin.provider_custom": "Manual (URL/chave abaixo)",
   "admin.provider_register_hint": "Nenhuma conexão OpenAI cadastrada —",
   "admin.provider_register": "cadastrar provider",
-  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima"
+  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima",
+  "terminal.load_error": "Não foi possível carregar o terminal. Verifique a conexão e tente de novo."
 }

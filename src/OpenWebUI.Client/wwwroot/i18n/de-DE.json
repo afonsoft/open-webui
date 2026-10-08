@@ -596,5 +596,6 @@
   "settings.audio_test": "TTS testen",
   "settings.audio_testing": "Teste…",
   "settings.audio_test_ok": "TTS OK",
-  "settings.audio_test_fail": "TTS-Test fehlgeschlagen"
+  "settings.audio_test_fail": "TTS-Test fehlgeschlagen",
+  "terminal.load_error": "Das Terminal konnte nicht geladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."
 }

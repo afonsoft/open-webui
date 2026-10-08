@@ -596,5 +596,6 @@
   "settings.audio_test": "Tester TTS",
   "settings.audio_testing": "Test…",
   "settings.audio_test_ok": "TTS OK",
-  "settings.audio_test_fail": "Test TTS échoué"
+  "settings.audio_test_fail": "Test TTS échoué",
+  "terminal.load_error": "Impossible de charger le terminal. Vérifiez la connexion et réessayez."
 }
