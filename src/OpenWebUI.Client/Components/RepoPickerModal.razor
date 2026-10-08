@@ -10,7 +10,7 @@
     <div class="modal-backdrop" @onclick="CloseAsync">
         <div class="modal flex flex-col" style="max-width: 36rem;" role="dialog" aria-modal="true"
              aria-label="@L["chat.repo_title"]" tabindex="-1" @onclick:stopPropagation
-             @onkeydown="OnKeyDown">
+             @onkeydown="OnKeyDown" @ref="_dialog">
             <div class="modal-header">
                 <span>@L["chat.repo_title"]</span>
                 <button type="button" class="icon-btn" aria-label="@L["common.close"]"
@@ -146,6 +146,7 @@
     private string _branch = "main";
     private string? _message;
     private bool _wasActive;
+    private ElementReference _dialog;
 
     private List<GitHubRepoResponse> Filtered =>
         _repos is null ? []
@@ -182,6 +183,7 @@
                 _message = L["chat.repo_load_error"];
             }
             _loading = false;
+            await _dialog.FocusAsync();
         }
         else if (!Active)
         {
@@ -245,6 +247,9 @@
         {
             _bound = null;
             await Bound.InvokeAsync(null);
+            // O botão removido soltava o foco no <body> e o Escape parava de
+            // fechar o modal — devolve o foco ao dialog.
+            await _dialog.FocusAsync();
         }
         else
         {

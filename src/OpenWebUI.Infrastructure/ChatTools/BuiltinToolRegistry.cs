@@ -19,6 +19,9 @@ public sealed class BuiltinToolRegistry(IEnumerable<IBuiltinChatTool> tools, ICo
     /// <summary>Prefixo das URLs sintéticas usadas no dispatch do ToolExecutor.</summary>
     public const string UrlPrefix = "builtin://";
 
+    /// <summary>Prefixo do nome de função anunciado ao provider (válido no spec OpenAI).</summary>
+    public const string SpecPrefix = "builtin_";
+
     private readonly Dictionary<string, IBuiltinChatTool> _byName = BuildMap(tools, configuration);
 
     private static Dictionary<string, IBuiltinChatTool> BuildMap(
@@ -72,6 +75,12 @@ public sealed class BuiltinToolRegistry(IEnumerable<IBuiltinChatTool> tools, ICo
     }
 
     /// <summary>Converte uma built-in num <see cref="Tool"/> de catálogo (para o picker).</summary>
+    /// <remarks>
+    /// O nome da função anunciado ao provider usa <c>builtin_{name}</c>:
+    /// o spec OpenAI exige <c>^[a-zA-Z0-9_-]+$</c> e <c>builtin:{name}</c>
+    /// fazia providers/modelos emitirem o nome sem prefixo, quebrando o
+    /// match no <see cref="Services.ToolExecutor"/>.
+    /// </remarks>
     public Tool ToSyntheticTool(IBuiltinChatTool tool) => new()
     {
         Id = $"{IdPrefix}{tool.Name}",
@@ -82,7 +91,7 @@ public sealed class BuiltinToolRegistry(IEnumerable<IBuiltinChatTool> tools, ICo
             type = "function",
             function = new
             {
-                name = $"{IdPrefix}{tool.Name}",
+                name = $"{SpecPrefix}{tool.Name}",
                 description = tool.Description,
                 parameters = JsonDocument.Parse(tool.ParametersJson).RootElement,
             },
