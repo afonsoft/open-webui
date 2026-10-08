@@ -71,7 +71,7 @@ public class ToolExecutor(
     /// (<c>name</c>, <c>builtin:name</c>, <c>builtin_name</c>) — providers
     /// podem sanitizar/emitir o nome anunciado sem o prefixo.
     /// </summary>
-    private Tool? FindTool(IReadOnlyList<Tool> tools, string functionName)
+    public static Tool? FindTool(IReadOnlyList<Tool> tools, string functionName)
     {
         var tool = tools.FirstOrDefault(t => FunctionName(t) == functionName);
         if (tool is not null)
