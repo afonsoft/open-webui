@@ -17,6 +17,119 @@
     var errorLog = [];
     var MAX_ERROR_LOG = 10;
 
+    // Copy de erro pré-boot: os dicionários i18n ainda não existem quando o
+    // WASM falha ao carregar, então mantemos um mapa inline mínimo. O locale
+    // vem do localStorage (mesma chave do app) com navigator.language como
+    // fallback; idiomas ausentes caem para pt-BR (padrão do produto).
+    var BOOT_STRINGS = {
+        "pt-BR": {
+            error: "Ocorreu um erro não tratado.", reload: "Recarregar",
+            details: "Detalhes", hideDetails: "Ocultar detalhes", dismiss: "Dispensar",
+            bootTitle: "Não foi possível iniciar o aplicativo",
+            bootBody1: "A rede ou o proxy corporativo bloqueou arquivos necessários ao carregamento (filtro de downloads por tipo de mídia).",
+            bootBody2: "Recarregue a página. Se o problema persistir, contate o suporte de TI ou acesse por outra rede."
+        },
+        "en-US": {
+            error: "An unhandled error has occurred.", reload: "Reload",
+            details: "Details", hideDetails: "Hide details", dismiss: "Dismiss",
+            bootTitle: "The app could not be started",
+            bootBody1: "The network or corporate proxy blocked files required for startup (media-type download filtering).",
+            bootBody2: "Reload the page. If the problem persists, contact IT support or try another network."
+        },
+        "de-DE": {
+            error: "Ein unbehandelter Fehler ist aufgetreten.", reload: "Neu laden",
+            details: "Details", hideDetails: "Details ausblenden", dismiss: "Verwerfen",
+            bootTitle: "Die App konnte nicht gestartet werden",
+            bootBody1: "Das Netzwerk oder der Unternehmensproxy hat für den Start benötigte Dateien blockiert (Download-Filterung nach Medientyp).",
+            bootBody2: "Laden Sie die Seite neu. Bleibt das Problem bestehen, wenden Sie sich an den IT-Support oder nutzen Sie ein anderes Netzwerk."
+        },
+        "es-ES": {
+            error: "Se ha producido un error no controlado.", reload: "Recargar",
+            details: "Detalles", hideDetails: "Ocultar detalles", dismiss: "Descartar",
+            bootTitle: "No se pudo iniciar la aplicación",
+            bootBody1: "La red o el proxy corporativo bloqueó archivos necesarios para la carga (filtro de descargas por tipo de medio).",
+            bootBody2: "Recarga la página. Si el problema persiste, contacta con soporte de TI o prueba otra red."
+        },
+        "fr-FR": {
+            error: "Une erreur non gérée s'est produite.", reload: "Recharger",
+            details: "Détails", hideDetails: "Masquer les détails", dismiss: "Ignorer",
+            bootTitle: "Impossible de démarrer l'application",
+            bootBody1: "Le réseau ou le proxy d'entreprise a bloqué des fichiers nécessaires au chargement (filtrage des téléchargements par type de média).",
+            bootBody2: "Rechargez la page. Si le problème persiste, contactez le support informatique ou essayez un autre réseau."
+        },
+        "it-IT": {
+            error: "Si è verificato un errore non gestito.", reload: "Ricarica",
+            details: "Dettagli", hideDetails: "Nascondi dettagli", dismiss: "Ignora",
+            bootTitle: "Impossibile avviare l'applicazione",
+            bootBody1: "La rete o il proxy aziendale ha bloccato file necessari al caricamento (filtro download per tipo di media).",
+            bootBody2: "Ricarica la pagina. Se il problema persiste, contatta il supporto IT o prova un'altra rete."
+        },
+        "ja-JP": {
+            error: "未処理のエラーが発生しました。", reload: "再読み込み",
+            details: "詳細", hideDetails: "詳細を隠す", dismiss: "閉じる",
+            bootTitle: "アプリを起動できませんでした",
+            bootBody1: "ネットワークまたは社内プロキシが起動に必要なファイルをブロックしました（メディアタイプによるダウンロードフィルター）。",
+            bootBody2: "ページを再読み込みしてください。解決しない場合は IT サポートに連絡するか、別のネットワークをお試しください。"
+        },
+        "zh-CN": {
+            error: "发生未处理的错误。", reload: "重新加载",
+            details: "详情", hideDetails: "隐藏详情", dismiss: "忽略",
+            bootTitle: "应用无法启动",
+            bootBody1: "网络或企业代理阻止了启动所需的文件（按媒体类型过滤下载）。",
+            bootBody2: "请重新加载页面。若问题仍存在，请联系 IT 支持或改用其他网络。"
+        }
+    };
+
+    function bootStrings() {
+        var stored = null;
+        try {
+            stored = localStorage.getItem("webui.locale");
+        } catch {
+            // localStorage bloqueado — segue com heurística do navegador.
+        }
+        var candidates = [];
+        if (stored) candidates.push(stored);
+        if (navigator.languages) candidates.push.apply(candidates, navigator.languages);
+        if (navigator.language) candidates.push(navigator.language);
+        for (const cand of candidates) {
+            if (BOOT_STRINGS[cand]) {
+                return BOOT_STRINGS[cand];
+            }
+            var prefix = String(cand).split("-")[0];
+            for (const code in BOOT_STRINGS) {
+                if (code.split("-")[0] === prefix) {
+                    return BOOT_STRINGS[code];
+                }
+            }
+        }
+        return BOOT_STRINGS["pt-BR"];
+    }
+
+    var strings = bootStrings();
+
+    // Localiza o texto estático do #blazor-error-ui (vem em inglês do HTML).
+    function localizeErrorUi() {
+        var ui = document.getElementById("blazor-error-ui");
+        if (!ui) {
+            return;
+        }
+        if (ui.firstChild && ui.firstChild.nodeType === Node.TEXT_NODE) {
+            ui.firstChild.textContent = " " + strings.error + " ";
+        }
+        var reload = ui.querySelector(".reload");
+        if (reload) reload.textContent = strings.reload;
+        var toggle = ui.querySelector(".error-details-toggle");
+        if (toggle) toggle.textContent = strings.details;
+        var dismiss = ui.querySelector(".dismiss");
+        if (dismiss) dismiss.setAttribute("aria-label", strings.dismiss);
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", localizeErrorUi);
+    } else {
+        localizeErrorUi();
+    }
+
     function errorText(value) {
         if (value === null || value === undefined) {
             return "(null)";
@@ -76,10 +189,10 @@
         }
         panel.hidden = !panel.hidden;
         if (panel.hidden) {
-            toggle.textContent = "Details";
+            toggle.textContent = strings.details;
         } else {
             renderErrorLog(panel);
-            toggle.textContent = "Hide details";
+            toggle.textContent = strings.hideDetails;
         }
     });
 
@@ -177,12 +290,10 @@
         }
         app.innerHTML =
             '<div style="max-width:36rem;margin:4rem auto;padding:0 1rem;font-family:sans-serif">' +
-            '<h1 style="font-size:1.25rem">Não foi possível iniciar o aplicativo</h1>' +
-            '<p>A rede ou o proxy corporativo bloqueou arquivos necessários ao ' +
-            'carregamento (filtro de downloads por tipo de mídia).</p>' +
-            '<p>Recarregue a página. Se o problema persistir, contate o suporte ' +
-            'de TI ou acesse por outra rede.</p>' +
-            '<p><a href=".">Recarregar</a></p></div>';
+            '<h1 style="font-size:1.25rem">' + strings.bootTitle + '</h1>' +
+            '<p>' + strings.bootBody1 + '</p>' +
+            '<p>' + strings.bootBody2 + '</p>' +
+            '<p><a href=".">' + strings.reload + '</a></p></div>';
     }
 
     try {

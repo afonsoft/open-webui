@@ -38,7 +38,7 @@
         <div class="card-row">
             <div class="card-main">
                 <div class="flex flex-wrap gap-2 items-center">
-                    <select class="input w-32" @bind="_newType">
+                    <select class="input w-32" aria-label="@L["share.type"]" @bind="_newType">
                         <option value="user">@L["share.user"]</option>
                         <option value="group">@L["share.group"]</option>
                         <option value="all">@L["share.everyone"]</option>
@@ -47,7 +47,7 @@
                     {
                         @if (_users is not null)
                         {
-                            <select class="input w-56" @bind="_newPrincipalId">
+                            <select class="input w-56" aria-label="@L["share.pick_user"]" @bind="_newPrincipalId">
                                 <option value="">@L["share.pick_user"]</option>
                                 @foreach (var u in _users)
                                 {
@@ -57,14 +57,14 @@
                         }
                         else
                         {
-                            <input class="input w-56" placeholder="@L["share.principal_id"]" @bind="_newPrincipalId" />
+                            <input class="input w-56" placeholder="@L["share.principal_id"]" aria-label="@L["share.principal_id"]" @bind="_newPrincipalId" />
                         }
                     }
                     else if (_newType == "group")
                     {
                         @if (_groups.Count > 0)
                         {
-                            <select class="input w-56" @bind="_newPrincipalId">
+                            <select class="input w-56" aria-label="@L["share.pick_group"]" @bind="_newPrincipalId">
                                 <option value="">@L["share.pick_group"]</option>
                                 @foreach (var g in _groups)
                                 {
@@ -74,10 +74,10 @@
                         }
                         else
                         {
-                            <input class="input w-56" placeholder="@L["share.principal_id"]" @bind="_newPrincipalId" />
+                            <input class="input w-56" placeholder="@L["share.principal_id"]" aria-label="@L["share.principal_id"]" @bind="_newPrincipalId" />
                         }
                     }
-                    <select class="input w-32" @bind="_newPermission">
+                    <select class="input w-32" aria-label="@L["share.permission"]" @bind="_newPermission">
                         <option value="read">@L["share.perm.read"]</option>
                         <option value="write">@L["share.perm.write"]</option>
                     </select>

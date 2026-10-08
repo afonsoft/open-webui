@@ -3,6 +3,39 @@
 window.owuiTerminal = (() => {
     const terms = new Map(); // elementId -> { term, fit, ws, observer, el, lastCols, lastRows }
 
+    // xterm (JS+CSS) só é carregado sob demanda: ~57 KiB fora do caminho
+    // crítico de boot para quem nunca abre /terminal nem a aba do painel.
+    let loadPromise = null;
+
+    function injectScript(src) {
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('failed to load ' + src));
+            document.head.appendChild(s);
+        });
+    }
+
+    function ensureLoaded() {
+        if (loadPromise) {
+            return loadPromise;
+        }
+        loadPromise = (async () => {
+            if (typeof Terminal === 'undefined') {
+                const css = document.createElement('link');
+                css.rel = 'stylesheet';
+                css.href = 'lib/xterm/xterm.css';
+                document.head.appendChild(css);
+                // Sequencial de propósito: o addon referencia Terminal no load.
+                await injectScript('lib/xterm/xterm.js');
+                await injectScript('lib/xterm/xterm-addon-fit.js');
+            }
+            return typeof Terminal !== 'undefined';
+        })();
+        return loadPromise;
+    }
+
     function isCompactViewport() {
         return typeof window.matchMedia === 'function'
             && window.matchMedia('(pointer: coarse), (hover: none), (max-width: 767.98px)').matches;
@@ -14,7 +47,12 @@ window.owuiTerminal = (() => {
         }
     }
 
-    function open(elementId, wsUrl, dotNetRef) {
+    async function open(elementId, wsUrl, dotNetRef) {
+        try {
+            await ensureLoaded();
+        } catch {
+            return false; // offline/edge: caller exibe estado de erro
+        }
         const el = document.getElementById(elementId);
         if (!el || typeof Terminal === 'undefined') {
             return false;

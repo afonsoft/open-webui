@@ -36,7 +36,7 @@
         {
             <div class="mt-2 flex items-center gap-2">
                 <input class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
-                       placeholder="@L["chat.question_other"]" @bind="_free" @bind:event="oninput" />
+                       placeholder="@L["chat.question_other"]" aria-label="@L["chat.question_other"]" @bind="_free" @bind:event="oninput" />
                 <button class="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium transition hover:opacity-85 cursor-pointer disabled:opacity-40"
                         disabled="@(string.IsNullOrWhiteSpace(_free))"
                         @onclick="SubmitFree">
@@ -50,7 +50,7 @@
     {
         <div class="mt-2 flex items-center gap-2">
             <input class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
-                   placeholder="@L["chat.question_placeholder"]" @bind="_free" @bind:event="oninput" />
+                   placeholder="@L["chat.question_placeholder"]" aria-label="@L["chat.question_placeholder"]" @bind="_free" @bind:event="oninput" />
             <button class="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium transition hover:opacity-85 cursor-pointer disabled:opacity-40"
                     disabled="@(_selected.Count == 0 && string.IsNullOrWhiteSpace(_free))"
                     @onclick="SubmitCombined">

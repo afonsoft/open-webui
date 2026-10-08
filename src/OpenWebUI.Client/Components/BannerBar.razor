@@ -1,5 +1,6 @@
 @inject ApiService Api
 @inject AuthService Auth
+@inject LocalizationService L
 
 @foreach (var banner in _banners)
 {
@@ -18,7 +19,7 @@
             @if (banner.Dismissible)
             {
                 <button class="shrink-0 opacity-70 hover:opacity-100 cursor-pointer"
-                        @onclick="() => DismissAsync(banner)" aria-label="dispensar">✕</button>
+                        @onclick="() => DismissAsync(banner)" aria-label="@L["common.dismiss"]">✕</button>
             }
         </div>
     </div>

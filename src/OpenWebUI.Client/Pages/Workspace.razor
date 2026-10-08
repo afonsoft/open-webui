@@ -15,27 +15,21 @@
 <PageTitle>Workspace — Open WebUI</PageTitle>
 
 <div class="page">
-    <h1 class="page-title">Workspace</h1>
+    <h1 class="page-title" tabindex="-1">Workspace</h1>
     <div class="page-tabs" role="tablist" @ref="_tabList" @onkeydown="OnTabKeyDown">
-        <button class="modal-tab @(Section == "prompts" ? "active" : "")" role="tab" aria-selected="@(Section == "prompts")"
-                @onclick='() => Nav.NavigateTo("/workspace/prompts")'>@L["workspace.prompts"]</button>
-        <button class="modal-tab @(Section == "models" ? "active" : "")" role="tab" aria-selected="@(Section == "models")"
-                @onclick='() => Nav.NavigateTo("/workspace/models")'>@L["workspace.models"]</button>
-        <button class="modal-tab @(Section == "files" ? "active" : "")" role="tab" aria-selected="@(Section == "files")"
-                @onclick='() => Nav.NavigateTo("/workspace/files")'>@L["workspace.files"]</button>
-        <button class="modal-tab @(Section == "knowledge" ? "active" : "")" role="tab" aria-selected="@(Section == "knowledge")"
-                @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>@L["workspace.knowledge"]</button>
-        <button class="modal-tab @(Section == "tools" ? "active" : "")" role="tab" aria-selected="@(Section == "tools")"
-                @onclick='() => Nav.NavigateTo("/workspace/tools")'>Tools</button>
-        <button class="modal-tab @(Section == "skills" ? "active" : "")" role="tab" aria-selected="@(Section == "skills")"
-                @onclick='() => Nav.NavigateTo("/workspace/skills")'>@L["workspace.skills"]</button>
+        <a href="/workspace/prompts" class="modal-tab @(Section == "prompts" ? "active" : "")" role="tab" aria-selected="@(Section == "prompts")">@L["workspace.prompts"]</a>
+        <a href="/workspace/models" class="modal-tab @(Section == "models" ? "active" : "")" role="tab" aria-selected="@(Section == "models")">@L["workspace.models"]</a>
+        <a href="/workspace/files" class="modal-tab @(Section == "files" ? "active" : "")" role="tab" aria-selected="@(Section == "files")">@L["workspace.files"]</a>
+        <a href="/workspace/knowledge" class="modal-tab @(Section == "knowledge" ? "active" : "")" role="tab" aria-selected="@(Section == "knowledge")">@L["workspace.knowledge"]</a>
+        <a href="/workspace/tools" class="modal-tab @(Section == "tools" ? "active" : "")" role="tab" aria-selected="@(Section == "tools")">Tools</a>
+        <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")" role="tab" aria-selected="@(Section == "skills")">@L["workspace.skills"]</a>
     </div>
 
     @if (Section == "models")
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/models/create")'>@L["workspace.new_model"]</button>
+                <a href="/workspace/models/create" class="auth-submit text-center">@L["workspace.new_model"]</a>
             </div>
             @foreach (var model in _models)
             {
@@ -47,11 +41,11 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("model", model)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/models/{model.Id}")'>@L["common.edit"]</button>
+                        <a class="msg-action" href="/workspace/models/@model.Id">@L["common.edit"]</a>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
                             @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
                         </button>
-                        <button class="msg-action danger" @onclick="() => DeleteModelAsync(model)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteModelAsync(model)">🗑</button>
                     </div>
                 </div>
             }
@@ -68,11 +62,11 @@
             {
                 <div class="card-row">
                     <div class="card-main">
-                        <div class="card-title">📎 @file.Filename</div>
+                        <div class="card-title"><span aria-hidden="true">📎 </span>@file.Filename</div>
                         <div class="card-sub">@FormatSize(file.Size) · @FormatDate(file.CreatedAt)</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action danger" @onclick="() => DeleteFileAsync(file)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteFileAsync(file)">🗑</button>
                     </div>
                 </div>
             }
@@ -86,7 +80,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/knowledge/create")'>@L["workspace.new_collection"]</button>
+                <a href="/workspace/knowledge/create" class="auth-submit text-center">@L["workspace.new_collection"]</a>
                 @if (_selectedKnowledge.Count > 0)
                 {
                     <button class="msg-action danger" @onclick="BatchDeleteKnowledgeAsync">
@@ -109,8 +103,8 @@
                             <div class="card-sub">
                                 @foreach (var kf in _knowledgeDetail.Files)
                                 {
-                                    <div>📄 @kf.Filename
-                                        <button class="msg-action danger" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
+                                    <div><span aria-hidden="true">📄 </span>@kf.Filename
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
                                     </div>
                                 }
                                 @if (_knowledgeDetail.Files.Count == 0)
@@ -121,14 +115,16 @@
                         }
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => ToggleKnowledgeDetailAsync(item)">
+                        <button class="msg-action" aria-expanded="@(_knowledgeDetail?.Id == item.Id)" aria-label="@L["common.toggle"]"
+                                @onclick="() => ToggleKnowledgeDetailAsync(item)">
                             @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
                         </button>
                         <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">@L["workspace.add_file"]</button>
                         <button class="msg-action" title="@L["workspace.reindex"]" aria-label="@L["workspace.reindex"]"
                                 @onclick="() => ReindexKnowledgeAsync(item)">↻</button>
-                        <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
                         <input type="checkbox" class="ml-1 cursor-pointer"
+                               aria-label="@L.T("workspace.select", ("name", item.Name))"
                                checked="@_selectedKnowledge.Contains(item.Id)"
                                @onchange="() => ToggleKnowledgeSelection(item.Id)" />
                     </div>
@@ -144,7 +140,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/tools/create")'>@L["workspace.new_tool"]</button>
+                <a href="/workspace/tools/create" class="auth-submit text-center">@L["workspace.new_tool"]</a>
             </div>
             @foreach (var tool in _tools)
             {
@@ -156,11 +152,11 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("tool", tool)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/tools/{tool.Id}")'>@L["common.edit"]</button>
+                        <a class="msg-action" href="/workspace/tools/@tool.Id">@L["common.edit"]</a>
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
                             @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
                         </button>
-                        <button class="msg-action danger" @onclick="() => DeleteToolAsync(tool)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteToolAsync(tool)">🗑</button>
                     </div>
                 </div>
             }
@@ -175,10 +171,10 @@
         <div class="card-list">
             <div class="card-row">
                 <div class="flex flex-col gap-2 w-full text-sm py-1">
-                    <input class="input" @bind="_skillName" placeholder="@L["workspace.skill_name"]" />
-                    <input class="input" @bind="_skillDesc" placeholder="@L["workspace.skill_desc"]" />
+                    <input class="input" @bind="_skillName" placeholder="@L["workspace.skill_name"]" aria-label="@L["workspace.skill_name"]" />
+                    <input class="input" @bind="_skillDesc" placeholder="@L["workspace.skill_desc"]" aria-label="@L["workspace.skill_desc"]" />
                     <textarea class="input" rows="4" @bind="_skillContent"
-                        placeholder="@L["workspace.skill_content"]"></textarea>
+                        placeholder="@L["workspace.skill_content"]" aria-label="@L["workspace.skill_content"]"></textarea>
                     <div class="flex gap-2">
                         <button class="auth-submit" @onclick="SaveSkillAsync">
                             @(_skillEditId is null ? L["workspace.new_skill"] : L["common.save"])
@@ -199,7 +195,7 @@
                     </div>
                     <div class="card-actions">
                         <button class="msg-action" @onclick="() => EditSkill(skill)">@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeleteSkillAsync(skill)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteSkillAsync(skill)">🗑</button>
                     </div>
                 </div>
             }
@@ -213,7 +209,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/prompts/create")'>@L["workspace.new_prompt"]</button>
+                <a href="/workspace/prompts/create" class="auth-submit text-center">@L["workspace.new_prompt"]</a>
             </div>
             @foreach (var prompt in _prompts)
             {
@@ -225,8 +221,8 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
+                        <a class="msg-action" href="/workspace/prompts/@prompt.Id">@L["common.edit"]</a>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
                 </div>
             }
@@ -483,6 +479,6 @@
         : bytes > 1024 ? $"{bytes / 1024.0:F1} KB"
         : $"{bytes} B";
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

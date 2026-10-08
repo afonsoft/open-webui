@@ -22,7 +22,7 @@
         }
         else
         {
-            <h1 class="shared-title">@_chat.Title</h1>
+            <h1 class="shared-title" tabindex="-1">@_chat.Title</h1>
             <div class="shared-meta">
                 @L.T("shared.by", ("name", _chat.User?.Name ?? L["shared.user"])) ·
                 @FormatDate(_chat.UpdatedAt)
@@ -31,7 +31,7 @@
                 @foreach (var message in _chat.Messages)
                 {
                     <div class="message @message.Role">
-                        <div class="message-avatar">@(message.Role == "assistant" ? "◈" : "U")</div>
+                        <div class="message-avatar" aria-hidden="true">@(message.Role == "assistant" ? "◈" : "U")</div>
                         <div class="message-body">
                             <div class="message-meta">
                                 @(message.Role == "assistant" ? message.Model ?? L["chat.assistant"] : _chat.User?.Name ?? L["chat.you"])
@@ -74,6 +74,6 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

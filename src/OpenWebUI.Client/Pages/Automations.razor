@@ -8,7 +8,7 @@
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">@L["page.automations"]</h1>
+        <h1 class="page-title" tabindex="-1">@L["page.automations"]</h1>
         <button class="auth-submit page-new" @onclick="NewAutomation">@L["automations.new"]</button>
     </div>
 
@@ -25,12 +25,12 @@
                     <div class="card-main w-full">
                         <div class="grid md:grid-cols-2 gap-3">
                             <div class="field">
-                                <label>@L["common.name"]</label>
-                                <input class="input" @bind="_fName" />
+                                <label for="fld-55">@L["common.name"]</label>
+                                <input class="input" @bind="_fName" id="fld-55" />
                             </div>
                             <div class="field">
-                                <label>@L["automations.model"]</label>
-                                <select class="input" @bind="_fModel">
+                                <label for="fld-56">@L["automations.model"]</label>
+                                <select class="input" @bind="_fModel" id="fld-56">
                                     @foreach (var m in _models)
                                     {
                                         <option value="@m.Id">@m.Name</option>
@@ -38,12 +38,12 @@
                                 </select>
                             </div>
                             <div class="field md:col-span-2">
-                                <label>@L["automations.prompt"]</label>
-                                <textarea class="input" rows="3" @bind="_fPrompt"></textarea>
+                                <label for="fld-57">@L["automations.prompt"]</label>
+                                <textarea class="input" rows="3" @bind="_fPrompt" id="fld-57"></textarea>
                             </div>
                             <div class="field">
-                                <label>@L["automations.schedule"]</label>
-                                <select class="input" @bind="_fKind">
+                                <label for="fld-58">@L["automations.schedule"]</label>
+                                <select class="input" @bind="_fKind" id="fld-58">
                                     <option value="interval">@L["automations.kind_interval"]</option>
                                     <option value="daily">@L["automations.kind_daily"]</option>
                                     <option value="weekly">@L["automations.kind_weekly"]</option>
@@ -52,21 +52,21 @@
                             @if (_fKind == "interval")
                             {
                                 <div class="field">
-                                    <label>@L["automations.every_minutes"]</label>
-                                    <input class="input" type="number" min="1" @bind="_fInterval" />
+                                    <label for="fld-59">@L["automations.every_minutes"]</label>
+                                    <input class="input" type="number" min="1" @bind="_fInterval" id="fld-59" />
                                 </div>
                             }
                             else
                             {
                                 <div class="field">
-                                    <label>@L["automations.time_utc"]</label>
-                                    <input class="input" placeholder="HH:mm" @bind="_fTime" />
+                                    <label for="fld-60">@L["automations.time_utc"]</label>
+                                    <input class="input" placeholder="HH:mm" @bind="_fTime" id="fld-60" />
                                 </div>
                                 @if (_fKind == "weekly")
                                 {
                                     <div class="field">
-                                        <label>@L["automations.weekday"]</label>
-                                        <select class="input" @bind="_fWeekday">
+                                        <label for="fld-61">@L["automations.weekday"]</label>
+                                        <select class="input" @bind="_fWeekday" id="fld-61">
                                             @for (var d = 0; d < 7; d++)
                                             {
                                                 <option value="@d">@WeekdayName(d)</option>
@@ -119,10 +119,10 @@
                             </div>
                         </div>
                         <div class="card-actions">
-                            <button class="msg-action" @onclick="() => ToggleRunsAsync(a)">@L["automations.runs"]</button>
+                            <button class="msg-action" aria-expanded="@(_expandedId == a.Id)" @onclick="() => ToggleRunsAsync(a)">@L["automations.runs"]</button>
                             <button class="msg-action" @onclick="() => RunNowAsync(a)">@L["automations.run_now"]</button>
                             <button class="msg-action" @onclick="() => EditAutomation(a)">@L["common.edit"]</button>
-                            <button class="msg-action danger" @onclick="() => DeleteAutomationAsync(a)">🗑</button>
+                            <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteAutomationAsync(a)">🗑</button>
                         </div>
                     </div>
                     @if (_expandedId == a.Id)
@@ -285,6 +285,6 @@
 
     private string WeekdayName(int d) => L[$"calendar.d{d}"];
 
-    private static string FormatDate(long epoch) =>
-        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long epoch) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime);
 }
