@@ -14,5 +14,12 @@ Documentos que descrevem e decidem a arquitetura do Open WebUI .NET.
 
 ## Diagramas e design
 
-- [architecture.md](architecture.md) — visão geral do sistema, camadas, sequência do chat e deploy (Mermaid)
+- [architecture.md](architecture.md) — visão geral do sistema, camadas, sequência do chat, deploy, boot do WASM e pipeline de CI/CD (Mermaid)
+- Fontes `.mmd` editáveis:
+  - [openwebui_flow_system-overview.mmd](openwebui_flow_system-overview.mmd) — visão geral (browser/WASM ↔ API ↔ infra ↔ disco)
+  - [openwebui_sequence_chat-rag-tools.mmd](openwebui_sequence_chat-rag-tools.mmd) — sequência do chat com RAG + tool loop
+  - [openwebui_flow_deploy.mmd](openwebui_flow_deploy.mmd) — deploy via reverse proxy + container + volume
+  - [openwebui_flow_client-boot.mmd](openwebui_flow_client-boot.mmd) — boot do WASM (framework-assets mirror, lazy xterm/Pyodide)
+  - [openwebui_flow_ci-pipeline.mmd](openwebui_flow_ci-pipeline.mmd) — workflows do GitHub Actions e gates
+- [runtime-architecture.html](runtime-architecture.html) — diagrama interativo standalone (archify)
 - [../MIGRACAO-DOTNET.md](../MIGRACAO-DOTNET.md) — mapa de paridade com o upstream

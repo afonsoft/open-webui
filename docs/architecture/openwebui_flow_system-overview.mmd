@@ -1,0 +1,71 @@
+flowchart LR
+    subgraph Browser["🌐 Navegador (Blazor WebAssembly)"]
+        UI["OpenWebUI.Client<br/>Pages + Components"]
+        subgraph ClientJS["Interop JS (wwwroot/js)"]
+            JS1["app.js — tema, scroll, copy,<br/>focus/menu/dialog helpers"]
+            JS2["audio.js — STT/TTS (Web Speech)"]
+            JS3["codeexec.js — Web Worker JS"]
+            JS4["py-worker.js — Python via Pyodide WASM"]
+            JS5["terminal.js — xterm lazy-load<br/>(PTY via /ws terminal)"]
+            SW["service-worker.js — shell cache (PWA)"]
+        end
+        ApiS["ApiService + ChatStreamService<br/>(HTTP + SSE)"]
+        Hub["SignalR client → /ws"]
+    end
+
+    subgraph Server["⚙️ ASP.NET Core 10 (OpenWebUI.Api)"]
+        FH["UseForwardedHeaders<br/>(X-Forwarded-For/Proto/Host)"]
+        EP["Minimal APIs — ~30 grupos<br/>(auth, chats, users, files, models,<br/>knowledge, tools, mcp, n8n,<br/>channels, calendar, automation,<br/>terminal, video, audio, saml, scim…)"]
+        WS["SignalR Hub /ws<br/>(channels realtime + terminal PTY)"]
+        AuthMW["🔐 JWT Bearer + sk-* keys"]
+        OAuth["OAuth/OIDC + SAML + SCIM + LDAP"]
+        Sched["AutomationScheduler<br/>(BackgroundService, 15s)"]
+    end
+
+    subgraph Infra["OpenWebUI.Infrastructure"]
+        DB["💾 AppDbContext (EF Core + Migrations)"]
+        Prov["ProviderService<br/>Ollama / OpenAI / tool loop"]
+        Emb["EmbeddingService + RagService<br/>(retrieval vetorial)"]
+        Img["ImageGenService / AudioService<br/>VideoEngine"]
+        Cfg["ConfigService (kv)"]
+    end
+
+    subgraph Domain["OpenWebUI.Domain / Application"]
+        Ent["Entities (~20 agregados)"]
+        Dto["Contracts/DTOs"]
+    end
+
+    subgraph Store["💾 Disco (fora do wwwroot — nunca servidos)"]
+        Vol[("data/openwebui.db<br/>data/uploads/{user}/")]
+    end
+
+    UI --> ApiS --> EP
+    UI --> Hub --> WS
+    UI -.-> ClientJS
+    FH --> EP
+    EP --> AuthMW
+    EP --> DB
+    EP --> Prov
+    EP --> Img
+    EP --> Emb
+    Sched --> Prov
+    DB --> Ent
+    DB --> Vol
+    Prov --> Dto
+    EP --> Cfg
+    WS --> DB
+
+    Prov <--> Ext1["Ollama / OpenAI-compat"]
+    Img <--> Ext2["OpenAI Images / provider APIs"]
+    Emb <--> Ext1
+    OAuth <--> Ext3["Google / GitHub / Microsoft / OIDC / LDAP"]
+
+    classDef client fill:#87CEEB,stroke:#333,stroke-width:2px,color:#0B3D63
+    classDef server fill:#90EE90,stroke:#333,stroke-width:2px,color:#145A32
+    classDef store fill:#E6E6FA,stroke:#333,stroke-width:2px,color:#3B2E7A
+    classDef ext fill:#FFE4B5,stroke:#333,stroke-width:2px,color:#7A4E00
+
+    class UI,ClientJS,ApiS,Hub client
+    class FH,EP,WS,AuthMW,OAuth,Sched,Infra server
+    class Store,Vol store
+    class Ext1,Ext2,Ext3 ext

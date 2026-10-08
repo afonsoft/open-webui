@@ -11,10 +11,11 @@ flowchart LR
     subgraph Browser["Navegador (Blazor WebAssembly)"]
         UI["OpenWebUI.Client<br/>Pages + Components"]
         subgraph ClientJS["Interop JS (wwwroot/js)"]
-            JS1["app.js — tema, scroll, copy, prompt"]
+            JS1["app.js — tema, scroll, copy,<br/>focus/menu/dialog helpers"]
             JS2["audio.js — STT/TTS (Web Speech)"]
             JS3["codeexec.js — Web Worker JS"]
             JS4["py-worker.js — Python via Pyodide WASM"]
+            JS5["terminal.js — xterm lazy-load"]
             SW["service-worker.js — shell cache (PWA)"]
         end
         ApiS["ApiService + ChatStreamService<br/>(HTTP + SSE)"]
@@ -23,10 +24,10 @@ flowchart LR
 
     subgraph Server["ASP.NET Core 10 (OpenWebUI.Api)"]
         FH["UseForwardedHeaders<br/>(X-Forwarded-For/Proto/Host)"]
-        EP["Minimal APIs<br/>Endpoints/*.cs<br/>(auths, chats, users, files,<br/>models, prompts, memories,<br/>notes, folders, tools,<br/>knowledge, evaluations,<br/>images, analytics,<br/>automations, configs, tasks,<br/>oauth, groups)"]
-        WS["SignalR Hub /ws<br/>(channels realtime)"]
+        EP["Minimal APIs — ~30 grupos<br/>(auth, chats, users, files, models,<br/>knowledge, tools, mcp, n8n,<br/>channels, calendar, automation,<br/>terminal, video, audio, saml, scim…)"]
+        WS["SignalR Hub /ws<br/>(channels realtime + terminal PTY)"]
         AuthMW["JWT Bearer + sk-* keys"]
-        OAuth["OAuth/OIDC + LDAP"]
+        OAuth["OAuth/OIDC + SAML + SCIM + LDAP"]
         Sched["AutomationScheduler<br/>(BackgroundService, 15s)"]
     end
 
@@ -34,7 +35,7 @@ flowchart LR
         DB["AppDbContext (EF Core + Migrations)"]
         Prov["ProviderService<br/>Ollama / OpenAI / tool loop"]
         Emb["EmbeddingService + RagService<br/>(retrieval vetorial)"]
-        Img["ImageGenService<br/>(OpenAI Images)"]
+        Img["ImageGenService / AudioService<br/>VideoEngine"]
         Cfg["ConfigService (kv)"]
     end
 
@@ -64,7 +65,7 @@ flowchart LR
     WS --> DB
 
     Prov <--> Ext1["Ollama / OpenAI-compat"]
-    Img <--> Ext2["OpenAI Images API"]
+    Img <--> Ext2["OpenAI Images / provider APIs"]
     Emb <--> Ext1
     OAuth <--> Ext3["Google / GitHub / Microsoft / OIDC / LDAP"]
 ```
@@ -126,6 +127,111 @@ Atrás de proxy o app precisa de `UseForwardedHeaders` — sem ele `Request.Sche
 devolve `http` e o `redirect_uri` do OAuth sai errado (mesmo padrão do
 `agent-harness`). O diretório `data/` fica fora do `wwwroot`: nem
 `MapStaticAssets` nem `MapFallbackToFile` o expõem.
+
+## Boot do WASM (cliente)
+
+Caminho do carregamento do Blazor WebAssembly, com o espelho
+`/framework-assets/{stem}/{ext}` que sobrevive a proxies que bloqueiam
+`.dat`/`.wasm`, e os módulos que ficam fora do caminho crítico do boot
+(xterm.js, Pyodide — carregados sob demanda):
+
+```mermaid
+flowchart TD
+    IDX["index.html<br/>(defer scripts · splash · sem xterm no boot)"]
+    IDX --> BOOT["js/boot.js<br/>(autostart=false — boot manual)"]
+    IDX --> CSS["css/tailwind.css<br/>(Tailwind v4 gerado e commitado)"]
+
+    BOOT --> FA{"asset _framework/*<br/>tem extensão .js?"}
+    FA -->|"sim (.js)"| DIR["GET /_framework/*<br/>(MapStaticAssets + fingerprint)"]
+    FA -->|"não (.dat/.wasm/…)"| MIR["GET /framework-assets/{stem}/{ext}<br/>(espelho sem extensão original)<br/>?enc=b64 fallback anti-sniffing"]
+
+    DIR --> WASM["blazor.webassembly.js<br/>→ dotnet.wasm → *.dll"]
+    MIR --> WASM
+
+    WASM --> ROUTER["App.razor / Router<br/>FocusOnNavigate → h1[tabindex=-1]"]
+    I18N["i18n/{lang}.json<br/>(8 locales · carrega no boot<br/>troca sem reload)"] --> ROUTER
+    ROUTER --> READY["✅ UI interativa"]
+
+    subgraph Lazy["Lazy sob demanda (fora do boot)"]
+        XT["terminal.js → xterm.js<br/>(só ao abrir TerminalView)"]
+        PY["py-worker.js → Pyodide WASM<br/>(só ao executar Python)"]
+        SW["service-worker.js<br/>shell cache (PWA)"]
+    end
+    READY -.-> Lazy
+
+    BOOT -->|falha fatal| ERR["boot error-ui<br/>(copy localizada en/pt)"]
+```
+
+Fonte editável: [openwebui_flow_client-boot.mmd](openwebui_flow_client-boot.mmd).
+
+## Pipeline de CI/CD
+
+Workflows do GitHub Actions e seus gates. O `Tests + Coverage Gate` bloqueia
+merge abaixo dos baselines de `.ci/`; o `Coverage Baseline Ratchet` só roda em
+push na `main` e sobe o baseline automaticamente; os drift guards
+(css-classes · form-a11y · i18n-parity) rodam dentro do
+`Blazor WASM Client Validation`:
+
+```mermaid
+flowchart LR
+    PR["push / pull_request"] --> CI["ci-build-test.yml"]
+    PR --> SEC["security-scan.yml"]
+    PR --> QUAL["code-quality.yml"]
+    PR --> A11Y["a11y-audit.yml"]
+    PR --> E2E["chat-e2e.yml"]
+    TAG["tag v*"] --> REL["release.yml"]
+    MAN["workflow_dispatch"] --> DH["dockerhub-overview.yml"]
+
+    subgraph CI["ci-build-test.yml"]
+        B["Build OpenWebUI (.NET 10)"]
+        T["Tests + Coverage Gate (NUnit)<br/>line ≥ baseline · branch ≥ baseline"]
+        R["Coverage Baseline Ratchet<br/>(só push em main — sobe baseline)"]
+        TW["Tailwind CSS em dia"]
+        WV["Blazor WASM Client Validation<br/>+ drift guards"]
+        DK["Docker Image Build"]
+        B --> T --> R
+        B --> WV
+        B --> DK
+    end
+
+    subgraph SEC["security-scan.yml"]
+        CQ["CodeQL (csharp + javascript)"]
+        TV["Trivy Container Scan"]
+        SN["Snyk Security"]
+    end
+
+    subgraph EXT["checks externos (apps)"]
+        GG["GitGuardian Security Checks"]
+        DV["Devin Review"]
+    end
+    PR --> EXT
+
+    subgraph QUAL["code-quality.yml"]
+        QD["Qodana Analysis"]
+        SQ["SonarQube Analysis"]
+    end
+
+    subgraph A11Y["a11y-audit.yml"]
+        AX["axe-core<br/>(mobile 375px + desktop)"]
+    end
+
+    subgraph E2E["chat-e2e.yml"]
+        CE["Chat E2E com provider real<br/>(gate de secrets LLM_*)"]
+    end
+
+    subgraph REL["release.yml"]
+        VT["Validate Version Tag"]
+        BR["Build Release Artifacts<br/>(binários por RID)"]
+        PB["Publish → GHCR + Release"]
+        VT --> BR --> PB
+    end
+```
+
+Fonte editável: [openwebui_flow_ci-pipeline.mmd](openwebui_flow_ci-pipeline.mmd).
+Os três diagramas clássicos também têm fontes `.mmd`:
+[system-overview](openwebui_flow_system-overview.mmd),
+[chat-rag-tools](openwebui_sequence_chat-rag-tools.mmd),
+[deploy](openwebui_flow_deploy.mmd).
 
 ## Decisões-chave
 

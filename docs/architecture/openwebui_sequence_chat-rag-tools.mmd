@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant U as 🌐 Client (Blazor)
+    participant A as ⚙️ OpenWebUI.Api
+    participant S as Infra Services
+    participant P as Provider (Ollama/OpenAI)
+    participant T as Tool URL (server-side)
+
+    U->>A: POST /api/chat/completions (JWT/sk-*)
+    A->>S: resolve custom model + memórias + anexos
+    S->>S: RagService: embeddings → top-k trechos
+    A->>P: POST /chat/completions (stream)
+    loop tool calling (máx. 5 rodadas)
+        P-->>A: tool_calls
+        A->>T: POST tool.url (args) — URL nunca sai do servidor
+        T-->>A: resultado → injetado como tool message
+        A->>P: continua stream
+    end
+    P-->>U: SSE tokens → MessageBubble
+    A->>S: persiste Chat + Messages (PK composta ChatId,Id)
+    A-->>U: follow-ups + título (tasks endpoints)
