@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `fix/coverage-gate` |
 | Ticket | `GAP-tests-coverage-gate` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `high` — main vermelha, bloqueia merges futuros |
 
 ## 1. User Story
@@ -79,3 +79,8 @@ N/A — trabalho de testes/CI.
 
 - Falha pré-datou o E13 — não culpar os merges recentes; a regressão existe desde ≥2026-10-07 (`b631328d1`).
 - Se a causa for uma mudança de instrumentação/versão do coverlet (não perda real de cobertura), RF-003 é o caminho honesto.
+
+## Delivered
+
+- **PR:** #207 · **Issue:** #201 — mergeado 2026-10-08.
+- cobertura 88.59/70.96 → 90.60/76.34 (+102 testes); baseline ratchet subiu automaticamente no push (`b46416c68`).

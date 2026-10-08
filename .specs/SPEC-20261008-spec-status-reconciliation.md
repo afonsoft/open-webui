@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `chore/spec-reconciliation` |
 | Ticket | `GAP-housekeeping-spec-status` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` — hygiene; mantém `docs/specs/` como fonte de verdade |
 
 ## 1. User Story
@@ -86,3 +86,8 @@ N/A.
 
 - Mudança essencialmente documental — baixo risco; serve de trilha para o próximo gap-analysis não re-avaliar estes SPECs.
 - A evidência já coletada (tabela da seção 3) cobre a maior parte — o trabalho é confirmar os pontos marcados "verificar RF-a-RF" e redigir as tabelas.
+
+## Delivered
+
+- **PR:** #205 · **Issue:** #203 — mergeado 2026-10-08.
+- 13 SPECs reconciliados RF-a-RF com `## Reconciliation` (veredito + evidência arquivo:linha) → `Completed`.
