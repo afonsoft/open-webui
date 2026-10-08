@@ -20,6 +20,7 @@ namespace OpenWebUI.Api.Tests;
 public class AudioServiceTests
 {
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private AudioService _svc = null!;
@@ -31,7 +32,8 @@ public class AudioServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _config = new ConfigService(_db, new MemoryCache(new MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new AudioService(new StubFactory(_handler), _config);
     }
@@ -40,6 +42,7 @@ public class AudioServiceTests
     public void TearDown()
     {
         _db.Dispose();
+        _cache.Dispose();
         _handler.Dispose();
     }
 
@@ -365,9 +368,12 @@ public class AudioServiceTests
 
         public void Respond(HttpStatusCode status, HttpContent content)
         {
-            _status = status;
-            _body = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            _mediaType = content.Headers.ContentType?.MediaType;
+            using (content)
+            {
+                _status = status;
+                _body = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                _mediaType = content.Headers.ContentType?.MediaType;
+            }
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(
