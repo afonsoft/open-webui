@@ -228,6 +228,10 @@ quando a cobertura na `main` melhora (ratchet — nunca desce).
 - [`docs/specs/`](docs/specs/) — SPEC SDDs entregues; `.specs/` — SPECs em andamento
 - [`CHANGELOG.md`](CHANGELOG.md)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=afonsoft/open-webui&type=date&legend=bottom-right)](https://www.star-history.com/?repos=afonsoft%2Fopen-webui&type=date&legend=bottom-right)
+
 ## Licença
 
 BSD-3-Clause — ver [`LICENSE`](LICENSE).
