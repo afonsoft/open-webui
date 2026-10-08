@@ -28,7 +28,7 @@ public class AutomationHookTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-hooks-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-hooks-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -305,7 +305,7 @@ public class AutomationHookTests
 
     private AppDbContext NewIsolatedDb()
     {
-        var path = Path.Combine(Path.GetTempPath(),
+        var path = Path.Join(Path.GetTempPath(),
             $"openwebui-hooks-svc-{Guid.NewGuid():N}.db");
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);

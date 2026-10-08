@@ -94,7 +94,7 @@ public sealed class LocalTerminalSpawner : IDisposable
     {
         var port = FreePort();
         var token = string.IsNullOrEmpty(server.Key) ? Guid.NewGuid().ToString("N") : server.Key;
-        var workDir = Path.Combine(Path.GetTempPath(), "openwebui-terminals", server.Id);
+        var workDir = Path.Join(Path.GetTempPath(), "openwebui-terminals", server.Id);
         Directory.CreateDirectory(workDir);
 
         var command = CommandTemplate

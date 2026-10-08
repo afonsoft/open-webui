@@ -22,7 +22,7 @@ public class TaskEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-tasks-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-tasks-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();

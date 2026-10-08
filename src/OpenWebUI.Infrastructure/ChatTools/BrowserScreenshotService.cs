@@ -69,7 +69,7 @@ public sealed class BrowserScreenshotService(
 
         // Cache do Playwright: ~/.cache/ms-playwright/<browser>-*/... — pega
         // a revisão mais recente (ordenação desc por nome do diretório).
-        var playwrightRoot = Path.Combine(
+        var playwrightRoot = Path.Join(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".cache", "ms-playwright");
         if (Directory.Exists(playwrightRoot))
@@ -79,12 +79,12 @@ public sealed class BrowserScreenshotService(
             {
                 foreach (var rel in new[]
                          {
-                             Path.Combine("chrome-linux", "headless_shell"),
-                             Path.Combine("chrome-linux", "chrome"),
-                             Path.Combine("chrome-linux64", "chrome"),
+                             Path.Join("chrome-linux", "headless_shell"),
+                             Path.Join("chrome-linux", "chrome"),
+                             Path.Join("chrome-linux64", "chrome"),
                          })
                 {
-                    var candidate = Path.Combine(dir, rel);
+                    var candidate = Path.Join(dir, rel);
                     if (File.Exists(candidate))
                     {
                         return Cache(candidate);
@@ -121,7 +121,7 @@ public sealed class BrowserScreenshotService(
         width = Math.Clamp(width, MinDimension, MaxDimension);
         height = Math.Clamp(height, MinDimension, MaxDimension);
 
-        var output = Path.Combine(
+        var output = Path.Join(
             Path.GetTempPath(), $"webui-shot-{Guid.NewGuid():N}.png");
         try
         {
@@ -190,7 +190,7 @@ public sealed class BrowserScreenshotService(
                 continue;
             }
 
-            var candidate = Path.Combine(dir, name);
+            var candidate = Path.Join(dir, name);
             if (File.Exists(candidate))
             {
                 return candidate;

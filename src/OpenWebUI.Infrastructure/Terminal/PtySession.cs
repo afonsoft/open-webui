@@ -387,7 +387,7 @@ public sealed class PtySession : IPtySession
         foreach (var dir in path.Split(Path.PathSeparator,
                      StringSplitOptions.RemoveEmptyEntries))
         {
-            var candidate = Path.Combine(dir, name);
+            var candidate = Path.Join(dir, name);
             if (File.Exists(candidate))
             {
                 return candidate;

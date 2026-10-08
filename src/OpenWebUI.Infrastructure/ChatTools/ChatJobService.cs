@@ -34,7 +34,7 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
         }
 
         Directory.CreateDirectory(context.WorkspacePath);
-        var jobsDir = Path.Combine(context.WorkspacePath, ".chat-jobs");
+        var jobsDir = Path.Join(context.WorkspacePath, ".chat-jobs");
         Directory.CreateDirectory(jobsDir);
 
         var job = new ChatJob
@@ -47,7 +47,7 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
             Status = ChatJobStatus.Running,
             StartedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
-        job.OutputPath = Path.Combine(jobsDir, $"{job.Id}.log");
+        job.OutputPath = Path.Join(jobsDir, $"{job.Id}.log");
 
         var psi = new ProcessStartInfo
         {
