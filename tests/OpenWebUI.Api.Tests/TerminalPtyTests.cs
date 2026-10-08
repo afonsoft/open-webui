@@ -351,6 +351,7 @@ public class TerminalPtyTests
         }
         catch (WebSocketException)
         {
+            // WebSocket já encerrado — teardown best-effort.
         }
 
         UseToken(_user.Token);

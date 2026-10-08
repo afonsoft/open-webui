@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -66,10 +67,10 @@ public sealed class A1111Engine(IHttpClientFactory httpClientFactory) : ImageEng
             await GetJsonAsync(config, $"{Base(config)}/sdapi/v1/options", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 
     private static List<byte[]> DecodeImages(JsonNode? json)

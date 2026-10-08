@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -154,7 +155,10 @@ public sealed class BrowserScreenshotService(
             }
             catch (TimeoutException)
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { }
+                catch (Win32Exception) { }
+                catch (NotSupportedException) { }
                 throw new InvalidOperationException(
                     $"Browser headless excedeu {ProcessTimeout.TotalSeconds}s sem responder.");
             }
@@ -171,7 +175,9 @@ public sealed class BrowserScreenshotService(
         }
         finally
         {
-            try { File.Delete(output); } catch { /* best effort */ }
+            try { File.Delete(output); }
+            catch (IOException) { /* best effort */ }
+            catch (UnauthorizedAccessException) { /* best effort */ }
         }
     }
 

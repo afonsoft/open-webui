@@ -61,6 +61,7 @@ public sealed class PushEndpointsTests
         }
         catch (IOException)
         {
+            // Limpeza best-effort — subscription pode nem existir.
         }
     }
 

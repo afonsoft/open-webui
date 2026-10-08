@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -451,10 +452,8 @@ public class GitHubWorkspaceTests
         {
             Git(null, "--version");
         }
-        catch (Exception)
-        {
-            Assert.Ignore("git indisponível neste ambiente.");
-        }
+        catch (Win32Exception) { Assert.Ignore("git indisponível neste ambiente."); }
+        catch (InvalidOperationException) { Assert.Ignore("git indisponível neste ambiente."); }
     }
 
     /// <summary>Cria um repo local (remote <c>file://</c>) com 1 commit.</summary>

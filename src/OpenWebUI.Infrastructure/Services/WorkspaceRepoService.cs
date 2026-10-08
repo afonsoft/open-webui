@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Hosting;
@@ -190,14 +191,16 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
             await process.WaitForExitAsync(ct).WaitAsync(GitTimeout, ct);
             return (process.ExitCode, await stdout, await stderr);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            throw;
+            // Normaliza TaskCanceledException → OperationCanceledException (cancelamento do request propaga).
+            throw new OperationCanceledException(oce.Message, oce, ct);
         }
-        catch (Exception ex)
-        {
-            return (-1, string.Empty, ex.Message);
-        }
+        catch (Win32Exception ex) { return (-1, string.Empty, ex.Message); }
+        catch (ObjectDisposedException ex) { return (-1, string.Empty, ex.Message); }
+        catch (InvalidOperationException ex) { return (-1, string.Empty, ex.Message); }
+        catch (IOException ex) { return (-1, string.Empty, ex.Message); }
+        catch (TimeoutException ex) { return (-1, string.Empty, ex.Message); }
     }
 
     private static bool IsValidSlug(string slug)

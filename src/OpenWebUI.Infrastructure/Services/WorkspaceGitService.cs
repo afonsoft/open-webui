@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -136,7 +137,11 @@ public sealed class WorkspaceGitService
             }
             return count;
         }
-        catch
+        catch (IOException)
+        {
+            return 0;
+        }
+        catch (UnauthorizedAccessException)
         {
             return 0;
         }
@@ -180,9 +185,10 @@ public sealed class WorkspaceGitService
         {
             throw; // cancelamento do request propaga, não vira "sem git"
         }
-        catch
-        {
-            return null; // git ausente, timeout ou spawn falhou
-        }
+        catch (Win32Exception) { return null; }
+        catch (ObjectDisposedException) { return null; }
+        catch (InvalidOperationException) { return null; }
+        catch (IOException) { return null; }
+        catch (TimeoutException) { return null; }
     }
 }

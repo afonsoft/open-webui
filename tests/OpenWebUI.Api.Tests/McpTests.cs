@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -473,18 +474,9 @@ internal sealed class FakeMcpServer : IDisposable
             await ctx.Response.OutputStream.WriteAsync(bytes);
             ctx.Response.Close();
         }
-        catch (Exception)
-        {
-            try
-            {
-                ctx.Response.StatusCode = 500;
-                ctx.Response.Close();
-            }
-            catch (Exception)
-            {
-                // conexão já encerrada
-            }
-        }
+        catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+        catch (IOException) { /* cliente desconectou — ignora */ }
+        catch (ObjectDisposedException) { /* listener parou */ }
     }
 
     private static JsonObject CallTool(JsonElement p)

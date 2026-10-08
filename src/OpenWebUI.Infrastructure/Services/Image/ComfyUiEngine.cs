@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -86,9 +87,9 @@ public sealed class ComfyUiEngine(IHttpClientFactory httpClientFactory) : ImageE
             await GetJsonAsync(config, $"{Base(config)}/system_stats", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }

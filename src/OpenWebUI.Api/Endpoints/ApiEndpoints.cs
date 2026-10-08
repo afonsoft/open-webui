@@ -357,10 +357,9 @@ public static class ApiEndpoints
                 {
                     detected = await capabilities.DetectConnectionAsync("openai", i, ct);
                 }
-                catch (Exception)
-                {
-                    // Provider fora do ar: lista vazia, combos ficam em texto livre.
-                }
+                catch (HttpRequestException) { /* provider fora do ar */ }
+                catch (JsonException) { /* resposta malformada */ }
+                catch (InvalidOperationException) { /* provider fora do ar */ }
             }
         }
 

@@ -30,7 +30,11 @@ public static class SsrfGuard
                 addresses = await Dns.GetHostAddressesAsync(host, ct);
             }
         }
-        catch
+        catch (System.Net.Sockets.SocketException)
+        {
+            return true; // não resolve → fail-closed
+        }
+        catch (ArgumentException)
         {
             return true; // não resolve → fail-closed
         }

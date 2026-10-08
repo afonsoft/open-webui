@@ -40,7 +40,9 @@ public class PythonToolExecutor(IConfiguration configuration)
         }
         finally
         {
-            try { File.Delete(scriptPath); } catch (IOException) { }
+            try { File.Delete(scriptPath); } catch (IOException) {
+                // Arquivo temporário pode nem existir — best-effort.
+            }
         }
     }
 
@@ -184,6 +186,7 @@ __owui_main__()
         }
         catch (InvalidOperationException)
         {
+            // Processo já morreu entre o check e o kill — ignora.
         }
     }
 }

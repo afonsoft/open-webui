@@ -184,10 +184,8 @@ public class SamlService(ConfigService config)
                 ? X509Certificate2.CreateFromPem(certPem)
                 : X509CertificateLoader.LoadCertificate(Convert.FromBase64String(certPem));
         }
-        catch (Exception)
-        {
-            return false;
-        }
+        catch (System.Security.Cryptography.CryptographicException) { return false; }
+        catch (FormatException) { return false; }
 
         var signature = doc.GetElementsByTagName("Signature", SignedXml.XmlDsigNamespaceUrl)
             .OfType<XmlElement>().FirstOrDefault();
@@ -202,10 +200,9 @@ public class SamlService(ConfigService config)
             signedXml.LoadXml(signature);
             return signedXml.CheckSignature(cert, verifySignatureOnly: true);
         }
-        catch (Exception)
-        {
-            return false;
-        }
+        catch (System.Security.Cryptography.CryptographicException) { return false; }
+        catch (System.Xml.XmlException) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     private static XmlDocument LoadSecureXml(string xml)

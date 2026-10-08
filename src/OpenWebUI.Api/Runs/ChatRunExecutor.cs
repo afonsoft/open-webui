@@ -324,7 +324,7 @@ public sealed class ChatRunExecutor(
             return await AskUserAsync(run, call, ct);
         }
 
-        var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
+        var tool = ToolExecutor.FindTool(tools, call.Name);
         if (tool is null || !ToolExecutor.IsMutable(tool)
             || approvals.IsRemembered(run.ChatId, call.Name))
         {

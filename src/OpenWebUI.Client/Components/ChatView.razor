@@ -1461,6 +1461,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -1514,6 +1515,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -1571,6 +1573,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -2040,10 +2043,8 @@
                 runId = (await ChatStream.GetRunsAsync(_loadedChatId))
                     .FirstOrDefault()?.Id;
             }
-            catch
-            {
-                return;
-            }
+            catch (HttpRequestException) { return; }
+            catch (TaskCanceledException) { return; }
         }
         if (runId is null)
         {
