@@ -99,7 +99,8 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc3);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
         await service.SetConfigAsync(VideoConfig.Default with
@@ -167,7 +168,8 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc2);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
         await service.SetConfigAsync(VideoConfig.Default with
@@ -247,9 +249,10 @@ public class VideoTests
     private VideoGenerationService NewVideoService()
     {
         var db = NewIsolatedDb();
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         return new VideoGenerationService(
             new VideoEngineFactory(new StubFactory()),
-            new ConfigService(db, new MemoryCache(new MemoryCacheOptions())), db);
+            new ConfigService(db, mc1), db);
     }
 
     private AppDbContext NewIsolatedDb()

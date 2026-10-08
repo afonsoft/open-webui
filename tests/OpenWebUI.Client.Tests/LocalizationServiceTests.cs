@@ -10,6 +10,19 @@ namespace OpenWebUI.Client.Tests;
 [TestFixture]
 public class LocalizationServiceTests
 {
+    private readonly List<IDisposable> _owned = [];
+
+    /// <summary>Libera os HttpClients criados pelas factories de serviço.</summary>
+    [TearDown]
+    public void TearDown()
+    {
+        foreach (var disposable in _owned)
+        {
+            disposable.Dispose();
+        }
+        _owned.Clear();
+    }
+
     private static readonly Dictionary<string, string> PtBr = new()
     {
         ["chat.send"] = "Enviar",
@@ -145,7 +158,7 @@ public class LocalizationServiceTests
         Assert.That(service["channel.typing"], Is.EqualTo("{{name}} is typing…"));
     }
 
-    private static LocalizationService CreateServiceWithManifest(string manifestJson)
+    private LocalizationService CreateServiceWithManifest(string manifestJson)
     {
         var http = new HttpClient(new StubHandler((request, _) =>
         {
@@ -162,10 +175,11 @@ public class LocalizationServiceTests
         {
             BaseAddress = new Uri("http://localhost/"),
         };
+        _owned.Add(http);
         return new LocalizationService(http, new FakeJs());
     }
 
-    private static LocalizationService CreateServiceWithDicts(
+    private LocalizationService CreateServiceWithDicts(
         Dictionary<string, Dictionary<string, string>> dicts,
         string? manifestJson = null)
     {
@@ -191,10 +205,11 @@ public class LocalizationServiceTests
         {
             BaseAddress = new Uri("http://localhost/"),
         };
+        _owned.Add(http);
         return new LocalizationService(http, new FakeJs());
     }
 
-    private static (LocalizationService Service, FakeJs Js) CreateService(
+    private (LocalizationService Service, FakeJs Js) CreateService(
         string? storedLanguage, Dictionary<string, string>? en = null)
     {
         var dicts = new Dictionary<string, Dictionary<string, string>>
@@ -216,6 +231,7 @@ public class LocalizationServiceTests
         {
             BaseAddress = new Uri("http://localhost/"),
         };
+        _owned.Add(http);
 
         var js = new FakeJs();
         if (storedLanguage is not null)
@@ -229,9 +245,27 @@ public class LocalizationServiceTests
     private sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
-            => handler(request, cancellationToken);
+        {
+            var response = await handler(request, cancellationToken);
+            _pending.Add(response);
+            return response;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class FakeJs : IJSRuntime

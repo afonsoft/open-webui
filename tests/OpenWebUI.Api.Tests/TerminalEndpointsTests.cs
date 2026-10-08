@@ -127,7 +127,7 @@ public class TerminalEndpointsTests
     private static async Task<(WebApplication App, int Port)> StartWsEchoAsync()
     {
         var port = new Random().Next(40000, 60000);
-        var app = WebApplication.Create();
+        await using var app = WebApplication.Create();
         app.Urls.Add($"http://localhost:{port}");
         app.UseWebSockets();
         app.Map("/{**p}", async http =>

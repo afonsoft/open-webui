@@ -23,6 +23,7 @@ namespace OpenWebUI.Api.Tests;
 [TestFixture]
 public class ServiceCoverageTests
 {
+    private readonly MemoryCache mc2 = new(new MemoryCacheOptions());
     private string _dbPath = null!;
 
     [SetUp]
@@ -36,6 +37,7 @@ public class ServiceCoverageTests
     [TearDown]
     public void TearDown()
     {
+        mc2.Dispose();
         if (File.Exists(_dbPath))
         {
             File.Delete(_dbPath);
@@ -47,7 +49,7 @@ public class ServiceCoverageTests
             .UseSqlite($"Data Source={_dbPath}").Options);
 
     private ConfigService NewConfig() =>
-        new(NewDb(), new MemoryCache(new MemoryCacheOptions()));
+        new(NewDb(), mc2);
 
     private async Task SeedConfigAsync(string key, object value)
     {
@@ -110,7 +112,7 @@ public class ServiceCoverageTests
     public async Task WebLoader_StreamingAcimaDoMax_RejeitaNoLoop()
     {
         // Sem Content-Length → o limite só é detectado no loop de leitura.
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 100)))
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 100)))
         { Position = 0 };
         var handler = new RouteHandler(_ =>
         {
@@ -376,7 +378,7 @@ public class ServiceCoverageTests
     public async Task Embedding_OllamaPrimeiro_OpenAiFallback_EIndisponivel()
     {
         await SeedConnectionsAsync();
-        var cache = new MemoryCache(new MemoryCacheOptions());
+        using var cache = new MemoryCache(new MemoryCacheOptions());
 
         // Ollama responde embeddings no formato /api/embed.
         var svc = new EmbeddingService(new StubFactory(
@@ -436,8 +438,9 @@ public class ServiceCoverageTests
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         var svc = new ProviderService(new StubFactory(handler), NewConfig(),
-            NullLogger<ProviderService>.Instance, new MemoryCache(new MemoryCacheOptions()));
+            NullLogger<ProviderService>.Instance, mc1);
 
         var ollama = await svc.ListModelsForConnectionAsync("ollama", 0);
         Assert.That(ollama.Select(m => m.Id), Does.Contain("llama3"));
@@ -487,12 +490,30 @@ public class ServiceCoverageTests
     private sealed class FakeHandler(HttpStatusCode status, string body, string mediaType)
         : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
+            HttpRequestMessage request, CancellationToken cancellationToken) 
+        {
+            var response = new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, mediaType),
-            });
+            };
+            _pending.Add(response);
+            return Task.FromResult(response);
+        }
     }
 
     private sealed class RouteHandler(Func<HttpRequestMessage, HttpResponseMessage> route)

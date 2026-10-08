@@ -120,14 +120,19 @@ public class PluginEcosystemTests
                     WriteJson(ctx, "{\"models\":[{\"model\":\"fake:1\",\"name\":\"fake:1\"}]}");
                     break;
                 case "/api/chat":
-                    _lastChatBody = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+                {
+                    using var reader = new StreamReader(ctx.Request.InputStream);
+                    _lastChatBody = await reader.ReadToEndAsync();
                     WriteJson(ctx, "{\"message\":{\"content\":\"resposta do mock\"},\"done\":true}");
                     break;
+                }
                 case "/models":
                     WriteJson(ctx, "[{\"id\":\"pipe-1\",\"name\":\"Pipe Um\"}]");
                     break;
                 case "/chat/completions":
-                    _lastPipeBody = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+                {
+                    using var reader = new StreamReader(ctx.Request.InputStream);
+                    _lastPipeBody = await reader.ReadToEndAsync();
                     var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"pipeline resposta\"}}]}\n\n"
                         + "data: [DONE]\n\n";
                     var bytes = Encoding.UTF8.GetBytes(sse);
@@ -136,6 +141,7 @@ public class PluginEcosystemTests
                     await ctx.Response.OutputStream.WriteAsync(bytes);
                     ctx.Response.Close();
                     break;
+                }
                 default:
                     WriteJson(ctx, "{}", 404);
                     break;
@@ -334,7 +340,7 @@ public class PluginEcosystemTests
     {
         // Servidor numa porta que só responde /models durante a descoberta
         var port = Random.Shared.Next(40000, 60000);
-        var dead = new HttpListener();
+        using var dead = new HttpListener();
         dead.Prefixes.Add($"http://localhost:{port}/");
         dead.Start();
         _ = Task.Run(async () =>

@@ -138,7 +138,7 @@ public class ModelFiltersTests
 
     private async Task<string> CompleteAsync(string model, string userText)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 model, [new ChatCompletionMessage("user", userText)])),
@@ -195,7 +195,7 @@ public class ModelFiltersTests
         await CreateModelAsync(
             """{"filters":[{"type":"max_tokens_cap","config":{"max_tokens":64}}]}""",
             "filtro-cap");
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 "filtro-cap", [new ChatCompletionMessage("user", "oi")],

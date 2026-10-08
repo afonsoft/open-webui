@@ -146,7 +146,7 @@ public class ScimTests
             "/scim/v2/Users?filter=userName%20eq%20%22provisionado%40scim.local%22");
         var id = list!.Resources[0].Id;
 
-        var patch = new HttpRequestMessage(HttpMethod.Patch, $"/scim/v2/Users/{id}")
+        using var patch = new HttpRequestMessage(HttpMethod.Patch, $"/scim/v2/Users/{id}")
         {
             Content = JsonContent.Create(new
             {

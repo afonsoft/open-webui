@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -208,7 +209,8 @@ public class OAuthEndpointsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        return new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc4 = new MemoryCache(new MemoryCacheOptions());
+        return new OAuthService(db, new ConfigService(db, mc4));
     }
 
     private static string NewServiceDbPath() =>
@@ -216,8 +218,10 @@ public class OAuthEndpointsTests
 
     /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.</summary>
     private sealed class RewriteToMockHandler(Uri mockBase)
-        : DelegatingHandler(new HttpClientHandler())
+        : DelegatingHandler(SharedInner)
     {
+        private static readonly HttpClientHandler SharedInner = new();
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken ct)
         {
@@ -615,7 +619,8 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var service = new OAuthService(db, new ConfigService(db, mc3));
 
         var first = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
         var second = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
@@ -644,7 +649,8 @@ public class OAuthEndpointsTests
         };
         db.Users.Add(existente);
         await db.SaveChangesAsync();
-        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var service = new OAuthService(db, new ConfigService(db, mc2));
 
         var link = await service.LinkOrCreateAsync(" OIDC ", "sub-9", " exist@b.c ", null);
 
@@ -691,7 +697,8 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc1);
         await config.SetAsync("admin.config",
             AdminConfig.Default with { DefaultUserRole = "convidado" });
         db.Users.Add(new User

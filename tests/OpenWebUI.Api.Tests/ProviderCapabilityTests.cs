@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
@@ -41,9 +42,9 @@ public class ProviderCapabilityTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
         _config = new ConfigService(_db,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            mc2);
         _mockUrl = StartMock();
     }
 
@@ -54,10 +55,10 @@ public class ProviderCapabilityTests
         while (_paths.TryTake(out _)) { }
 
         await _db.ConfigEntries.ExecuteDeleteAsync();
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         _db.ChangeTracker.Clear(); // delete em massa não desanexa entidades
         _config = new ConfigService(_db,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            mc1);
     }
 
     [OneTimeTearDown]

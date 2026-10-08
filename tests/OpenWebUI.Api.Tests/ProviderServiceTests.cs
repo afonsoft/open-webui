@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
@@ -16,8 +17,10 @@ namespace OpenWebUI.Api.Tests;
 [TestFixture]
 public class ProviderServiceTests
 {
+    private readonly MemoryCache mc1 = new(new MemoryCacheOptions());
     private string _dbPath = null!;
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
@@ -49,7 +52,8 @@ public class ProviderServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
-        _config = new ConfigService(_db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _mockUrl = StartMock();
     }
 
@@ -66,6 +70,8 @@ public class ProviderServiceTests
     {
         _mockCts.Cancel();
         _mock.Stop();
+        _cache.Dispose();
+        mc1.Dispose();
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
@@ -76,8 +82,7 @@ public class ProviderServiceTests
     private ProviderService NewService() =>
         new(new FakeHttpClientFactory(_clientTimeout), _config,
             NullLogger<ProviderService>.Instance,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            mc1);
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>
@@ -158,9 +163,16 @@ public class ProviderServiceTests
         try
         {
             var path = ctx.Request.Url!.AbsolutePath;
-            var body = ctx.Request.HasEntityBody
-                ? await new StreamReader(ctx.Request.InputStream).ReadToEndAsync(ct)
-                : string.Empty;
+            string body;
+            if (ctx.Request.HasEntityBody)
+            {
+                using var reader = new StreamReader(ctx.Request.InputStream);
+                body = await reader.ReadToEndAsync(ct);
+            }
+            else
+            {
+                body = string.Empty;
+            }
             _requests.Enqueue(new RecordedRequest(
                 path, ctx.Request.Headers["Authorization"], body));
 

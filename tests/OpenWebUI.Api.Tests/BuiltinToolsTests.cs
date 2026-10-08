@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -395,10 +396,10 @@ public class BuiltinToolsTests
         var registry = new BuiltinToolRegistry(
             [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
             new ConfigurationBuilder().Build());
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new ConfigurationBuilder().Build()),
-            new McpClientService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            new McpClientService(db, mc3),
             registry);
 
         var tools = await executor.LoadEnabledAsync("u1", ["builtin:fetch_url"]);
@@ -425,10 +426,10 @@ public class BuiltinToolsTests
         var registry = new BuiltinToolRegistry(
             [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
             new ConfigurationBuilder().Build());
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new ConfigurationBuilder().Build()),
-            new McpClientService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            new McpClientService(db, mc2),
             registry);
 
         var tools = await executor.LoadEnabledAsync("u1", ["builtin:fetch_url"]);
@@ -519,7 +520,7 @@ public class BuiltinToolsTests
 
     private GenerateImageBuiltinTool NewImageTool()
     {
-        var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
         var svc = new ImageGenerationService(
             new ImageEngineFactory(new StubHttpClientFactory()),
@@ -544,7 +545,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task WebSearch_ArgsObrigatoriosESemEngine()
     {
-        var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
         var db = NewDb();
         // engine=none explícito: o default passou a ser duckduckgo.
@@ -736,10 +737,10 @@ public class BuiltinToolsTests
         await db.SaveChangesAsync();
 
         var ddgJson = "{\"RelatedTopics\":[{\"Text\":\"Resultado um\",\"FirstURL\":\"https://ex.com\"}]}";
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         var tool = new WebSearchBuiltinTool(new WebSearchService(
             new StubHttpClientFactory(new FakeHandler(HttpStatusCode.OK, ddgJson, "application/json")),
-            new ConfigService(NewDb(), new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))));
+            new ConfigService(NewDb(), mc1)));
 
         var r = await tool.ExecuteAsync(
             Args("{\"query\":\"devin\",\"count\":3}"), Ctx(), default);
@@ -979,13 +980,31 @@ public class BuiltinToolsTests
     private sealed class FakeHandler(HttpStatusCode status, string content, string mediaType)
         : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
+            HttpRequestMessage request, CancellationToken cancellationToken) 
+        {
+            var response = new HttpResponseMessage(status)
             {
                 Content = new StringContent(
                     content, System.Text.Encoding.UTF8, mediaType),
-            });
+            };
+            _pending.Add(response);
+            return Task.FromResult(response);
+        }
     }
 
     private sealed class ThrowingHandler : HttpMessageHandler

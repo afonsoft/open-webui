@@ -107,7 +107,8 @@ public class InfraServicesTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             var (status, contentType, payload) = Route(ctx.Request.Url!.AbsolutePath, body);
             var bytes = Encoding.UTF8.GetBytes(payload);
             ctx.Response.StatusCode = status;
@@ -186,7 +187,7 @@ public class InfraServicesTests
 
     private async Task<string> PostChatCompletionsAsync(ChatCompletionRequest request)
     {
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(request),
         };
