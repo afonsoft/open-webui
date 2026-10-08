@@ -22,7 +22,7 @@
         }
         else
         {
-            <h1 class="shared-title">@_chat.Title</h1>
+            <h1 class="shared-title" tabindex="-1">@_chat.Title</h1>
             <div class="shared-meta">
                 @L.T("shared.by", ("name", _chat.User?.Name ?? L["shared.user"])) ·
                 @FormatDate(_chat.UpdatedAt)

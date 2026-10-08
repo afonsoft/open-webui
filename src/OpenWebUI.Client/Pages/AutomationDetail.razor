@@ -7,8 +7,8 @@
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">@(_item?.Name ?? L["page.automations"])</h1>
-        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+        <h1 class="page-title" tabindex="-1">@(_item?.Name ?? L["page.automations"])</h1>
+        <a class="msg-action" href="/automations">← @L["common.back"]</a>
     </div>
 
     @if (_notFound)
@@ -103,7 +103,6 @@
         _item = await Api.GetAutomationAsync(Id!);
     }
 
-    private void GoBack() => Nav.NavigateTo("/automations");
 
     private string ScheduleLabel(AutomationResponse a) => a.ScheduleKind switch
     {
