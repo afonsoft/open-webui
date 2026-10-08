@@ -194,13 +194,13 @@
                     </label>
                     @if (_notifyPermission is "denied" or "unsupported")
                     {
-                        <p class="hint text-red-600 dark:text-red-400">
+                        <p class="field-note text-red-600 dark:text-red-400">
                             @L[_notifyPermission == "denied"
                                 ? "settings.notify_permission_denied"
                                 : "settings.notify_permission_unsupported"]
                         </p>
                     }
-                    <p class="hint">@L["settings.notify_hint"]</p>
+                    <p class="field-note">@L["settings.notify_hint"]</p>
                 }
                 else if (_tab == "connections")
                 {
