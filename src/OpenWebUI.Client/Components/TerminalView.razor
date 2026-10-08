@@ -30,7 +30,9 @@ else
                             ? "bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900")"
                         @onclick="() => ActivateAsync(session)">
-                    <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"></span>
+                    <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"
+                                role="img" aria-label="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"
+                                title="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"></span>
                     @session.Id
                     <span class="text-gray-400 hover:text-red-500" title="@L["terminal.kill"]"
                           @onclick:stopPropagation="true" @onclick="() => KillAsync(session.Id)">✕</span>

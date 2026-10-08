@@ -31,7 +31,7 @@
                 @foreach (var message in _chat.Messages)
                 {
                     <div class="message @message.Role">
-                        <div class="message-avatar">@(message.Role == "assistant" ? "◈" : "U")</div>
+                        <div class="message-avatar" aria-hidden="true">@(message.Role == "assistant" ? "◈" : "U")</div>
                         <div class="message-body">
                             <div class="message-meta">
                                 @(message.Role == "assistant" ? message.Model ?? L["chat.assistant"] : _chat.User?.Name ?? L["chat.you"])

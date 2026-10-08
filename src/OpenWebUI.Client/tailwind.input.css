@@ -105,6 +105,21 @@
 		}
 	}
 
+	/* prefers-reduced-motion: neutraliza animações/transições/blink no app
+	   inteiro. O estado funcional continua visível (spinner estático, dot
+	   parado) — só o movimento some. */
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		::before,
+		::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+			transition-delay: 0ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+
 	/* ----- Componentes compartilhados (páginas secundárias, modais) ----- */
 
 	.page {

@@ -7,7 +7,7 @@
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">📁 @(_folder?.Name ?? "")</h1>
+        <h1 class="page-title"><span aria-hidden="true">📁 </span>@(_folder?.Name ?? "")</h1>
         <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
     </div>
 

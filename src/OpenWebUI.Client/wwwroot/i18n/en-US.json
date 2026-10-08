@@ -654,5 +654,14 @@
   "admin.provider_custom": "Manual (URL/key below)",
   "admin.provider_register_hint": "No OpenAI connection registered —",
   "admin.provider_register": "register a provider",
-  "admin.n8n_not_configured": "n8n not configured — add URL and key above"
+  "admin.n8n_not_configured": "n8n not configured — add URL and key above",
+  "terminal.status_running": "Running",
+  "terminal.status_stopped": "Stopped",
+  "calendar.today": "Today",
+  "calendar.has_events": "Has events",
+  "calendar.runs_ok": "Runs completed",
+  "calendar.runs_error": "Runs with failures",
+  "chat.panel_mcp_ok": "connected",
+  "chat.panel_mcp_disabled": "disabled",
+  "channel.react_emoji": "React with {{emoji}}"
 }

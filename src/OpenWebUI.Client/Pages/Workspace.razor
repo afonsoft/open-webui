@@ -67,7 +67,7 @@
             {
                 <div class="card-row">
                     <div class="card-main">
-                        <div class="card-title">📎 @file.Filename</div>
+                        <div class="card-title"><span aria-hidden="true">📎 </span>@file.Filename</div>
                         <div class="card-sub">@FormatSize(file.Size) · @FormatDate(file.CreatedAt)</div>
                     </div>
                     <div class="card-actions">
@@ -108,7 +108,7 @@
                             <div class="card-sub">
                                 @foreach (var kf in _knowledgeDetail.Files)
                                 {
-                                    <div>📄 @kf.Filename
+                                    <div><span aria-hidden="true">📄 </span>@kf.Filename
                                         <button class="msg-action danger" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
                                     </div>
                                 }

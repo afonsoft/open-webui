@@ -654,5 +654,14 @@
   "admin.provider_custom": "Manual (URL/chave abaixo)",
   "admin.provider_register_hint": "Nenhuma conexão OpenAI cadastrada —",
   "admin.provider_register": "cadastrar provider",
-  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima"
+  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima",
+  "terminal.status_running": "Em execução",
+  "terminal.status_stopped": "Parada",
+  "calendar.today": "Hoje",
+  "calendar.has_events": "Com eventos",
+  "calendar.runs_ok": "Execuções concluídas",
+  "calendar.runs_error": "Execuções com falhas",
+  "chat.panel_mcp_ok": "conectado",
+  "chat.panel_mcp_disabled": "desabilitado",
+  "channel.react_emoji": "Reagir com {{emoji}}"
 }
