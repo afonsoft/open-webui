@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `devin/1791375000-chat-tool-ux` |
 | Ticket | `GAP-chat-agent-ux` |
-| Status | `In Progress` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -96,3 +96,17 @@ Referências analisadas: Devin Web (chat + workspace com tabs Shell/IDE/Browser/
 - [ ] `ask_user` pausa a run, renderiza opções, resposta alimenta o loop.
 - [ ] Histórico `↑` e rascunho por chat funcionam ao trocar de conversa.
 - [ ] i18n nos 8 locales; testes cobrindo decision-com-message, ask_user e painel.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Resumo por tool | delivered | `Client/Services/ToolArgsPreview.cs` — resumo de 1 linha por tool (JSON tolerante a truncamento); `ToolCallCard` exibe `shell_exec` como `$ comando` com colapso ~10 linhas |
+| RF-002 Negar com instrução | delivered | `Api/Runs/ChatRunApprovals.cs:83,97` — `message` opcional (≤2KB, scrubbed); deny com mensagem injeta `Erro: execução negada pelo usuário: {message}` como tool_result |
+| RF-003 Corpo rico no prompt | delivered | `PermissionPromptCard.razor` — campo-chave extraído do `argsPreview` + JSON truncado; `deny` abre campo de instrução |
+| RF-004 Painel de contexto | delivered | `ChatWorkspacePanel.razor` — fase da run, MCPs com status, jobs (poll leve), preset vigente; bottom-sheet/drawer no mobile |
+| RF-005 ask_user | delivered | `Tools/AskUserBuiltinTool.cs` + `QuestionPromptCard.razor` (`ChatView.razor:216,1775`) — perguntas `{question, options[], multiple?}`, resposta volta como tool result |
+| RF-006 Composer | delivered | `ChatView.razor:1028-1039` `↑` navega histórico por chat; `:1146` `/` abre prompt suggestions (palette de comandos) |
+

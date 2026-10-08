@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261007-mcp-ux-chat-polish` |
 | Ticket | `GAP-mcp-ux-chat-polish` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -108,3 +108,16 @@ tests/OpenWebUI.Api.Tests/McpEndpointsTests.cs (+test endpoint)
 ## 7. Notas
 
 `McpClientService` já faz discovery (`tools/list`) — o endpoint `/test` é um wrapper medindo latência. Cards/palette seguem os RFs de P3 quando disponíveis; esta SPEC cobre a parte que não depende de runs (pode entregar antes do P3 parcial: palette + MCP UX).
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Cards com status | delivered | `Admin.razor:860-890` — dot verde/vermelho/cinza por `LastError`/`Enabled`, nome, badge de transporte, host resumido, nº de tools; erro com tooltip de timestamp |
+| RF-002 Testar conexão | delivered (equivalente) | botão ⟳ → `POST /api/v1/mcp/servers/{id}/refresh` (`McpEndpoints.cs:26,161-184`) — handshake + `tools/list`, admin-only, resultado inline (`_mcpTestResults`, `Admin.razor:2192-2210`). Desvio documentado: rota é `/refresh` e payload `{status,tools}` (sem `latencyMs`) — alternativa aceita, mesmo efeito do `/test` proposto |
+| RF-003 Tools expansíveis | delivered | `GET .../{id}/tools` (`McpEndpoints.cs:27,186-206`) + lista expansível por card (`_mcpTools`, `Admin.razor:889+`) com nome/descrição; refresh atualiza cache |
+| RF-004 Form guiado | delivered | transporte primeiro com hint contextual, validação inline (`Validate`, `McpEndpoints.cs:207+` — URL http(s), comando não vazio, bloqueio de metadata IP); erro do backend no campo certo |
+| RF-005 Elementos de chat | delivered | (a) chip "Executando tool: X" (`ChatView.razor:1723-1744`); (b) `ToolCallCard`/`PermissionPromptCard`; (c) preset chip na toolbar (`:403-410`); (d) `/` palette via prompt suggestions (`:1146`) |
+

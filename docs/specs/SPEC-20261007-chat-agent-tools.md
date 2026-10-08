@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261007-chat-agent-tools` |
 | Ticket | `GAP-chat-agent-tools` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -116,3 +116,17 @@ tests/OpenWebUI.Api.Tests/{BuiltinToolsTests,TerminalPtyTests}.cs
 ## 7. Notas
 
 xterm.js entra vendored em `wwwroot/lib/xterm/` (mesmo padrão do harness — sem CDN). PTY em .NET: sem pacote novo, `Process` + redirecionamento não dá PTY real — usar `openpty`/conpty via biblioteca (ex.: `Pty.Net` 0.x) ou fallback pipe-based documentado. `web_search` como tool reusa `WebSearchService`; verificar engines configuradas antes de expor no registry.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Registry built-in | delivered | `Infrastructure/ChatTools/BuiltinToolRegistry.cs` + `IBuiltinChatTool`; ids `builtin:<name>` com badge "sistema"; `RequiresApproval` respeitado; `BUILTIN_TOOLS_DISABLED` por nome; `BuiltinToolsTests` |
+| RF-002 generate_image | delivered | `Tools/GenerateImageBuiltinTool.cs` — prompt(+size) → provider de imagem → `data/images/{userId}/` → `{imagePath}` renderizado inline no card |
+| RF-003 code_interpreter | delivered | `Tools/CodeInterpreterBuiltinTool.cs` — python3/node em `.chat-tmp` do workspace do usuário, timeout, kill da árvore, saída truncada + scrub; `PythonToolExecutorTests` |
+| RF-004 shell_exec + jobs | delivered | `Tools/ShellExecBuiltinTool.cs` + `CommandRiskClassifier.cs` (Dangerous → refused; fora do workspace → refused) + `JobBuiltinTools.cs` (`job_list/job_output/job_kill`, jobs duráveis); `ChatToolsEdgeTests` cobre o classifier |
+| RF-005 Terminal PTY | delivered | `Api/Endpoints/TerminalEndpoints.cs` + `TerminalSessionManager` (idle-timeout, limite por usuário, reconexão) + xterm.js com abas/resize/kill; flag `TERMINAL_ENABLED` off por default; `TerminalPtyTests` |
+| RF-006 fetch_url / web_search | delivered | `Tools/FetchUrlBuiltinTool.cs` (SSRF guard RFC1918/loopback, limite de tamanho, texto markdown-ish) + `WebSearchBuiltinTool.cs` reusando `WebSearchService` |
+

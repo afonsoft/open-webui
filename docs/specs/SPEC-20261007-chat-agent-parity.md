@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `devin/1791380000-chat-agent-parity` |
 | Ticket | `GAP-chat-agent-parity` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -130,3 +130,19 @@ Novas tools builtin: `builtin:todo_write`, `builtin:file_read`, `builtin:file_wr
 - [ ] `generate_video` produz arquivo e renderiza `<video>` no transcript via ChatJob.
 - [ ] `n8n_trigger` dispara workflow e devolve resultado como tool_result; webhook inbound cria run no chat vinculado.
 - [ ] i18n nos 8 locales; cobertura não regride (≥90% line / ≥73% branch).
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-010 todo_write + Tasks | delivered | `Infrastructure/ChatTools/Tools/TodoWriteBuiltinTool.cs`; aba Tasks em `Client/Components/ChatWorkspacePanel.razor:37-52` com toggle manual |
+| RF-011 File tools + diff | delivered | `FileBuiltinTools.cs` (`file_list/file_read/file_grep/file_glob/file_write/file_edit`) confinados via `WorkspaceFiles.ResolveInside`; tool_result com diff unified; `ToolCallCard.razor:95,162-173` renderiza +/- colorido; `ChatToolsEdgeTests` cobre a matriz |
+| RF-013 Risk approvals | delivered | `Infrastructure/ChatTools/ToolCallRiskClassifier.cs` — `Low|Medium|High` por tool+args; preset `auto`/`smart` (`:7-23,51`); integrado ao gate de aprovação do executor |
+| RF-014 Pause/resume | delivered | `POST .../runs/{runId}/pause|resume` (`Api/Endpoints/ChatRunEndpoints.cs:30-31`) + `Api/Runs/ChatRunPauses.cs`; chip de estado reflete `paused`; `chat.pause/resume` no ChatView |
+| RF-015 Workspace panel | delivered | `ChatWorkspacePanel.razor` — tabs `Tasks|Changes|Jobs|MCPs|Info` (`:19-34`), painel ≥lg + drawer mobile |
+| RF-016 delegate | delivered | `DelegateTaskBuiltinTool.cs` — cria run filha em chat próprio do usuário (histórico isolado, sem recursão `:14-16`); resultado volta como tool_result |
+| RF-017 browser_screenshot | delivered | `BrowserScreenshotBuiltinTool.cs` — flag `browser.enabled`/`BrowserTools:Enabled` (off por padrão, admin); PNG em `/api/v1/files/{id}/content` (`:110`) |
+| RF-018 Git bar | delivered | `ChatWorkspacePanel.razor:76-90` — quando `workdir/.git` existe: branch + `+a/−d` agregado e diff por arquivo |
+
