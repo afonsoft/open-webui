@@ -32,7 +32,7 @@
                         {
                             <div class="field">
                                 <label>@L["workspace.prompt_command"]</label>
-                                <input class="input" placeholder="meu-comando" @bind="_pCommand" />
+                                <input class="input" placeholder="@L["workspace.command_ph"]" @bind="_pCommand" />
                             </div>
                             <div class="field">
                                 <label>@L["common.title"]</label>
@@ -219,7 +219,7 @@
         {
             "system_inject" => new JsonObject
             {
-                ["text"] = "Responda sempre em pt-BR de forma objetiva.",
+                ["text"] = L["workspace.preset_inject_text"],
                 ["position"] = "append",
             },
             "params_override" => new JsonObject { ["temperature"] = 0.2 },

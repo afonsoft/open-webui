@@ -113,6 +113,6 @@
         _ => a.ScheduleKind,
     };
 
-    private static string FormatDate(long epoch) =>
-        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long epoch) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime);
 }

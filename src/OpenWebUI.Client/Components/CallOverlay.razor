@@ -47,8 +47,10 @@
     /// <summary>Fecha o overlay.</summary>
     [Parameter] public EventCallback OnClose { get; set; }
 
-    /// <summary>Idioma do reconhecimento.</summary>
-    [Parameter] public string Lang { get; set; } = "pt-BR";
+    /// <summary>Idioma do reconhecimento — padrão segue o idioma da UI.</summary>
+    [Parameter] public string? Lang { get; set; }
+
+    private string SttLang => Lang ?? L.Language;
 
     private string _state = "idle"; // idle | listening | thinking | speaking | error
     private string _transcript = string.Empty;
@@ -85,7 +87,7 @@
         _transcript = string.Empty;
         _error = null;
         _state = "listening";
-        var started = await JS.InvokeAsync<bool>("openwebui.audio.startStt", _ref, Lang);
+        var started = await JS.InvokeAsync<bool>("openwebui.audio.startStt", _ref, SttLang);
         if (!started)
         {
             _state = "error";

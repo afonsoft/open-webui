@@ -654,5 +654,16 @@
   "admin.provider_custom": "Manual (URL/chave abaixo)",
   "admin.provider_register_hint": "Nenhuma conexão OpenAI cadastrada —",
   "admin.provider_register": "cadastrar provider",
-  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima"
+  "admin.n8n_not_configured": "n8n não configurado — cadastre URL e chave acima",
+  "common.dismiss": "Dispensar",
+  "auth.email_placeholder": "voce@exemplo.com",
+  "folder.default_name": "Pasta",
+  "workspace.preset_inject_text": "Responda sempre em pt-BR de forma objetiva.",
+  "admin.elevenlabs_url_ph": "https://api.elevenlabs.io (opcional)",
+  "admin.azure_region_ph": "região (ex.: brazilsouth)",
+  "admin.tts_base_url_ph": "base URL (opcional, sobrepõe a região)",
+  "admin.rerank_key_ph": "api key (opcional)",
+  "admin.sp_entity_ph": "SP Entity ID (opcional)",
+  "workspace.command_ph": "meu-comando",
+  "channel.fallback_name": "canal"
 }

@@ -284,6 +284,6 @@
 
     private string WeekdayName(int d) => L[$"calendar.d{d}"];
 
-    private static string FormatDate(long epoch) =>
-        DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime.ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long epoch) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(epoch).LocalDateTime);
 }

@@ -181,7 +181,7 @@
                                 <div class="card-meta">
                                     @chat.UserName &lt;@chat.UserEmail&gt; ·
                                     @L.T("admin.chats_messages", ("count", chat.MessageCount.ToString())) ·
-                                    @DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime.ToString("dd/MM/yyyy HH:mm")
+                                    @L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime)
                                 </div>
                             </div>
                             <div class="card-actions">
@@ -701,15 +701,15 @@
                                 }
                                 else if (_ttsEngine == "elevenlabs")
                                 {
-                                    <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.elevenlabs.io (opcional)" />
+                                    <input class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.elevenlabs_url_ph"]" />
                                     <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
                                     <input class="input" @bind="_ttsModel" placeholder="eleven_multilingual_v2" />
                                     <input class="input" @bind="_ttsVoice" placeholder="voice_id" />
                                 }
                                 else if (_ttsEngine == "azure")
                                 {
-                                    <input class="input" @bind="_azureRegion" placeholder="region (ex.: brazilsouth)" />
-                                    <input class="input" @bind="_ttsBaseUrl" placeholder="base URL (opcional, sobrepõe a região)" />
+                                    <input class="input" @bind="_azureRegion" placeholder="@L["admin.azure_region_ph"]" />
+                                    <input class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.tts_base_url_ph"]" />
                                     <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
                                     <input class="input" @bind="_ttsVoice" placeholder="pt-BR-FranciscaNeural" />
                                 }
@@ -802,7 +802,7 @@
                                     @if (_retRerankEngine == "external")
                                     {
                                         <input class="input" @bind="_retRerankUrl" placeholder="http://reranker:8080/rerank" />
-                                        <input class="input" type="password" @bind="_retRerankKey" placeholder="api key (opcional)" />
+                                        <input class="input" type="password" @bind="_retRerankKey" placeholder="@L["admin.rerank_key_ph"]" />
                                     }
                                 }
                             </div>
@@ -1273,7 +1273,7 @@
                                 <input class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
                                 <textarea class="input" rows="3" @bind="_samlCert"
                                     placeholder="@(_samlHasCert ? "********" : "IdP X.509 PEM")"></textarea>
-                                <input class="input" @bind="_samlSpEntity" placeholder="SP Entity ID (opcional)" />
+                                <input class="input" @bind="_samlSpEntity" placeholder="@L["admin.sp_entity_ph"]" />
                                 <input class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
                                 <button class="auth-submit" @onclick="SaveSamlAsync">@L["common.save"]</button>
                             </div>
@@ -2064,8 +2064,8 @@
     private async Task CopyTextAsync(string text) =>
         await JS.InvokeVoidAsync("openwebui.copyText", text);
 
-    private static string FormatTs(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatTs(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 
     private static string FormatBytes(long? bytes) => bytes switch
     {
@@ -2694,6 +2694,6 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDate(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

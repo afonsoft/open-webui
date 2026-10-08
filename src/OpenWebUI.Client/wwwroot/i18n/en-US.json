@@ -654,5 +654,16 @@
   "admin.provider_custom": "Manual (URL/key below)",
   "admin.provider_register_hint": "No OpenAI connection registered —",
   "admin.provider_register": "register a provider",
-  "admin.n8n_not_configured": "n8n not configured — add URL and key above"
+  "admin.n8n_not_configured": "n8n not configured — add URL and key above",
+  "common.dismiss": "Dismiss",
+  "auth.email_placeholder": "you@example.com",
+  "folder.default_name": "Folder",
+  "workspace.preset_inject_text": "Always answer in English concisely.",
+  "admin.elevenlabs_url_ph": "https://api.elevenlabs.io (optional)",
+  "admin.azure_region_ph": "region (e.g. brazilsouth)",
+  "admin.tts_base_url_ph": "base URL (optional, overrides region)",
+  "admin.rerank_key_ph": "api key (optional)",
+  "admin.sp_entity_ph": "SP Entity ID (optional)",
+  "workspace.command_ph": "my-command",
+  "channel.fallback_name": "channel"
 }
