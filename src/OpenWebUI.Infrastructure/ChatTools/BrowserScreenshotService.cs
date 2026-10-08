@@ -59,13 +59,10 @@ public sealed class BrowserScreenshotService(
             return Cache(configured);
         }
 
-        foreach (var name in PathCandidates)
+        var found = PathCandidates.Select(FindOnPath).FirstOrDefault(p => p is not null);
+        if (found is not null)
         {
-            var found = FindOnPath(name);
-            if (found is not null)
-            {
-                return Cache(found);
-            }
+            return Cache(found);
         }
 
         // Cache do Playwright: ~/.cache/ms-playwright/<browser>-*/... — pega

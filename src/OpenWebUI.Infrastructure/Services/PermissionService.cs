@@ -60,15 +60,10 @@ public class PermissionService(AppDbContext db)
             .Select(m => m.Group!.PermissionsJson)
             .ToListAsync(ct);
 
-        bool? effective = null;
-        foreach (var json in groups)
-        {
-            var value = ExplicitValue(json, permission, invalidAsFalse: true);
-            if (value.HasValue)
-            {
-                effective = value;
-            }
-        }
+        var effective = groups
+            .Select(json => ExplicitValue(json, permission, invalidAsFalse: true))
+            .Where(v => v.HasValue)
+            .LastOrDefault();
 
         // Override por usuário (definido pelo admin) vence qualquer grupo.
         var userValue = ExplicitValue(user.PermissionsJson, permission, invalidAsFalse: false);

@@ -374,14 +374,12 @@ public static class ChatEndpoints
             .ToDictionary(m => m.Id, m => (m.Content, m.Model, m.VersionsJson));
         db.ChatMessages.RemoveRange(chat.Messages);
         chat.Messages = MapMessages(request.Messages, chat.Id, now);
-        foreach (var m in chat.Messages)
+        foreach (var m in chat.Messages.Where(m => previous.ContainsKey(m.Id)))
         {
-            if (previous.TryGetValue(m.Id, out var old))
-            {
-                m.VersionsJson = old.Content == m.Content
-                    ? old.VersionsJson
-                    : PushVersion(old.VersionsJson, old.Content, old.Model, now);
-            }
+            var old = previous[m.Id];
+            m.VersionsJson = old.Content == m.Content
+                ? old.VersionsJson
+                : PushVersion(old.VersionsJson, old.Content, old.Model, now);
         }
 
         await db.SaveChangesAsync(ct);

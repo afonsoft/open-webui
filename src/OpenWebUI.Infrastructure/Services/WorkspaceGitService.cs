@@ -58,13 +58,10 @@ public sealed class WorkspaceGitService
             workdir, ct, "diff", "HEAD", "--numstat", "--no-renames") ?? string.Empty;
         var added = 0;
         var removed = 0;
-        foreach (var line in numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var parts in numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(line => line.Split('\t'))
+                     .Where(p => p.Length >= 3))
         {
-            var parts = line.Split('\t');
-            if (parts.Length < 3)
-            {
-                continue;
-            }
 
             var a = int.TryParse(parts[0], out var av) ? av : 0; // "-" = binário
             var r = int.TryParse(parts[1], out var rv) ? rv : 0;

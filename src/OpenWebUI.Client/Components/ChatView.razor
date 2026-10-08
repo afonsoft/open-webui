@@ -975,15 +975,10 @@
 
             // Run ainda em execução (aba fechou/reload): anexa ao stream e mostra a geração ao vivo.
             var activeRun = await ChatStream.GetActiveRunAsync(chat.Id);
-            if (activeRun is not null)
-            {
-                _ = AttachActiveRunAsync(activeRun);
-            }
-            else
-            {
+            _ = activeRun is not null
+                ? AttachActiveRunAsync(activeRun)
                 // Git bar: snapshot do workspace quando há runs anteriores.
-                _ = RefreshGitAsync();
-            }
+                : RefreshGitAsync();
         }
         finally
         {

@@ -150,12 +150,11 @@ public sealed class GitHubService(IHttpClientFactory httpFactory, ConfigService 
                 $"{ApiBase}/repos/{owner}/{repo}/branches?per_page=100", ct);
             if (doc is not null && doc.RootElement.ValueKind == JsonValueKind.Array)
             {
-                foreach (var el in doc.RootElement.EnumerateArray())
+                foreach (var name in doc.RootElement.EnumerateArray()
+                             .Select(el => el.TryGetProperty("name", out var n) ? n.GetString() : null)
+                             .Where(name => !string.IsNullOrEmpty(name)))
                 {
-                    if (el.TryGetProperty("name", out var n) && n.GetString() is { Length: > 0 } name)
-                    {
-                        branches.Add(name);
-                    }
+                    branches.Add(name!);
                 }
             }
             if (branches.Count == 0)

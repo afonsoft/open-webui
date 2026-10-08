@@ -21,14 +21,9 @@ public static class SsrfGuard
         IPAddress[] addresses;
         try
         {
-            if (IPAddress.TryParse(host, out var literal))
-            {
-                addresses = [literal];
-            }
-            else
-            {
-                addresses = await Dns.GetHostAddressesAsync(host, ct);
-            }
+            addresses = IPAddress.TryParse(host, out var literal)
+                ? [literal]
+                : await Dns.GetHostAddressesAsync(host, ct);
         }
         catch (System.Net.Sockets.SocketException)
         {

@@ -58,13 +58,13 @@ public sealed class ComfyUiEngine(IHttpClientFactory httpClientFactory) : ImageE
             {
                 foreach (var image in node.Value?["images"]?.AsArray() ?? [])
                 {
-                    var filename = image?["filename"]?.GetValue<string>();
+                    var filename = image!["filename"]?.GetValue<string>();
                     if (filename is null)
                     {
                         continue;
                     }
-                    var subfolder = image?["subfolder"]?.GetValue<string>() ?? "";
-                    var type = image?["type"]?.GetValue<string>() ?? "output";
+                    var subfolder = image!["subfolder"]?.GetValue<string>() ?? "";
+                    var type = image!["type"]?.GetValue<string>() ?? "output";
                     var viewUrl = $"{Base(config)}/view?filename={Uri.EscapeDataString(filename)}" +
                         $"&subfolder={Uri.EscapeDataString(subfolder)}&type={Uri.EscapeDataString(type)}";
                     images.Add(await GetBytesAsync(viewUrl, config, ct));

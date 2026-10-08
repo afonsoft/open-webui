@@ -132,12 +132,10 @@ public static class PassthroughEndpoints
             using (response)
             {
                 context.Response.StatusCode = (int)response.StatusCode;
-                foreach (var header in response.Headers.Concat(response.Content.Headers))
+                foreach (var header in response.Headers.Concat(response.Content.Headers)
+                             .Where(h => !HopByHop.Contains(h.Key)))
                 {
-                    if (!HopByHop.Contains(header.Key))
-                    {
-                        context.Response.Headers[header.Key] = header.Value.ToArray();
-                    }
+                    context.Response.Headers[header.Key] = header.Value.ToArray();
                 }
 
                 context.Response.Headers.Remove("transfer-encoding");

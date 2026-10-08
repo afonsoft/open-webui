@@ -273,16 +273,14 @@ public class WebSearchService(IHttpClientFactory httpFactory, ConfigService conf
         var results = new List<WebSearchResult>();
         if (doc.TryGetProperty("data", out var items))
         {
-            foreach (var item in items.EnumerateArray())
+            // t=0 é resultado de busca; outros tipos (related) são ignorados.
+            foreach (var item in items.EnumerateArray()
+                         .Where(i => i.TryGetProperty("t", out var t) && t.GetInt32() == 0))
             {
-                // t=0 é resultado de busca; outros tipos (related) são ignorados.
-                if (item.TryGetProperty("t", out var t) && t.GetInt32() == 0)
-                {
-                    results.Add(new WebSearchResult(
-                        item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
-                        item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
-                        item.TryGetProperty("snippet", out var s) ? s.GetString() ?? string.Empty : string.Empty));
-                }
+                results.Add(new WebSearchResult(
+                    item.TryGetProperty("title", out var ti) ? ti.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("url", out var u) ? u.GetString() ?? string.Empty : string.Empty,
+                    item.TryGetProperty("snippet", out var s) ? s.GetString() ?? string.Empty : string.Empty));
             }
         }
         return results.Take(count).ToList();
@@ -312,16 +310,12 @@ public class WebSearchService(IHttpClientFactory httpFactory, ConfigService conf
         var results = new List<WebSearchResult>();
         if (doc.TryGetProperty("citations", out var citations))
         {
-            foreach (var cite in citations.EnumerateArray().Take(count))
+            foreach (var link in citations.EnumerateArray().Take(count)
+                         .Select(c => c.GetString())
+                         .Where(l => !string.IsNullOrEmpty(l)))
             {
-                var link = cite.GetString();
-                if (string.IsNullOrEmpty(link))
-                {
-                    continue;
-                }
-
                 var title = Uri.TryCreate(link, UriKind.Absolute, out var uri) ? uri.Host : link;
-                results.Add(new WebSearchResult(title, link, string.Empty));
+                results.Add(new WebSearchResult(title, link!, string.Empty));
             }
         }
         return results;

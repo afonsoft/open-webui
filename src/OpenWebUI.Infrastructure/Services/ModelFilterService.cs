@@ -211,16 +211,11 @@ public static class ModelFilterService
                         parameters ??= [];
                         foreach (var key in new[] { "max_tokens", "num_predict" })
                         {
-                            if (parameters.TryGetValue(key, out var existing)
-                                && existing is JsonElement exEl
-                                && exEl.ValueKind == JsonValueKind.Number)
-                            {
-                                parameters[key] = Math.Min(exEl.GetInt32(), cap);
-                            }
-                            else
-                            {
-                                parameters[key] = cap;
-                            }
+                            parameters[key] = parameters.TryGetValue(key, out var existing)
+                                    && existing is JsonElement exEl
+                                    && exEl.ValueKind == JsonValueKind.Number
+                                ? Math.Min(exEl.GetInt32(), cap)
+                                : cap;
                         }
                     }
                     break;
@@ -271,18 +266,18 @@ public static class ModelFilterService
     public static List<(Regex Regex, string Replacement)> OutletRules(
         IReadOnlyList<ParsedModelFilter> filters)
     {
-        var rules = new List<(Regex, string)>();
-        foreach (var filter in filters)
-        {
-            if (filter.Type == RegexRedact
-                && RedactStage(filter.Config) is not "inlet"
-                && RedactRule(filter.Config, out var rule))
-            {
-                rules.Add(rule);
-            }
-        }
-        return rules;
+        return filters
+            .Select(TryOutletRule)
+            .OfType<(Regex, string)>()
+            .ToList();
     }
+
+    private static (Regex, string)? TryOutletRule(ParsedModelFilter filter) =>
+        filter.Type == RegexRedact
+        && RedactStage(filter.Config) is not "inlet"
+        && RedactRule(filter.Config, out var rule)
+            ? rule
+            : null;
 
     /// <summary>Aplica as regras de outlet sobre uma linha SSE <c>data: {json}</c>
     /// reescrevendo choices[].delta.content / message.content quando presente.</summary>
@@ -317,12 +312,15 @@ public static class ModelFilterService
         {
             foreach (var choice in choices)
             {
-                foreach (var key in new[] { "delta", "message" })
+                foreach (var segment in new[] { "delta", "message" }
+                             .Select(k => choice?[k])
+                             .OfType<JsonObject>()
+                             .Where(s => s["content"] is JsonValue c
+                                         && c.TryGetValue<string>(out _)))
                 {
-                    if (choice?[key] is JsonObject segment
-                        && segment["content"] is JsonValue content
-                        && content.TryGetValue<string>(out var text))
                     {
+                        var content = (JsonValue)segment["content"]!;
+                        content.TryGetValue<string>(out var text);
                         var redacted = text;
                         foreach (var (regex, replacement) in rules)
                         {

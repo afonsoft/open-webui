@@ -191,12 +191,9 @@
             return;
         }
         _collaborators.Clear();
-        foreach (var entry in roster)
+        foreach (var entry in roster.Where(e => e.UserId != Auth.CurrentUser?.Id))
         {
-            if (entry.UserId != Auth.CurrentUser?.Id)
-            {
-                _collaborators[entry.UserId] = entry;
-            }
+            _collaborators[entry.UserId] = entry;
         }
         InvokeAsync(StateHasChanged);
     }
