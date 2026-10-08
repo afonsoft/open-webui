@@ -662,7 +662,7 @@
     private string _sttEngine = "none";
     private string _sttProvider = string.Empty;
     private string _sttBaseUrl = string.Empty;
-    private string _sttApiKey = string.Empty;
+    private readonly string _sttApiKey = string.Empty;
     private string _sttModel = string.Empty;
     private bool _audioTesting;
     private static readonly string[] TtsEngines = ["none", "provider", "openai", "transformers", "elevenlabs", "azure"];

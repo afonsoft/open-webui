@@ -215,6 +215,7 @@ public class RealtimeService : IAsyncDisposable
             }
             catch (Exception)
             {
+                // Hub indisponível — typing é best-effort.
             }
         }
     }

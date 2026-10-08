@@ -88,38 +88,36 @@ else
                 </div>
             </div>
 
-            @if (_channels.Count > 0 || true)
-            {
-                <div>
-                    <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
-                        <span>@L["sidebar.channels"]</span>
-                        <span>
-                            <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                    title="@L["sidebar.new_dm"]" aria-label="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
-                            <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
-                                    title="@L["sidebar.create_channel"]" aria-label="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
-                        </span>
-                    </div>
-                    <div class="flex flex-col">
-                        @foreach (var channel in _channels)
-                        {
-                            var current = Nav.Uri.Contains($"/channels/{channel.Id}");
-                            <a class="w-full flex items-center rounded-xl px-2.5 py-1.5 mx-1 text-[0.8125rem] leading-5 truncate transition
-                                      @(current
-                                          ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
-                                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
-                               href="/channels/@channel.Id" draggable="false">
-                                <span class="truncate">@(channel.Type == "dm" ? "@" : "#") @channel.Name</span>
-                                @if (channel.UnreadCount > 0 && !current)
-                                {
-                                    <span class="ml-auto rounded-full bg-blue-500 px-1.5 text-[0.65rem] font-medium text-white">
-                                        @channel.UnreadCount
-                                    </span>
-                                }
-                            </a>
-                        }
-                    </div>
+            <div>
+                <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
+                    <span>@L["sidebar.channels"]</span>
+                    <span>
+                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                                title="@L["sidebar.new_dm"]" aria-label="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
+                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                                title="@L["sidebar.create_channel"]" aria-label="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
+                    </span>
                 </div>
+                <div class="flex flex-col">
+                    @foreach (var channel in _channels)
+                    {
+                        var current = Nav.Uri.Contains($"/channels/{channel.Id}");
+                        <a class="w-full flex items-center rounded-xl px-2.5 py-1.5 mx-1 text-[0.8125rem] leading-5 truncate transition
+                                  @(current
+                                      ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
+                           href="/channels/@channel.Id" draggable="false">
+                            <span class="truncate">@(channel.Type == "dm" ? "@" : "#") @channel.Name</span>
+                            @if (channel.UnreadCount > 0 && !current)
+                            {
+                                <span class="ml-auto rounded-full bg-blue-500 px-1.5 text-[0.65rem] font-medium text-white">
+                                    @channel.UnreadCount
+                                </span>
+                            }
+                        </a>
+                    }
+                </div>
+            </div>
             }
 
             @if (_pinned.Count > 0)

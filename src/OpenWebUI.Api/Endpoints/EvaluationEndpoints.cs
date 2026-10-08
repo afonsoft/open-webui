@@ -95,9 +95,9 @@ public static class EvaluationEndpoints
             played[battle.ModelA] = played.GetValueOrDefault(battle.ModelA) + 1;
             played[battle.ModelB] = played.GetValueOrDefault(battle.ModelB) + 1;
             wins[battle.ModelA] = wins.GetValueOrDefault(battle.ModelA)
-                + (score == 1.0 ? 1 : score == 0.5 ? 0.5 : 0);
+                + Math.Max(0.0, score);
             wins[battle.ModelB] = wins.GetValueOrDefault(battle.ModelB)
-                + (score == 0.0 ? 1 : score == 0.5 ? 0.5 : 0);
+                + (score < 0 ? 0 : 1 - score);
         }
 
         return Results.Ok(ratings

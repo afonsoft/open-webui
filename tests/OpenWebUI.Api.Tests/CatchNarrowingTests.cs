@@ -164,7 +164,7 @@ public class CatchNarrowingTests
         }
         finally
         {
-            try { Directory.Delete(dir, true); } catch (IOException) { }
+            try { Directory.Delete(dir, true); } catch (IOException) { /* cleanup best-effort */ }
         }
     }
 
@@ -208,7 +208,7 @@ public class CatchNarrowingTests
         finally
         {
             File.SetUnixFileMode(Path.Join(dir, "locked"), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            try { Directory.Delete(dir, true); } catch (IOException) { }
+            try { Directory.Delete(dir, true); } catch (IOException) { /* cleanup best-effort */ }
         }
     }
 

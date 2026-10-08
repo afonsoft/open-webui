@@ -45,8 +45,8 @@ public static class UnifiedDiff
 
     private enum Op : byte { Keep, Del, Add }
 
-    /// <summary>Script de edição por LCS (DP) sobre as linhas.</summary>
-    private static List<Op> EditScript(string[] a, string[] b)
+    /// <summary>Tabela DP de LCS (dp[i,j] = maior sufixo comum a partir de i,j).</summary>
+    private static int[,] ComputeLcsTable(string[] a, string[] b)
     {
         var n = a.Length;
         var m = b.Length;
@@ -60,6 +60,15 @@ public static class UnifiedDiff
                     : Math.Max(dp[i + 1, j], dp[i, j + 1]);
             }
         }
+        return dp;
+    }
+
+    /// <summary>Script de edição por LCS (DP) sobre as linhas.</summary>
+    private static List<Op> EditScript(string[] a, string[] b)
+    {
+        var n = a.Length;
+        var m = b.Length;
+        var dp = ComputeLcsTable(a, b);
 
         var ops = new List<Op>(n + m);
         var x = 0;
@@ -136,6 +145,7 @@ public static class UnifiedDiff
         var ai = 0;
         var bi = 0;
         var pos = 0;
+        var body = new StringBuilder();
         foreach (var (hs, he) in hunks)
         {
             // Avança ai/bi até o início do hunk.
@@ -162,7 +172,7 @@ public static class UnifiedDiff
             var newStart = bi + 1;
             var oldCount = 0;
             var newCount = 0;
-            var body = new StringBuilder();
+            body.Clear();
             for (var i = hs; i <= he && pos <= he; i++, pos++)
             {
                 switch (ops[i])
