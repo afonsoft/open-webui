@@ -1406,11 +1406,97 @@
         _runTasks = [];
         _runChanges = [];
 
-        await foreach (var evt in ChatStream.StreamRunEventsAsync(
-            chatId, runId, lastSeq: 0, ct))
+        // Resume loop (SPEC-20261007-chat-tool-streaming): se o stream cair
+        // no meio da run (proxy derrubando SSE ocioso, troca de rede, aba
+        // em background), re-anexa com lastSeq — sem isso a UI congela e
+        // só um refresh manual a destrava. O stall watchdog re-anexa quando
+        // nada (nem heartbeat) chega por StallMs.
+        var lastSeq = 0;
+        var emptyAttaches = 0;
+        var sawEvent = false;
+        const int StallMs = 60_000;
+        const int MaxEmptyAttaches = 5;
+
+        while (true)
         {
-            switch (evt)
+            var terminal = false;
+            using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            stall.CancelAfter(StallMs);
+            try
             {
+                await foreach (var evt in ChatStream.StreamRunEventsAsync(
+                    chatId, runId, lastSeq, stall.Token))
+                {
+                    stall.CancelAfter(StallMs);
+                    if (evt.Seq > 0)
+                    {
+                        lastSeq = evt.Seq;
+                    }
+                    sawEvent = true;
+                    terminal = await ApplyRunEventAsync(
+                        evt, content, placeholder, index);
+                    if (terminal)
+                    {
+                        break;
+                    }
+                    if (evt is not ChatStreamService.ChatStreamEvent.Heartbeat)
+                    {
+                        await InvokeAsync(StateHasChanged);
+                        await ScrollToEndAsync();
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Falha de transporte no meio do stream → tenta re-anexar.
+                Console.WriteLine($"stream da run {runId} caiu: {ex.Message}");
+            }
+
+            if (terminal || ct.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // Attach que não rendeu nenhum evento: a run pode já ter
+            // finalizado (close sem fase terminal) — confere o status antes
+            // de gastar backoff re-anexando.
+            if (!sawEvent)
+            {
+                emptyAttaches++;
+                var run = await ChatStream.GetRunAsync(chatId, runId, ct);
+                if (run is null
+                    || run.Status is "completed" or "failed" or "stopped" or "interrupted"
+                    || emptyAttaches >= MaxEmptyAttaches)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                sawEvent = false;
+                emptyAttaches = 0;
+            }
+
+            await Task.Delay(
+                Math.Min(500 * (1 << emptyAttaches), 4_000), ct);
+        }
+    }
+
+    /// <summary>
+    /// Aplica um evento tipado da run ao estado da tela; retorna true na
+    /// fase terminal (a run acabou — encerra o consumo do stream).
+    /// </summary>
+    private async Task<bool> ApplyRunEventAsync(
+        ChatStreamService.ChatStreamEvent evt,
+        System.Text.StringBuilder content,
+        ChatMessageModel placeholder, int index)
+    {
+        switch (evt)
+        {
                 case ChatStreamService.ChatStreamEvent.Delta delta:
                     content.Append(delta.Text);
                     _messages[index] = placeholder with { Content = content.ToString() };
@@ -1467,7 +1553,7 @@
                         case "completed" or "failed" or "stopped" or "interrupted":
                             // Estado terminal da run: encerra sem depender do
                             // fechamento do SSE (proxies podem segurar o FIN).
-                            return;
+                            return true;
                         default:
                             _paused = false;
                             _statusLabel = phase.Status.Label;
@@ -1481,9 +1567,7 @@
                     _pendingQuestion = question.Asked;
                     break;
             }
-            await InvokeAsync(StateHasChanged);
-            await ScrollToEndAsync();
-        }
+        return false;
     }
 
     /// <summary>

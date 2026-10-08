@@ -213,20 +213,58 @@ public static class ChatRunEndpoints
         // no fim da run (o usuário "só vê depois de refresh").
         http.Response.Headers["X-Accel-Buffering"] = "no";
 
-        await using var writer = new StreamWriter(http.Response.Body, Encoding.UTF8);
+        // UTF8Encoding(false): sem BOM — o BOM saía como caractere
+        // invisível na primeira linha do SSE.
+        await using var writer = new StreamWriter(
+            http.Response.Body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         try
         {
-            await foreach (var evt in broadcaster.SubscribeAsync(runId, since, ct))
+            // Heartbeat `: hb` a cada 15s sem evento: proxies/balanceadores
+            // derrubam ou bufferizam SSE ocioso — o comentário mantém o pipe
+            // vivo e o cliente re-arma o watchdog de stall. Sem heartbeat a
+            // UI congela no meio da run e "só atualiza no refresh".
+            await using var enumerator = broadcaster
+                .SubscribeAsync(runId, since, ct)
+                .GetAsyncEnumerator(ct);
+            // ValueTask é consumo único — materializa em Task antes do WhenAny.
+            // PeriodicTimer aceita um único wait pendente: o tick é criado
+            // uma vez e só re-armado depois de completar.
+            var moveNext = enumerator.MoveNextAsync().AsTask();
+            using var heartbeat = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            var tick = heartbeat.WaitForNextTickAsync(ct).AsTask();
+            while (true)
             {
+                var winner = await Task.WhenAny(moveNext, tick);
+                if (winner == tick)
+                {
+                    await tick; // relança OperationCanceledException no disconnect
+                    await writer.WriteLineAsync(": hb");
+                    await writer.WriteLineAsync();
+                    await writer.FlushAsync(ct);
+                    tick = heartbeat.WaitForNextTickAsync(ct).AsTask();
+                    continue;
+                }
+
+                if (!await moveNext)
+                {
+                    break;
+                }
+                var evt = enumerator.Current;
                 await writer.WriteLineAsync($"id: {evt.Seq}");
                 await writer.WriteLineAsync(evt.Payload);
                 await writer.WriteLineAsync();
                 await writer.FlushAsync(ct);
+                moveNext = enumerator.MoveNextAsync().AsTask();
             }
         }
         catch (OperationCanceledException)
         {
             // Cliente desconectou — normal: a run continua no dispatcher.
+        }
+        catch (IOException)
+        {
+            // Disconnect no meio de um write (cliente matou o socket) —
+            // idem: a run segue no dispatcher, só o attach morreu.
         }
     }
 

@@ -22,8 +22,21 @@ public class ChatStreamService(HttpClient http, AuthService auth)
     /// </summary>
     public abstract record ChatStreamEvent
     {
+        /// <summary>
+        /// Seq do evento no broadcaster da run (linha <c>id:</c> do SSE).
+        /// Usado pelo consumidor para retomar com <c>lastSeq</c> após queda
+        /// do stream — replay só devolve seq &gt; lastSeq (sem duplicar).
+        /// </summary>
+        public int Seq { get; init; }
+
         /// <summary>Pedaco de texto do assistant.</summary>
         public sealed record Delta(string Text) : ChatStreamEvent;
+
+        /// <summary>
+        /// Keepalive do servidor (linha <c>: hb</c>) — prova de que a
+        /// conexão SSE segue viva; re-arma o watchdog do consumidor.
+        /// </summary>
+        public sealed record Heartbeat : ChatStreamEvent;
 
         /// <summary>Tool call iniciada (antes de executar).</summary>
         public sealed record ToolCall(RunToolCallEvent Call) : ChatStreamEvent;
@@ -114,6 +127,28 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         using var response = await http.SendAsync(httpRequest, ct);
         if (!response.IsSuccessStatusCode
             || response.Content.Headers.ContentLength is null or 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<ChatRunResponse>(ct);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Estado atual de uma run (usado pelo loop de resume para saber se ela já finalizou).</summary>
+    public async Task<ChatRunResponse?> GetRunAsync(
+        string chatId, string runId, CancellationToken ct = default)
+    {
+        using var httpRequest = auth.CreateRequest(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/runs/{runId}");
+        using var response = await http.SendAsync(httpRequest, ct);
+        if (!response.IsSuccessStatusCode)
         {
             return null;
         }
@@ -275,6 +310,7 @@ public class ChatStreamService(HttpClient http, AuthService auth)
     {
         using var reader = new StreamReader(stream);
         string? eventName = null;
+        var lastSeq = 0;
 
         while (await reader.ReadLineAsync(ct) is { } line)
         {
@@ -283,13 +319,26 @@ public class ChatStreamService(HttpClient http, AuthService auth)
             {
                 continue;
             }
+            // Keepalive do servidor (`: hb`) — não é `data:` mas prova que
+            // o stream segue vivo (proxies derrubam/fecham SSE ocioso).
+            if (line.StartsWith(":"))
+            {
+                yield return new ChatStreamEvent.Heartbeat();
+                continue;
+            }
             if (line.StartsWith("event:", StringComparison.Ordinal))
             {
                 eventName = line["event:".Length..].Trim();
                 continue;
             }
-            if (line.StartsWith("id:", StringComparison.Ordinal)
-                || !line.StartsWith("data:", StringComparison.Ordinal))
+            if (line.StartsWith("id:", StringComparison.Ordinal))
+            {
+                // Last-Event-ID do bloco — o consumidor usa como checkpoint
+                // de resume (`lastSeq` no próximo attach).
+                _ = int.TryParse(line["id:".Length..].Trim(), out lastSeq);
+                continue;
+            }
+            if (!line.StartsWith("data:", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -425,7 +474,7 @@ public class ChatStreamService(HttpClient http, AuthService auth)
             }
             if (produced is not null)
             {
-                yield return produced;
+                yield return produced with { Seq = lastSeq };
             }
         }
     }
