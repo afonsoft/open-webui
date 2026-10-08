@@ -28,20 +28,20 @@
                     <div class="flex flex-wrap gap-2 mt-2 items-center">
                         @if (_calendars.Count == 0)
                         {
-                            <input class="input w-48" placeholder="@L["calendar.calendar_name"]"
+                            <input aria-label="@L["calendar.calendar_name"]" class="input w-48" placeholder="@L["calendar.calendar_name"]"
                                    @bind="_newCalendarName" />
                         }
                         else
                         {
-                            <select class="input w-48" @bind="_eventCalendarId">
+                            <select aria-label="@L["calendar.calendar_name"]" class="input w-48" @bind="_eventCalendarId">
                                 @foreach (var c in _calendars)
                                 {
                                     <option value="@c.Id">@c.Name</option>
                                 }
                             </select>
                         }
-                        <input class="input w-56" placeholder="@L["calendar.event_title"]" @bind="_eventTitle" />
-                        <input class="input w-40" type="date" @bind="_eventDate" />
+                        <input aria-label="@L["calendar.event_title"]" class="input w-56" placeholder="@L["calendar.event_title"]" @bind="_eventTitle" />
+                        <input aria-label="@L["calendar.event_date"]" class="input w-40" type="date" @bind="_eventDate" />
                         <button class="primary-btn" @onclick="CreateEventAsync" disabled="@_savingEvent">
                             @L["common.create"]
                         </button>

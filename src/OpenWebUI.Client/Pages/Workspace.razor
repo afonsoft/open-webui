@@ -50,7 +50,7 @@
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
                             @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
                         </button>
-                        <button class="msg-action danger" @onclick="() => DeleteModelAsync(model)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteModelAsync(model)">🗑</button>
                     </div>
                 </div>
             }
@@ -71,7 +71,7 @@
                         <div class="card-sub">@FormatSize(file.Size) · @FormatDate(file.CreatedAt)</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action danger" @onclick="() => DeleteFileAsync(file)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteFileAsync(file)">🗑</button>
                     </div>
                 </div>
             }
@@ -109,7 +109,7 @@
                                 @foreach (var kf in _knowledgeDetail.Files)
                                 {
                                     <div>📄 @kf.Filename
-                                        <button class="msg-action danger" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => RemoveKnowledgeFileAsync(kf)">×</button>
                                     </div>
                                 }
                                 @if (_knowledgeDetail.Files.Count == 0)
@@ -120,14 +120,16 @@
                         }
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick="() => ToggleKnowledgeDetailAsync(item)">
+                        <button class="msg-action" aria-expanded="@(_knowledgeDetail?.Id == item.Id)" aria-label="@L["common.toggle"]"
+                                @onclick="() => ToggleKnowledgeDetailAsync(item)">
                             @(_knowledgeDetail?.Id == item.Id ? "▲" : "▼")
                         </button>
                         <button class="msg-action" @onclick="() => AddKnowledgeFileAsync(item)">@L["workspace.add_file"]</button>
                         <button class="msg-action" title="@L["workspace.reindex"]" aria-label="@L["workspace.reindex"]"
                                 @onclick="() => ReindexKnowledgeAsync(item)">↻</button>
-                        <button class="msg-action danger" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteKnowledgeAsync(item)">🗑</button>
                         <input type="checkbox" class="ml-1 cursor-pointer"
+                               aria-label="@L.T("workspace.select", ("name", item.Name))"
                                checked="@_selectedKnowledge.Contains(item.Id)"
                                @onchange="() => ToggleKnowledgeSelection(item.Id)" />
                     </div>
@@ -159,7 +161,7 @@
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
                             @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
                         </button>
-                        <button class="msg-action danger" @onclick="() => DeleteToolAsync(tool)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteToolAsync(tool)">🗑</button>
                     </div>
                 </div>
             }
@@ -174,10 +176,10 @@
         <div class="card-list">
             <div class="card-row">
                 <div class="flex flex-col gap-2 w-full text-sm py-1">
-                    <input class="input" @bind="_skillName" placeholder="@L["workspace.skill_name"]" />
-                    <input class="input" @bind="_skillDesc" placeholder="@L["workspace.skill_desc"]" />
+                    <input class="input" @bind="_skillName" placeholder="@L["workspace.skill_name"]" aria-label="@L["workspace.skill_name"]" />
+                    <input class="input" @bind="_skillDesc" placeholder="@L["workspace.skill_desc"]" aria-label="@L["workspace.skill_desc"]" />
                     <textarea class="input" rows="4" @bind="_skillContent"
-                        placeholder="@L["workspace.skill_content"]"></textarea>
+                        placeholder="@L["workspace.skill_content"]" aria-label="@L["workspace.skill_content"]"></textarea>
                     <div class="flex gap-2">
                         <button class="auth-submit" @onclick="SaveSkillAsync">
                             @(_skillEditId is null ? L["workspace.new_skill"] : L["common.save"])
@@ -198,7 +200,7 @@
                     </div>
                     <div class="card-actions">
                         <button class="msg-action" @onclick="() => EditSkill(skill)">@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeleteSkillAsync(skill)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteSkillAsync(skill)">🗑</button>
                     </div>
                 </div>
             }
@@ -225,7 +227,7 @@
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
                         <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
                 </div>
             }

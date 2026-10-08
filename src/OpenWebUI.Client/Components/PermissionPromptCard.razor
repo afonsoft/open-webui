@@ -36,7 +36,7 @@
     @if (_rejecting)
     {
         <div class="mt-2 flex flex-col gap-2">
-            <textarea class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
+            <textarea aria-label="@L["chat.tool_deny_hint"]" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300"
                       rows="2" placeholder="@L["chat.tool_deny_hint"]" @bind="_denyMessage"></textarea>
             <div class="text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.tool_deny_hint_detail"]</div>
             <div class="flex gap-2">

@@ -42,11 +42,11 @@
                 <div class="card-main w-full">
                     <div class="grid gap-3">
                         <div class="field">
-                            <label>@L["common.title"]</label>
-                            <input class="input" @bind="_name" />
+                            <label for="fld-62">@L["common.title"]</label>
+                            <input class="input" @bind="_name" id="fld-62" />
                         </div>
                         <div class="field">
-                            <label>@L["common.content"]</label>
+                            <label for="note-content">@L["common.content"]</label>
                             <textarea id="note-content" class="input" rows="14"
                                 @bind="_content" @bind:event="oninput" @bind:after="OnContentInput"
                                 @onkeyup="SendCaretAsync" @onclick="SendCaretAsync"></textarea>

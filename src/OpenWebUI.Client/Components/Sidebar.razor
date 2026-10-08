@@ -79,7 +79,7 @@ else
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         </div>
-                        <input type="text" placeholder="@L["sidebar.search"]"
+                        <input type="text" placeholder="@L["sidebar.search"]" aria-label="@L["sidebar.search"]"
                                class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0"
                                @bind="_query" @bind:event="oninput" />
                     </div>
@@ -137,6 +137,7 @@ else
             {
                 <div>
                     <button class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500 cursor-pointer"
+                            aria-expanded="@folder.Expanded"
                             @onclick="() => folder.Expanded = !folder.Expanded">
                         <span class="flex items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
@@ -319,9 +320,9 @@ else
                 <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
                         aria-label="@L["common.close"]" @onclick="() => _shareUrl = null">×</button>
             </div>
-            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">@L["sidebar.public_link"]</label>
+            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" for="fld-63">@L["sidebar.public_link"]</label>
             <input class="w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100"
-                   readonly value="@_shareUrl" @onclick="CopyShareLink" />
+                   readonly value="@_shareUrl" @onclick="CopyShareLink" id="fld-63" />
             <button class="mt-3 w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 cursor-pointer"
                     @onclick="CopyShareLink">@(_copied ? L["sidebar.copied"] : L["sidebar.copy_link"])</button>
             <button class="mt-2 w-full rounded-full text-sm py-2.5 text-red-500 hover:bg-red-500/10 transition cursor-pointer"
@@ -504,7 +505,7 @@ else
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
                            @(current ? "flex" : "hidden group-hover:flex")"
-                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" aria-expanded="@(_menuFor == chat)" aria-haspopup="menu" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
             </button>
         </div>

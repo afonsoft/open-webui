@@ -101,6 +101,7 @@
                 @if (OutputOverflow)
                 {
                     <button class="self-start text-[0.6875rem] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            aria-expanded="@_outputExpanded"
                             @onclick="() => _outputExpanded = !_outputExpanded" @onclick:stopPropagation="true">
                         @(_outputExpanded ? L["chat.tool_collapse"] : L["chat.tool_expand"])
                     </button>
