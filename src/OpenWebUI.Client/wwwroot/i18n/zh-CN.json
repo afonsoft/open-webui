@@ -665,5 +665,6 @@
   "admin.rerank_key_ph": "api key（可选）",
   "admin.sp_entity_ph": "SP Entity ID（可选）",
   "workspace.command_ph": "my-command",
-  "channel.fallback_name": "频道"
+  "channel.fallback_name": "频道",
+  "terminal.load_error": "无法加载终端。请检查连接后重试。"
 }

@@ -50,10 +50,17 @@ else
             </span>
         </div>
         <div class="flex-1 min-h-0 px-3 pb-3">
-            @foreach (var session in _sessions)
+            @if (_loadError)
             {
-                <div id="term-@session.Id"
-                     class="h-full w-full rounded-xl overflow-hidden bg-[#0d1117] @(session.Id == _active ? "" : "hidden")"></div>
+                <div class="flex h-full items-center justify-center text-sm text-gray-400">@L["terminal.load_error"]</div>
+            }
+            else
+            {
+                @foreach (var session in _sessions)
+                {
+                    <div id="term-@session.Id"
+                         class="h-full w-full rounded-xl overflow-hidden bg-[#0d1117] @(session.Id == _active ? "" : "hidden")"></div>
+                }
             }
         </div>
     </div>
@@ -64,6 +71,7 @@ else
     private readonly HashSet<string> _opened = [];
     private string? _active;
     private bool? _enabled;
+    private bool _loadError;
     private DotNetObjectReference<TerminalView>? _selfRef;
     private CancellationTokenSource? _pollCts;
 
@@ -155,7 +163,14 @@ else
         var scheme = Nav.Uri.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? "wss" : "ws";
         var url = $"{scheme}://{new Uri(Nav.Uri).Authority}/ws/terminal/{sessionId}?access_token={Uri.EscapeDataString(token)}";
         _selfRef ??= DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("owuiTerminal.open", $"term-{sessionId}", url, _selfRef);
+        _loadError = false;
+        var opened = await JS.InvokeAsync<bool>("owuiTerminal.open", $"term-{sessionId}", url, _selfRef);
+        if (!opened)
+        {
+            _opened.Remove(sessionId);
+            _loadError = true;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task CloseTermAsync(string sessionId)

@@ -665,5 +665,6 @@
   "admin.rerank_key_ph": "api key (opcional)",
   "admin.sp_entity_ph": "SP Entity ID (opcional)",
   "workspace.command_ph": "mi-comando",
-  "channel.fallback_name": "canal"
+  "channel.fallback_name": "canal",
+  "terminal.load_error": "No se pudo cargar el terminal. Comprueba la conexión e inténtalo de nuevo."
 }

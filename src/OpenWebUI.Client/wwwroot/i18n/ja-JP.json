@@ -665,5 +665,6 @@
   "admin.rerank_key_ph": "api key（任意）",
   "admin.sp_entity_ph": "SP Entity ID（任意）",
   "workspace.command_ph": "my-command",
-  "channel.fallback_name": "チャンネル"
+  "channel.fallback_name": "チャンネル",
+  "terminal.load_error": "ターミナルを読み込めませんでした。接続を確認して再試行してください。"
 }
