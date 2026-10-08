@@ -335,14 +335,15 @@
                             <div class="relative">
                                 <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
                                                @(_toolIds.Count > 0 || _webSearch ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                        title="@L["chat.tools"]" aria-label="@L["chat.tools"]" disabled="@_loading"
-                                        @onclick="() => _showToolsMenu = !_showToolsMenu">
+                                        title="@L["chat.tools"]" aria-label="@L["chat.tools"]" aria-expanded="@_showToolsMenu" aria-haspopup="dialog" disabled="@_loading"
+                                        @ref="_toolsTrigger" @onclick="ToggleToolsMenu">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
                                 </button>
                                 @if (_showToolsMenu)
                                 {
                                     <div class="fixed inset-0 z-30" @onclick="() => _showToolsMenu = false"></div>
-                                    <div class="absolute bottom-10 left-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg max-h-[60vh] overflow-y-auto overflow-x-hidden">
+                                    <div class="absolute bottom-10 left-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg max-h-[60vh] overflow-y-auto overflow-x-hidden"
+                                         role="group" aria-label="@L["chat.tools"]" @ref="_toolsMenu" @onkeydown="OnToolsMenuKeyDown">
                                         @if (_webSearchAvailable)
                                         {
                                             <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">@L["chat.tools_features"]</div>
@@ -473,14 +474,15 @@
                                      OnError="OnSttErr" />
                         <div class="relative">
                             <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40 @(ModeButtonClass)"
-                                    title="@ModeTitle" aria-label="@ModeTitle" disabled="@_loading"
-                                    @onclick="() => _showModeMenu = !_showModeMenu">
+                                    title="@ModeTitle" aria-label="@ModeTitle" aria-expanded="@_showModeMenu" aria-haspopup="menu" disabled="@_loading"
+                                    @ref="_modeTrigger" @onclick="ToggleModeMenu">
                                 @ModeIcon(_approvalPreset)
                             </button>
                             @if (_showModeMenu)
                             {
                                 <div class="fixed inset-0 z-30" @onclick="() => _showModeMenu = false"></div>
-                                <div class="absolute bottom-10 right-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden">
+                                <div class="absolute bottom-10 right-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden"
+                                     role="menu" aria-label="@L["chat.mode_title"]" @ref="_modeMenu" @onkeydown="OnModeMenuKeyDown">
                                     <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                                         @L["chat.mode_title"]
                                     </div>
@@ -488,6 +490,7 @@
                                     {
                                         <button class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer
                                                        @(_approvalPreset == mode ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")"
+                                                role="menuitemradio" aria-checked="@(_approvalPreset == mode)"
                                                 @onclick="() => SelectModeAsync(mode)">
                                             @ModeIcon(mode)
                                             <span class="flex-1 min-w-0">
@@ -564,7 +567,8 @@
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
     </aside>
-    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" tabindex="-1"
+         @ref="_drawerEl" @onkeydown="OnDrawerKeyDown">
         <div class="absolute inset-0 bg-black/40" @onclick="() => _showPanel = false"></div>
         <aside class="absolute inset-y-0 right-0 w-80 max-w-[85vw] shadow-xl">
             <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
@@ -650,6 +654,14 @@
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
     private bool _showModeMenu;
+    private ElementReference _toolsTrigger;
+    private ElementReference _toolsMenu;
+    private ElementReference _modeTrigger;
+    private ElementReference _modeMenu;
+    private ElementReference _drawerEl;
+    private bool _focusToolsMenu;
+    private bool _focusModeMenu;
+    private bool _drawerTrapped;
     private static readonly string[] ApprovalPresets =
         ["allow-readonly", "approve-mutations", "smart", "always-allow", "auto"];
 
@@ -741,6 +753,72 @@
             {
                 StateHasChanged();
             }
+        }
+        if (_focusToolsMenu)
+        {
+            _focusToolsMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _toolsMenu);
+        }
+        if (_focusModeMenu)
+        {
+            _focusModeMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _modeMenu);
+        }
+        if (_showPanel && !_drawerTrapped)
+        {
+            _drawerTrapped = true;
+            await JS.InvokeVoidAsync("openwebui.trapFocus", _drawerEl);
+        }
+        else if (!_showPanel && _drawerTrapped)
+        {
+            _drawerTrapped = false;
+            await JS.InvokeVoidAsync("openwebui.releaseFocus", _drawerEl);
+        }
+    }
+
+    private void ToggleToolsMenu()
+    {
+        _showToolsMenu = !_showToolsMenu;
+        if (_showToolsMenu) _focusToolsMenu = true;
+    }
+
+    private void ToggleModeMenu()
+    {
+        _showModeMenu = !_showModeMenu;
+        if (_showModeMenu) _focusModeMenu = true;
+    }
+
+    private async Task OnToolsMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showToolsMenu = false;
+            await _toolsTrigger.FocusAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _toolsMenu, e.Key);
+        }
+    }
+
+    private async Task OnModeMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showModeMenu = false;
+            await _modeTrigger.FocusAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _modeMenu, e.Key);
+        }
+    }
+
+    private void OnDrawerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showPanel = false;
         }
     }
 
