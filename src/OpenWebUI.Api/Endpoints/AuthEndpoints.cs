@@ -456,7 +456,6 @@ public static class AuthEndpoints
     private static async Task<IResult> IssueAuthResponseAsync(
         User user, JwtTokenService tokens, ConfigService config, CancellationToken ct)
     {
-        var adminConfig = await config.GetAdminConfigAsync(ct);
         var (token, expires) = await tokens.CreateTokenAsync(user, ct);
         return Results.Ok(new AuthResponse(token, "Bearer", expires, ToResponse(user)));
     }

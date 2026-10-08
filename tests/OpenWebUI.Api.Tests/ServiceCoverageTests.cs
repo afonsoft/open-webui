@@ -23,7 +23,7 @@ namespace OpenWebUI.Api.Tests;
 [TestFixture]
 public class ServiceCoverageTests
 {
-    private readonly MemoryCache mc2 = new(new MemoryCacheOptions());
+    private readonly List<IDisposable> _owned = [];
     private string _dbPath = null!;
 
     [SetUp]
@@ -37,7 +37,12 @@ public class ServiceCoverageTests
     [TearDown]
     public void TearDown()
     {
-        mc2.Dispose();
+        foreach (var d in _owned)
+        {
+            d.Dispose();
+        }
+
+        _owned.Clear();
         if (File.Exists(_dbPath))
         {
             File.Delete(_dbPath);
@@ -48,8 +53,12 @@ public class ServiceCoverageTests
         new(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
 
-    private ConfigService NewConfig() =>
-        new(NewDb(), mc2);
+    private ConfigService NewConfig()
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        _owned.Add(cache);
+        return new ConfigService(NewDb(), cache);
+    }
 
     private async Task SeedConfigAsync(string key, object value)
     {
@@ -378,7 +387,6 @@ public class ServiceCoverageTests
     public async Task Embedding_OllamaPrimeiro_OpenAiFallback_EIndisponivel()
     {
         await SeedConnectionsAsync();
-        using var cache = new MemoryCache(new MemoryCacheOptions());
 
         // Ollama responde embeddings no formato /api/embed.
         var svc = new EmbeddingService(new StubFactory(

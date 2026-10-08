@@ -59,7 +59,7 @@ public class UserEndpointsTests
     [Test, Order(1)]
     public async Task ListarUsuarios_Admin_RetornaListaComTotal()
     {
-        var extra = await SignUpAsync("Listado", "listado@users.local", "senha123");
+        await SignUpAsync("Listado", "listado@users.local", "senha123");
         UseToken(_admin.Token);
 
         var result = await _client.GetFromJsonAsync<JsonElement>("/api/v1/users/");

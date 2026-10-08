@@ -92,7 +92,6 @@ public class FrameworkAssetsTests
     {
         // O body base64 deve decodificar byte a byte para o arquivo real, para o
         // check SHA-256 do cliente bater com o hash de integridade do boot.
-        var env = _factory.Services.GetRequiredService<IWebHostEnvironment>();
         var file = PickAsset(".dat");
         var (stem, ext) = Split(file.Name);
 

@@ -191,9 +191,9 @@ public class ImageEnginesTests
         await SetEngineAsync("a1111", "{\"steps\":5}");
         Assert.That(await GenerateAsync(), Is.EqualTo(200));
 
-        var result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
+        await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
         UseToken(_admin.Token);
-        result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
+        var result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
         var test = await result.Content.ReadFromJsonAsync<ImageTestResponse>();
         Assert.That(test!.Ok, Is.True);
     }

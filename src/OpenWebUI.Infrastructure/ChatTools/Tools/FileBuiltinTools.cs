@@ -80,7 +80,6 @@ public sealed class FileListBuiltinTool : IBuiltinChatTool
                 }
 
                 var indent = new string(' ', depth * 2);
-                var rel = WorkspaceFiles.RelativeOf(root, entry);
                 if (Directory.Exists(entry))
                 {
                     sb.Append(indent).Append(Path.GetFileName(entry)).Append('/').Append('\n');

@@ -342,7 +342,7 @@ public class GitHubWorkspaceTests
         var origin = CriarOrigem("main");
         try
         {
-            var (first, err1) = await _repos.OpenAsync(
+            var (_, err1) = await _repos.OpenAsync(
                 "u1", "a/b", "main", origin, null, default);
             Assert.That(err1, Is.Null);
 
