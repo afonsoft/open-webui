@@ -3,6 +3,7 @@
 @inject ChatListState ChatList
 @inject LocalizationService L
 @inject IJSRuntime JS
+@inject DialogService Dialogs
 
 <PageTitle>@L["page.archived"] — Open WebUI</PageTitle>
 
@@ -53,7 +54,7 @@
 
     private async Task DeleteAsync(ChatSummaryResponse chat)
     {
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("archived.confirm_delete", ("name", chat.Title))))
+        if (!await Dialogs.ConfirmAsync( L.T("archived.confirm_delete", ("name", chat.Title)), danger: true))
         {
             return;
         }

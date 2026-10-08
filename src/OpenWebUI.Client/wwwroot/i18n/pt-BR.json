@@ -703,5 +703,7 @@
   "admin.sp_entity_ph": "SP Entity ID (opcional)",
   "workspace.command_ph": "meu-comando",
   "channel.fallback_name": "canal",
-  "terminal.load_error": "Não foi possível carregar o terminal. Verifique a conexão e tente de novo."
+  "terminal.load_error": "Não foi possível carregar o terminal. Verifique a conexão e tente de novo.",
+  "common.confirm": "Confirmar",
+  "common.ok": "OK"
 }

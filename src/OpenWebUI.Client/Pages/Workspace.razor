@@ -10,18 +10,19 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject DialogService Dialogs
 
 <PageTitle>Workspace — Open WebUI</PageTitle>
 
 <div class="page">
     <h1 class="page-title" tabindex="-1">Workspace</h1>
-    <div class="page-tabs">
-        <a href="/workspace/prompts" class="modal-tab @(Section == "prompts" ? "active" : "")">@L["workspace.prompts"]</a>
-        <a href="/workspace/models" class="modal-tab @(Section == "models" ? "active" : "")">@L["workspace.models"]</a>
-        <a href="/workspace/files" class="modal-tab @(Section == "files" ? "active" : "")">@L["workspace.files"]</a>
-        <a href="/workspace/knowledge" class="modal-tab @(Section == "knowledge" ? "active" : "")">@L["workspace.knowledge"]</a>
-        <a href="/workspace/tools" class="modal-tab @(Section == "tools" ? "active" : "")">Tools</a>
-        <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")">@L["workspace.skills"]</a>
+    <div class="page-tabs" role="tablist" @ref="_tabList" @onkeydown="OnTabKeyDown">
+        <a href="/workspace/prompts" class="modal-tab @(Section == "prompts" ? "active" : "")" role="tab" aria-selected="@(Section == "prompts")">@L["workspace.prompts"]</a>
+        <a href="/workspace/models" class="modal-tab @(Section == "models" ? "active" : "")" role="tab" aria-selected="@(Section == "models")">@L["workspace.models"]</a>
+        <a href="/workspace/files" class="modal-tab @(Section == "files" ? "active" : "")" role="tab" aria-selected="@(Section == "files")">@L["workspace.files"]</a>
+        <a href="/workspace/knowledge" class="modal-tab @(Section == "knowledge" ? "active" : "")" role="tab" aria-selected="@(Section == "knowledge")">@L["workspace.knowledge"]</a>
+        <a href="/workspace/tools" class="modal-tab @(Section == "tools" ? "active" : "")" role="tab" aria-selected="@(Section == "tools")">Tools</a>
+        <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")" role="tab" aria-selected="@(Section == "skills")">@L["workspace.skills"]</a>
     </div>
 
     @if (Section == "models")
@@ -234,6 +235,16 @@
 </div>
 
 @code {
+    private ElementReference _tabList;
+
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowLeft" or "ArrowRight" or "ArrowUp" or "ArrowDown" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.rovingFocus", _tabList, e.Key);
+        }
+    }
+
     private string Section =>
         Nav.Uri.Contains("/workspace/models") ? "models"
         : Nav.Uri.Contains("/workspace/files") ? "files"
@@ -330,7 +341,7 @@
     private async Task AddKnowledgeFileAsync(KnowledgeResponse item)
     {
         var names = string.Join("\n", _files.Select(f => $"- {f.Filename}"));
-        var filename = await JS.InvokeAsync<string?>("openwebui.prompt",
+        var filename = await Dialogs.PromptAsync(
             $"{L["workspace.prompt_file_name"]}\n{names}", "");
         var file = _files.FirstOrDefault(f =>
             f.Filename.Equals(filename?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -366,7 +377,7 @@
 
     private async Task BatchDeleteKnowledgeAsync()
     {
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L["workspace.confirm_delete_selected"]))
+        if (!await Dialogs.ConfirmAsync( L["workspace.confirm_delete_selected"], danger: true))
         {
             return;
         }
@@ -402,7 +413,7 @@
 
     private async Task DeletePromptAsync(PromptResponse prompt)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_prompt", ("command", prompt.Command)))
+        if (await Dialogs.ConfirmAsync( L.T("workspace.confirm_delete_prompt", ("command", prompt.Command)), danger: true)
             && await Api.DeletePromptAsync(prompt.Id))
         {
             _prompts.Remove(prompt);
@@ -424,7 +435,7 @@
 
     private async Task DeleteModelAsync(ModelEntryResponse model)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_model", ("name", model.Name)))
+        if (await Dialogs.ConfirmAsync( L.T("workspace.confirm_delete_model", ("name", model.Name)), danger: true)
             && await Api.DeleteCustomModelAsync(model.Id))
         {
             _models.Remove(model);
@@ -433,7 +444,7 @@
 
     private async Task DeleteFileAsync(FileResponse file)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", file.Filename)))
+        if (await Dialogs.ConfirmAsync( L.T("common.confirm_delete", ("name", file.Filename)), danger: true)
             && await Api.DeleteFileAsync(file.Id))
         {
             _files.Remove(file);
@@ -456,7 +467,7 @@
 
     private async Task DeleteToolAsync(ToolResponse tool)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("workspace.confirm_delete_tool", ("name", tool.Name)))
+        if (await Dialogs.ConfirmAsync( L.T("workspace.confirm_delete_tool", ("name", tool.Name)), danger: true)
             && await Api.DeleteToolAsync(tool.Id))
         {
             _tools.Remove(tool);

@@ -16,20 +16,20 @@
             </div>
 
             <div class="modal-shell">
-                <div class="modal-tabs">
-                    <button class="modal-tab @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
-                    <button class="modal-tab @(_tab == "account" ? "active" : "")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
-                    <button class="modal-tab @(_tab == "memories" ? "active" : "")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
-                    <button class="modal-tab @(_tab == "notifications" ? "active" : "")" @onclick='() => SelectTab("notifications")'>@L["settings.notifications"]</button>
+                <div class="modal-tabs" role="tablist" @ref="_tabList" @onkeydown="OnTabKeyDown">
+                    <button class="modal-tab @(_tab == "general" ? "active" : "")" role="tab" aria-selected="@(_tab == "general")" @onclick='() => _tab = "general"'>@L["settings.general"]</button>
+                    <button class="modal-tab @(_tab == "account" ? "active" : "")" role="tab" aria-selected="@(_tab == "account")" @onclick='() => _tab = "account"'>@L["settings.account"]</button>
+                    <button class="modal-tab @(_tab == "memories" ? "active" : "")" role="tab" aria-selected="@(_tab == "memories")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
+                    <button class="modal-tab @(_tab == "notifications" ? "active" : "")" role="tab" aria-selected="@(_tab == "notifications")" @onclick='() => SelectTab("notifications")'>@L["settings.notifications"]</button>
                     @if (Auth.CurrentUser?.Role == "admin")
                     {
-                        <button class="modal-tab @(_tab == "connections" ? "active" : "")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
-                        <button class="modal-tab @(_tab == "admin" ? "active" : "")" @onclick='() => _tab = "admin"'>@L["settings.admin"]</button>
+                        <button class="modal-tab @(_tab == "connections" ? "active" : "")" role="tab" aria-selected="@(_tab == "connections")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
+                        <button class="modal-tab @(_tab == "admin" ? "active" : "")" role="tab" aria-selected="@(_tab == "admin")" @onclick='() => _tab = "admin"'>@L["settings.admin"]</button>
                     }
-                    <button class="modal-tab @(_tab == "about" ? "active" : "")" @onclick='() => _tab = "about"'>@L["settings.about"]</button>
+                    <button class="modal-tab @(_tab == "about" ? "active" : "")" role="tab" aria-selected="@(_tab == "about")" @onclick='() => _tab = "about"'>@L["settings.about"]</button>
                 </div>
 
-                <div class="modal-body">
+                <div class="modal-body" role="tabpanel">
                 @if (_tab == "general")
                 {
                     <div class="field">
@@ -558,6 +558,7 @@
     private bool _adminLoaded;
     private string _adminWebUiName = "Open WebUI";
     private ElementReference _modalElement;
+    private ElementReference _tabList;
     private bool _focusTrapped;
     private string _adminDefaultRole = "pending";
     private bool _adminEnableSignup = true;
@@ -616,6 +617,14 @@
         {
             _focusTrapped = false;
             await JS.InvokeVoidAsync("openwebui.releaseFocus", _modalElement);
+        }
+    }
+
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowLeft" or "ArrowRight" or "ArrowUp" or "ArrowDown" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.rovingFocus", _tabList, e.Key);
         }
     }
 

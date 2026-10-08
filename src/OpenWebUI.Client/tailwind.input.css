@@ -347,11 +347,11 @@
 	}
 
 	.icon-mini {
-		@apply size-5 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer;
+		@apply size-5 min-h-6 min-w-6 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer;
 	}
 
 	.msg-action {
-		@apply text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer;
+		@apply inline-flex items-center justify-center min-h-6 px-1 rounded-md text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer;
 	}
 
 	/* Conteúdo markdown renderizado (chat, channels) — tipografia do

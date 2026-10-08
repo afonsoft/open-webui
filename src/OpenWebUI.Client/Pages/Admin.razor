@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject DialogService Dialogs
 @using System.Text.Json.Nodes
 
 <PageTitle>@L["page.admin"] — Open WebUI</PageTitle>
@@ -2497,15 +2498,15 @@
 
     private async Task AddUserAsync()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.name"] + ":", "");
-        var email = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.email"] + ":", "");
-        var password = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.password"] + ":", "");
+        var name = await Dialogs.PromptAsync( L["common.name"] + ":", "");
+        var email = await Dialogs.PromptAsync( L["common.email"] + ":", "");
+        var password = await Dialogs.PromptAsync( L["common.password"] + ":", "");
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             return;
         }
 
-        var role = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_role"], "user");
+        var role = await Dialogs.PromptAsync( L["admin.prompt_role"], "user");
         var created = await Api.AddUserAsync(new AddUserRequest(
             name ?? email, email, password,
             role is "admin" or "user" ? role : "user"));
@@ -2552,8 +2553,8 @@
 
     private async Task DeleteUserAsync(AdminUserResponse user)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm",
-            L.T("admin.confirm_delete_user", ("email", user.Email)))
+        if (await Dialogs.ConfirmAsync(
+            L.T("admin.confirm_delete_user", ("email", user.Email)), danger: true)
             && await Api.DeleteUserAsync(user.Id))
         {
             _users?.Remove(user);
@@ -2562,13 +2563,13 @@
 
     private async Task AddGroupAsync()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_group_name"], "");
+        var name = await Dialogs.PromptAsync( L["admin.prompt_group_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
-        var description = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.description"] + ":", "");
+        var description = await Dialogs.PromptAsync( L["common.description"] + ":", "");
         var created = await Api.CreateGroupAsync(
             new CreateGroupRequest(name, description, null));
         if (created is not null)
@@ -2579,7 +2580,7 @@
 
     private async Task AddMemberAsync(GroupResponse group)
     {
-        var email = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_member_email"], "");
+        var email = await Dialogs.PromptAsync( L["admin.prompt_member_email"], "");
         if (string.IsNullOrWhiteSpace(email))
         {
             return;
@@ -2589,7 +2590,7 @@
             u => u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
         if (target is null)
         {
-            await JS.InvokeAsync<bool>("openwebui.confirm", L["admin.user_not_found"]);
+            await Dialogs.ConfirmAsync( L["admin.user_not_found"]);
             return;
         }
 
@@ -2658,7 +2659,7 @@
 
     private async Task EditDomainsAsync(GroupResponse group)
     {
-        var text = await JS.InvokeAsync<string?>("openwebui.prompt",
+        var text = await Dialogs.PromptAsync(
             L["admin.prompt_group_domains"], string.Join(", ", group.AllowedDomains));
         if (text is null) return;
         var domains = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -2687,8 +2688,8 @@
 
     private async Task DeleteGroupAsync(GroupResponse group)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm",
-            L.T("admin.confirm_delete_group", ("name", group.Name)))
+        if (await Dialogs.ConfirmAsync(
+            L.T("admin.confirm_delete_group", ("name", group.Name)), danger: true)
             && await Api.DeleteGroupAsync(group.Id))
         {
             _groups?.Remove(group);

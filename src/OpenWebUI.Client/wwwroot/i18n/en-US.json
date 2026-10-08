@@ -703,5 +703,7 @@
   "admin.sp_entity_ph": "SP Entity ID (optional)",
   "workspace.command_ph": "my-command",
   "channel.fallback_name": "channel",
-  "terminal.load_error": "Could not load the terminal. Check your connection and try again."
+  "terminal.load_error": "Could not load the terminal. Check your connection and try again.",
+  "common.confirm": "Confirm",
+  "common.ok": "OK"
 }

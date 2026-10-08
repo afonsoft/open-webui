@@ -5,6 +5,7 @@
 @inject LocalizationService L
 @inject ThemeService Theme
 @inject IJSRuntime JS
+@inject DialogService Dialogs
 @implements IDisposable
 
 @* Mobile: backdrop fecha a gaveta (overlay abaixo do md) *@
@@ -168,10 +169,9 @@ else
                 <div>
                     <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">@L["sidebar.chats"]</div>
                     <div class="flex flex-col">
-                        @foreach (var chat in FilteredChats)
-                        {
+                        <Virtualize Items="FilteredChats" Context="chat" OverscanCount="8">
                             @ChatItem(chat)
-                        }
+                        </Virtualize>
                     </div>
                 </div>
             }
@@ -562,7 +562,7 @@ else
     private async Task RenameAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        var title = await JS.InvokeAsync<string?>("openwebui.prompt", L["sidebar.prompt_rename"], chat.Title);
+        var title = await Dialogs.PromptAsync( L["sidebar.prompt_rename"], chat.Title);
         if (string.IsNullOrWhiteSpace(title))
         {
             return;
@@ -641,7 +641,7 @@ else
     private async Task CreateFolderForAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["sidebar.prompt_folder_name"], "");
+        var name = await Dialogs.PromptAsync( L["sidebar.prompt_folder_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
@@ -657,8 +657,8 @@ else
 
     private async Task DeleteFolderAsync(FolderWithChats folder)
     {
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm",
-            L.T("sidebar.confirm_delete_folder", ("name", folder.Name))))
+        if (!await Dialogs.ConfirmAsync(
+            L.T("sidebar.confirm_delete_folder", ("name", folder.Name)), danger: true))
         {
             return;
         }
@@ -670,7 +670,7 @@ else
     private async Task DeleteAsync(ChatSummaryResponse chat)
     {
         _menuFor = null;
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", chat.Title))))
+        if (!await Dialogs.ConfirmAsync( L.T("common.confirm_delete", ("name", chat.Title)), danger: true))
         {
             return;
         }

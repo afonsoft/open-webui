@@ -2,6 +2,7 @@
 @inject ApiService Api
 @inject IJSRuntime JS
 @inject LocalizationService L
+@inject DialogService Dialogs
 
 <PageTitle>@L["page.automations"] — Open WebUI</PageTitle>
 
@@ -263,7 +264,7 @@
 
     private async Task DeleteAutomationAsync(AutomationResponse a)
     {
-        if (!await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", a.Name))))
+        if (!await Dialogs.ConfirmAsync( L.T("common.confirm_delete", ("name", a.Name)), danger: true))
         {
             return;
         }

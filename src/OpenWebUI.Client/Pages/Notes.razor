@@ -3,6 +3,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject DialogService Dialogs
 
 <PageTitle>@L["page.notes"] — Open WebUI</PageTitle>
 
@@ -49,7 +50,7 @@
 
     private async Task DeleteNoteAsync(NoteResponse note)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", note.Title)))
+        if (await Dialogs.ConfirmAsync( L.T("common.confirm_delete", ("name", note.Title)), danger: true)
             && await Api.DeleteNoteAsync(note.Id))
         {
             _notes?.Remove(note);
