@@ -492,6 +492,7 @@
   "chat.panel_tab_tasks": "任务",
   "chat.panel_tab_changes": "更改",
   "chat.panel_tab_jobs": "作业",
+  "chat.panel_tab_terminal": "",
   "chat.panel_tab_mcps": "MCP",
   "chat.panel_tab_info": "信息",
   "chat.panel_no_tasks": "暂无任务 — 运行期间 todo_write 会填充此列表。",

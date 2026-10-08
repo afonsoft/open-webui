@@ -492,6 +492,7 @@
   "chat.panel_tab_tasks": "タスク",
   "chat.panel_tab_changes": "変更",
   "chat.panel_tab_jobs": "ジョブ",
+  "chat.panel_tab_terminal": "ターミナル",
   "chat.panel_tab_mcps": "MCP",
   "chat.panel_tab_info": "情報",
   "chat.panel_no_tasks": "タスクはまだありません — 実行中に todo_write がこのリストに追加します。",
