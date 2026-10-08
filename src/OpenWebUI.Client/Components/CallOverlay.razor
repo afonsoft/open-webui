@@ -5,7 +5,9 @@
 @* Modo Call: conversa por voz full-screen (ouve → envia → fala → ouve). *@
 @if (Active)
 {
-    <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 text-gray-100">
+    <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 text-gray-100"
+         role="dialog" aria-modal="true" aria-label="@L["voice.call"]" tabindex="-1"
+         @ref="_overlayEl" @onkeydown="OnKeyDown">
         <button class="absolute top-4 right-4 size-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition cursor-pointer"
                 title="@L["voice.call_exit"]" aria-label="@L["voice.call_exit"]" @onclick="CloseAsync">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -56,18 +58,29 @@
     private string? _error;
     private DotNetObjectReference<CallOverlay>? _ref;
     private bool _wasActive;
+    private ElementReference _overlayEl;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Active && !_wasActive)
         {
             _wasActive = true;
+            await JS.InvokeVoidAsync("openwebui.trapFocus", _overlayEl);
             await StartListeningAsync();
         }
         else if (!Active && _wasActive)
         {
             _wasActive = false;
+            await JS.InvokeVoidAsync("openwebui.releaseFocus", _overlayEl);
             await StopAudioAsync();
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
         }
     }
 
@@ -206,6 +219,7 @@
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        await JS.InvokeVoidAsync("openwebui.releaseFocus", _overlayEl);
         await StopAudioAsync();
         _ref?.Dispose();
     }

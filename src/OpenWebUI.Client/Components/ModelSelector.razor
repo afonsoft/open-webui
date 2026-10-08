@@ -1,6 +1,7 @@
 @inject ApiService Api
 @inject BrowserStorage Storage
 @inject LocalizationService L
+@inject IJSRuntime JS
 
 <div class="relative">
     @if (_models is null)
@@ -14,8 +15,8 @@
     else
     {
         <button class="flex items-center gap-1.5 rounded-xl px-2 py-1 text-[0.9375rem] font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 transition cursor-pointer"
-                aria-expanded="@_open" aria-haspopup="listbox"
-                @onclick="() => _open = !_open">
+                aria-haspopup="listbox" aria-expanded="@_open" @ref="_trigger"
+                @onclick="ToggleOpen">
             <span class="truncate max-w-[16rem]">@(SelectedName)</span>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 text-gray-400"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
         </button>
@@ -23,13 +24,15 @@
         @if (_open)
         {
             <div class="fixed inset-0 z-40" @onclick="() => _open = false"></div>
-            <div class="absolute left-0 top-full mt-1 z-50 w-64 max-h-80 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1">
+            <div class="absolute left-0 top-full mt-1 z-50 w-64 max-h-80 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+                 role="listbox" aria-label="@L["models.select"]" @ref="_menu" @onkeydown="OnMenuKeyDown">
                 @foreach (var group in _models.GroupBy(m => m.Provider))
                 {
                     <div class="px-3 pt-2 pb-1 text-[0.6875rem] uppercase tracking-wide text-gray-400 dark:text-gray-500">@ProviderLabel(group.Key)</div>
                     @foreach (var model in group)
                     {
                         <button class="w-full flex items-center justify-between px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                role="option" aria-selected="@(model.Id == Value)"
                                 @onclick="() => SelectAsync(model.Id)">
                             <span class="truncate">@model.Name</span>
                             @if (model.Id == Value)
@@ -54,6 +57,9 @@
     private const string ModelKey = "webui.model";
     private List<ModelInfo>? _models;
     private bool _open;
+    private bool _focusMenu;
+    private ElementReference _trigger;
+    private ElementReference _menu;
 
     private string SelectedName =>
         _models?.FirstOrDefault(m => m.Id == Value)?.Name ?? L["models.select"];
@@ -73,12 +79,44 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusMenu)
+        {
+            _focusMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _menu);
+        }
+    }
+
+    private void ToggleOpen()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _focusMenu = true;
+        }
+    }
+
+    private async Task OnMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _open = false;
+            await _trigger.FocusAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _menu, e.Key);
+        }
+    }
+
     private async Task SelectAsync(string value)
     {
         _open = false;
         Value = value;
         await Storage.SetAsync(ModelKey, value);
         await ValueChanged.InvokeAsync(value);
+        await _trigger.FocusAsync();
     }
 
     private static string ProviderLabel(string provider) => provider switch

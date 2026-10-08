@@ -19,11 +19,11 @@
     @* Rail fina quando a sidebar está recolhida, como no upstream *@
     <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
         <div class="flex flex-col flex-1 items-center">
-            <a href="/" class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" aria-label="@L["sidebar.new_chat"]">
+            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" aria-label="@L["sidebar.new_chat"]" @onclick="NewChat">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
-            </a>
+            </button>
         </div>
         <div class="flex justify-center items-center">
             <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="@L["sidebar.expand"]" aria-label="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
@@ -42,13 +42,13 @@ else
          role="@(MobileOpen ? "dialog" : null)" aria-modal="@(MobileOpen ? "true" : null)" aria-label="@(MobileOpen ? L["sidebar.expand"] : null)"
          @onkeydown="OnKeyDown">
         <div class="px-1 pt-1.5 pb-1 flex justify-between space-x-1 text-gray-600 dark:text-gray-400 sticky top-0 z-10 -mb-2">
-            <a href="/" class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" aria-label="@L["sidebar.new_chat"]">
+            <button class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer" @onclick="NewChat" aria-label="@L["sidebar.new_chat"]">
                 <img src="favicon.png" class="size-5 rounded-full" alt="" />
-            </a>
+            </button>
 
-            <a href="/" class="flex flex-1 px-0.5 cursor-pointer">
+            <button class="flex flex-1 px-0.5 cursor-pointer" @onclick="NewChat">
                 <div class="self-center font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
-            </a>
+            </button>
 
             <button class="hidden md:flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
                     title="@L["sidebar.collapse"]" aria-label="@L["sidebar.collapse"]" @onclick="() => _collapsed = true">
@@ -60,19 +60,18 @@ else
             </button>
         </div>
 
-        <nav class="relative flex flex-col flex-1 overflow-y-auto scrollbar-hidden space-y-1.5 pt-2.5 pb-2.5"
-             aria-label="@L["sidebar.nav"]">
+        <div class="relative flex flex-col flex-1 overflow-y-auto scrollbar-hidden space-y-1.5 pt-2.5 pb-2.5">
             <div class="pb-1">
                 <div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
-                    <a href="/" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none cursor-pointer"
-                            aria-label="@L["sidebar.new_chat"]">
+                    <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none cursor-pointer"
+                            @onclick="NewChat" aria-label="@L["sidebar.new_chat"]">
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" /></svg>
                         </div>
                         <div class="flex flex-1 self-center translate-y-[0.5px]">
                             <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.new_chat"]</div>
                         </div>
-                    </a>
+                    </button>
                 </div>
 
                 <div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
@@ -80,7 +79,7 @@ else
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
                         </div>
-                        <input type="text" placeholder="@L["sidebar.search"]" aria-label="@L["sidebar.search"]"
+                        <input type="text" placeholder="@L["sidebar.search"]"
                                class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0"
                                @bind="_query" @bind:event="oninput" />
                     </div>
@@ -136,27 +135,26 @@ else
 
             @foreach (var folder in _folders)
             {
-                <div>
-                    <button class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500 cursor-pointer"
+                <div class="flex items-center justify-between px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
+                    <button class="flex-1 flex items-center gap-1 text-left cursor-pointer"
                             aria-expanded="@folder.Expanded"
                             @onclick="() => folder.Expanded = !folder.Expanded">
-                        <span class="flex items-center gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-                            @folder.Name
-                        </span>
-                        <span class="text-gray-400 hover:text-red-500 px-1" title="@L["sidebar.delete_folder"]"
-                              @onclick="() => DeleteFolderAsync(folder)" @onclick:stopPropagation>×</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                        @folder.Name
                     </button>
-                    @if (folder.Expanded)
-                    {
-                        <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
-                            @foreach (var chat in folder.Chats)
-                            {
-                                @ChatItem(chat)
-                            }
-                        </div>
-                    }
+                    <button class="text-gray-400 hover:text-red-500 px-1 cursor-pointer" title="@L["sidebar.delete_folder"]"
+                            aria-label="@L["sidebar.delete_folder"]"
+                            @onclick="() => DeleteFolderAsync(folder)">×</button>
                 </div>
+                @if (folder.Expanded)
+                {
+                    <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
+                        @foreach (var chat in folder.Chats)
+                        {
+                            @ChatItem(chat)
+                        }
+                    </div>
+                }
             }
 
             @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
@@ -177,56 +175,63 @@ else
                     </div>
                 </div>
             }
-        </nav>
+        </div>
 
         <div class="px-1 pb-1.5">
-            <nav class="px-1 flex flex-col text-gray-700 dark:text-gray-300" aria-label="@L["sidebar.nav"]">
-                <a href="/workspace" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+            <div class="px-1 flex flex-col text-gray-700 dark:text-gray-300">
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/workspace")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">Workspace</div>
-                </a>
-                <a href="/playground" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/playground")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18v-1.5m-18-9h18m-18 0V7.5m7.5 4.125v3.75m0 0-2.25 2.25m2.25-2.25 2.25 2.25" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.playground"]</div>
-                </a>
-                <a href="/automations" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/automations")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.automations"]</div>
-                </a>
-                <a href="/calendar" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/calendar")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.calendar"]</div>
-                </a>
-                <a href="/terminal" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/terminal")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.terminal"]</div>
-                </a>
-                <a href="/notes" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                </button>
+                <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                        @onclick='() => Nav.NavigateTo("/notes")'>
                     <div class="self-center flex size-4 shrink-0 items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                     </div>
                     <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.notes"]</div>
-                </a>
+                </button>
                 @if (Auth.CurrentUser?.Role == "admin")
                 {
-                    <a href="/admin" class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer">
+                    <button class="group grow flex items-center space-x-2 rounded-xl px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer"
+                            @onclick='() => Nav.NavigateTo("/admin")'>
                         <div class="self-center flex size-4 shrink-0 items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         </div>
                         <div class="self-center text-[0.8125rem] leading-5">@L["sidebar.admin"]</div>
-                    </a>
+                    </button>
                 }
-            </nav>
+            </div>
 
             <div class="px-1 mt-1">
                 <div class="relative">
@@ -260,10 +265,10 @@ else
                                     @onclick="OpenSettingsAndClose">
                                 @L["sidebar.settings"]
                             </button>
-                            <a href="/archived" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
-                                    @onclick="() => _userMenuOpen = false">
+                            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                                    @onclick='() => { _userMenuOpen = false; Nav.NavigateTo("/archived"); }'>
                                 @L["sidebar.archived"]
-                            </a>
+                            </button>
                             <hr class="border-gray-100 dark:border-gray-800 my-1" />
                             <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
                                     @onclick="SignOutAsync">
@@ -281,25 +286,26 @@ else
 {
     <div class="fixed inset-0 z-40" @onclick="CloseMenu"></div>
     <div class="fixed z-50 min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+         role="menu" aria-label="@L["sidebar.options"]" @ref="_chatMenu" @onkeydown="OnChatMenuKeyDown"
          style="left: 280px; top: 30%;">
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? L["sidebar.unpin"] : L["sidebar.pin"])</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">@L["sidebar.rename"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">@L["sidebar.clone"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">@L["sidebar.share"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">@L["sidebar.archive"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? L["sidebar.unpin"] : L["sidebar.pin"])</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">@L["sidebar.rename"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">@L["sidebar.clone"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">@L["sidebar.share"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">@L["sidebar.archive"]</button>
         @if (_folders.Count > 0)
         {
             <hr class="border-gray-100 dark:border-gray-800 my-1" />
             <div class="px-2.5 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["sidebar.move_to"]</div>
             @foreach (var folder in _folders)
             {
-                <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
+                <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
             }
-            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">@L["sidebar.remove_from_folder"]</button>
+            <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">@L["sidebar.remove_from_folder"]</button>
         }
         <hr class="border-gray-100 dark:border-gray-800 my-1" />
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">@L["sidebar.new_folder"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">@L["common.delete"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">@L["sidebar.new_folder"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">@L["common.delete"]</button>
     </div>
 }
 
@@ -314,9 +320,9 @@ else
                 <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
                         aria-label="@L["common.close"]" @onclick="() => _shareUrl = null">×</button>
             </div>
-            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" for="fld-63">@L["sidebar.public_link"]</label>
+            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">@L["sidebar.public_link"]</label>
             <input class="w-full rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm outline-none text-gray-800 dark:text-gray-100"
-                   readonly value="@_shareUrl" @onclick="CopyShareLink" id="fld-63" />
+                   readonly value="@_shareUrl" @onclick="CopyShareLink" />
             <button class="mt-3 w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 cursor-pointer"
                     @onclick="CopyShareLink">@(_copied ? L["sidebar.copied"] : L["sidebar.copy_link"])</button>
             <button class="mt-2 w-full rounded-full text-sm py-2.5 text-red-500 hover:bg-red-500/10 transition cursor-pointer"
@@ -406,6 +412,9 @@ else
 
     private ElementReference _shareDialog;
     private bool _shareFocusTrapped;
+    private ElementReference _chatMenu;
+    private bool _focusChatMenu;
+    private string? _menuChatId;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -418,6 +427,32 @@ else
         {
             _shareFocusTrapped = false;
             await JS.InvokeVoidAsync("openwebui.releaseFocus", _shareDialog);
+        }
+        if (_focusChatMenu)
+        {
+            _focusChatMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _chatMenu);
+        }
+    }
+
+    private void OpenMenu(ChatSummaryResponse chat)
+    {
+        _menuFor = chat;
+        _menuChatId = chat.Id;
+        _focusChatMenu = true;
+    }
+
+    private async Task OnChatMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _menuFor = null;
+            await JS.InvokeVoidAsync("openwebui.focusSelector",
+                $"[data-options-for='{_menuChatId}']");
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _chatMenu, e.Key);
         }
     }
 
@@ -498,12 +533,16 @@ else
                 <span class="truncate flex-1">@chat.Title</span>
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
-                           @(current ? "flex" : "hidden group-hover:flex")"
-                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" aria-expanded="@(_menuFor == chat)" aria-haspopup="menu" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                           @(current ? "flex" : "flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto focus-visible:pointer-events-auto pointer-coarse:pointer-events-auto")"
+                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" aria-haspopup="menu"
+                    aria-expanded="@(_menuFor == chat)" data-options-for="@chat.Id"
+                    @onclick="() => OpenMenu(chat)" @onclick:stopPropagation @onclick:preventDefault>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
             </button>
         </div>
     };
+
+    private void NewChat() => Nav.NavigateTo("/");
 
     private void OpenSettingsAndClose()
     {
