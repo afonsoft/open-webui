@@ -46,7 +46,7 @@
 
 ## 4. Approval gate
 
-- Decision: pending | By: user | Date: —
+- Decision: approved | By: user | Date: 2026-10-08
 - SPECs Draft gerados:
   - `.specs/SPEC-20261008-tests-coverage-gate.md` (high — destrava a main)
   - `.specs/SPEC-20261008-ci-tool-guards.md` (medium — toca `.github/workflows/`, exige revisão humana explícita)
@@ -54,8 +54,8 @@
 
 ## 5. Issues
 
-- Epic: pending gate
-- Slices: pending gate
+- Epic: gap-analysis-20261008 → https://github.com/afonsoft/open-webui/issues/200
+- Slices: #201 (tests-coverage-gate), #202 (ci-tool-guards), #203 (spec-status-reconciliation)
 
 ## 6. Orchestrator handoff
 
