@@ -364,8 +364,8 @@ public class PassthroughTests
         var digest = $"sha256:{new string('a', 64)}";
         var payload = Encoding.UTF8.GetBytes("blob-de-teste");
 
-        var upload = await _client.PostAsync($"/ollama/api/blobs/{digest}",
-            new ByteArrayContent(payload));
+        using var content = new ByteArrayContent(payload);
+        var upload = await _client.PostAsync($"/ollama/api/blobs/{digest}", content);
         Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         using var headReq = new HttpRequestMessage(HttpMethod.Head,

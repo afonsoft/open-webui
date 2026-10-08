@@ -66,6 +66,7 @@ public class SamlTests
     {
         _idpCert.Dispose();
         _rogueCert.Dispose();
+        RsaKey.Dispose();
         _anon.Dispose();
         _admin.Dispose();
         _factory.Dispose();
@@ -86,8 +87,10 @@ public class SamlTests
         return (auth!.Token, auth.User.Id);
     }
 
+    private static readonly RSA RsaKey = RSA.Create(2048);
+
     private static X509Certificate2 NewCert(string cn) =>
-        new CertificateRequest(cn, RSA.Create(2048), HashAlgorithmName.SHA256,
+        new CertificateRequest(cn, RsaKey, HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1)
             .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
                 DateTimeOffset.UtcNow.AddYears(1));

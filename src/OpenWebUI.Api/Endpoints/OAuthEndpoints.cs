@@ -142,7 +142,7 @@ public static class OAuthEndpoints
         IHttpClientFactory httpFactory, CancellationToken ct)
     {
         var http = httpFactory.CreateClient();
-        var body = new FormUrlEncodedContent(new Dictionary<string, string>
+        using var body = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["client_id"] = config.ClientId,
             ["client_secret"] = config.ClientSecret,

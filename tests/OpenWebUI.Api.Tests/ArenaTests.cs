@@ -166,7 +166,7 @@ public class ArenaTests
     public async Task ArenaCompletion_DuasRespostasAnonimas() // RF-001
     {
         UseToken(_user.Token);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 $"arena:{_arenaModelId}",

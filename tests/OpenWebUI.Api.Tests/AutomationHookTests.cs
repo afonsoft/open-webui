@@ -258,7 +258,8 @@ public class AutomationHookTests
         // Db próprio: a base do fixture pode ter n8n.base_url gravada
         // por testes de endpoint anteriores.
         var serviceDb = NewIsolatedDb();
-        var config = new ConfigService(serviceDb, new MemoryCache(new MemoryCacheOptions()));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(serviceDb, mc2);
         await config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await config.SetAsync<string?>(N8nService.ApiKeyKey, "k-123", default);
         var service = new N8nService(new StubFactory(handler), config,
@@ -284,7 +285,8 @@ public class AutomationHookTests
     public async Task N8nService_SemConfig_LancaInvalidOperation()
     {
         var serviceDb = NewIsolatedDb();
-        var config = new ConfigService(serviceDb, new MemoryCache(new MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(serviceDb, mc1);
         var service = new N8nService(new StubFactory(), config,
             new ConfigurationBuilder().Build());
 

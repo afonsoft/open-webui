@@ -525,11 +525,27 @@ public class GitHubWorkspaceTests
                     """
                 : path.EndsWith("/branches") ? (BranchesBody ?? "[{\"name\":\"main\"},{\"name\":\"dev\"}]")
                 : "{\"default_branch\":\"main\"}");
-            return Task.FromResult(new HttpResponseMessage(
+            var response = new HttpResponseMessage(
                 Status == HttpStatusCode.OK ? HttpStatusCode.OK : Status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
-            });
+            };
+            _pending.Add(response);
+            return Task.FromResult(response);
+        }
+
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var pending in _pending)
+                {
+                    pending.Dispose();
+                }
+            }
+            base.Dispose(disposing);
         }
     }
 

@@ -151,10 +151,9 @@ public class ToolExecutor(
         {
             using var http = httpClientFactory.CreateClient();
             http.Timeout = Timeout;
-            using var response = await http.PostAsync(
-                tool.Url,
-                new StringContent(argumentsJson, System.Text.Encoding.UTF8, "application/json"),
-                ct);
+            using var content = new StringContent(
+                argumentsJson, System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync(tool.Url, content, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
             {

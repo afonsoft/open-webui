@@ -269,10 +269,10 @@ public class ProviderService(
         {
             var baseUrl = FirstBaseUrl(connections)
                 ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
+            using var content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json");
             using var response = await httpClientFactory.CreateClient().PostAsync(
-                $"{TrimSlash(baseUrl)}/api/chat",
-                new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
-                ct);
+                $"{TrimSlash(baseUrl)}/api/chat", content, ct);
             response.EnsureSuccessStatusCode();
             json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
         }
@@ -675,10 +675,10 @@ public class ProviderService(
             ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
 
         var payload = BuildPayload(request, stream: false);
+        using var content = new StringContent(
+            payload.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await httpClientFactory.CreateClient().PostAsync(
-            $"{TrimSlash(baseUrl)}/api/chat",
-            new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
-            ct);
+            $"{TrimSlash(baseUrl)}/api/chat", content, ct);
         response.EnsureSuccessStatusCode();
 
         var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));

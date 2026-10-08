@@ -96,7 +96,8 @@ public class NotificationEndpointsTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             lock (_received)
             {
                 _received.Add((

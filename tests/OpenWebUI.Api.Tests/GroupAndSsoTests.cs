@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -134,7 +135,8 @@ public class GroupAndSsoTests
     public async Task OAuth_VinculaOuCriaUsuario()
     {
         await using var db = CreateContext();
-        var oauth = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var oauth = new OAuthService(db, new ConfigService(db, mc1));
 
         var linked = await oauth.LinkOrCreateAsync(
             "github", "gh-42", "user@test.local", "User GH");

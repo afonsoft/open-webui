@@ -274,9 +274,10 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
-            new McpClientService(db, new MemoryCache(new MemoryCacheOptions())), EmptyRegistry());
+            new McpClientService(db, mc2), EmptyRegistry());
 
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 
@@ -299,7 +300,8 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
-        var mcp = new McpClientService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mcp = new McpClientService(db, mc1);
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 
         // Server desabilitado → mensagem de erro (não exceção).

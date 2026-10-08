@@ -9,6 +9,19 @@ namespace OpenWebUI.Client.Tests;
 [TestFixture]
 public class ChatStreamServiceTests
 {
+    private readonly List<IDisposable> _owned = [];
+
+    /// <summary>Libera os HttpClients criados pelas factories de serviço.</summary>
+    [TearDown]
+    public void TearDown()
+    {
+        foreach (var disposable in _owned)
+        {
+            disposable.Dispose();
+        }
+        _owned.Clear();
+    }
+
     [Test]
     public async Task Stream_ChunkComChoicesVazio_NaoLancaEIgnora()
     {
@@ -153,7 +166,7 @@ public class ChatStreamServiceTests
         });
     }
 
-    private static ChatStreamService CreateService(string sseBody)
+    private ChatStreamService CreateService(string sseBody)
     {
         var http = new HttpClient(new StubHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -163,6 +176,7 @@ public class ChatStreamServiceTests
         {
             BaseAddress = new Uri("http://localhost/"),
         };
+        _owned.Add(http);
 
         var js = new FakeJs();
         var auth = new AuthService(http, new BrowserStorage(js), new LocalizationService(http, js));
@@ -172,9 +186,27 @@ public class ChatStreamServiceTests
     private sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
-            => handler(request, cancellationToken);
+        {
+            var response = await handler(request, cancellationToken);
+            _pending.Add(response);
+            return response;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class FakeJs : IJSRuntime

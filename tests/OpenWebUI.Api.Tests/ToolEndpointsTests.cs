@@ -99,7 +99,8 @@ public class ToolEndpointsTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             var (status, json) = Route(ctx.Request.Url!.AbsolutePath, body);
             var bytes = Encoding.UTF8.GetBytes(json);
             ctx.Response.StatusCode = status;
@@ -231,7 +232,7 @@ public class ToolEndpointsTests
         UseToken(user.Token);
         var tool = await CreateToolAsync();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 "gpt-mock",

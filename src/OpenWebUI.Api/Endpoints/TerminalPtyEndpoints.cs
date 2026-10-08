@@ -161,7 +161,7 @@ public static class TerminalPtyEndpoints
             return Results.BadRequest(new { detail = "Esperado WebSocket." });
         }
 
-        var sendLock = new SemaphoreSlim(1, 1);
+        using var sendLock = new SemaphoreSlim(1, 1);
         using var socket = await http.WebSockets.AcceptWebSocketAsync();
 
         Task SendOutput(string chunk) =>

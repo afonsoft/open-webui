@@ -17,17 +17,21 @@
     private readonly List<ToastEntry> _toasts = [];
 
     private sealed record ToastEntry(ToastMessage Message, CancellationTokenSource Timer)
+        : IDisposable
     {
         public string Text => Message.Text;
         public ToastType Type => Message.Type;
         public string? Url => Message.Url;
+
+        public void Dispose() => Timer.Dispose();
     }
 
     protected override void OnInitialized() => Toasts.OnShow += HandleShow;
 
     private void HandleShow(ToastMessage message)
     {
-        var entry = new ToastEntry(message, new CancellationTokenSource());
+        var timer = new CancellationTokenSource();
+        var entry = new ToastEntry(message, timer);
         _toasts.Add(entry);
         if (_toasts.Count > 4)
         {
@@ -59,7 +63,7 @@
         }
 
         entry.Timer.Cancel();
-        entry.Timer.Dispose();
+        entry.Dispose();
         _ = InvokeAsync(StateHasChanged);
         if (navigate && !string.IsNullOrEmpty(entry.Url))
         {
@@ -81,7 +85,7 @@
         foreach (var toast in _toasts)
         {
             toast.Timer.Cancel();
-            toast.Timer.Dispose();
+            toast.Dispose();
         }
     }
 }
