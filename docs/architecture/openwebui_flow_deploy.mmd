@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph Proxy["🌐 Reverse proxy (nginx/Cloudflare)"]
+        RP["TLS termination<br/>X-Forwarded-For/Proto/Host"]
+    end
+    subgraph App["📦 container openwebui"]
+        Api["⚙️ OpenWebUI.Api :8080"]
+        Vol[("💾 /app/data (volume)<br/>openwebui.db + uploads/")]
+        Api --- Vol
+    end
+    Ollama["Ollama (opcional)<br/>OLLAMA_BASE_URL"]
+
+    Browser["👤 Navegador"] -->|"HTTPS + WSS"| RP --> Api
+    Api --> Ollama
+
+    classDef proxy fill:#87CEEB,stroke:#333,stroke-width:2px,color:#0B3D63
+    classDef app fill:#90EE90,stroke:#333,stroke-width:2px,color:#145A32
+    classDef ext fill:#FFE4B5,stroke:#333,stroke-width:2px,color:#7A4E00
+
+    class Proxy,RP proxy
+    class App,Api,Vol app
+    class Browser,Ollama ext

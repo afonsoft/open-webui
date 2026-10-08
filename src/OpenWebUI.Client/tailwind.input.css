@@ -5,6 +5,8 @@
 @source './**/*.html';
 @source './**/*.js';
 
+@source not '../../docs/**';
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {

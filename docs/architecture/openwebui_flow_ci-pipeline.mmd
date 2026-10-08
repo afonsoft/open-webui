@@ -1,0 +1,60 @@
+flowchart LR
+    PR["🔀 push / pull_request"] --> CI["ci-build-test.yml"]
+    PR --> SEC["security-scan.yml"]
+    PR --> QUAL["code-quality.yml"]
+    PR --> A11Y["a11y-audit.yml"]
+    PR --> E2E["chat-e2e.yml"]
+    TAG["🏷️ tag v*"] --> REL["release.yml"]
+    MAN["workflow_dispatch"] --> DH["dockerhub-overview.yml"]
+
+    subgraph CI["ci-build-test.yml"]
+        B["Build OpenWebUI (.NET 10)"]
+        T["Tests + Coverage Gate (NUnit)<br/>line ≥ baseline · branch ≥ baseline"]
+        R["Coverage Baseline Ratchet<br/>(só push em main — sobe baseline)"]
+        TW["Tailwind CSS em dia"]
+        WV["Blazor WASM Client Validation<br/>+ drift guards<br/>(css-classes · form-a11y · i18n-parity)"]
+        DK["Docker Image Build"]
+        B --> T --> R
+        B --> WV
+        B --> DK
+    end
+
+    subgraph SEC["security-scan.yml"]
+        CQ["🔍 CodeQL (csharp + javascript)"]
+        TV["🔐 Trivy Container Scan"]
+        SN["🛡️ Snyk Security"]
+    end
+
+    subgraph EXT["checks externos (apps)"]
+        GG["GitGuardian Security Checks"]
+        DV["Devin Review"]
+    end
+    PR --> EXT
+
+    subgraph QUAL["code-quality.yml"]
+        QD["🔍 Qodana Analysis"]
+        SQ["📊 SonarQube Analysis"]
+    end
+
+    subgraph A11Y["a11y-audit.yml"]
+        AX["axe-core<br/>(mobile 375px + desktop)"]
+    end
+
+    subgraph E2E["chat-e2e.yml"]
+        CE["Chat E2E com provider real<br/>(gate de secrets LLM_*)"]
+    end
+
+    subgraph REL["release.yml"]
+        VT["Validate Version Tag"]
+        BR["Build Release Artifacts<br/>(binários por RID)"]
+        PB["Publish → GHCR + Release"]
+        VT --> BR --> PB
+    end
+
+    classDef wf fill:#87CEEB,stroke:#333,stroke-width:2px,color:#0B3D63
+    classDef gate fill:#FFD700,stroke:#333,stroke-width:2px,color:#5C4400
+    classDef trig fill:#90EE90,stroke:#333,stroke-width:2px,color:#145A32
+
+    class CI,SEC,QUAL,A11Y,E2E,REL,DH wf
+    class T,R,WV,AX gate
+    class PR,TAG,MAN trig
