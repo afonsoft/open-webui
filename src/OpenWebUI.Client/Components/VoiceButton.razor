@@ -31,8 +31,10 @@
     /// <summary>Desabilita o botão externamente (ex.: streaming/carregando).</summary>
     [Parameter] public bool Disabled { get; set; }
 
-    /// <summary>Idioma do reconhecimento (ex.: pt-BR).</summary>
-    [Parameter] public string Lang { get; set; } = "pt-BR";
+    /// <summary>Idioma do reconhecimento (ex.: pt-BR) — padrão segue o idioma da UI.</summary>
+    [Parameter] public string? Lang { get; set; }
+
+    private string SttLang => Lang ?? L.Language;
 
     private bool _supported = true;
     private bool _listening;
@@ -60,7 +62,7 @@
 
         _ref ??= DotNetObjectReference.Create(this);
         _listening = await JS.InvokeAsync<bool>(
-            "openwebui.audio.startStt", _ref, Lang);
+            "openwebui.audio.startStt", _ref, SttLang);
         if (!_listening)
         {
             await OnError.InvokeAsync("unsupported");

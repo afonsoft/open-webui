@@ -33,16 +33,16 @@
                 @if (_tab == "general")
                 {
                     <div class="field">
-                        <label>@L["settings.theme"]</label>
-                        <select class="input" value="@Theme.Current" @onchange="OnThemeChanged">
+                        <label for="fld-1">@L["settings.theme"]</label>
+                        <select class="input" value="@Theme.Current" @onchange="OnThemeChanged" id="fld-1">
                             <option value="system">@L["settings.theme_system"]</option>
                             <option value="dark">@L["settings.theme_dark"]</option>
                             <option value="light">@L["settings.theme_light"]</option>
                         </select>
                     </div>
                     <div class="field">
-                        <label>@L["settings.language"]</label>
-                        <select class="input" value="@L.Language" @onchange="OnLanguageChanged">
+                        <label for="fld-2">@L["settings.language"]</label>
+                        <select class="input" value="@L.Language" @onchange="OnLanguageChanged" id="fld-2">
                             @foreach (var (lang, display) in L.Languages)
                             {
                                 <option value="@lang">@display</option>
@@ -50,8 +50,8 @@
                         </select>
                     </div>
                     <div class="field">
-                        <label>@L["settings.audio_engine"]</label>
-                        <select class="input" value="@_audioEngine" @onchange="OnAudioEngineChanged">
+                        <label for="fld-3">@L["settings.audio_engine"]</label>
+                        <select class="input" value="@_audioEngine" @onchange="OnAudioEngineChanged" id="fld-3">
                             <option value="auto">@L["settings.audio_engine_auto"]</option>
                             <option value="web-speech">Web Speech</option>
                             <option value="server">@L["settings.audio_engine_server"]</option>
@@ -60,8 +60,8 @@
                     @if (_ttsSupported || _sttSupported)
                     {
                         <div class="field">
-                            <label>@L["settings.audio_voice"]</label>
-                            <select class="input" value="@_audioVoice" @onchange="OnAudioVoiceChanged" disabled="@(!_ttsSupported)">
+                            <label for="fld-4">@L["settings.audio_voice"]</label>
+                            <select class="input" value="@_audioVoice" @onchange="OnAudioVoiceChanged" disabled="@(!_ttsSupported)" id="fld-4">
                                 <option value="">@L["settings.audio_voice_default"]</option>
                                 @foreach (var v in _audioVoices)
                                 {
@@ -79,34 +79,34 @@
                 else if (_tab == "account")
                 {
                     <div class="field">
-                        <label>@L["common.name"]</label>
-                        <input class="input" @bind="_name" />
+                        <label for="fld-5">@L["common.name"]</label>
+                        <input class="input" @bind="_name" id="fld-5" />
                     </div>
                     <div class="field">
-                        <label>@L["settings.profile_url"]</label>
-                        <input class="input" @bind="_profileImage" placeholder="https://…" />
+                        <label for="fld-6">@L["settings.profile_url"]</label>
+                        <input class="input" @bind="_profileImage" placeholder="https://…" id="fld-6" />
                     </div>
                     <button class="auth-submit" @onclick="SaveProfileAsync">@L["settings.save_profile"]</button>
 
                     <hr class="modal-sep" />
 
                     <div class="field">
-                        <label>@L["settings.current_password"]</label>
-                        <input class="input" type="password" @bind="_currentPassword" />
+                        <label for="fld-7">@L["settings.current_password"]</label>
+                        <input class="input" type="password" autocomplete="current-password" @bind="_currentPassword" id="fld-7" />
                     </div>
                     <div class="field">
-                        <label>@L["settings.new_password"]</label>
-                        <input class="input" type="password" @bind="_newPassword" />
+                        <label for="fld-8">@L["settings.new_password"]</label>
+                        <input class="input" type="password" autocomplete="new-password" @bind="_newPassword" id="fld-8" />
                     </div>
                     <button class="auth-submit" @onclick="ChangePasswordAsync">@L["settings.change_password"]</button>
 
                     <hr class="modal-sep" />
 
                     <div class="field">
-                        <label>@L["settings.api_key"]</label>
+                        <label for="fld-9">@L["settings.api_key"]</label>
                         @if (_apiKeyCreated is not null)
                         {
-                            <input class="input" readonly value="@_apiKeyCreated" />
+                            <input class="input" readonly value="@_apiKeyCreated" id="fld-9" />
                             <div class="field-note">@L["settings.api_key_copy_now"]</div>
                         }
                         else if (_apiKeyInfo is not null)
@@ -129,11 +129,11 @@
                     <hr class="modal-sep" />
 
                     <div class="field">
-                        <label>@L["settings.webhook_url"]</label>
-                        <input class="input" @bind="_webhookUrl" placeholder="https://…" />
+                        <label for="fld-10">@L["settings.webhook_url"]</label>
+                        <input class="input" @bind="_webhookUrl" placeholder="https://…" id="fld-10" />
                     </div>
                     <div class="field">
-                        <label>@L["settings.webhook_events"]</label>
+                        <div class="field-label">@L["settings.webhook_events"]</div>
                         @foreach (var ev in WebhookEvents)
                         {
                             <label class="check"><input type="checkbox" checked="@_webhookEvents.Contains(ev)" @onchange="e => ToggleWebhookEvent(ev, e)" /> @ev</label>
@@ -158,7 +158,7 @@
                 else if (_tab == "memories")
                 {
                     <div class="field">
-                        <label>@L["settings.memories_label"]</label>
+                        <div class="field-label">@L["settings.memories_label"]</div>
                         @if (_memories.Count == 0)
                         {
                             <div class="field-note">@L["settings.memories_empty"]</div>
@@ -172,8 +172,8 @@
                         }
                     </div>
                     <div class="field">
-                        <label>@L["settings.add_memory"]</label>
-                        <input class="input" @bind="_newMemory" placeholder="@L["settings.add_memory_placeholder"]" />
+                        <label for="fld-11">@L["settings.add_memory"]</label>
+                        <input class="input" @bind="_newMemory" placeholder="@L["settings.add_memory_placeholder"]" id="fld-11" />
                     </div>
                     <button class="auth-submit" disabled="@string.IsNullOrWhiteSpace(_newMemory)"
                             @onclick="AddMemoryAsync">@L["settings.add"]</button>
@@ -194,13 +194,13 @@
                     </label>
                     @if (_notifyPermission is "denied" or "unsupported")
                     {
-                        <p class="hint text-red-600 dark:text-red-400">
+                        <p class="field-note text-red-600 dark:text-red-400">
                             @L[_notifyPermission == "denied"
                                 ? "settings.notify_permission_denied"
                                 : "settings.notify_permission_unsupported"]
                         </p>
                     }
-                    <p class="hint">@L["settings.notify_hint"]</p>
+                    <p class="field-note">@L["settings.notify_hint"]</p>
                 }
                 else if (_tab == "connections")
                 {
@@ -211,27 +211,27 @@
                     else
                     {
                         <div class="field">
-                            <label>@L["settings.ollama_connections"]</label>
+                            <div class="field-label">@L["settings.ollama_connections"]</div>
                             @foreach (var row in _ollamaRows)
                             {
                                 <div class="flex gap-2 mb-1 items-center">
-                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" />
-                                    <input class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" />
-                                    <button class="msg-action danger flex-none" @onclick="() => _ollamaRows.Remove(row)">✕</button>
+                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" aria-label="@L["common.name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" aria-label="URL" />
+                                    <button class="msg-action danger flex-none" aria-label="@L["common.delete"]" @onclick="() => _ollamaRows.Remove(row)">✕</button>
                                 </div>
                             }
                             <button class="button-sm" @onclick="() => _ollamaRows.Add(new ConnectionRow())">@L["settings.add_connection"]</button>
                         </div>
                         <div class="field">
-                            <label>@L["settings.openai_connections"]</label>
+                            <div class="field-label">@L["settings.openai_connections"]</div>
                             @foreach (var row in _openAiRows)
                             {
                                 <div class="flex gap-2 mb-1 items-center">
-                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" />
-                                    <input class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" />
-                                    <input class="input w-48" type="password" @bind="row.Key"
+                                    <input class="input w-40" @bind="row.Name" placeholder="@L["common.name"]" aria-label="@L["common.name"]" />
+                                    <input class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" aria-label="URL" />
+                                    <input class="input w-48" type="password" @bind="row.Key" aria-label="API key"
                                            placeholder="@(row.KeyConfigured ? L["settings.keys_keep"] : "API key")" />
-                                    <button class="msg-action danger flex-none" @onclick="() => _openAiRows.Remove(row)">✕</button>
+                                    <button class="msg-action danger flex-none" aria-label="@L["common.delete"]" @onclick="() => _openAiRows.Remove(row)">✕</button>
                                 </div>
                             }
                             <button class="button-sm" @onclick="() => _openAiRows.Add(new ConnectionRow())">@L["settings.add_connection"]</button>
@@ -246,7 +246,7 @@
                         {
                             <hr />
                             <div class="field">
-                                <label>@L["settings.ollama_models"]</label>
+                                <div class="field-label">@L["settings.ollama_models"]</div>
                                 @if (_ollamaModels is null)
                                 {
                                     <div class="field-note">@L["common.loading"]</div>
@@ -267,7 +267,7 @@
                                 }
                             </div>
                             <div class="field">
-                                <input class="input" @bind="_ollamaPullName"
+                                <input aria-label="@L["settings.pull_model_placeholder"]" class="input" @bind="_ollamaPullName"
                                        placeholder="@L["settings.pull_model_placeholder"]" />
                             </div>
                             @if (_ollamaPullMessage is not null)
@@ -289,12 +289,12 @@
                     else
                     {
                         <div class="field">
-                            <label>@L["settings.instance_name"]</label>
-                            <input class="input" @bind="_adminWebUiName" />
+                            <label for="fld-14">@L["settings.instance_name"]</label>
+                            <input class="input" @bind="_adminWebUiName" id="fld-14" />
                         </div>
                         <div class="field">
-                            <label>@L["settings.default_role"]</label>
-                            <select class="input" @bind="_adminDefaultRole">
+                            <label for="fld-15">@L["settings.default_role"]</label>
+                            <select class="input" @bind="_adminDefaultRole" id="fld-15">
                                 <option value="pending">@L["settings.role_pending"]</option>
                                 <option value="user">@L["settings.role_user"]</option>
                                 <option value="admin">@L["settings.role_admin"]</option>
@@ -311,8 +311,8 @@
 
                         <div class="field"><strong>@L["settings.audio_admin_section"]</strong></div>
                         <div class="field">
-                            <label>@L["settings.audio_tts_engine"]</label>
-                            <select class="input" @bind="_ttsEngine">
+                            <label for="fld-16">@L["settings.audio_tts_engine"]</label>
+                            <select class="input" @bind="_ttsEngine" id="fld-16">
                                 @foreach (var engine in TtsEngines)
                                 {
                                     <option value="@engine">@engine</option>
@@ -322,8 +322,8 @@
                         @if (_ttsEngine == "provider")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_provider"]</label>
-                                <select class="input" @bind="_ttsProvider" @bind:after="LoadTtsProviderModelsAsync">
+                                <label for="fld-17">@L["settings.audio_provider"]</label>
+                                <select class="input" @bind="_ttsProvider" @bind:after="LoadTtsProviderModelsAsync" id="fld-17">
                                     <option value="">—</option>
                                     @foreach (var url in ProviderOptions(_capabilities?.BaseUrl, _ttsProvider))
                                     {
@@ -335,21 +335,21 @@
                         @if (_ttsEngine is "openai" or "transformers" or "elevenlabs" or "azure")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_tts_base_url"]</label>
-                                <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
+                                <label for="fld-18">@L["settings.audio_tts_base_url"]</label>
+                                <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" id="fld-18" />
                             </div>
                             <div class="field">
-                                <label>@L["settings.audio_tts_api_key"]</label>
-                                <input class="input" type="password" @bind="_ttsApiKey" placeholder="@L["settings.keys_keep"]" />
+                                <label for="fld-19">@L["settings.audio_tts_api_key"]</label>
+                                <input class="input" type="password" @bind="_ttsApiKey" placeholder="@L["settings.keys_keep"]" id="fld-19" />
                             </div>
                         }
                         @if (_ttsEngine is not "none")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_tts_model"]</label>
+                                <label for="fld-20">@L["settings.audio_tts_model"]</label>
                                 @if (TtsModelOptions().Any())
                                 {
-                                    <select class="input" @bind="_ttsModel">
+                                    <select class="input" @bind="_ttsModel" id="fld-20">
                                         @foreach (var m in TtsModelOptions())
                                         {
                                             <option value="@m">@m</option>
@@ -358,20 +358,20 @@
                                 }
                                 else
                                 {
-                                    <input class="input" @bind="_ttsModel" placeholder="tts-1" />
+                                    <input aria-label="@L["settings.audio_tts_model"]" class="input" @bind="_ttsModel" placeholder="tts-1" />
                                 }
                             </div>
                             <div class="field">
-                                <label>@L["settings.audio_tts_voice"]</label>
-                                <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                <label for="fld-21">@L["settings.audio_tts_voice"]</label>
+                                <input class="input" @bind="_ttsVoice" placeholder="alloy" id="fld-21" />
                             </div>
                             <button class="auth-submit" type="button" @onclick="TestAudioAsync" disabled="@_audioTesting">
                                 @(_audioTesting ? L["settings.audio_testing"] : L["settings.audio_test"])
                             </button>
                         }
                         <div class="field">
-                            <label>@L["settings.audio_stt_engine"]</label>
-                            <select class="input" @bind="_sttEngine">
+                            <label for="fld-22">@L["settings.audio_stt_engine"]</label>
+                            <select class="input" @bind="_sttEngine" id="fld-22">
                                 @foreach (var engine in SttEngines)
                                 {
                                     <option value="@engine">@engine</option>
@@ -381,8 +381,8 @@
                         @if (_sttEngine == "provider")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_provider"]</label>
-                                <select class="input" @bind="_sttProvider" @bind:after="LoadSttProviderModelsAsync">
+                                <label for="fld-23">@L["settings.audio_provider"]</label>
+                                <select class="input" @bind="_sttProvider" @bind:after="LoadSttProviderModelsAsync" id="fld-23">
                                     <option value="">—</option>
                                     @foreach (var url in ProviderOptions(_capabilities?.BaseUrl, _sttProvider))
                                     {
@@ -394,17 +394,17 @@
                         @if (_sttEngine is "openai" or "deepgram" or "whisper")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_stt_base_url"]</label>
-                                <input class="input" @bind="_sttBaseUrl" placeholder="https://api.openai.com/v1" />
+                                <label for="fld-24">@L["settings.audio_stt_base_url"]</label>
+                                <input class="input" @bind="_sttBaseUrl" placeholder="https://api.openai.com/v1" id="fld-24" />
                             </div>
                         }
                         @if (_sttEngine is not "none")
                         {
                             <div class="field">
-                                <label>@L["settings.audio_stt_model"]</label>
+                                <label for="fld-25">@L["settings.audio_stt_model"]</label>
                                 @if (SttModelOptions().Any())
                                 {
-                                    <select class="input" @bind="_sttModel">
+                                    <select class="input" @bind="_sttModel" id="fld-25">
                                         @foreach (var m in SttModelOptions())
                                         {
                                             <option value="@m">@m</option>
@@ -413,18 +413,18 @@
                                 }
                                 else
                                 {
-                                    <input class="input" @bind="_sttModel" placeholder="whisper-1" />
+                                    <input aria-label="@L["settings.audio_stt_model"]" class="input" @bind="_sttModel" placeholder="whisper-1" />
                                 }
                             </div>
                         }
                         <hr class="modal-sep" />
                         <div class="field"><strong>@L["settings.webhook_admin_section"]</strong></div>
                         <div class="field">
-                            <label>@L["settings.webhook_url"]</label>
-                            <input class="input" @bind="_adminWebhookUrl" placeholder="https://…" />
+                            <label for="fld-26">@L["settings.webhook_url"]</label>
+                            <input class="input" @bind="_adminWebhookUrl" placeholder="https://…" id="fld-26" />
                         </div>
                         <div class="field">
-                            <label>@L["settings.webhook_events"]</label>
+                            <div class="field-label">@L["settings.webhook_events"]</div>
                             @foreach (var ev in WebhookEvents)
                             {
                                 <label class="check"><input type="checkbox" checked="@_adminWebhookEvents.Contains(ev)" @onchange="e => ToggleAdminWebhookEvent(ev, e)" /> @ev</label>
@@ -451,11 +451,11 @@
                 else
                 {
                     <div class="field">
-                        <label>@L["settings.backend_version"]</label>
+                        <div class="field-label">@L["settings.backend_version"]</div>
                         <div>@(_version ?? "…")</div>
                     </div>
                     <div class="field">
-                        <label>Stack</label>
+                        <div class="field-label">Stack</div>
                         <div>.NET 10 · C# 14 · Blazor WebAssembly</div>
                     </div>
                 }
@@ -1122,8 +1122,8 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDate(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 
     private Task Close() => OnClose.InvokeAsync();
 }

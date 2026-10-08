@@ -17,7 +17,7 @@
 @if (_collapsed)
 {
     @* Rail fina quando a sidebar está recolhida, como no upstream *@
-    <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
+    <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-[width] border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
         <div class="flex flex-col flex-1 items-center">
             <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" aria-label="@L["sidebar.new_chat"]" @onclick="NewChat">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
@@ -135,26 +135,26 @@ else
 
             @foreach (var folder in _folders)
             {
-                <div>
-                    <button class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500 cursor-pointer"
+                <div class="flex items-center justify-between px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
+                    <button class="flex-1 flex items-center gap-1 text-left cursor-pointer"
+                            aria-expanded="@folder.Expanded"
                             @onclick="() => folder.Expanded = !folder.Expanded">
-                        <span class="flex items-center gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
-                            @folder.Name
-                        </span>
-                        <span class="text-gray-400 hover:text-red-500 px-1" title="@L["sidebar.delete_folder"]"
-                              @onclick="() => DeleteFolderAsync(folder)" @onclick:stopPropagation>×</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3 transition-transform @(folder.Expanded ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                        @folder.Name
                     </button>
-                    @if (folder.Expanded)
-                    {
-                        <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
-                            @foreach (var chat in folder.Chats)
-                            {
-                                @ChatItem(chat)
-                            }
-                        </div>
-                    }
+                    <button class="text-gray-400 hover:text-red-500 px-1 cursor-pointer" title="@L["sidebar.delete_folder"]"
+                            aria-label="@L["sidebar.delete_folder"]"
+                            @onclick="() => DeleteFolderAsync(folder)">×</button>
                 </div>
+                @if (folder.Expanded)
+                {
+                    <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
+                        @foreach (var chat in folder.Chats)
+                        {
+                            @ChatItem(chat)
+                        }
+                    </div>
+                }
             }
 
             @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
@@ -286,25 +286,26 @@ else
 {
     <div class="fixed inset-0 z-40" @onclick="CloseMenu"></div>
     <div class="fixed z-50 min-w-[10rem] rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+         role="menu" aria-label="@L["sidebar.options"]" @ref="_chatMenu" @onkeydown="OnChatMenuKeyDown"
          style="left: 280px; top: 30%;">
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? L["sidebar.unpin"] : L["sidebar.pin"])</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">@L["sidebar.rename"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">@L["sidebar.clone"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">@L["sidebar.share"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">@L["sidebar.archive"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => PinAsync(_menuFor)">@(_menuFor.Pinned ? L["sidebar.unpin"] : L["sidebar.pin"])</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => RenameAsync(_menuFor)">@L["sidebar.rename"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CloneAsync(_menuFor)">@L["sidebar.clone"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ShareAsync(_menuFor)">@L["sidebar.share"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => ArchiveAsync(_menuFor)">@L["sidebar.archive"]</button>
         @if (_folders.Count > 0)
         {
             <hr class="border-gray-100 dark:border-gray-800 my-1" />
             <div class="px-2.5 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["sidebar.move_to"]</div>
             @foreach (var folder in _folders)
             {
-                <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
+                <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, folder.Id)">@folder.Name</button>
             }
-            <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">@L["sidebar.remove_from_folder"]</button>
+            <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => MoveToFolderAsync(_menuFor, null)">@L["sidebar.remove_from_folder"]</button>
         }
         <hr class="border-gray-100 dark:border-gray-800 my-1" />
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">@L["sidebar.new_folder"]</button>
-        <button class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">@L["common.delete"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => CreateFolderForAsync(_menuFor)">@L["sidebar.new_folder"]</button>
+        <button role="menuitem" class="flex h-7 w-full items-center gap-2 rounded-lg px-2.5 text-[0.8125rem] text-red-500 hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer" @onclick="() => DeleteAsync(_menuFor)">@L["common.delete"]</button>
     </div>
 }
 
@@ -411,6 +412,9 @@ else
 
     private ElementReference _shareDialog;
     private bool _shareFocusTrapped;
+    private ElementReference _chatMenu;
+    private bool _focusChatMenu;
+    private string? _menuChatId;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -423,6 +427,32 @@ else
         {
             _shareFocusTrapped = false;
             await JS.InvokeVoidAsync("openwebui.releaseFocus", _shareDialog);
+        }
+        if (_focusChatMenu)
+        {
+            _focusChatMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _chatMenu);
+        }
+    }
+
+    private void OpenMenu(ChatSummaryResponse chat)
+    {
+        _menuFor = chat;
+        _menuChatId = chat.Id;
+        _focusChatMenu = true;
+    }
+
+    private async Task OnChatMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _menuFor = null;
+            await JS.InvokeVoidAsync("openwebui.focusSelector",
+                $"[data-options-for='{_menuChatId}']");
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _chatMenu, e.Key);
         }
     }
 
@@ -503,8 +533,10 @@ else
                 <span class="truncate flex-1">@chat.Title</span>
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
-                           @(current ? "flex" : "hidden group-hover:flex")"
-                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" @onclick="() => _menuFor = chat" @onclick:stopPropagation @onclick:preventDefault>
+                           @(current ? "flex" : "flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto focus-visible:pointer-events-auto pointer-coarse:pointer-events-auto")"
+                    title="@L["sidebar.options"]" aria-label="@L["sidebar.options"]" aria-haspopup="menu"
+                    aria-expanded="@(_menuFor == chat)" data-options-for="@chat.Id"
+                    @onclick="() => OpenMenu(chat)" @onclick:stopPropagation @onclick:preventDefault>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" /></svg>
             </button>
         </div>
