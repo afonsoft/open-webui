@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `ci/tool-guards` |
 | Ticket | `GAP-automation-ci-guards` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | ⚠ Atenção | Toca `.github/workflows/` — **hard rule: exige revisão humana explícita antes de executar** |
 
@@ -76,3 +76,8 @@ N/A.
 
 - Guards são determinísticos e rápidos (segundos) — custo de CI negligível.
 - Alternativa aceitável a novo job: steps adicionais no job existente de validação do client.
+
+## Delivered
+
+- **PR:** #206 · **Issue:** #202 — mergeado 2026-10-08.
+- step `Drift guards (css-classes, form-a11y, i18n-parity)` ativo no job `Blazor WASM Client Validation`; 4 violações aria-label corrigidas; comandos documentados em CLAUDE.md.
