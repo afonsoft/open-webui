@@ -319,6 +319,7 @@
                     }
                     <textarea
                         class="scrollbar-hidden bg-transparent dark:text-gray-100 outline-none w-full py-3 px-1 resize-none h-fit max-h-96 overflow-auto placeholder:text-gray-400 dark:placeholder:text-gray-600 text-[0.9375rem]"
+                        aria-label="@L["chat.input_placeholder"]"
                         placeholder="@(_uploading ? L["chat.uploading"] : L["chat.input_placeholder"])"
                         rows="1"
                         @bind="_input"

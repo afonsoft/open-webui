@@ -17,7 +17,7 @@
                 <p class="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">@req.Message</p>
                 @if (req.Kind == DialogKind.Prompt)
                 {
-                    <input class="input mt-3 w-full" @bind="_input" @bind:event="oninput" @onkeydown="OnInputKeyDown" />
+                    <input class="input mt-3 w-full" aria-label="@req.Message" @bind="_input" @bind:event="oninput" @onkeydown="OnInputKeyDown" />
                 }
                 <div class="mt-5 flex justify-end gap-2">
                     <button type="button"
