@@ -71,9 +71,9 @@ public sealed class CodeInterpreterBuiltinTool : IBuiltinChatTool
             timeout = TimeSpan.FromSeconds(Math.Clamp(secs, 1, (int)MaxTimeout.TotalSeconds));
         }
 
-        var tmpDir = Path.Combine(context.WorkspacePath, ".chat-tmp");
+        var tmpDir = Path.Join(context.WorkspacePath, ".chat-tmp");
         Directory.CreateDirectory(tmpDir);
-        var scriptPath = Path.Combine(tmpDir, $"{Guid.NewGuid():N}{extension}");
+        var scriptPath = Path.Join(tmpDir, $"{Guid.NewGuid():N}{extension}");
         await File.WriteAllTextAsync(scriptPath, code, ct);
 
         try

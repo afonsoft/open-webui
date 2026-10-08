@@ -18,7 +18,7 @@ public class AuthAdminTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-authadmin-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-authadmin-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         // Garante LDAP desabilitado: sem servidor/template o TryBindAsync retorna null
         // e o signin cai para a autenticação local.

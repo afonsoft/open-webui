@@ -141,7 +141,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
                 $"Limite de {MaxSessionsPerUser} sessões de terminal por usuário atingido.");
         }
 
-        var workspace = Path.Combine(
+        var workspace = Path.Join(
             _env.ContentRootPath, "data", "workspaces", userId);
         Directory.CreateDirectory(workspace);
 

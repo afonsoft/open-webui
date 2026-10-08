@@ -18,7 +18,7 @@ public class PermissionServiceTests
     [SetUp]
     public async Task SetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-permissions-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-permissions-{Guid.NewGuid():N}.db");
         await using var db = CreateContext();
         await db.Database.EnsureCreatedAsync();
     }

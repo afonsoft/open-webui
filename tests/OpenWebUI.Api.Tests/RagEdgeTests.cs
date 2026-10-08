@@ -16,7 +16,7 @@ public class RagEdgeTests
 
     [SetUp]
     public void SetUp() =>
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-rag-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-rag-{Guid.NewGuid():N}.db");
 
     [TearDown]
     public void TearDown()

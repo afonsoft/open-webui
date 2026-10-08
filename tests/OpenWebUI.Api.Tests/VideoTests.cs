@@ -30,8 +30,8 @@ public class VideoTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-video-{Guid.NewGuid():N}.db");
-        _uploadDir = Path.Combine(Path.GetTempPath(), $"openwebui-video-up-{Guid.NewGuid():N}");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-video-{Guid.NewGuid():N}.db");
+        _uploadDir = Path.Join(Path.GetTempPath(), $"openwebui-video-up-{Guid.NewGuid():N}");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -254,7 +254,7 @@ public class VideoTests
 
     private AppDbContext NewIsolatedDb()
     {
-        var path = Path.Combine(Path.GetTempPath(),
+        var path = Path.Join(Path.GetTempPath(),
             $"openwebui-video-svc-{Guid.NewGuid():N}.db");
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);

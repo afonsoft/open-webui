@@ -260,8 +260,8 @@ public static class ApiEndpoints
                     user.Id,
                     ChatId: null,
                     RunId: null,
-                    Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
-                    Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
+                    Path.Join(env.ContentRootPath, "data", "workspaces", user.Id),
+                    Path.Join(env.ContentRootPath, "data", "uploads", user.Id));
                 var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct,
                     builtinContext: builtinContext);

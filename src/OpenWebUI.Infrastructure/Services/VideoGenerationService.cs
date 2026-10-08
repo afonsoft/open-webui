@@ -101,7 +101,7 @@ public class VideoGenerationService(
             var ext = video.Extension.TrimStart('.').ToLowerInvariant();
             var id = Guid.NewGuid().ToString();
             var filename = $"generated-{id[..8]}.{ext}";
-            var storagePath = Path.Combine(uploadDir, $"{id}_{filename}");
+            var storagePath = Path.Join(uploadDir, $"{id}_{filename}");
             await File.WriteAllBytesAsync(storagePath, video.Bytes, ct);
 
             var entry = new FileEntry

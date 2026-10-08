@@ -22,7 +22,7 @@ public class GroupAndSsoTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-sso-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-sso-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("GITHUB_CLIENT_ID", "gh-test-id");
         Environment.SetEnvironmentVariable("GITHUB_CLIENT_SECRET", "gh-test-secret");

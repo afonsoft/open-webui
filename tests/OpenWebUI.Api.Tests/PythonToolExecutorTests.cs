@@ -22,8 +22,8 @@ public class PythonToolExecutorTests
 
     private static bool HasPython() =>
         Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator)
-            .Any(dir => File.Exists(Path.Combine(dir, "python3"))
-                     || File.Exists(Path.Combine(dir, "python3.exe")));
+            .Any(dir => File.Exists(Path.Join(dir, "python3"))
+                     || File.Exists(Path.Join(dir, "python3.exe")));
 
     private static PythonToolExecutor NewExecutor() =>
         new(new ConfigurationBuilder().Build());
@@ -120,7 +120,7 @@ public class ToolCodeEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-toolcode-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-toolcode-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();

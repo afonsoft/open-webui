@@ -91,7 +91,7 @@ public sealed class BrowserScreenshotBuiltinTool(
         var fileId = Guid.NewGuid().ToString();
         var filename = $"screenshot-{fileId[..8]}.png";
         Directory.CreateDirectory(context.UploadDir);
-        var storagePath = Path.Combine(context.UploadDir, $"{fileId}_{filename}");
+        var storagePath = Path.Join(context.UploadDir, $"{fileId}_{filename}");
         await File.WriteAllBytesAsync(storagePath, png, ct);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         db.Files.Add(new FileEntry

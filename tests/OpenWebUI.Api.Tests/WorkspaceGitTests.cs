@@ -27,7 +27,7 @@ public class WorkspaceGitTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-git-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-git-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -58,7 +58,7 @@ public class WorkspaceGitTests
     [Test]
     public async Task Servico_SemRepo_RetornaGitFalse()
     {
-        var dir = Path.Combine(Path.GetTempPath(), $"owui-git-{Guid.NewGuid():N}");
+        var dir = Path.Join(Path.GetTempPath(), $"owui-git-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         var info = await new WorkspaceGitService().GetInfoAsync(dir, CancellationToken.None);
         Assert.That(info.IsRepo, Is.False);
@@ -68,18 +68,18 @@ public class WorkspaceGitTests
     public async Task Servico_ComRepo_RetornaBranchNumstatEUntracked()
     {
         RequireGit();
-        var dir = Path.Combine(Path.GetTempPath(), $"owui-git-{Guid.NewGuid():N}");
+        var dir = Path.Join(Path.GetTempPath(), $"owui-git-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
         try
         {
             Git(dir, "init");
-            File.WriteAllText(Path.Combine(dir, "a.txt"), "linha1\n");
+            File.WriteAllText(Path.Join(dir, "a.txt"), "linha1\n");
             Git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
             Git(dir, "-c", "user.email=t@t", "-c", "user.name=t",
                 "commit", "-m", "base");
 
-            File.WriteAllText(Path.Combine(dir, "a.txt"), "linha1\nlinha2\n");
-            File.WriteAllText(Path.Combine(dir, "novo.txt"), "n1\nn2\nn3\n");
+            File.WriteAllText(Path.Join(dir, "a.txt"), "linha1\nlinha2\n");
+            File.WriteAllText(Path.Join(dir, "novo.txt"), "n1\nn2\nn3\n");
 
             var info = await new WorkspaceGitService()
                 .GetInfoAsync(dir, CancellationToken.None);
@@ -137,16 +137,16 @@ public class WorkspaceGitTests
         var chat = await CriarChatAsync();
         var run = await EnfileirarAsync(chat.Id, "oi");
 
-        var workdir = Path.Combine(_contentRoot, "data", "workspaces", auth.User.Id);
+        var workdir = Path.Join(_contentRoot, "data", "workspaces", auth.User.Id);
         Directory.CreateDirectory(workdir);
         try
         {
             Git(workdir, "init");
-            File.WriteAllText(Path.Combine(workdir, "readme.md"), "oi\n");
+            File.WriteAllText(Path.Join(workdir, "readme.md"), "oi\n");
             Git(workdir, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
             Git(workdir, "-c", "user.email=t@t", "-c", "user.name=t",
                 "commit", "-m", "base");
-            File.WriteAllText(Path.Combine(workdir, "readme.md"), "oi\nmundo\n");
+            File.WriteAllText(Path.Join(workdir, "readme.md"), "oi\nmundo\n");
 
             var info = await _client.GetFromJsonAsync<WorkspaceGitResponse>(
                 $"/api/v1/chats/{chat.Id}/runs/{run.Id}/diff");
