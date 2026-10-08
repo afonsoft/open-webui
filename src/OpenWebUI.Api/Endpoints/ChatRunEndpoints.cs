@@ -493,7 +493,7 @@ public static class ChatRunEndpoints
         string runId,
         HttpContext http,
         AppDbContext db,
-        IWebHostEnvironment env,
+        WorkspaceRepoService repos,
         WorkspaceGitService git,
         CancellationToken ct)
     {
@@ -510,8 +510,8 @@ public static class ChatRunEndpoints
             return Results.NotFound(new { detail = "Run não encontrada." });
         }
 
-        var workdir = Path.Combine(
-            env.ContentRootPath, "data", "workspaces", user.Id);
+        // Com repo vinculado o snapshot sai do checkout do repo.
+        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
         var info = await git.GetInfoAsync(workdir, ct);
         return Results.Ok(new WorkspaceGitResponse(
             info.IsRepo, info.Branch, info.Added, info.Removed,

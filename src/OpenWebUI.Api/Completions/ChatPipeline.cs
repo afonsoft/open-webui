@@ -26,6 +26,7 @@ public static class ChatPipeline
         ConfigService config,
         RagService rag,
         WebSearchService webSearch,
+        WorkspaceRepoService repos,
         CancellationToken ct)
     {
         var model = request.Model;
@@ -151,6 +152,19 @@ public static class ChatPipeline
                 systemParts.Add(
                     "Memórias do usuário:\n" + string.Join("\n", memories.Select(m => $"- {m}")));
             }
+        }
+
+        // 3.5. Repositório vinculado ao workspace (SPEC-20261008-github-repo-workspace):
+        // o modelo precisa saber que as tools file_*/shell_exec operam dentro
+        // do checkout do repo vinculado (a raiz do workspace vira a raiz do repo).
+        var repoBinding = await repos.GetBindingAsync(user.Id, ct);
+        if (repoBinding is not null)
+        {
+            systemParts.Add(
+                $"Repositório vinculado ao workspace: {repoBinding.Repo} " +
+                $"(branch '{repoBinding.Branch}'). As tools de arquivo e shell " +
+                "operam dentro do checkout desse repositório — a raiz do " +
+                "workspace é a raiz do repo.");
         }
 
         // 4. Mescla partes de sistema numa única mensagem inicial.
@@ -382,6 +396,7 @@ public static class ChatPipeline
         RagService rag,
         ProviderService providers,
         WebSearchService webSearch,
+        WorkspaceRepoService repos,
         Func<string, Task> emitLineAsync,
         CancellationToken ct)
     {
@@ -417,7 +432,7 @@ public static class ChatPipeline
             {
                 var effective = await EnrichRequestAsync(
                     request with { Model = competitor, Stream = false },
-                    user, db, config, rag, webSearch, ct);
+                    user, db, config, rag, webSearch, repos, ct);
                 responses.Add(await providers.CompleteAsync(effective, ct));
             }
         }

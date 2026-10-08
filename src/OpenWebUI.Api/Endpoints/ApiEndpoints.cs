@@ -172,6 +172,7 @@ public static class ApiEndpoints
         ToolExecutor toolExecutor,
         PipelineClientService pipelines,
         WebSearchService webSearch,
+        WorkspaceRepoService repos,
         IWebHostEnvironment env,
         CancellationToken ct)
     {
@@ -228,13 +229,13 @@ public static class ApiEndpoints
             ? request.Model["arena:".Length..]
             : request.Model;
         if (await ChatPipeline.TryRunArenaAsync(
-            request, arenaModel, user, db, config, rag, providers, webSearch, EmitAsync, ct))
+            request, arenaModel, user, db, config, rag, providers, webSearch, repos, EmitAsync, ct))
         {
             return;
         }
 
         var effective = await ChatPipeline.EnrichRequestAsync(
-            request, user, db, config, rag, webSearch, ct);
+            request, user, db, config, rag, webSearch, repos, ct);
 
         // Filtros outlet do modelo custom: redação por regex nas linhas SSE.
         var outletRules = ModelFilterService.OutletRules(
@@ -260,7 +261,8 @@ public static class ApiEndpoints
                     user.Id,
                     ChatId: null,
                     RunId: null,
-                    Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
+                    // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
+                    await repos.ResolveWorkdirAsync(user.Id, ct),
                     Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
                 var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct,

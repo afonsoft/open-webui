@@ -1,0 +1,268 @@
+@inject ApiService Api
+@inject LocalizationService L
+
+@* Modal de vínculo repo↔workspace (SPEC-20261008-github-repo-workspace):
+   lista repositórios do usuário (PAT em Configurações → GitHub), permite
+   digitar owner/repo manualmente, escolhe a branch e abre o checkout no
+   workspace. A branch/repo vinculados vira pill no header do chat. *@
+@if (Active)
+{
+    <div class="modal-backdrop" @onclick="CloseAsync">
+        <div class="modal flex flex-col" style="max-width: 36rem;" role="dialog" aria-modal="true"
+             aria-label="@L["chat.repo_title"]" tabindex="-1" @onclick:stopPropagation
+             @onkeydown="OnKeyDown">
+            <div class="modal-header">
+                <span>@L["chat.repo_title"]</span>
+                <button type="button" class="icon-btn" aria-label="@L["common.close"]"
+                        @onclick="CloseAsync">×</button>
+            </div>
+            <div class="modal-body">
+                @if (_loading)
+                {
+                    <div class="field-note">@L["common.loading"]</div>
+                }
+                else
+                {
+                    @if (_bound?.Repo is { } boundRepo)
+                    {
+                        <div class="memory-row">
+                            <div class="memory-text min-w-0">
+                                <div class="text-sm text-gray-800 dark:text-gray-100 truncate font-mono">@boundRepo</div>
+                                <div class="field-note mt-0">@L.T("chat.repo_bound_branch", ("branch", _bound.Branch ?? ""))</div>
+                            </div>
+                            <div class="card-actions">
+                                <button type="button" class="msg-action danger"
+                                        @onclick="UnbindAsync">@L["chat.repo_unbind"]</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_ghConfigured)
+                    {
+                        <div class="field">
+                            <label for="repo-search">@L["chat.repo_search_label"]</label>
+                            <input id="repo-search" class="input" type="search"
+                                   placeholder="@L["chat.repo_search_ph"]"
+                                   @bind="_filter" @bind:event="oninput" />
+                        </div>
+                        @if (_repos is null)
+                        {
+                            <div class="field-note">@L["common.loading"]</div>
+                        }
+                        else if (Filtered.Count == 0)
+                        {
+                            <div class="field-note">@L["chat.repo_search_empty"]</div>
+                        }
+                        else
+                        {
+                            <div class="card-list max-h-56 overflow-y-auto">
+                                @foreach (var repo in Filtered)
+                                {
+                                    <button type="button"
+                                            class="card-row w-full text-left @(repo.FullName == _slug ? "ring-2 ring-gray-300/60 dark:ring-gray-600" : "")"
+                                            @onclick="() => SelectRepoAsync(repo)">
+                                        <div class="card-main">
+                                            <div class="card-title font-mono">@repo.FullName</div>
+                                            @if (repo.Description is { Length: > 0 } desc)
+                                            {
+                                                <div class="card-sub">@desc</div>
+                                            }
+                                        </div>
+                                        @if (repo.Private)
+                                        {
+                                            <span class="role-badge">@L["chat.repo_private"]</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="field-note">@L["chat.repo_no_token"]</div>
+                    }
+
+                    <hr class="modal-sep" />
+
+                    <div class="field">
+                        <label for="repo-slug">@L["chat.repo_manual"]</label>
+                        <input id="repo-slug" class="input font-mono" type="text"
+                               placeholder="owner/repo" @bind="_slug" @bind:event="oninput"
+                               @bind:after="OnSlugChangedAsync" />
+                    </div>
+                    <div class="field">
+                        <label for="repo-branch">@L["chat.repo_branch_label"]</label>
+                        @if (_branches is { Count: > 0 })
+                        {
+                            <select id="repo-branch" class="input" @bind="_branch">
+                                @foreach (var b in _branches)
+                                {
+                                    <option value="@b">@b</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input id="repo-branch-text" class="input font-mono" type="text"
+                                   aria-label="@L.T("chat.repo_branch")"
+                                   placeholder="main" @bind="_branch" />
+                        }
+                    </div>
+                    @if (_message is not null)
+                    {
+                        <div class="field-note">@_message</div>
+                    }
+                    <div class="field-actions">
+                        <button type="button" class="auth-submit"
+                                disabled="@(_opening || string.IsNullOrWhiteSpace(_slug) || string.IsNullOrWhiteSpace(_branch) || !_slug.Contains('/'))"
+                                @onclick="OpenAsync">
+                            @(_opening ? L["chat.repo_opening"] : L["chat.repo_open_btn"])
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Controla a visibilidade do modal.</summary>
+    [Parameter] public bool Active { get; set; }
+
+    /// <summary>Notifica mudança de <see cref="Active"/>.</summary>
+    [Parameter] public EventCallback<bool> ActiveChanged { get; set; }
+
+    /// <summary>Disparado quando o binding muda (null = desvinculado).</summary>
+    [Parameter] public EventCallback<WorkspaceRepoResponse?> Bound { get; set; }
+
+    private bool _loading;
+    private bool _opening;
+    private bool _ghConfigured;
+    private List<GitHubRepoResponse>? _repos;
+    private List<string>? _branches;
+    private WorkspaceRepoResponse? _bound;
+    private string _filter = string.Empty;
+    private string _slug = string.Empty;
+    private string _branch = "main";
+    private string? _message;
+    private bool _wasActive;
+
+    private List<GitHubRepoResponse> Filtered =>
+        _repos is null ? []
+            : string.IsNullOrWhiteSpace(_filter) ? _repos
+            : _repos.Where(r => r.FullName.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Active && !_wasActive)
+        {
+            _wasActive = true;
+            _loading = true;
+            _message = null;
+            try
+            {
+                var cfgTask = Api.GetGitHubConfigAsync();
+                var boundTask = Api.GetWorkspaceRepoAsync();
+                _bound = await boundTask;
+                var cfg = await cfgTask;
+                _ghConfigured = cfg?.Configured == true;
+                if (_bound?.Repo is { } repo)
+                {
+                    _slug = repo;
+                    _branch = _bound.Branch ?? "main";
+                    _ = LoadBranchesAsync();
+                }
+                if (_ghConfigured)
+                {
+                    _repos = await Api.GetGitHubReposAsync();
+                }
+            }
+            catch (HttpRequestException)
+            {
+                _message = L["chat.repo_load_error"];
+            }
+            _loading = false;
+        }
+        else if (!Active)
+        {
+            _wasActive = false;
+        }
+    }
+
+    private async Task SelectRepoAsync(GitHubRepoResponse repo)
+    {
+        _slug = repo.FullName;
+        _branch = repo.DefaultBranch;
+        await LoadBranchesAsync();
+    }
+
+    private async Task OnSlugChangedAsync()
+    {
+        _branches = null;
+        if (_ghConfigured && _slug.Split('/') is { Length: 2 } parts
+            && parts.All(p => p.Length > 0))
+        {
+            await LoadBranchesAsync();
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        var parts = _slug.Split('/');
+        if (parts.Length != 2)
+        {
+            return;
+        }
+        var result = await Api.GetGitHubBranchesAsync(parts[0], parts[1]);
+        _branches = result?.Branches.ToList();
+        if (result is not null && !string.IsNullOrEmpty(result.DefaultBranch)
+            && (_branches?.Contains(_branch) != true || _branch == "main"))
+        {
+            _branch = result.DefaultBranch;
+        }
+    }
+
+    private async Task OpenAsync()
+    {
+        _opening = true;
+        _message = null;
+        var opened = await Api.OpenWorkspaceRepoAsync(_slug.Trim(), _branch.Trim());
+        _opening = false;
+        if (opened?.Repo is null)
+        {
+            _message = L["chat.repo_open_error"];
+            return;
+        }
+
+        _bound = opened;
+        await Bound.InvokeAsync(opened);
+        await CloseAsync();
+    }
+
+    private async Task UnbindAsync()
+    {
+        if (await Api.UnbindWorkspaceRepoAsync())
+        {
+            _bound = null;
+            await Bound.InvokeAsync(null);
+        }
+        else
+        {
+            _message = L["chat.repo_unbind_error"];
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        Active = false;
+        await ActiveChanged.InvokeAsync(false);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+}

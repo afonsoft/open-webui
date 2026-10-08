@@ -855,6 +855,43 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<AdminConfig?> UpdateAppConfigAsync(AdminConfig config) =>
         SendAsync<AdminConfig>(HttpMethod.Post, "/api/config", config);
 
+    // ---------------- GitHub / workspace repo ----------------
+
+    /// <summary>Status da integração GitHub do usuário (token mascarado).</summary>
+    public Task<GitHubConfigResponse?> GetGitHubConfigAsync() =>
+        SendAsync<GitHubConfigResponse>(HttpMethod.Get, "/api/v1/github/config");
+
+    /// <summary>Valida e salva o PAT do usuário; null em token inválido.</summary>
+    public Task<GitHubConfigResponse?> SetGitHubTokenAsync(string token) =>
+        SendAsync<GitHubConfigResponse>(HttpMethod.Put, "/api/v1/github/config",
+            new GitHubTokenRequest(token));
+
+    /// <summary>Remove o PAT do usuário.</summary>
+    public async Task<bool> ClearGitHubTokenAsync() =>
+        await SendStatusAsync(HttpMethod.Delete, "/api/v1/github/config");
+
+    /// <summary>Repositórios do usuário (precisa de PAT configurado).</summary>
+    public async Task<List<GitHubRepoResponse>> GetGitHubReposAsync() =>
+        await SendAsync<List<GitHubRepoResponse>>(HttpMethod.Get, "/api/v1/github/repos") ?? [];
+
+    /// <summary>Branches + default do repositório.</summary>
+    public Task<GitHubBranchesResponse?> GetGitHubBranchesAsync(string owner, string repo) =>
+        SendAsync<GitHubBranchesResponse>(HttpMethod.Get,
+            $"/api/v1/github/repos/{owner}/{repo}/branches");
+
+    /// <summary>Binding repo↔workspace atual (campos null quando não vinculado).</summary>
+    public Task<WorkspaceRepoResponse?> GetWorkspaceRepoAsync() =>
+        SendAsync<WorkspaceRepoResponse>(HttpMethod.Get, "/api/v1/workspace/repo/");
+
+    /// <summary>Clona (ou troca de branch) o repo no workspace.</summary>
+    public Task<WorkspaceRepoResponse?> OpenWorkspaceRepoAsync(string repo, string branch) =>
+        SendAsync<WorkspaceRepoResponse>(HttpMethod.Post, "/api/v1/workspace/repo/open",
+            new WorkspaceRepoOpenRequest(repo, branch));
+
+    /// <summary>Desvincula o repo do workspace.</summary>
+    public async Task<bool> UnbindWorkspaceRepoAsync() =>
+        await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)
