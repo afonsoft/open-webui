@@ -31,7 +31,7 @@
                     </div>
                     <div class="card-actions">
                         <a class="msg-action" href="/notes/@note.Id">@L["common.edit"]</a>
-                        <button class="msg-action danger" @onclick="() => DeleteNoteAsync(note)">🗑</button>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteNoteAsync(note)">🗑</button>
                     </div>
                 </div>
             }

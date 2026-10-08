@@ -44,39 +44,41 @@
                                 </div>
                             </div>
 
-                            <div class="flex flex-col mt-4 text-left">
+                            <form class="flex flex-col mt-4 text-left" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true">
                                 @if (_signUp)
                                 {
                                     <div class="mb-2">
-                                        <label class="text-sm font-normal mb-1 block">@L["common.name"]</label>
-                                        <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                        <label class="text-sm font-normal mb-1 block" for="auth-name">@L["common.name"]</label>
+                                        <input id="auth-name" name="name" autocomplete="name"
+                                               class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
                                                type="text" placeholder="@L["auth.name_placeholder"]" @bind="_name" />
                                     </div>
                                 }
                                 <div class="mb-2">
-                                    <label class="text-sm font-normal mb-1 block">@L["common.email"]</label>
-                                    <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
-                                           type="email" placeholder="voce@exemplo.com" @bind="_email" />
+                                    <label class="text-sm font-normal mb-1 block" for="auth-email">@L["common.email"]</label>
+                                    <input id="auth-email" name="email" autocomplete="email"
+                                           class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                           type="email" placeholder="@L["auth.email_placeholder"]" @bind="_email" />
                                 </div>
                                 <div class="mb-2">
-                                    <label class="text-sm font-normal mb-1 block">@L["common.password"]</label>
-                                    <input class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
-                                           type="password" placeholder="••••••••" @bind="_password"
-                                           @onkeydown="OnKeyDown" />
+                                    <label class="text-sm font-normal mb-1 block" for="auth-password">@L["common.password"]</label>
+                                    <input id="auth-password" name="password" autocomplete="@(_signUp ? "new-password" : "current-password")"
+                                           class="my-0.5 w-full text-sm outline-none bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600 border-b border-gray-200 dark:border-gray-700 py-2"
+                                           type="password" placeholder="••••••••" @bind="_password" />
                                 </div>
-                            </div>
 
-                            @if (_error is not null)
-                            {
-                                <div class="mt-3 text-sm text-red-500">@_error</div>
-                            }
+                                @if (_error is not null)
+                                {
+                                    <div class="mt-3 text-sm text-red-500" role="alert">@_error</div>
+                                }
 
-                            <div class="mt-5">
-                                <button class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 disabled:opacity-50 flex justify-center cursor-pointer"
-                                        disabled="@(_busy || !FormValid)" @onclick="SubmitAsync">
-                                    <span class="self-center">@(_busy ? L["auth.wait"] : _signUp ? L["auth.create_account"] : L["auth.sign_in"])</span>
-                                </button>
-                            </div>
+                                <div class="mt-5">
+                                    <button type="submit" class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-sm py-2.5 disabled:opacity-50 flex justify-center cursor-pointer"
+                                            disabled="@(_busy || !FormValid)">
+                                        <span class="self-center">@(_busy ? L["auth.wait"] : _signUp ? L["auth.create_account"] : L["auth.sign_in"])</span>
+                                    </button>
+                                </div>
+                            </form>
 
                             @if (_oauthProviders.Count > 0)
                             {
@@ -164,14 +166,6 @@
     {
         _signUp = signUp;
         _error = null;
-    }
-
-    private async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && FormValid)
-        {
-            await SubmitAsync();
-        }
     }
 
     private async Task SubmitAsync()
