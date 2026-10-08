@@ -1194,7 +1194,7 @@
     /// <summary>URLs das conexões cadastradas + base detectada + valor atual.</summary>
     private IEnumerable<string> ProviderOptions(string? detectedBase, string current)
     {
-        var urls = _connections?.OpenAiBaseUrls ?? (IReadOnlyList<string>)[];
+        var urls = _connections?.OpenAiBaseUrls ?? [];
         foreach (var url in urls.Where(u => !string.IsNullOrWhiteSpace(u)))
         {
             yield return url.TrimEnd('/');

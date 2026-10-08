@@ -213,7 +213,7 @@ public class AuthAdminTests
             new SignInRequest("naoexiste@authadmin.local", "senha123"));
         Assert.That(unknown.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
-        var user = await SignUpAsync("Local", "local@authadmin.local", "senha123");
+        await SignUpAsync("Local", "local@authadmin.local", "senha123");
         var wrongPass = await _client.PostAsJsonAsync("/api/v1/auths/signin",
             new SignInRequest("local@authadmin.local", "errada"));
         Assert.That(wrongPass.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));

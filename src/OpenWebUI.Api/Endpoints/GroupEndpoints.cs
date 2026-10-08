@@ -103,7 +103,7 @@ public static class GroupEndpoints
         string id, UpdateGroupRequest request, HttpContext http, AppDbContext db,
         CancellationToken ct)
     {
-        var (user, group, error) = await AuthorizeManageAsync(id, http, db, ct);
+        var (_, group, error) = await AuthorizeManageAsync(id, http, db, ct);
         if (error is not null)
         {
             return error;
@@ -158,7 +158,7 @@ public static class GroupEndpoints
         string id, UpdateGroupMembersRequest request, HttpContext http, AppDbContext db,
         CancellationToken ct)
     {
-        var (user, group, error) = await AuthorizeManageAsync(id, http, db, ct);
+        var (_, group, error) = await AuthorizeManageAsync(id, http, db, ct);
         if (error is not null)
         {
             return error;
@@ -194,7 +194,7 @@ public static class GroupEndpoints
     private static async Task<IResult> RemoveMemberAsync(
         string id, string userId, HttpContext http, AppDbContext db, CancellationToken ct)
     {
-        var (user, group, error) = await AuthorizeManageAsync(id, http, db, ct);
+        var (_, group, error) = await AuthorizeManageAsync(id, http, db, ct);
         if (error is not null)
         {
             return error;
