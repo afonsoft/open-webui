@@ -31,7 +31,9 @@ else
                             : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900")">
                     <button class="flex items-center gap-1.5 pl-2.5 pr-1 py-1 cursor-pointer"
                             @onclick="() => ActivateAsync(session)">
-                        <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"></span>
+                        <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"
+                              role="img" aria-label="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"
+                              title="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"></span>
                         @session.Id
                     </button>
                     <button class="pr-2.5 pl-1 py-1 text-gray-400 hover:text-red-500 cursor-pointer" title="@L["terminal.kill"]"

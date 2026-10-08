@@ -683,5 +683,14 @@
   "common.model": "Modelo",
   "common.size": "Tamanho",
   "calendar.event_date": "Data",
-  "workspace.select_file": "Selecionar arquivo"
+  "workspace.select_file": "Selecionar arquivo",
+  "terminal.status_running": "Em execução",
+  "terminal.status_stopped": "Parada",
+  "calendar.today": "Hoje",
+  "calendar.has_events": "Com eventos",
+  "calendar.runs_ok": "Execuções concluídas",
+  "calendar.runs_error": "Execuções com falhas",
+  "chat.panel_mcp_ok": "conectado",
+  "chat.panel_mcp_disabled": "desabilitado",
+  "channel.react_emoji": "Reagir com {{emoji}}"
 }

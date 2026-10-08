@@ -17,7 +17,7 @@
 @if (_collapsed)
 {
     @* Rail fina quando a sidebar está recolhida, como no upstream *@
-    <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-all border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
+    <div class="w-[42px] shrink-0 py-1 px-1 hidden md:flex flex-col justify-between text-gray-700 dark:text-gray-300 h-full z-10 transition-[width] border-e-[0.5px] border-gray-50 dark:border-gray-850/30">
         <div class="flex flex-col flex-1 items-center">
             <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.new_chat"]" aria-label="@L["sidebar.new_chat"]" @onclick="NewChat">
                 <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">

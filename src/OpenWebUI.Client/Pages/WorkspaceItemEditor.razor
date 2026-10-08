@@ -133,7 +133,7 @@
                                     <div class="card-sub">
                                         @foreach (var kf in _knowledge.Files)
                                         {
-                                            <div>📄 @kf.Filename
+                                            <div><span aria-hidden="true">📄 </span>@kf.Filename
                                                 <button class="msg-action danger" @onclick="() => RemoveFileAsync(kf)">×</button>
                                             </div>
                                         }
