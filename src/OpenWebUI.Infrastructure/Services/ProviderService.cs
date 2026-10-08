@@ -575,12 +575,12 @@ public class ProviderService(
             {
                 continue;
             }
-            var args = call["function"]?["arguments"];
+            var args = call!["function"]?["arguments"];
             var argsJson = args is JsonValue value && value.TryGetValue<string>(out var s)
                 ? s
                 : args?.ToJsonString() ?? "{}";
             parsed.Add(new ProviderToolCall(
-                call["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                call!["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
                 name, argsJson));
         }
 

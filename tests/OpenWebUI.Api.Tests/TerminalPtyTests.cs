@@ -173,13 +173,8 @@ public class TerminalPtyTests
     [Test]
     public async Task Manager_RespeitaCapPorUsuario()
     {
-        var spawned = new List<IPtySession>();
         Func<string, int, int, IPtySession> fakeFactory = (dir, c, r) =>
-        {
-            var s = new FakePtySession();
-            spawned.Add(s);
-            return s;
-        };
+            new FakePtySession();
 
         await using var manager = NewManager(fakeFactory);
         for (var i = 0; i < TerminalSessionManager.MaxSessionsPerUser; i++)
