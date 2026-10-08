@@ -72,22 +72,19 @@ public sealed class BrowserScreenshotService(
             ".cache", "ms-playwright");
         if (Directory.Exists(playwrightRoot))
         {
-            foreach (var dir in Directory.GetDirectories(playwrightRoot)
-                         .OrderByDescending(d => d, StringComparer.Ordinal))
+            string[] rels =
+            [
+                Path.Join("chrome-linux", "headless_shell"),
+                Path.Join("chrome-linux", "chrome"),
+                Path.Join("chrome-linux64", "chrome"),
+            ];
+            var candidate = Directory.GetDirectories(playwrightRoot)
+                .OrderByDescending(d => d, StringComparer.Ordinal)
+                .SelectMany(dir => rels.Select(rel => Path.Join(dir, rel)))
+                .FirstOrDefault(File.Exists);
+            if (candidate is not null)
             {
-                foreach (var rel in new[]
-                         {
-                             Path.Join("chrome-linux", "headless_shell"),
-                             Path.Join("chrome-linux", "chrome"),
-                             Path.Join("chrome-linux64", "chrome"),
-                         })
-                {
-                    var candidate = Path.Join(dir, rel);
-                    if (File.Exists(candidate))
-                    {
-                        return Cache(candidate);
-                    }
-                }
+                return Cache(candidate);
             }
         }
 
