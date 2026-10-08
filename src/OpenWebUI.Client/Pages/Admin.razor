@@ -181,7 +181,7 @@
                                 <div class="card-meta">
                                     @chat.UserName &lt;@chat.UserEmail&gt; ·
                                     @L.T("admin.chats_messages", ("count", chat.MessageCount.ToString())) ·
-                                    @DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime.ToString("dd/MM/yyyy HH:mm")
+                                    @L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime)
                                 </div>
                             </div>
                             <div class="card-actions">
@@ -702,15 +702,15 @@
                                 }
                                 else if (_ttsEngine == "elevenlabs")
                                 {
-                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="https://api.elevenlabs.io (opcional)" />
+                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.elevenlabs_url_ph"]" />
                                     <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_ttsKey" placeholder="API key" />
                                     <input aria-label="@L["settings.audio_tts_model"]" class="input" @bind="_ttsModel" placeholder="eleven_multilingual_v2" />
                                     <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="voice_id" />
                                 }
                                 else if (_ttsEngine == "azure")
                                 {
-                                    <input aria-label="@L["admin.azure_region"]" class="input" @bind="_azureRegion" placeholder="region (ex.: brazilsouth)" />
-                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="base URL (opcional, sobrepõe a região)" />
+                                    <input aria-label="@L["admin.azure_region"]" class="input" @bind="_azureRegion" placeholder="@L["admin.azure_region_ph"]" />
+                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.tts_base_url_ph"]" />
                                     <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_ttsKey" placeholder="API key" />
                                     <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="pt-BR-FranciscaNeural" />
                                 }
@@ -803,7 +803,7 @@
                                     @if (_retRerankEngine == "external")
                                     {
                                         <input aria-label="@L["common.base_url"]" class="input" @bind="_retRerankUrl" placeholder="http://reranker:8080/rerank" />
-                                        <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retRerankKey" placeholder="api key (opcional)" />
+                                        <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retRerankKey" placeholder="@L["admin.rerank_key_ph"]" />
                                     }
                                 }
                             </div>
@@ -1274,7 +1274,7 @@
                                 <input aria-label="@L["admin.saml_entity_id"]" class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
                                 <textarea aria-label="@L["admin.saml_cert"]" class="input" rows="3" @bind="_samlCert"
                                     placeholder="@(_samlHasCert ? "********" : "IdP X.509 PEM")"></textarea>
-                                <input aria-label="@L["admin.saml_sp_entity"]" class="input" @bind="_samlSpEntity" placeholder="SP Entity ID (opcional)" />
+                                <input aria-label="@L["admin.saml_sp_entity"]" class="input" @bind="_samlSpEntity" placeholder="@L["admin.sp_entity_ph"]" />
                                 <input aria-label="@L["admin.sso_role_attr"]" class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
                                 <button class="auth-submit" @onclick="SaveSamlAsync">@L["common.save"]</button>
                             </div>
@@ -2065,8 +2065,8 @@
     private async Task CopyTextAsync(string text) =>
         await JS.InvokeVoidAsync("openwebui.copyText", text);
 
-    private static string FormatTs(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatTs(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 
     private static string FormatBytes(long? bytes) => bytes switch
     {
@@ -2695,6 +2695,6 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDate(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

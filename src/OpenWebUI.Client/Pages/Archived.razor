@@ -64,6 +64,6 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

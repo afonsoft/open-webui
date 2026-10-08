@@ -692,5 +692,15 @@
   "calendar.runs_error": "Runs with failures",
   "chat.panel_mcp_ok": "connected",
   "chat.panel_mcp_disabled": "disabled",
-  "channel.react_emoji": "React with {{emoji}}"
+  "channel.react_emoji": "React with {{emoji}}",
+  "common.dismiss": "Dismiss",
+  "folder.default_name": "Folder",
+  "workspace.preset_inject_text": "Always answer in English concisely.",
+  "admin.elevenlabs_url_ph": "https://api.elevenlabs.io (optional)",
+  "admin.azure_region_ph": "region (e.g. brazilsouth)",
+  "admin.tts_base_url_ph": "base URL (optional, overrides region)",
+  "admin.rerank_key_ph": "api key (optional)",
+  "admin.sp_entity_ph": "SP Entity ID (optional)",
+  "workspace.command_ph": "my-command",
+  "channel.fallback_name": "channel"
 }

@@ -1122,8 +1122,8 @@
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDate(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 
     private Task Close() => OnClose.InvokeAsync();
 }
