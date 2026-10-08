@@ -96,6 +96,7 @@
                                 var expanded = _expandedChange == file.Path;
                                 <li class="rounded-lg border border-gray-100 dark:border-gray-800">
                                     <button class="flex w-full items-center gap-2 px-2 py-1.5 text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg"
+                                            aria-expanded="@expanded"
                                             @onclick="() => _expandedChange = expanded ? null : file.Path">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
                                              class="size-3 flex-none text-gray-400 transition @(expanded ? "rotate-90" : "")">
@@ -142,6 +143,7 @@
                             var expanded = _expandedChange == change.Path;
                             <li class="rounded-lg border border-gray-100 dark:border-gray-800">
                                 <button class="flex w-full items-center gap-2 px-2 py-1.5 text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg"
+                                        aria-expanded="@expanded"
                                         @onclick="() => _expandedChange = expanded ? null : change.Path">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
                                          class="size-3 flex-none text-gray-400 transition @(expanded ? "rotate-90" : "")">
@@ -184,7 +186,7 @@
                         {
                             <li class="rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="size-1.5 flex-none rounded-full @JobDotCss(job.Status)"></span>
+                                    <span class="size-1.5 flex-none rounded-full @JobDotCss(job.Status)" title="@job.Status" aria-hidden="true"></span>
                                     <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-700 dark:text-gray-300" title="@job.Command">@job.Command</span>
                                     @if (job.Status == "running")
                                     {
@@ -224,7 +226,8 @@
                         @foreach (var server in Mcps)
                         {
                             <li class="flex items-center gap-1.5 rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
-                                <span class="size-1.5 flex-none rounded-full @(server.Enabled && server.LastError is null ? "bg-green-500" : server.Enabled ? "bg-amber-500" : "bg-gray-300 dark:bg-gray-600")"></span>
+                                <span class="size-1.5 flex-none rounded-full @(server.Enabled && server.LastError is null ? "bg-green-500" : server.Enabled ? "bg-amber-500" : "bg-gray-300 dark:bg-gray-600")"
+                                        role="img" aria-label="@McpStatusLabel(server)" title="@McpStatusLabel(server)"></span>
                                 <div class="min-w-0 flex-1">
                                     <div class="truncate text-[0.6875rem] font-medium text-gray-700 dark:text-gray-300" title="@server.Name">@server.Name</div>
                                     <div class="truncate text-[0.625rem] text-gray-400 dark:text-gray-500">
@@ -393,6 +396,11 @@
     private IEnumerable<string> Tabs => IsAdmin
         ? ["tasks", "changes", "jobs", "terminal", "mcps", "info"]
         : ["tasks", "changes", "jobs", "terminal", "info"];
+
+    private string McpStatusLabel(McpServerResponse server) =>
+        !server.Enabled ? L["chat.panel_mcp_disabled"]
+        : server.LastError is not null ? L["chat.panel_mcp_error"]
+        : L["chat.panel_mcp_ok"];
 
     private static string JobDotCss(string status) => status switch
     {

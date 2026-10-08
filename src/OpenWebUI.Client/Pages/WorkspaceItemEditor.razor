@@ -10,8 +10,8 @@
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">@PageTitle</h1>
-        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+        <h1 class="page-title" tabindex="-1">@PageTitle</h1>
+        <a class="msg-action" href="/workspace/@Kind">← @L["common.back"]</a>
     </div>
 
     @if (_notFound)
@@ -31,27 +31,27 @@
                         @if (Kind == "prompts")
                         {
                             <div class="field">
-                                <label>@L["workspace.prompt_command"]</label>
-                                <input class="input" placeholder="@L["workspace.command_ph"]" @bind="_pCommand" />
+                                <label for="fld-39">@L["workspace.prompt_command"]</label>
+                                <input class="input" placeholder="@L["workspace.command_ph"]" @bind="_pCommand" id="fld-39" />
                             </div>
                             <div class="field">
-                                <label>@L["common.title"]</label>
-                                <input class="input" @bind="_pTitle" />
+                                <label for="fld-40">@L["common.title"]</label>
+                                <input class="input" @bind="_pTitle" id="fld-40" />
                             </div>
                             <div class="field">
-                                <label>@L["common.content"]</label>
-                                <textarea class="input" rows="8" @bind="_pContent"></textarea>
+                                <label for="fld-41">@L["common.content"]</label>
+                                <textarea class="input" rows="8" @bind="_pContent" id="fld-41"></textarea>
                             </div>
                         }
                         else if (Kind == "models")
                         {
                             <div class="field">
-                                <label>@L["common.name"]</label>
-                                <input class="input" @bind="_mName" />
+                                <label for="fld-42">@L["common.name"]</label>
+                                <input class="input" @bind="_mName" id="fld-42" />
                             </div>
                             <div class="field">
-                                <label>@L["workspace.prompt_base_model"]</label>
-                                <select class="input" @bind="_mBase">
+                                <label for="fld-43">@L["workspace.prompt_base_model"]</label>
+                                <select class="input" @bind="_mBase" id="fld-43">
                                     @foreach (var m in _baseModels)
                                     {
                                         <option value="@m.Id">@m.Name</option>
@@ -59,19 +59,19 @@
                                 </select>
                             </div>
                             <div class="field">
-                                <label>@L["workspace.prompt_system_plain"]</label>
-                                <textarea class="input" rows="6" @bind="_mSystem"></textarea>
+                                <label for="fld-44">@L["workspace.prompt_system_plain"]</label>
+                                <textarea class="input" rows="6" @bind="_mSystem" id="fld-44"></textarea>
                             </div>
                             <div class="field">
-                                <label>@L["workspace.params_json"]</label>
+                                <label for="fld-45">@L["workspace.params_json"]</label>
                                 <textarea class="input font-mono text-sm" rows="4"
-                                          placeholder="{&quot;temperature&quot;: 0.7}" @bind="_mParams"></textarea>
+                                          placeholder="{&quot;temperature&quot;: 0.7}" @bind="_mParams" id="fld-45"></textarea>
                             </div>
                             <div class="field">
-                                <label>@L["workspace.meta_json"]</label>
+                                <label for="fld-46">@L["workspace.meta_json"]</label>
                                 <textarea class="input font-mono text-sm" rows="3"
                                           placeholder="{&quot;arena&quot;: true, &quot;model_ids&quot;: [&quot;a&quot;, &quot;b&quot;]}"
-                                          @bind="_mMeta"></textarea>
+                                          @bind="_mMeta" id="fld-46"></textarea>
                                 <div class="flex flex-wrap gap-1 mt-1">
                                     <span class="text-xs text-gray-500 w-full">@L["workspace.filter_presets"]</span>
                                     <button class="msg-action" @onclick='() => AddFilterPreset("system_inject")'>+ system_inject</button>
@@ -81,36 +81,36 @@
                                 </div>
                             </div>
                             <div class="field">
-                                <label>@L["workspace.grants_json"]</label>
+                                <label for="fld-47">@L["workspace.grants_json"]</label>
                                 <textarea class="input font-mono text-sm" rows="3"
                                           placeholder="[{&quot;principal_type&quot;: &quot;*&quot;, &quot;permission&quot;: &quot;read&quot;}]"
-                                          @bind="_mGrants"></textarea>
+                                          @bind="_mGrants" id="fld-47"></textarea>
                             </div>
                         }
                         else if (Kind == "tools")
                         {
                             <div class="field">
-                                <label>@L["common.name"]</label>
-                                <input class="input" @bind="_tName" />
+                                <label for="fld-48">@L["common.name"]</label>
+                                <input class="input" @bind="_tName" id="fld-48" />
                             </div>
                             <div class="field">
-                                <label>@L["common.description"]</label>
-                                <input class="input" @bind="_tDesc" />
+                                <label for="fld-49">@L["common.description"]</label>
+                                <input class="input" @bind="_tDesc" id="fld-49" />
                             </div>
                             <div class="field">
-                                <label>@L["workspace.tool_url"]</label>
-                                <input class="input" type="url" placeholder="https://…" @bind="_tUrl" />
+                                <label for="fld-50">@L["workspace.tool_url"]</label>
+                                <input class="input" type="url" placeholder="https://…" @bind="_tUrl" id="fld-50" />
                             </div>
                             <div class="field">
-                                <label>@L["workspace.tool_code"]</label>
-                                <textarea class="input font-mono text-sm" rows="8"
-                                          placeholder="class Tools:&#10;    def my_func(self, arg: str) -> str:&#10;        ..."
+                                <label for="fld-51">@L["workspace.tool_code"]</label>
+                                <textarea class="input font-mono text-sm" rows="8" id="fld-51"
+                                          placeholder="class Tools:&#10;    def my_func(self, arg: str) -&gt; str:&#10;        ..."
                                           @bind="_tCode"></textarea>
                                 <small class="text-gray-500">@L["workspace.tool_code_hint"]</small>
                             </div>
                             <div class="field">
-                                <label>@L["workspace.tool_spec"]</label>
-                                <textarea class="input font-mono text-sm" rows="8" @bind="_tSpec"></textarea>
+                                <label for="fld-52">@L["workspace.tool_spec"]</label>
+                                <textarea class="input font-mono text-sm" rows="8" @bind="_tSpec" id="fld-52"></textarea>
                             </div>
                             <div class="field">
                                 <label class="check"><input type="checkbox" @bind="_tEnabled" /> @L["automations.enabled"]</label>
@@ -119,12 +119,12 @@
                         else
                         {
                             <div class="field">
-                                <label>@L["common.name"]</label>
-                                <input class="input" @bind="_kName" />
+                                <label for="fld-53">@L["common.name"]</label>
+                                <input class="input" @bind="_kName" id="fld-53" />
                             </div>
                             <div class="field">
-                                <label>@L["common.description"]</label>
-                                <input class="input" @bind="_kDesc" />
+                                <label for="fld-54">@L["common.description"]</label>
+                                <input class="input" @bind="_kDesc" id="fld-54" />
                             </div>
                             @if (!IsCreate && _knowledge is not null)
                             {
@@ -133,7 +133,7 @@
                                     <div class="card-sub">
                                         @foreach (var kf in _knowledge.Files)
                                         {
-                                            <div>📄 @kf.Filename
+                                            <div><span aria-hidden="true">📄 </span>@kf.Filename
                                                 <button class="msg-action danger" @onclick="() => RemoveFileAsync(kf)">×</button>
                                             </div>
                                         }
@@ -142,7 +142,7 @@
                                             <div>@L["workspace.no_files_yet"]</div>
                                         }
                                     </div>
-                                    <select class="input mt-2" @bind="_addFileId">
+                                    <select aria-label="@L["workspace.select_file"]" class="input mt-2" @bind="_addFileId">
                                         <option value="">@L["workspace.add_file"]…</option>
                                         @foreach (var f in _files)
                                         {
@@ -373,6 +373,4 @@
             _knowledge = await Api.GetKnowledgeDetailAsync(Id!);
         }
     }
-
-    private void GoBack() => Nav.NavigateTo($"/workspace/{Kind}");
 }
