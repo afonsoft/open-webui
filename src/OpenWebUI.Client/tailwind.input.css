@@ -66,6 +66,47 @@
 	::selection {
 		background: oklch(0.75 0.1 250 / 0.3);
 	}
+
+	/* Indicador de foco global: qualquer elemento interativo focável via
+	   teclado recebe um anel visível em :focus-visible (mouse não dispara).
+	   Elementos com `outline-none` no markup ficam cobertos por esta regra. */
+	:where(
+		button,
+		[role='button'],
+		[role='menuitem'],
+		[role='option'],
+		[role='tab'],
+		a[href],
+		input,
+		select,
+		textarea,
+		summary,
+		[tabindex]
+	):focus-visible {
+		outline: 2px solid transparent; /* fallback forced-colors */
+		outline-offset: 1px;
+		box-shadow:
+			0 0 0 2px var(--color-white, #fff),
+			0 0 0 4px var(--color-gray-500);
+	}
+
+	.dark :where(
+		button,
+		[role='button'],
+		[role='menuitem'],
+		[role='option'],
+		[role='tab'],
+		a[href],
+		input,
+		select,
+		textarea,
+		summary,
+		[tabindex]
+	):focus-visible {
+		box-shadow:
+			0 0 0 2px var(--color-gray-950),
+			0 0 0 4px var(--color-gray-400);
+	}
 }
 
 @layer components {
@@ -142,11 +183,13 @@
 		@apply flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-800 pb-2;
 	}
 
-	.page-tabs button {
+	.page-tabs button,
+	.page-tabs a {
 		@apply rounded-full px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer;
 	}
 
-	.page-tabs button.active {
+	.page-tabs button.active,
+	.page-tabs a.active {
 		@apply bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100;
 	}
 
@@ -178,6 +221,10 @@
 		@apply text-xs text-gray-400 dark:text-gray-500 truncate;
 	}
 
+	.card-meta {
+		@apply text-xs text-gray-400 dark:text-gray-500;
+	}
+
 	.card-pre {
 		@apply text-xs text-gray-500 dark:text-gray-400 font-mono whitespace-pre-wrap mt-1;
 	}
@@ -194,7 +241,8 @@
 		@apply mb-4;
 	}
 
-	.field label {
+	.field label,
+	.field .field-label {
 		@apply block text-sm font-normal text-gray-600 dark:text-gray-400 mb-1;
 	}
 
@@ -243,6 +291,14 @@
 		@apply w-full rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition font-normal text-sm py-2.5 disabled:opacity-50 cursor-pointer;
 	}
 
+	.primary-btn {
+		@apply rounded-full bg-gray-800 dark:bg-gray-100 hover:bg-gray-700 dark:hover:bg-white px-4 py-1.5 text-sm font-medium text-gray-50 dark:text-gray-900 transition disabled:opacity-50 cursor-pointer;
+	}
+
+	.button-sm {
+		@apply rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 transition disabled:opacity-50 cursor-pointer;
+	}
+
 	.danger-btn {
 		@apply text-red-500 hover:bg-red-500/10;
 	}
@@ -253,6 +309,29 @@
 
 	.check input[type='checkbox'] {
 		@apply size-4 accent-gray-700 dark:accent-gray-300;
+	}
+
+	/* Switch (SAML/SCIM e toggles de admin): checkbox nativo escondido,
+	   track + knob via CSS puro — mesma família visual do .check. */
+	.toggle {
+		@apply flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 py-1 cursor-pointer;
+	}
+
+	.toggle input[type='checkbox'] {
+		@apply relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-gray-300 dark:bg-gray-700 transition-colors;
+	}
+
+	.toggle input[type='checkbox']::after {
+		content: '';
+		@apply absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow transition-transform;
+	}
+
+	.toggle input[type='checkbox']:checked {
+		@apply bg-gray-800 dark:bg-gray-100;
+	}
+
+	.toggle input[type='checkbox']:checked::after {
+		@apply translate-x-4 dark:bg-gray-800;
 	}
 
 	.memory-row {
@@ -273,6 +352,16 @@
 
 	.msg-action {
 		@apply text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer;
+	}
+
+	/* Conteúdo markdown renderizado (chat, channels) — tipografia do
+	   plugin oficial; o `text-sm` do markup controla o tamanho. */
+	.markdown-body {
+		@apply prose prose-sm dark:prose-invert max-w-none;
+	}
+
+	.font-primary {
+		@apply font-sans;
 	}
 
 	/* ----- Modal ----- */
@@ -436,6 +525,11 @@
 	position: absolute;
 	right: 0.75rem;
 	top: 0.5rem;
+	background: none;
+	border: none;
+	padding: 0;
+	font: inherit;
+	color: inherit;
 }
 
 #blazor-error-ui .error-details-toggle {

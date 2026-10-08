@@ -99,6 +99,33 @@ window.openwebui = {
 			element.removeEventListener('keydown', element._openwebuiTrap);
 			element._openwebuiTrap = null;
 		}
+	},
+	// Navegação por setas em menus/listboxes: ArrowUp/Down/Home/End movem o
+	// foco entre os itens focáveis do contêiner (Escape fica no .razor).
+	menuNav: function (container, key) {
+		if (!container) return;
+		const items = Array.prototype.filter.call(
+			container.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'),
+			function (el) { return !el.disabled && el.offsetParent !== null; });
+		if (!items.length) return;
+		const i = items.indexOf(document.activeElement);
+		if (key === 'ArrowDown') { (items[i + 1] || items[0]).focus(); }
+		else if (key === 'ArrowUp') { (items[i - 1] || items[items.length - 1]).focus(); }
+		else if (key === 'Home') { items[0].focus(); }
+		else if (key === 'End') { items[items.length - 1].focus(); }
+		else { return; }
+	},
+	// Foca o primeiro item interativo de um menu recém-aberto.
+	focusFirst: function (container) {
+		if (!container) return;
+		const first = container.querySelector(
+			'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+		if (first && !first.disabled) first.focus();
+	},
+	// Devolve o foco a um trigger identificado por seletor (menus sem @ref).
+	focusSelector: function (selector) {
+		const el = document.querySelector(selector);
+		if (el) el.focus();
 	}
 };
 

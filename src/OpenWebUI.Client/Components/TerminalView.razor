@@ -25,18 +25,20 @@ else
         <div class="flex items-center gap-1 px-3 pb-2 overflow-x-auto">
             @foreach (var session in _sessions)
             {
-                <button class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition cursor-pointer
+                <span class="flex items-center rounded-lg text-xs transition
                         @(_active == session.Id
                             ? "bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                            : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900")"
-                        @onclick="() => ActivateAsync(session)">
-                    <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"
-                                role="img" aria-label="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"
-                                title="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"></span>
-                    @session.Id
-                    <span class="text-gray-400 hover:text-red-500" title="@L["terminal.kill"]"
-                          @onclick:stopPropagation="true" @onclick="() => KillAsync(session.Id)">✕</span>
-                </button>
+                            : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900")">
+                    <button class="flex items-center gap-1.5 pl-2.5 pr-1 py-1 cursor-pointer"
+                            @onclick="() => ActivateAsync(session)">
+                        <span class="size-1.5 rounded-full @(session.IsRunning ? "bg-green-500" : "bg-gray-400")"
+                              role="img" aria-label="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"
+                              title="@(session.IsRunning ? L["terminal.status_running"] : L["terminal.status_stopped"])"></span>
+                        @session.Id
+                    </button>
+                    <button class="pr-2.5 pl-1 py-1 text-gray-400 hover:text-red-500 cursor-pointer" title="@L["terminal.kill"]"
+                            aria-label="@L["terminal.kill"]" @onclick="() => KillAsync(session.Id)">✕</button>
+                </span>
             }
             @if (_sessions.Count == 0)
             {

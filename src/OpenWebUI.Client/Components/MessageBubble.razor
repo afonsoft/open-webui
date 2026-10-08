@@ -49,7 +49,7 @@
 
         @if (ShowActions && !Streaming)
         {
-            <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
+            <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
                 @if (Message.Versions is { Count: > 0 } versions)
                 {
                     var total = versions.Count + 1;
