@@ -69,10 +69,8 @@ public sealed class FileListBuiltinTool : IBuiltinChatTool
                     .ThenBy(e => e, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
-            catch (Exception)
-            {
-                continue;
-            }
+            catch (IOException) { continue; }
+            catch (UnauthorizedAccessException) { continue; }
 
             foreach (var entry in entries)
             {

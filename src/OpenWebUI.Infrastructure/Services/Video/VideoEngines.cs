@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Application.Interfaces;
@@ -69,10 +70,10 @@ public sealed class OpenAiVideoEngine(IHttpClientFactory httpClientFactory)
             await GetJsonAsync(config, $"{Base(config)}/models", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }
 
@@ -174,10 +175,10 @@ public sealed class ComfyUiVideoEngine(IHttpClientFactory httpClientFactory)
             await GetJsonAsync(config, $"{Base(config)}/system_stats", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }
 

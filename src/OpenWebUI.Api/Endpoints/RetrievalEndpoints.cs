@@ -211,6 +211,12 @@ public static class RetrievalEndpoints
             return Results.Problem(
                 "Engine de busca indisponível.", statusCode: StatusCodes.Status502BadGateway);
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Timeout interno do HttpClient (engine não respondeu) → 502, não 500.
+            return Results.Problem(
+                "Engine de busca não respondeu a tempo.", statusCode: StatusCodes.Status502BadGateway);
+        }
         if (results is null)
         {
             return Results.Problem(

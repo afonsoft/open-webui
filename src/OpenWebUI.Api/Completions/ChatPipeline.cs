@@ -72,6 +72,7 @@ public static class ChatPipeline
                 }
                 catch (JsonException)
                 {
+                    // Payload auxiliar malformado — segue sem ele.
                 }
             }
         }
@@ -95,6 +96,7 @@ public static class ChatPipeline
             }
             catch (JsonException)
             {
+                // Payload auxiliar malformado — segue sem ele.
             }
         }
 
@@ -508,6 +510,7 @@ public static class ChatPipeline
                 }
                 catch (JsonException)
                 {
+                    // JSON da tool malformado — segue com o argumento bruto.
                 }
             }
 

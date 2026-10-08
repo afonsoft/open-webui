@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -98,10 +99,9 @@ public class PluginEcosystemTests
                 {
                     ctx = await _mock.GetContextAsync();
                 }
-                catch (Exception)
-                {
-                    return;
-                }
+                catch (HttpListenerException) { return; }
+                catch (ObjectDisposedException) { return; }
+                catch (OperationCanceledException) { return; }
 
                 _ = Task.Run(() => HandleAsync(ctx));
             }
@@ -141,16 +141,17 @@ public class PluginEcosystemTests
                     break;
             }
         }
-        catch (Exception)
+        catch (HttpListenerException)
         {
-            try
-            {
-                ctx.Response.StatusCode = 500;
-                ctx.Response.Close();
-            }
-            catch (Exception)
-            {
-            }
+            // cliente desconectou — ignora
+        }
+        catch (IOException)
+        {
+            // cliente desconectou — ignora
+        }
+        catch (ObjectDisposedException)
+        {
+            // listener parou
         }
     }
 

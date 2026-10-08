@@ -107,10 +107,8 @@ public sealed class CodeInterpreterBuiltinTool : IBuiltinChatTool
             {
                 File.Delete(scriptPath);
             }
-            catch
-            {
-                // Temp sem dono não é fatal — varredura de .chat-tmp limpa.
-            }
+            catch (IOException) { /* best effort */ }
+            catch (UnauthorizedAccessException) { /* best effort */ }
         }
     }
 }

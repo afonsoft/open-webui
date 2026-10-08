@@ -196,7 +196,11 @@ public class WorkspaceGitTests
                 Assert.Ignore("git indisponível neste ambiente.");
             }
         }
-        catch
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Assert.Ignore("git indisponível neste ambiente.");
+        }
+        catch (InvalidOperationException)
         {
             Assert.Ignore("git indisponível neste ambiente.");
         }

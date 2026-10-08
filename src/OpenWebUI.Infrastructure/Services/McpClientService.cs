@@ -133,10 +133,10 @@ public partial class McpClientService(
         {
             return $"Erro: timeout de {Timeout.TotalSeconds}s ao executar a tool no servidor MCP.";
         }
-        catch (Exception ex)
-        {
-            return $"Erro ao executar a tool MCP '{toolName}': {ex.Message}";
-        }
+        catch (HttpRequestException ex) { return $"Erro ao executar a tool MCP '{toolName}': {ex.Message}"; }
+        catch (JsonException ex) { return $"Erro ao executar a tool MCP '{toolName}': {ex.Message}"; }
+        catch (InvalidOperationException ex) { return $"Erro ao executar a tool MCP '{toolName}': {ex.Message}"; }
+        catch (ModelContextProtocol.McpException ex) { return $"Erro ao executar a tool MCP '{toolName}': {ex.Message}"; }
     }
 
     /// <summary>Nome da função virtual de uma tool MCP (OpenAI-safe: [a-zA-Z0-9_-], máx 64).</summary>

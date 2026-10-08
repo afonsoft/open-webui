@@ -159,9 +159,11 @@ public sealed class LocalTerminalSpawner : IDisposable
             }
             catch (HttpRequestException)
             {
+                // Probe falhou — segue para o próximo candidato.
             }
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
+                // Probe falhou — segue para o próximo candidato.
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -196,6 +198,7 @@ public sealed class LocalTerminalSpawner : IDisposable
         }
         catch (InvalidOperationException)
         {
+            // Processo/PTY já morto — best-effort no teardown.
         }
         process.Dispose();
     }

@@ -340,7 +340,15 @@ public static class CommandRiskClassifier
             var full = Path.GetFullPath(arg, workspacePath);
             return PathInside(workspacePath, full);
         }
-        catch
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (PathTooLongException)
         {
             return false;
         }

@@ -42,7 +42,7 @@ public static class WorkspaceFiles
         {
             full = Path.GetFullPath(Path.Join(workspace, rel));
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
             error = $"Caminho '{rel}' inválido.";
             return null;

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -112,7 +113,9 @@ public class ProviderCapabilityTests
             {
                 ctx = await _mock.GetContextAsync().WaitAsync(ct);
             }
-            catch (Exception) { return; }
+            catch (HttpListenerException) { return; }
+            catch (ObjectDisposedException) { return; }
+            catch (OperationCanceledException) { return; }
 
             _ = Task.Run(() =>
             {
@@ -128,10 +131,9 @@ public class ProviderCapabilityTests
                     ctx.Response.OutputStream.Write(bytes);
                     ctx.Response.Close();
                 }
-                catch (Exception)
-                {
-                    // Cliente desconectou — ignora.
-                }
+                catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+                catch (IOException) { /* cliente desconectou — ignora */ }
+                catch (ObjectDisposedException) { /* listener parou */ }
             }, ct);
         }
     }

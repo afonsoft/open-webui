@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -176,10 +177,9 @@ public class ProviderServiceTests
             await ctx.Response.OutputStream.WriteAsync(bytes, ct);
             ctx.Response.Close();
         }
-        catch (Exception)
-        {
-            // Cliente desconectou (timeout) ou o mock encerrou: ignora.
-        }
+        catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+        catch (IOException) { /* cliente desconectou — ignora */ }
+        catch (ObjectDisposedException) { /* listener parou */ }
     }
 
     [Test, Order(1)]

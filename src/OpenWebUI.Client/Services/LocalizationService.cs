@@ -119,6 +119,7 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
         }
         catch (JSException)
         {
+            // Fetch/parse do locale falhou — mantém o fallback anterior.
         }
         catch (InvalidOperationException)
         {
@@ -143,9 +144,11 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
         }
         catch (HttpRequestException)
         {
+            // Locale do browser indisponível — usa fallback.
         }
         catch (System.Text.Json.JsonException)
         {
+            // Locale do browser indisponível — usa fallback.
         }
     }
 

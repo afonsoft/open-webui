@@ -375,8 +375,8 @@ public class EndpointCoverageTests
 
         var ws = await _client.PostAsJsonAsync("/api/v1/retrieval/process/web/search",
             new { query = "devin" });
-        // Sem engine configurada → 503; com engine → 200. Nunca 404/500 solto.
-        Assert.That((int)ws.StatusCode, Is.EqualTo(200).Or.EqualTo(503));
+        // Sem engine → 503; engine ok → 200; engine inalcançável → 502. Nunca 404/500 solto.
+        Assert.That((int)ws.StatusCode, Is.EqualTo(200).Or.EqualTo(503).Or.EqualTo(502));
     }
 
     // ---------------- helpers ----------------
