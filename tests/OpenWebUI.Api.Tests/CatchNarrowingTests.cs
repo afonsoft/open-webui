@@ -142,4 +142,85 @@ public class CatchNarrowingTests
             CancellationToken.None);
         Assert.That(result.Text, Does.Not.Contain("inválida"));
     }
+
+    [Test]
+    public async Task GitRepo_Real_GetInfo_DevolveDiff()
+    {
+        var dir = Path.Join(Path.GetTempPath(), $"gitinfo-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Join(dir, "a.txt"), "um\n");
+            Exec(dir, "git", "init", "-q");
+            Exec(dir, "git", "config", "user.email", "t@t");
+            Exec(dir, "git", "config", "user.name", "t");
+            Exec(dir, "git", "add", ".");
+            Exec(dir, "git", "commit", "-qm", "init");
+            File.AppendAllText(Path.Join(dir, "a.txt"), "dois\ntres\n");
+
+            var info = await new WorkspaceGitService().GetInfoAsync(dir, CancellationToken.None);
+            Assert.That(info.IsRepo, Is.True);
+            Assert.That(info.Files.Any(f => f.Path == "a.txt"), Is.True);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch (IOException) { }
+        }
+    }
+
+    [Test]
+    public async Task ProcessRunner_WorkdirInexistente_OutcomeDeErro()
+    {
+        var outcome = await ChatProcessRunner.RunAsync(
+            "echo hi", "/nonexistent-dir-xyz-123",
+            TimeSpan.FromSeconds(5), ct: CancellationToken.None);
+        Assert.That(outcome.Output, Does.Contain("Falha ao iniciar processo"));
+    }
+
+    [Test]
+    public async Task ProcessRunner_Timeout_MataERetornaParcial()
+    {
+        var outcome = await ChatProcessRunner.RunAsync(
+            "echo antes; sleep 30", Path.GetTempPath(),
+            TimeSpan.FromMilliseconds(300), ct: CancellationToken.None);
+        Assert.That(outcome.TimedOut, Is.True);
+    }
+
+    [Test]
+    public async Task FileList_SemPermissao_RetornaErroTipado()
+    {
+        var dir = Path.Join(Path.GetTempPath(), $"noperm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Join(dir, "locked"));
+        File.WriteAllText(Path.Join(dir, "top.txt"), "x");
+        File.SetUnixFileMode(Path.Join(dir, "locked"),
+            UnixFileMode.None);
+        try
+        {
+            var tool = new FileListBuiltinTool();
+            var args = JsonDocument.Parse(
+                $"{{\"path\":\"{dir.Replace("\\", "\\\\")}\"}}").RootElement;
+            var result = await tool.ExecuteAsync(
+                args, new BuiltinToolContext("u", null, null, dir, dir),
+                CancellationToken.None);
+            Assert.That(result.Text, Is.Not.Null); // entradas legíveis + erro tipado nas bloqueadas
+        }
+        finally
+        {
+            File.SetUnixFileMode(Path.Join(dir, "locked"), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            try { Directory.Delete(dir, true); } catch (IOException) { }
+        }
+    }
+
+    private static void Exec(string cwd, string file, params string[] args)
+    {
+        using var p = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(file, args)
+            {
+                WorkingDirectory = cwd,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            })!;
+        p.WaitForExit(10_000);
+    }
 }
