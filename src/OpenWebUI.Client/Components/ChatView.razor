@@ -686,33 +686,47 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _prompts = await Api.GetPromptsAsync();
-        _tools = await Api.GetToolsAsync();
-        _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
+        // Chamadas independentes em paralelo (antes: ~6 sequenciais no boot).
+        var promptsTask = Api.GetPromptsAsync();
+        var toolsTask = Api.GetToolsAsync();
+        var modelsTask = Api.GetModelsConfigAsync();
+        var configTask = Api.GetAppConfigCachedAsync();
+        var storedTask = StoredWebSearchAsync();
+        await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask);
+
+        _prompts = promptsTask.Result;
+        _tools = toolsTask.Result;
+        _suggestions = modelsTask.Result?.PromptSuggestions ?? [];
         // OnParametersSetAsync pode rodar antes das tools carregarem —
         // garante o default "genéricas ligadas" num chat novo.
         if (ChatId is null && _toolIds.Count == 0)
         {
             _toolIds = DefaultToolIds();
         }
-        var features = (await Api.GetAppConfigCachedAsync())?.Features;
+        var features = configTask.Result?.Features;
         _webSearchAvailable = features?.EnableWebSearch ?? false;
         _imageGenEnabled = features?.EnableImageGeneration ?? false;
         _videoGenEnabled = features?.EnableVideoGeneration ?? false;
+        // Busca web desligada por padrão (o usuário habilita no ícone);
+        // a escolha explícita do usuário (localStorage) tem precedência.
+        _webSearch = storedTask.Result == "true" && _webSearchAvailable;
+
+        Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
+        Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
+        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
+    }
+
+    private async Task<string?> StoredWebSearchAsync()
+    {
         try
         {
-            // Busca web desligada por padrão (o usuário habilita no ícone);
-            // a escolha explícita do usuário (localStorage) tem precedência.
-            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch");
-            _webSearch = stored == "true" && _webSearchAvailable;
+            return await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch");
         }
         catch (JSException ex)
         {
             Console.WriteLine($"localStorage indisponível: {ex.Message}");
+            return null;
         }
-        Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
-        Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
-        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
