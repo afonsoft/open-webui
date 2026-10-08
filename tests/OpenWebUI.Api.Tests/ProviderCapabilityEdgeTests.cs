@@ -18,6 +18,7 @@ namespace OpenWebUI.Api.Tests;
 public class ProviderCapabilityEdgeTests
 {
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private ProviderCapabilityService _svc = null!;
@@ -25,11 +26,12 @@ public class ProviderCapabilityEdgeTests
     [SetUp]
     public void SetUp()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"owui-cap-{Guid.NewGuid():N}.db");
+        var path = Path.Join(Path.GetTempPath(), $"owui-cap-{Guid.NewGuid():N}.db");
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _config = new ConfigService(_db, new MemoryCache(new MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new ProviderCapabilityService(new StubFactory(_handler), _config,
             NullLogger<ProviderCapabilityService>.Instance);
@@ -39,6 +41,7 @@ public class ProviderCapabilityEdgeTests
     public void TearDown()
     {
         _db.Dispose();
+        _cache.Dispose();
         _handler.Dispose();
     }
 
@@ -60,12 +63,7 @@ public class ProviderCapabilityEdgeTests
     public async Task Detect_OpenAi_CatalogoEPersisteMapa()
     {
         await SetConnections([], ["http://ai.test"], ["sk-x"]);
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            "{\"data\":["
-            + "{\"id\":\"gpt-image-1\",\"output_modalities\":[\"image\"]},"
-            + "{\"id\":\"whisper-1\",\"input_modalities\":[\"audio\"]},"
-            + "{\"id\":\"tts-1\",\"output_modalities\":[\"audio\"]}"
-            + "]}", Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK, "{\"data\":[" + "{\"id\":\"gpt-image-1\",\"output_modalities\":[\"image\"]}," + "{\"id\":\"whisper-1\",\"input_modalities\":[\"audio\"]}," + "{\"id\":\"tts-1\",\"output_modalities\":[\"audio\"]}" + "]}");
 
         var d = await _svc.DetectConnectionAsync("openai", 0);
 
@@ -109,13 +107,11 @@ public class ProviderCapabilityEdgeTests
     public async Task Detect_ConexaoMorta_RemoveDoMapa()
     {
         await SetConnections([], ["http://ai.test"], ["k"]);
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            "{\"data\":[{\"id\":\"tts-1\",\"output_modalities\":[\"audio\"]}]}",
-            Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK, "{\"data\":[{\"id\":\"tts-1\",\"output_modalities\":[\"audio\"]}]}");
         Assert.That(await _svc.DetectConnectionAsync("openai", 0), Is.Not.Null);
 
         // Falhou depois → detectado null + chave removida do mapa.
-        _handler.Respond(HttpStatusCode.InternalServerError, new StringContent("x"));
+        _handler.Respond(HttpStatusCode.InternalServerError, "x");
         Assert.That(await _svc.DetectConnectionAsync("openai", 0), Is.Null);
         var map = await _svc.GetConnectionMapAsync();
         Assert.That(map.ContainsKey("openai:0"), Is.False);
@@ -174,13 +170,14 @@ public class ProviderCapabilityEdgeTests
         private HttpStatusCode _status = HttpStatusCode.OK;
         private string _body = "{}";
         private readonly Dictionary<string, (HttpStatusCode, string)> _routes = new();
+        private readonly List<HttpResponseMessage> _created = [];
 
         public HttpRequestMessage? LastRequest { get; private set; }
 
-        public void Respond(HttpStatusCode status, HttpContent content)
+        public void Respond(HttpStatusCode status, string body)
         {
             _status = status;
-            _body = content.ReadAsStringAsync().GetAwaiter().GetResult();
+            _body = body;
             _routes.Clear();
         }
 
@@ -196,16 +193,32 @@ public class ProviderCapabilityEdgeTests
             {
                 if (url.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    return Task.FromResult(new HttpResponseMessage(status)
+                    var resp = new HttpResponseMessage(status)
                     {
                         Content = new StringContent(body, Encoding.UTF8, "application/json"),
-                    });
+                    };
+                    _created.Add(resp);
+                    return Task.FromResult(resp);
                 }
             }
-            return Task.FromResult(new HttpResponseMessage(_status)
+            var fallback = new HttpResponseMessage(_status)
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json"),
-            });
+            };
+            _created.Add(fallback);
+            return Task.FromResult(fallback);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var r in _created)
+                {
+                    r.Dispose();
+                }
+            }
+            base.Dispose(disposing);
         }
     }
 

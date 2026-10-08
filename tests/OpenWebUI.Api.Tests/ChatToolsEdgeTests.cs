@@ -18,14 +18,16 @@ public class ChatToolsEdgeTests
     [SetUp]
     public void SetUp()
     {
-        _workspace = Path.Combine(Path.GetTempPath(), $"owui-edge-{Guid.NewGuid():N}");
+        _workspace = Path.Join(Path.GetTempPath(), $"owui-edge-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_workspace);
     }
 
     [TearDown]
     public void TearDown()
     {
-        try { Directory.Delete(_workspace, true); } catch { /* best effort */ }
+        try { Directory.Delete(_workspace, true); }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort */ }
     }
 
     // ---------------- CommandRiskClassifier: linha inteira ----------------
@@ -383,7 +385,7 @@ public class ChatToolsEdgeTests
         {
             Assert.That(CommandRiskClassifier.PathInside(_workspace, _workspace), Is.True);
             Assert.That(CommandRiskClassifier.PathInside(_workspace,
-                Path.Combine(_workspace, "sub", "f.txt")), Is.True);
+                Path.Join(_workspace, "sub", "f.txt")), Is.True);
             // Irmão com prefixo comum NÃO está dentro.
             Assert.That(CommandRiskClassifier.PathInside(_workspace, _workspace + "-evil/f"), Is.False);
             Assert.That(CommandRiskClassifier.PathInside(_workspace, "/etc/passwd"), Is.False);
@@ -629,7 +631,7 @@ public class ChatToolsEdgeTests
             // Relativo válido → full.
             var ok = WorkspaceFiles.ResolveInside(_workspace, "sub/dir/f.txt", out var e5);
             Assert.That(ok, Is.EqualTo(
-                Path.GetFullPath(Path.Combine(_workspace, "sub/dir/f.txt"))));
+                Path.GetFullPath(Path.Join(_workspace, "sub/dir/f.txt"))));
             Assert.That(e5, Is.Empty);
         });
     }
@@ -637,16 +639,16 @@ public class ChatToolsEdgeTests
     [Test]
     public void Ws_LooksBinary()
     {
-        var text = Path.Combine(_workspace, "a.txt");
+        var text = Path.Join(_workspace, "a.txt");
         File.WriteAllText(text, "conteúdo puro texto");
-        var bin = Path.Combine(_workspace, "b.bin");
+        var bin = Path.Join(_workspace, "b.bin");
         File.WriteAllBytes(bin, new byte[] { 0x50, 0x4B, 0x00, 0x00 });
         Assert.Multiple(() =>
         {
             Assert.That(WorkspaceFiles.LooksBinary(text), Is.False);
             Assert.That(WorkspaceFiles.LooksBinary(bin), Is.True);
             Assert.That(WorkspaceFiles.LooksBinary(
-                Path.Combine(_workspace, "nao-existe")), Is.False);
+                Path.Join(_workspace, "nao-existe")), Is.False);
         });
     }
 
@@ -681,19 +683,19 @@ public class ChatToolsEdgeTests
     [Test]
     public void Ws_RelativeOf()
     {
-        var full = Path.Combine(_workspace, "sub", "f.txt");
+        var full = Path.Join(_workspace, "sub", "f.txt");
         Assert.That(WorkspaceFiles.RelativeOf(_workspace, full), Is.EqualTo("sub/f.txt"));
     }
 
     [Test]
     public void Ws_EnumerateFiles_ProfundidadeDotGitECap()
     {
-        Directory.CreateDirectory(Path.Combine(_workspace, "d1", "d2"));
-        File.WriteAllText(Path.Combine(_workspace, "raiz.txt"), "x");
-        File.WriteAllText(Path.Combine(_workspace, "d1", "f1.txt"), "x");
-        File.WriteAllText(Path.Combine(_workspace, "d1", "d2", "f2.txt"), "x");
-        Directory.CreateDirectory(Path.Combine(_workspace, ".git"));
-        File.WriteAllText(Path.Combine(_workspace, ".git", "HEAD"), "x");
+        Directory.CreateDirectory(Path.Join(_workspace, "d1", "d2"));
+        File.WriteAllText(Path.Join(_workspace, "raiz.txt"), "x");
+        File.WriteAllText(Path.Join(_workspace, "d1", "f1.txt"), "x");
+        File.WriteAllText(Path.Join(_workspace, "d1", "d2", "f2.txt"), "x");
+        Directory.CreateDirectory(Path.Join(_workspace, ".git"));
+        File.WriteAllText(Path.Join(_workspace, ".git", "HEAD"), "x");
 
         var all = WorkspaceFiles.EnumerateFiles(_workspace).Select(
             f => WorkspaceFiles.RelativeOf(_workspace, f)).ToList();
@@ -715,13 +717,13 @@ public class ChatToolsEdgeTests
     public void Ws_EnumerateFiles_DirIlegivel_ECapDeEntradas()
     {
         // Diretório que some/sem permissão → ignorado, não quebra.
-        var missing = Path.Combine(_workspace, "nao-existe");
+        var missing = Path.Join(_workspace, "nao-existe");
         Assert.That(WorkspaceFiles.EnumerateFiles(missing).ToList(), Is.Empty);
 
         // Cap de MaxEntries.
         for (var i = 0; i < WorkspaceFiles.MaxEntries + 20; i++)
         {
-            File.WriteAllText(Path.Combine(_workspace, $"f{i:D4}.txt"), "x");
+            File.WriteAllText(Path.Join(_workspace, $"f{i:D4}.txt"), "x");
         }
 
         Assert.That(WorkspaceFiles.EnumerateFiles(_workspace).Count(),
@@ -743,13 +745,13 @@ public class ChatToolsEdgeTests
         var r = await tool.ExecuteAsync(Args("{\"path\":\"nada\"}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("não existe"));
 
-        File.WriteAllText(Path.Combine(_workspace, "solo.txt"), "x");
+        File.WriteAllText(Path.Join(_workspace, "solo.txt"), "x");
         r = await tool.ExecuteAsync(Args("{\"path\":\"solo.txt\"}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("use file_read"));
 
-        Directory.CreateDirectory(Path.Combine(_workspace, "sub"));
-        File.WriteAllText(Path.Combine(_workspace, "sub", "f.txt"), "x");
-        File.WriteAllText(Path.Combine(_workspace, "top.txt"), "xy");
+        Directory.CreateDirectory(Path.Join(_workspace, "sub"));
+        File.WriteAllText(Path.Join(_workspace, "sub", "f.txt"), "x");
+        File.WriteAllText(Path.Join(_workspace, "top.txt"), "xy");
 
         var flat = await tool.ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.Multiple(() =>
@@ -777,7 +779,7 @@ public class ChatToolsEdgeTests
     {
         var tool = new FileReadBuiltinTool();
         var content = string.Join('\n', Enumerable.Range(1, 10).Select(i => $"linha {i}"));
-        File.WriteAllText(Path.Combine(_workspace, "f.txt"), content);
+        File.WriteAllText(Path.Join(_workspace, "f.txt"), content);
 
         var r = await tool.ExecuteAsync(
             Args("{\"path\":\"f.txt\",\"offset\":3,\"limit\":4}"), Ctx(), default);
@@ -799,7 +801,7 @@ public class ChatToolsEdgeTests
         Assert.That(r.Text, Does.Not.Contain("linha 9:"));
 
         // Erros: diretório, inexistente, escape.
-        Directory.CreateDirectory(Path.Combine(_workspace, "dir"));
+        Directory.CreateDirectory(Path.Join(_workspace, "dir"));
         Assert.Multiple(async () =>
         {
             Assert.That((await tool.ExecuteAsync(Args("{\"path\":\"dir\"}"), Ctx(), default)).Text,
@@ -811,7 +813,7 @@ public class ChatToolsEdgeTests
         });
 
         // Binário → negado.
-        File.WriteAllBytes(Path.Combine(_workspace, "b.bin"), new byte[] { 1, 0, 2 });
+        File.WriteAllBytes(Path.Join(_workspace, "b.bin"), new byte[] { 1, 0, 2 });
         Assert.That((await tool.ExecuteAsync(Args("{\"path\":\"b.bin\"}"), Ctx(), default)).Text,
             Does.Contain("binário"));
     }
@@ -820,10 +822,10 @@ public class ChatToolsEdgeTests
     public async Task FileGrep_Matriz()
     {
         var tool = new FileGrepBuiltinTool();
-        File.WriteAllText(Path.Combine(_workspace, "a.cs"), "public class Foo {}\n// TODO x");
-        File.WriteAllText(Path.Combine(_workspace, "b.md"), "# título\nTODO aqui");
-        File.WriteAllText(Path.Combine(_workspace, "c.cs"), "sem match");
-        File.WriteAllBytes(Path.Combine(_workspace, "b.bin"), new byte[] { 84, 0, 79 });
+        File.WriteAllText(Path.Join(_workspace, "a.cs"), "public class Foo {}\n// TODO x");
+        File.WriteAllText(Path.Join(_workspace, "b.md"), "# título\nTODO aqui");
+        File.WriteAllText(Path.Join(_workspace, "c.cs"), "sem match");
+        File.WriteAllBytes(Path.Join(_workspace, "b.bin"), new byte[] { 84, 0, 79 });
 
         // pattern obrigatório / regex inválida / escape de path.
         Assert.Multiple(async () =>
@@ -859,8 +861,8 @@ public class ChatToolsEdgeTests
             Assert.That(r.Text, Does.Contain("a.cs"));
             Assert.That(r.Text, Does.Not.Contain("b.md"));
         });
-        Directory.CreateDirectory(Path.Combine(_workspace, "sub"));
-        File.WriteAllText(Path.Combine(_workspace, "sub", "d.cs"), "TODO sub");
+        Directory.CreateDirectory(Path.Join(_workspace, "sub"));
+        File.WriteAllText(Path.Join(_workspace, "sub", "d.cs"), "TODO sub");
         r = await tool.ExecuteAsync(
             Args("{\"pattern\":\"TODO\",\"glob\":\"sub/**\"}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("sub/d.cs"));
@@ -880,9 +882,9 @@ public class ChatToolsEdgeTests
     public async Task FileGlob_Matriz()
     {
         var tool = new FileGlobBuiltinTool();
-        Directory.CreateDirectory(Path.Combine(_workspace, "src"));
-        File.WriteAllText(Path.Combine(_workspace, "src", "a.cs"), "x");
-        File.WriteAllText(Path.Combine(_workspace, "b.txt"), "x");
+        Directory.CreateDirectory(Path.Join(_workspace, "src"));
+        File.WriteAllText(Path.Join(_workspace, "src", "a.cs"), "x");
+        File.WriteAllText(Path.Join(_workspace, "b.txt"), "x");
 
         Assert.Multiple(async () =>
         {
@@ -924,7 +926,7 @@ public class ChatToolsEdgeTests
         Assert.Multiple(() =>
         {
             Assert.That(r.Text, Does.Contain("criado"));
-            Assert.That(File.Exists(Path.Combine(_workspace, "d1", "d2", "novo.txt")), Is.True);
+            Assert.That(File.Exists(Path.Join(_workspace, "d1", "d2", "novo.txt")), Is.True);
         });
 
         // Atualiza existente → diff com +/-.
@@ -958,7 +960,7 @@ public class ChatToolsEdgeTests
     public async Task FileEdit_Substituicoes()
     {
         var tool = new FileEditBuiltinTool();
-        File.WriteAllText(Path.Combine(_workspace, "f.txt"), "alfa beta beta gama");
+        File.WriteAllText(Path.Join(_workspace, "f.txt"), "alfa beta beta gama");
 
         // Args obrigatórios / arquivo inexistente / escape.
         Assert.Multiple(async () =>
@@ -998,7 +1000,7 @@ public class ChatToolsEdgeTests
         Assert.Multiple(() =>
         {
             Assert.That(r.Text, Does.Contain("editado"));
-            Assert.That(File.ReadAllText(Path.Combine(_workspace, "f.txt")),
+            Assert.That(File.ReadAllText(Path.Join(_workspace, "f.txt")),
                 Is.EqualTo("ALFA beta beta gama"));
         });
 
@@ -1006,7 +1008,7 @@ public class ChatToolsEdgeTests
         r = await tool.ExecuteAsync(
             Args("{\"path\":\"f.txt\",\"old_string\":\"beta\",\"new_string\":\"B\",\"replace_all\":true}"),
             Ctx(), default);
-        Assert.That(File.ReadAllText(Path.Combine(_workspace, "f.txt")),
+        Assert.That(File.ReadAllText(Path.Join(_workspace, "f.txt")),
             Is.EqualTo("ALFA B B gama"));
     }
 }

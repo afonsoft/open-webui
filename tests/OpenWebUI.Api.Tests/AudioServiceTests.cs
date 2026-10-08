@@ -28,7 +28,7 @@ public class AudioServiceTests
     [SetUp]
     public void SetUp()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"owui-audio-{Guid.NewGuid():N}.db");
+        var path = Path.Join(Path.GetTempPath(), $"owui-audio-{Guid.NewGuid():N}.db");
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();

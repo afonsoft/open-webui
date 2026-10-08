@@ -25,6 +25,7 @@ public class ImageAndBrowserToolsTests
     private string _workspace = null!;
     private string _uploadDir = null!;
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private ImageGenerationService _images = null!;
@@ -33,13 +34,14 @@ public class ImageAndBrowserToolsTests
     [SetUp]
     public void SetUp()
     {
-        _workspace = Path.Combine(Path.GetTempPath(), $"owui-img-{Guid.NewGuid():N}");
-        _uploadDir = Path.Combine(_workspace, "uploads");
+        _workspace = Path.Join(Path.GetTempPath(), $"owui-img-{Guid.NewGuid():N}");
+        _uploadDir = Path.Join(_workspace, "uploads");
         Directory.CreateDirectory(_uploadDir);
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={Path.Combine(_workspace, "t.db")}").Options);
+            .UseSqlite($"Data Source={Path.Join(_workspace, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _config = new ConfigService(_db, new MemoryCache(new MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         var factory = new ImageEngineFactory(new StubFactory(_handler));
         _images = new ImageGenerationService(factory, _config, _db);
@@ -50,8 +52,11 @@ public class ImageAndBrowserToolsTests
     public void TearDown()
     {
         _db.Dispose();
+        _cache.Dispose();
         _handler.Dispose();
-        try { Directory.Delete(_workspace, true); } catch { /* best effort */ }
+        try { Directory.Delete(_workspace, true); }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort */ }
     }
 
     private BuiltinToolContext Ctx() => new("u1", "c1", "r1", _workspace, _uploadDir);
@@ -87,9 +92,8 @@ public class ImageAndBrowserToolsTests
     {
         await EnableImages();
         var png = Convert.ToBase64String(new byte[] { 137, 80, 78, 71 });
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            $"{{\"data\":[{{\"b64_json\":\"{png}\"}}]}}",
-            Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK,
+            $"{{\"data\":[{{\"b64_json\":\"{png}\"}}]}}");
 
         var r = await _imageTool.ExecuteAsync(
             Args("{\"prompt\":\"gato\",\"size\":\"512x512\"}"), Ctx(), default);
@@ -116,9 +120,8 @@ public class ImageAndBrowserToolsTests
     {
         await EnableImages();
         var png = Convert.ToBase64String(new byte[] { 1 });
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            $"{{\"data\":[{{\"b64_json\":\"{png}\"}},{{\"b64_json\":\"{png}\"}}]}}",
-            Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK,
+            $"{{\"data\":[{{\"b64_json\":\"{png}\"}},{{\"b64_json\":\"{png}\"}}]}}");
 
         var r = await _imageTool.ExecuteAsync(
             Args("{\"prompt\":\"dois gatos\",\"n\":2}"), Ctx(), default);
@@ -132,7 +135,7 @@ public class ImageAndBrowserToolsTests
     {
         await EnableImages();
         _handler.Respond(HttpStatusCode.InternalServerError,
-            new StringContent("{\"error\":\"boom\"}"));
+            "{\"error\":\"boom\"}", "text/plain");
 
         var r = await _imageTool.ExecuteAsync(
             Args("{\"prompt\":\"x\"}"), Ctx(), default);
@@ -144,8 +147,8 @@ public class ImageAndBrowserToolsTests
     public async Task Img_DataVazio_SemImagens()
     {
         await EnableImages();
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            "{\"data\":[]}", Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK,
+            "{\"data\":[]}");
 
         var r = await _imageTool.ExecuteAsync(
             Args("{\"prompt\":\"x\"}"), Ctx(), default);
@@ -228,11 +231,12 @@ public class ImageAndBrowserToolsTests
         public HttpRequestMessage? LastRequest { get; private set; }
         public string? LastBody { get; private set; }
 
-        public void Respond(HttpStatusCode status, HttpContent content)
+        public void Respond(HttpStatusCode status, string body,
+            string mediaType = "application/json")
         {
             _status = status;
-            _body = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            _mediaType = content.Headers.ContentType?.MediaType;
+            _body = Encoding.UTF8.GetBytes(body);
+            _mediaType = mediaType;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(

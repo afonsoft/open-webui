@@ -575,12 +575,12 @@ public class ProviderService(
             {
                 continue;
             }
-            var args = call?["function"]?["arguments"];
+            var args = call["function"]?["arguments"];
             var argsJson = args is JsonValue value && value.TryGetValue<string>(out var s)
                 ? s
                 : args?.ToJsonString() ?? "{}";
             parsed.Add(new ProviderToolCall(
-                call?["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                call["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
                 name, argsJson));
         }
 
@@ -724,12 +724,11 @@ public class ProviderService(
         if (request.Params is { Count: > 0 })
         {
             var options = new JsonObject();
-            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" })
+            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" }
+                .Where(payload.ContainsKey))
             {
-                if (payload.Remove(key, out var value))
-                {
-                    options[MapOllamaParam(key)] = value;
-                }
+                payload.Remove(key, out var value);
+                options[MapOllamaParam(key)] = value;
             }
 
             if (options.Count > 0)
