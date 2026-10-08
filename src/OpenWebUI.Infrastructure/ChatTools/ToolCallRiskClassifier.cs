@@ -46,6 +46,35 @@ public static class ToolCallRiskClassifier
         return ToolCallRisk.High;
     }
 
+    /// <summary>
+    /// Diz se a call mutável toca o filesystem do workspace — usado pelo
+    /// preset <c>smart</c>: LOW/MEDIUM executam direto, mas alterações de
+    /// arquivos (write/edit, imagem gerada, code interpreter, shell que
+    /// escreve no workspace) caem no fluxo de pergunta como HIGH.
+    /// </summary>
+    public static bool IsFileMutation(Tool tool, string argumentsJson, string workspacePath)
+    {
+        if (!ToolExecutor.IsMutable(tool))
+        {
+            return false;
+        }
+
+        var url = tool.Url ?? string.Empty;
+        if (!url.StartsWith(BuiltinToolRegistry.UrlPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return url[BuiltinToolRegistry.UrlPrefix.Length..] switch
+        {
+            "file_write" or "file_edit" or "generate_image" or "code_interpreter" => true,
+            "shell_exec" => CommandRiskClassifier.Classify(
+                TryGetString(argumentsJson, "command") ?? string.Empty,
+                workspacePath).Level == CommandRiskLevel.WorkspaceWrite,
+            _ => false,
+        };
+    }
+
     private static ToolCallRisk ClassifyBuiltin(
         string name, string argumentsJson, string workspacePath) => name switch
     {

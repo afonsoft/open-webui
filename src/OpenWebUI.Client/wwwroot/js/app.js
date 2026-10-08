@@ -13,6 +13,22 @@ window.openwebui = {
 			element.scrollTop = element.scrollHeight;
 		}
 	},
+	// Auto-scroll do stream: marca _openwebuiStuck quando o usuário está
+	// perto do fim; quem sobe para ler não é arrastado de volta pelo stream.
+	initPinnedScroll: function (element) {
+		if (!element || element._openwebuiPin) return;
+		element._openwebuiPin = true;
+		element._openwebuiStuck = true;
+		element.addEventListener('scroll', function () {
+			element._openwebuiStuck =
+				element.scrollHeight - element.scrollTop - element.clientHeight < 160;
+		});
+	},
+	scrollToEndIfPinned: function (element) {
+		if (element && element._openwebuiStuck !== false) {
+			element.scrollTop = element.scrollHeight;
+		}
+	},
 	copyText: function (text) {
 		return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve();
 	},

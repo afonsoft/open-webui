@@ -245,13 +245,16 @@ public static class ChatPipeline
     /// dono — SPEC-20261007-chat-agent-ux RF-002); <paramref name="OnResultAsync"/>
     /// recebe (call, output, result, denied) após cada execução/decisão —
     /// <c>result</c> é o payload estruturado opcional (ex.: imagePath de
-    /// generate_image).
+    /// generate_image). <paramref name="OnDeltaAsync"/> recebe os pedaços
+    /// de texto conforme o modelo gera (round streamed; no fallback
+    /// buffered o conteúdo inteiro chega numa chamada só).
     /// </summary>
     public sealed record ToolLoopCallbacks(
         Func<string, string?, CancellationToken, Task>? OnPhaseAsync = null,
         Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
         Func<ProviderToolCall, CancellationToken, Task<ToolGateDecision>>? GateAsync = null,
-        Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null);
+        Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null,
+        Func<string, CancellationToken, Task>? OnDeltaAsync = null);
 
     /// <summary>
     /// Loop de tool calling: chama o modelo com tools até resposta final
@@ -278,8 +281,8 @@ public static class ChatPipeline
             {
                 await callbacks.OnPhaseAsync("generating", null, ct);
             }
-            var step = await providers.CompleteWithToolsAsync(
-                effective with { Messages = messages }, ct);
+            var step = await CompleteRoundAsync(
+                providers, effective with { Messages = messages }, callbacks, ct);
             if (step.ToolCalls.Count == 0)
             {
                 return new ToolLoopOutcome(step.Content, toolMessages);
@@ -331,9 +334,36 @@ public static class ChatPipeline
         }
 
         // Teto de iterações atingido: resposta final sem tools.
-        var final = await providers.CompleteAsync(
-            effective with { Messages = messages, Tools = null }, ct);
-        return new ToolLoopOutcome(final, toolMessages);
+        var final = await CompleteRoundAsync(
+            providers, effective with { Messages = messages, Tools = null }, callbacks, ct);
+        return new ToolLoopOutcome(final.Content, toolMessages);
+    }
+
+    /// <summary>
+    /// Uma rodada do loop com streaming de texto: tenta a variante
+    /// streamed (deltas via <c>OnDeltaAsync</c>) e cai na buffered quando
+    /// o endpoint recusa stream+tools — aí o conteúdo inteiro é emitido
+    /// num único delta para manter o texto visível do mesmo jeito.
+    /// </summary>
+    private static async Task<ProviderCompletion> CompleteRoundAsync(
+        ProviderService providers,
+        ChatCompletionRequest request,
+        ToolLoopCallbacks? callbacks,
+        CancellationToken ct)
+    {
+        var step = await providers.CompleteWithToolsStreamingAsync(
+            request, callbacks?.OnDeltaAsync, ct);
+        if (step is not null)
+        {
+            return step;
+        }
+
+        var buffered = await providers.CompleteWithToolsAsync(request, ct);
+        if (buffered.Content.Length > 0 && callbacks?.OnDeltaAsync is not null)
+        {
+            await callbacks.OnDeltaAsync(buffered.Content, ct);
+        }
+        return buffered;
     }
 
     /// <summary>

@@ -277,6 +277,12 @@ public class ProviderService(
             json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
         }
 
+        return ParseCompletionMessage(json, openAi);
+    }
+
+    /// <summary>Normaliza <c>choices[0].message</c> (OpenAI) ou <c>message</c> (Ollama).</summary>
+    private static ProviderCompletion ParseCompletionMessage(JsonNode? json, bool openAi)
+    {
         var firstChoice = json?["choices"] is JsonArray { Count: > 0 } arr ? arr[0] : null;
         var message = openAi ? firstChoice?["message"] : json?["message"];
         var content = message?["content"]?.GetValue<string>() ?? string.Empty;
@@ -301,6 +307,284 @@ public class ProviderService(
         }
 
         return new ProviderCompletion(content, calls, callsJson);
+    }
+
+    /// <summary>
+    /// Variante streamed de <see cref="CompleteWithToolsAsync"/>: emite os
+    /// pedaços de texto via <paramref name="onDelta"/> conforme chegam e
+    /// acumula os fragmentos de <c>tool_calls</c> (OpenAI manda name/id uma
+    /// vez e arguments em pedaços por <c>index</c>; Ollama manda o array
+    /// completo na mensagem final). Retorna null quando a requisição falha
+    /// antes de produzir saída — sinal para o chamador cair na variante
+    /// buffered (alguns endpoints OpenAI-compatíveis rejeitam stream+tools).
+    /// </summary>
+    /// <param name="request">Requisição com Tools preenchidas (ou null para o round final).</param>
+    /// <param name="onDelta">Callback por pedaço de texto (pode ser null — vira buffered).</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public async Task<ProviderCompletion?> CompleteWithToolsStreamingAsync(
+        ChatCompletionRequest request,
+        Func<string, CancellationToken, Task>? onDelta,
+        CancellationToken ct = default)
+    {
+        var connections = await config.GetConnectionsAsync(ct);
+        var provider = await ResolveProviderAsync(request, connections, ct);
+        var payload = BuildPayload(request, stream: true);
+
+        try
+        {
+            return provider == "openai"
+                ? await StreamOpenAiToolsAsync(request, connections, payload, onDelta, ct)
+                : await StreamOllamaToolsAsync(request, connections, payload, onDelta, ct);
+        }
+        catch (HttpRequestException)
+        {
+            // Falha de transporte/setup antes da resposta — o chamador
+            // refaz a rodada buffered. Erros mid-stream chegam aqui também,
+            // mas o texto já emitido é reenviado inteiro no fallback: melhor
+            // duplicar do que perder a rodada.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Round streamed OpenAI: lê linhas <c>data:</c>, emite deltas de
+    /// <c>content</c> e monta os tool_calls fragmentados por
+    /// <c>index</c>. <c>ToolCallsJson</c> reproduz o formato upstream
+    /// (<c>arguments</c> como string) para o echo na próxima mensagem.
+    /// </summary>
+    private async Task<ProviderCompletion> StreamOpenAiToolsAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        JsonObject payload,
+        Func<string, CancellationToken, Task>? onDelta,
+        CancellationToken ct)
+    {
+        var (index, baseUrl) = FirstOpenAiConnection(connections);
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"{TrimSlash(baseUrl)}/chat/completions")
+        {
+            Content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        var apiKey = connections.OpenAiApiKeys.ElementAtOrDefault(index);
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            httpRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        if (!string.Equals(response.Content.Headers.ContentType?.MediaType,
+                "text/event-stream", StringComparison.OrdinalIgnoreCase))
+        {
+            // Endpoint ignorou stream:true (compat/proxy) e devolveu a
+            // completion de uma vez — parseia buffered e entrega o texto
+            // num delta só, mantendo a semântica do método.
+            var buffered = ParseCompletionMessage(
+                JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)), openAi: true);
+            if (buffered.Content.Length > 0 && onDelta is not null)
+            {
+                await onDelta(buffered.Content, ct);
+            }
+            return buffered;
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        var content = new StringBuilder();
+        var callBuffers = new SortedDictionary<int, OpenAiToolCallBuffer>();
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var data = line["data:".Length..].Trim();
+            if (data == "[DONE]")
+            {
+                break;
+            }
+
+            JsonNode? node;
+            try
+            {
+                node = JsonNode.Parse(data);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            var choice = node?["choices"] is JsonArray { Count: > 0 } arr ? arr[0] : null;
+            var delta = choice?["delta"];
+            var piece = delta?["content"]?.GetValue<string>();
+            if (!string.IsNullOrEmpty(piece))
+            {
+                content.Append(piece);
+                if (onDelta is not null)
+                {
+                    await onDelta(piece, ct);
+                }
+            }
+
+            if (delta?["tool_calls"] is not JsonArray callParts)
+            {
+                continue;
+            }
+
+            foreach (var part in callParts)
+            {
+                var position = part?["index"]?.GetValue<int>() ?? callBuffers.Count;
+                if (!callBuffers.TryGetValue(position, out var buffer))
+                {
+                    buffer = new OpenAiToolCallBuffer();
+                    callBuffers[position] = buffer;
+                }
+                buffer.Id = part?["id"]?.GetValue<string>() ?? buffer.Id;
+                var name = part?["function"]?["name"]?.GetValue<string>();
+                if (name is not null)
+                {
+                    buffer.Name = name;
+                }
+                var args = part?["function"]?["arguments"]?.GetValue<string>();
+                if (args is not null)
+                {
+                    buffer.Args.Append(args);
+                }
+            }
+        }
+
+        var calls = callBuffers.Values
+            .Where(b => b.Name is not null)
+            .Select(b => new ProviderToolCall(
+                b.Id ?? Guid.NewGuid().ToString("N"),
+                b.Name!,
+                b.Args.Length > 0 ? b.Args.ToString() : "{}"))
+            .ToList();
+        var callsJson = JsonSerializer.Serialize(calls.Select(c => new
+        {
+            id = c.Id,
+            type = "function",
+            function = new { name = c.Name, arguments = c.ArgumentsJson },
+        }));
+        return new ProviderCompletion(content.ToString(), calls, callsJson);
+    }
+
+    /// <summary>Buffer de uma tool_call fragmentada no stream OpenAI.</summary>
+    private sealed class OpenAiToolCallBuffer
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public StringBuilder Args { get; } = new();
+    }
+
+    /// <summary>
+    /// Round streamed Ollama (<c>/api/chat</c> NDJSON): emite
+    /// <c>message.content</c> por linha e captura o array
+    /// <c>message.tool_calls</c> verbatim — o echo na próxima mensagem
+    /// precisa do formato original (arguments como objeto).
+    /// </summary>
+    private async Task<ProviderCompletion> StreamOllamaToolsAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        JsonObject payload,
+        Func<string, CancellationToken, Task>? onDelta,
+        CancellationToken ct)
+    {
+        var baseUrl = FirstBaseUrl(connections)
+            ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
+
+        // Ollama aceita "options" em vez de parâmetros de topo (mesmo remap de StreamOllamaAsync).
+        if (request.Params is { Count: > 0 })
+        {
+            var options = new JsonObject();
+            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" })
+            {
+                if (payload.Remove(key, out var value))
+                {
+                    options[MapOllamaParam(key)] = value;
+                }
+            }
+
+            if (options.Count > 0)
+            {
+                payload["options"] = options;
+            }
+        }
+
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"{TrimSlash(baseUrl)}/api/chat")
+        {
+            Content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        var content = new StringBuilder();
+        var callNodes = new List<JsonNode>();
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            JsonNode? node;
+            try
+            {
+                node = JsonNode.Parse(line);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            var piece = node?["message"]?["content"]?.GetValue<string>();
+            if (!string.IsNullOrEmpty(piece))
+            {
+                content.Append(piece);
+                if (onDelta is not null)
+                {
+                    await onDelta(piece, ct);
+                }
+            }
+
+            if (node?["message"]?["tool_calls"] is JsonArray { Count: > 0 } calls)
+            {
+                callNodes.AddRange(calls.Select(c => c!.DeepClone()));
+            }
+        }
+
+        var callsJson = new JsonArray(callNodes.ToArray());
+        var parsed = new List<ProviderToolCall>();
+        foreach (var call in callNodes)
+        {
+            var name = call?["function"]?["name"]?.GetValue<string>();
+            if (name is null)
+            {
+                continue;
+            }
+            var args = call?["function"]?["arguments"];
+            var argsJson = args is JsonValue value && value.TryGetValue<string>(out var s)
+                ? s
+                : args?.ToJsonString() ?? "{}";
+            parsed.Add(new ProviderToolCall(
+                call?["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                name, argsJson));
+        }
+
+        return new ProviderCompletion(content.ToString(), parsed, callsJson.ToJsonString());
     }
 
     private async Task<string> ResolveProviderAsync(

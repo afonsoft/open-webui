@@ -160,8 +160,8 @@ public sealed record ToolGateDecision(
 
 /// <summary>Atualização parcial do chat (preset de aprovação de tools).</summary>
 /// <param name="ApprovalPreset">
-/// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>always-allow</c>
-/// (RF-004). Null não altera.
+/// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>smart</c> |
+/// <c>always-allow</c> | <c>auto</c> (RF-004). Null não altera.
 /// </param>
 public sealed record ChatPatchRequest(string? ApprovalPreset);
 
