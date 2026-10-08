@@ -564,7 +564,7 @@
                             Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
                             Model="@_model" RunId="@_activeRunId" Git="_git"
                             IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
-                            RequestedTab="_requestedPanelTab"
+                            RequestedTab="@_requestedPanelTab"
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
     </aside>
@@ -576,7 +576,7 @@
                                 Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
                                 Model="@_model" RunId="@_activeRunId" Git="_git"
                                 IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
-                                RequestedTab="_requestedPanelTab"
+                                RequestedTab="@_requestedPanelTab"
                                 OnClose="() => _showPanel = false"
                                 OnKillJob="KillJobAsync" />
         </aside>
