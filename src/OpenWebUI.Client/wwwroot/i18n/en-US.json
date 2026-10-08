@@ -19,6 +19,7 @@
   "sidebar.create_channel": "Create channel",
   "sidebar.pinned": "Pinned",
   "sidebar.chats": "Chats",
+  "sidebar.nav": "Navigation",
   "sidebar.empty": "No chats yet",
   "sidebar.no_results": "No results",
   "sidebar.delete_folder": "Delete folder",

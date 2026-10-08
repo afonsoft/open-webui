@@ -14,27 +14,21 @@
 <PageTitle>Workspace — Open WebUI</PageTitle>
 
 <div class="page">
-    <h1 class="page-title">Workspace</h1>
+    <h1 class="page-title" tabindex="-1">Workspace</h1>
     <div class="page-tabs">
-        <button class="modal-tab @(Section == "prompts" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/prompts")'>@L["workspace.prompts"]</button>
-        <button class="modal-tab @(Section == "models" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/models")'>@L["workspace.models"]</button>
-        <button class="modal-tab @(Section == "files" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/files")'>@L["workspace.files"]</button>
-        <button class="modal-tab @(Section == "knowledge" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/knowledge")'>@L["workspace.knowledge"]</button>
-        <button class="modal-tab @(Section == "tools" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/tools")'>Tools</button>
-        <button class="modal-tab @(Section == "skills" ? "active" : "")"
-                @onclick='() => Nav.NavigateTo("/workspace/skills")'>@L["workspace.skills"]</button>
+        <a href="/workspace/prompts" class="modal-tab @(Section == "prompts" ? "active" : "")">@L["workspace.prompts"]</a>
+        <a href="/workspace/models" class="modal-tab @(Section == "models" ? "active" : "")">@L["workspace.models"]</a>
+        <a href="/workspace/files" class="modal-tab @(Section == "files" ? "active" : "")">@L["workspace.files"]</a>
+        <a href="/workspace/knowledge" class="modal-tab @(Section == "knowledge" ? "active" : "")">@L["workspace.knowledge"]</a>
+        <a href="/workspace/tools" class="modal-tab @(Section == "tools" ? "active" : "")">Tools</a>
+        <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")">@L["workspace.skills"]</a>
     </div>
 
     @if (Section == "models")
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/models/create")'>@L["workspace.new_model"]</button>
+                <a href="/workspace/models/create" class="auth-submit text-center">@L["workspace.new_model"]</a>
             </div>
             @foreach (var model in _models)
             {
@@ -46,7 +40,7 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("model", model)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/models/{model.Id}")'>@L["common.edit"]</button>
+                        <a class="msg-action" href="/workspace/models/@model.Id">@L["common.edit"]</a>
                         <button class="msg-action" @onclick="() => ToggleModelAsync(model)">
                             @(model.IsActive ? L["workspace.hide"] : L["workspace.activate"])
                         </button>
@@ -85,7 +79,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/knowledge/create")'>@L["workspace.new_collection"]</button>
+                <a href="/workspace/knowledge/create" class="auth-submit text-center">@L["workspace.new_collection"]</a>
                 @if (_selectedKnowledge.Count > 0)
                 {
                     <button class="msg-action danger" @onclick="BatchDeleteKnowledgeAsync">
@@ -143,7 +137,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/tools/create")'>@L["workspace.new_tool"]</button>
+                <a href="/workspace/tools/create" class="auth-submit text-center">@L["workspace.new_tool"]</a>
             </div>
             @foreach (var tool in _tools)
             {
@@ -155,7 +149,7 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("tool", tool)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/tools/{tool.Id}")'>@L["common.edit"]</button>
+                        <a class="msg-action" href="/workspace/tools/@tool.Id">@L["common.edit"]</a>
                         <button class="msg-action" @onclick="() => ToggleToolAsync(tool)">
                             @(tool.Enabled ? L["workspace.disable"] : L["workspace.enable"])
                         </button>
@@ -212,7 +206,7 @@
     {
         <div class="card-list">
             <div class="card-row">
-                <button class="auth-submit" @onclick='() => Nav.NavigateTo("/workspace/prompts/create")'>@L["workspace.new_prompt"]</button>
+                <a href="/workspace/prompts/create" class="auth-submit text-center">@L["workspace.new_prompt"]</a>
             </div>
             @foreach (var prompt in _prompts)
             {
@@ -224,7 +218,7 @@
                     <div class="card-actions">
                         <button class="msg-action" title="@L["workspace.share_community"]" aria-label="@L["workspace.share_community"]"
                                 @onclick='() => ShareCommunityAsync("prompt", prompt)'>↗</button>
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/workspace/prompts/{prompt.Id}")'>@L["common.edit"]</button>
+                        <a class="msg-action" href="/workspace/prompts/@prompt.Id">@L["common.edit"]</a>
                         <button class="msg-action danger" @onclick="() => DeletePromptAsync(prompt)">🗑</button>
                     </div>
                 </div>
