@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261007-chat-notifications` |
 | Ticket | `GAP-chat-notifications` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -109,3 +109,16 @@ tests/OpenWebUI.Api.Tests/PushEndpointsTests.cs
 ## 7. Notas
 
 VAPID keys: gerar par e persistir em ConfigEntry ou env `VAPID__PUBLIC_KEY`/`VAPID__PRIVATE_KEY`. Biblioteca `WebPush` (NuGet) é a escolha simples; alternativa sem dependência é JWT ES256 + POST com `aes128gcm` manual (mais código). SW de push pode coexistir no `service-worker.js` atual do PWA.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Seam de notificação | delivered | `Application/Interfaces/IChatRunNotifier.cs`; dispatcher chama `NotifyAsync` ao finalizar — best-effort, nunca falha a run (`Api/Notifications/`) |
+| RF-002 SignalR `run.completed` | delivered | `Api/Notifications/SignalRChatRunNotifier.cs` — evento no grupo `chat-{chatId}` com `{runId,status,title,snippet}` |
+| RF-003 Notification API | delivered | `Client/wwwroot/js/app.js:147-178` — `document.hidden && permission==='granted'` → `new Notification` com `tag` por run; clique foca aba |
+| RF-004 Web Push | delivered | `WebPushChatRunNotifier.cs` + `Infrastructure/Services/WebPushSender.cs` + `VapidKeyService.cs` + `ChatPushSubscriptions` (404/410 remove, `:69`); SW `push`/`notificationclick` em `service-worker.js:64,90` abre `/c/{chatId}` |
+| RF-005 Preferências | delivered | `SettingsModal.razor:185,193` toggles `notify_chat_done`/`notify_push`; `Client/Services/ChatNotificationsService.cs` — requestPermission só ao ligar; hint se `denied` |
+

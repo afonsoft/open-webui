@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261007-chat-tool-streaming` |
 | Ticket | `GAP-chat-tool-streaming` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -108,3 +108,16 @@ tests/OpenWebUI.Api.Tests/{ToolStreamingTests,ToolApprovalTests}.cs
 ## 7. Notas
 
 Classificação mutável vs readonly: para tools do banco adicionar flag `IsMutable`/`RequiresApproval` na entidade `Tool`; MCP tools herdam do servidor (campo `readOnlyHint` quando exposto) com fallback `requires_approval` = true (conservador). O preset chip fica na toolbar do `ChatView` (padrão do harness).
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 tool_call/tool_result | delivered | eventos `tool_call`/`tool_result` com `seq` emitidos pela run (`Api/Runs/ChatRunExecutor.cs`); `ChatStreamService` parseia; erro de tool → `tool_result ok:false` sem matar a run |
+| RF-002 Status ao vivo | delivered | evento `status` `{phase,label}` → `_statusLabel` chip "Executando tool: X" (`ChatView.razor:1723-1744`) no lugar do spinner |
+| RF-003 Gate de aprovação | delivered | `ChatRunApprovals.cs` — run pausa em `AwaitingApproval` + `approval_asked {callId,toolName,kind,argsPreview}`; deny injeta "negado pelo usuário"; timeout → deny; `remember` por conversa |
+| RF-004 Preset por conversa | delivered | `Chat.ApprovalPreset` (`Domain/Entities.cs:144`, default `approve-mutations`); `PATCH /api/v1/chats/{id}` (`ChatEndpoints.cs:412-420`); chip na toolbar (`ChatView.razor:403-410`); valores `allow-readonly|approve-mutations|smart|always-allow|auto` |
+| RF-005 Cards na UI | delivered | `ToolCallCard.razor` (ícone, duração, args/resultado collapsible, badge refused/denied, imagem inline) + `PermissionPromptCard.razor` Aprovar/Negar |
+

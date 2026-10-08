@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-permissions` |
 | Ticket | Issue #86 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -61,3 +61,13 @@ Hoje permissões vêm do papel (admin/user/pending) + flags de grupo. Upstream p
 - PR: https://github.com/afonsoft/open-webui/pull/96
 - Issue: https://github.com/afonsoft/open-webui/issues/86
 - Epic: https://github.com/afonsoft/open-webui/issues/79
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Override por usuário | delivered | merge determinístico user > grupo > papel em `Infrastructure/Services/PermissionService.cs`; edição admin-only; `tests/.../PermissionsGranularTests.cs` |
+| RF-002 Domínios de grupo | delivered | `Api/Endpoints/AuthEndpoints.cs:82` → `JoinDomainGroupsAsync` (`:465-490`): signup `x@dominio.com` entra no grupo com `AllowedDomainsJson` contendo o domínio |
+

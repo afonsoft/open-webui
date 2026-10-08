@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-audio-engines` |
 | Ticket | Issue #83 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -65,3 +65,14 @@ Mesmos endpoints; `engine` aceita `openai|deepgram|whisper|elevenlabs|azure`.
 - Issue: https://github.com/afonsoft/open-webui/issues/83
 - Epic: https://github.com/afonsoft/open-webui/issues/79
 - PR: https://github.com/afonsoft/open-webui/pull/104
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Whisper externo | delivered | `Infrastructure/Services/AudioService.cs:229-235` — engine `whisper`, multipart para `{sttBaseUrl}/audio/transcriptions`, timeout 60s (vs 120s demais), falha → `AudioProviderException` → 502; testado em `AudioServiceTests` |
+| RF-002 ElevenLabs/Azure TTS | delivered | `AudioService.SpeechAsync` roteia por engine (`:158-210`): elevenlabs `xi-api-key` + `/v1/text-to-speech/{voice}`, azure SSML + `Ocp-Apim-Subscription-Key` + `X-Microsoft-OutputFormat`; `GetVoicesAsync` com URL por engine; testado em `AudioServiceTests.Voices_UrlsPorEngine` |
+| RF-003 Config/UI | delivered | `AudioConfig.Masked()` (`Application/Contracts/AudioContracts.cs:30`) retorna `********` preservando chave salva; `GET /audio/capabilities` (`Api/Endpoints/AudioEndpoints.cs:24`) só lista engines com config |
+

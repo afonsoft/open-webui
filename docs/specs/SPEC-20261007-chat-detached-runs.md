@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `devin/1791337561-chat-detached-runs` |
 | Ticket | `GAP-chat-detached-runs` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -124,3 +124,18 @@ tests/OpenWebUI.Api.Tests/ChatRunEndpointsTests.cs
 ## 7. Notas
 
 `[A DEFINIR]` rota do attach: `/api/v1/...` novo vs extensão do `/api/chat/*` — escolha: `/api/v1/chats/{id}/runs/...` (REST-consistente com ChatEndpoints). Tool streaming SSE (P3) reusa o mesmo broadcaster adicionando tipos de evento.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Enfileirar → run | delivered | `POST /{id}/messages` (`ChatRunEndpoints.cs:24`) — valida dono, persiste mensagem, cria `ChatRun` `Queued` com snapshot, devolve `202 {runId,status}`; fila FIFO por chat |
+| RF-002 Dispatcher desacoplado | delivered | `Api/Runs/ChatRunDispatcher.cs` — `BackgroundService`, `MaxConcurrentRuns = 4`, `IServiceScope` por run, `Completed|Failed|Stopped` |
+| RF-003 Attach SSE com replay | delivered | `GET .../runs/{runId}/stream` (`:28`) — replay por `seq` + live, shape OpenAI `choices[0].delta.content`, `done` + `[DONE]`; 404 para run alheia |
+| RF-004 Persistência por iteração | delivered | `ChatRun.PartialContent` (`Domain/Entities.cs:252`) com checkpoints por boundary em `ChatRunExecutor.cs:166,187,494,541`; `ChatMessage` final no fim |
+| RF-005 Stop cooperativo | delivered | `POST .../runs/{runId}/stop` (`:29`) — flag → cancel → `Stopped` preservando `PartialContent`; já final → 409 |
+| RF-006 Boot sweep | delivered | `ChatRunDispatcher.cs:69-94` — runs `Queued|Running` órfãs → `Interrupted` no startup (um sweep in-process) |
+| RF-007 Cliente anexa | delivered | `ChatView.razor:940` `GetActiveRunAsync` → banner "gerando…" + `PartialContent` + attach SSE; `ChatStreamService.cs:122-126`; fallback para `/api/chat/completions` |
+

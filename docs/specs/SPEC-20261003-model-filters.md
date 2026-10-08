@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-model-filters` |
 | Ticket | Issue #87 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -60,3 +60,13 @@ Sem endpoint novo — MetaJson do modelo + pipeline interno.
 - PR: https://github.com/afonsoft/open-webui/pull/97
 - Issue: https://github.com/afonsoft/open-webui/issues/87
 - Epic: https://github.com/afonsoft/open-webui/issues/79
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Filtros inlet | delivered | `Infrastructure/Services/ModelFilterService.cs:164` `ApplyInlet` — ordem estável; validação rejeita regex inválida com erro (`:131-139`); parse de filtro com falha é ignorado com log; testado em `ModelFiltersTests`/`ModelFilterEdgeTests` |
+| RF-002 Outlet | delivered | `regex_redact` aplicado sobre o texto final antes do SSE terminar (`ModelFilterService.cs:16,199`); pipeline em `Api/Completions/ChatPipeline.cs` |
+
