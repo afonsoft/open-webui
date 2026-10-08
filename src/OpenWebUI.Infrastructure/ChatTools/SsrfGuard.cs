@@ -64,13 +64,15 @@ public static class SsrfGuard
             return false;
         }
 
-        return bytes[0] == 0                                  // 0.0.0.0/8
-            || bytes[0] == 10                                 // 10/8
-            || bytes[0] == 127                                // loopback
-            || (bytes[0] == 169 && bytes[1] == 254)           // link-local
-            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31) // 172.16/12
-            || (bytes[0] == 192 && bytes[1] == 168)           // 192.168/16
-            || (bytes[0] == 100 && bytes[1] is >= 64 and <= 127); // CGNAT 100.64/10
+        return bytes[0] switch
+        {
+            0 or 10 or 127 => true,                       // 0.0.0.0/8, 10/8, loopback
+            169 => bytes[1] == 254,                       // link-local
+            172 => bytes[1] is >= 16 and <= 31,           // 172.16/12
+            192 => bytes[1] == 168,                       // 192.168/16
+            100 => bytes[1] is >= 64 and <= 127,          // CGNAT 100.64/10
+            _ => false,
+        };
     }
 
     private static bool IsInPrefix(IPAddress address, int prefixHighByte, int prefixBits)

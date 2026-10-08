@@ -464,7 +464,7 @@ public class RagService(
             dot += a[i] * b[i];
         }
         var nb = normB > 0 ? normB : L2Norm(b);
-        return normA == 0 || nb == 0 ? 0 : dot / (normA * nb);
+        return normA <= 0 || nb <= 0 ? 0 : dot / (normA * nb);
     }
 
     /// <summary>Norma L2 do vetor.</summary>

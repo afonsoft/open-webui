@@ -65,6 +65,7 @@ public class ChatStreamServiceTests
             await foreach (var _ in service.StreamCompletionAsync(
                 new OpenWebUI.Application.Contracts.ChatCompletionRequest("m", [])))
             {
+                // Consome o stream até o provider falhar.
             }
         });
     }

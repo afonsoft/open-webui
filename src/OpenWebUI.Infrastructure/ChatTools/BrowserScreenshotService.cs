@@ -153,9 +153,9 @@ public sealed class BrowserScreenshotService(
             catch (TimeoutException)
             {
                 try { process.Kill(entireProcessTree: true); }
-                catch (InvalidOperationException) { }
-                catch (Win32Exception) { }
-                catch (NotSupportedException) { }
+                catch (InvalidOperationException) { /* processo já saiu */ }
+                catch (Win32Exception) { /* processo já saiu */ }
+                catch (NotSupportedException) { /* plataforma sem kill-tree */ }
                 throw new InvalidOperationException(
                     $"Browser headless excedeu {ProcessTimeout.TotalSeconds}s sem responder.");
             }

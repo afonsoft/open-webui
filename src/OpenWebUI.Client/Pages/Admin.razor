@@ -328,7 +328,7 @@
                                 <span class="truncate">@entry.ModelId</span>
                                 <span>@entry.Rating.ToString("F0")</span>
                                 <span>@entry.Battles</span>
-                                <span>@(entry.Wins % 1 == 0 ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
+                                <span>@(double.IsInteger(entry.Wins) ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
                             </div>
                         </div>
                     }
@@ -1492,7 +1492,7 @@
     private int _fbPage;
     private string _configTab = "general";
     private List<McpServerResponse> _mcpServers = [];
-    private Dictionary<string, List<McpToolResponse>> _mcpTools = new();
+    private readonly Dictionary<string, List<McpToolResponse>> _mcpTools = new();
     private readonly HashSet<string> _mcpExpanded = [];
     private readonly HashSet<string> _mcpBusy = [];
     private readonly Dictionary<string, (bool Ok, string Message)> _mcpTestResults = new();
@@ -1525,7 +1525,7 @@
     }
     private List<ProvConnectionRow> _provOllamaRows = [];
     private List<ProvConnectionRow> _provOpenAiRows = [];
-    private Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
+    private readonly Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
     private bool _provTesting;
     private string? _provMessage;
     private List<OllamaModelInfo>? _provOllamaInstalled;

@@ -385,10 +385,16 @@ public static class ModelEndpoints
             .ToListAsync(ct)).ToHashSet();
 
         return grants.Any(g =>
-            g.Permission is "read" or "write"
-            && (g.PrincipalType == "*"
+        {
+            if (g.Permission is not ("read" or "write"))
+            {
+                return false;
+            }
+            return g.PrincipalType == "*"
                 || (g.PrincipalType == "user" && g.PrincipalId == user.Id)
-                || (g.PrincipalType == "group" && g.PrincipalId is { } gid && groupIds.Contains(gid))));
+                || (g.PrincipalType == "group"
+                    && g.PrincipalId is { } gid && groupIds.Contains(gid));
+        });
     }
 
     internal sealed record AccessGrantEntry(
