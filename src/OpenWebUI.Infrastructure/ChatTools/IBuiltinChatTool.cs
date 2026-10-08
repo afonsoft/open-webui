@@ -29,7 +29,7 @@ public sealed record BuiltinToolResult(
 /// </summary>
 public interface IBuiltinChatTool
 {
-    /// <summary>Nome da função exposto ao modelo (<c>builtin:{Name}</c>).</summary>
+    /// <summary>Nome da função exposto ao modelo (anunciado como <c>builtin_{Name}</c>).</summary>
     string Name { get; }
 
     /// <summary>Descrição exposta ao modelo.</summary>

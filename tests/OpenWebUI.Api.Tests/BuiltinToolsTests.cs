@@ -416,6 +416,33 @@ public class BuiltinToolsTests
     }
 
     [Test]
+    public async Task Executor_NomeSemOuComPrefixo_ResolveBuiltin()
+    {
+        // Providers sanitizam o nome da função (':' é inválido no spec OpenAI):
+        // o modelo pode emitir "fetch_url" ou "builtin_fetch_url" — ambos
+        // precisam resolver a built-in em vez de "não está habilitada".
+        using var db = NewDb();
+        var registry = new BuiltinToolRegistry(
+            [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
+            new ConfigurationBuilder().Build());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(),
+            new PythonToolExecutor(new ConfigurationBuilder().Build()),
+            new McpClientService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            registry);
+
+        var tools = await executor.LoadEnabledAsync("u1", ["builtin:fetch_url"]);
+        Assert.That(ToolExecutor.FunctionName(tools[0]), Is.EqualTo("builtin_fetch_url"));
+
+        foreach (var name in new[] { "builtin_fetch_url", "builtin:fetch_url", "fetch_url" })
+        {
+            var outcome = await executor.ExecuteAsync(tools, name,
+                "{\"url\":\"http://127.0.0.1:1/\"}", Ctx(), default);
+            Assert.That(outcome.Text, Does.Not.Contain("não está habilitada"), name);
+        }
+    }
+
+    [Test]
     public async Task CodeInterpreter_PythonExecutaEMarcaMutavel()
     {
         var tool = new CodeInterpreterBuiltinTool();

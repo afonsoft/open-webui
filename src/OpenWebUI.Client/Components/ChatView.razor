@@ -2058,6 +2058,8 @@
         {
             Console.WriteLine($"git diff indisponível: {ex.Message}");
         }
+        // Chamado fire-and-forget no load do chat — precisa repintar o chip.
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>Recarrega jobs do usuário e servidores MCP (admin).</summary>
