@@ -492,6 +492,7 @@
   "chat.panel_tab_tasks": "Tâches",
   "chat.panel_tab_changes": "Modifs",
   "chat.panel_tab_jobs": "Jobs",
+  "chat.panel_tab_terminal": "Terminal",
   "chat.panel_tab_mcps": "MCPs",
   "chat.panel_tab_info": "Info",
   "chat.panel_no_tasks": "Aucune tâche — todo_write remplit cette liste pendant une exécution.",

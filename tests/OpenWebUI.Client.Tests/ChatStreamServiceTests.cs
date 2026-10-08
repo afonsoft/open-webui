@@ -86,6 +86,73 @@ public class ChatStreamServiceTests
         });
     }
 
+    [Test]
+    public async Task RunEvents_IdSeq_VemNoEventoParaResume()
+    {
+        // O seq da linha `id:` é o checkpoint de resume do consumidor:
+        // após queda do stream ele re-anexa com lastSeq e o replay não
+        // duplica eventos (SPEC-20261007-chat-tool-streaming).
+        var sse = string.Join('\n',
+            "id: 7",
+            "event: status",
+            "data: {\"status\":\"running\",\"label\":\"gerando\"}",
+            "",
+            "id: 8",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"oi\"}}]}",
+            "",
+            "data: [DONE]",
+            "");
+
+        var service = CreateService(sse);
+        var eventos = new List<ChatStreamService.ChatStreamEvent>();
+        await foreach (var evt in service.StreamRunEventsAsync("c1", "r1"))
+        {
+            eventos.Add(evt);
+        }
+
+        Assert.Multiple(() =>
+        {
+            var phase = eventos.OfType<ChatStreamService.ChatStreamEvent.Phase>().Single();
+            Assert.That(phase.Seq, Is.EqualTo(7));
+            var delta = eventos.OfType<ChatStreamService.ChatStreamEvent.Delta>().Single();
+            Assert.That(delta.Seq, Is.EqualTo(8));
+        });
+    }
+
+    [Test]
+    public async Task RunEvents_ComentarioDeHeartbeat_ViraEventoHeartbeat()
+    {
+        // `: hb` mantém o pipe vivo através de proxies — o consumidor usa
+        // o evento para re-armar o watchdog de stall (sem renderizar).
+        var sse = string.Join('\n',
+            ": hb",
+            "",
+            "id: 1",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}",
+            "",
+            ": hb",
+            "",
+            "data: [DONE]",
+            "");
+
+        var service = CreateService(sse);
+        var eventos = new List<ChatStreamService.ChatStreamEvent>();
+        await foreach (var evt in service.StreamRunEventsAsync("c1", "r1"))
+        {
+            eventos.Add(evt);
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                eventos.OfType<ChatStreamService.ChatStreamEvent.Heartbeat>().Count(),
+                Is.EqualTo(2));
+            Assert.That(
+                eventos.OfType<ChatStreamService.ChatStreamEvent.Delta>().Single().Text,
+                Is.EqualTo("a"));
+        });
+    }
+
     private static ChatStreamService CreateService(string sseBody)
     {
         var http = new HttpClient(new StubHandler((_, _) =>

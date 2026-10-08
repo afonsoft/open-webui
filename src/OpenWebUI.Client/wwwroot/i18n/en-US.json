@@ -543,6 +543,7 @@
   "chat.panel_tab_tasks": "Tasks",
   "chat.panel_tab_changes": "Changes",
   "chat.panel_tab_jobs": "Jobs",
+  "chat.panel_tab_terminal": "Terminal",
   "chat.panel_tab_mcps": "MCPs",
   "chat.panel_tab_info": "Info",
   "chat.panel_no_tasks": "No tasks yet — todo_write fills this list during a run.",
