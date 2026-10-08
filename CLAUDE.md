@@ -56,6 +56,12 @@ docker compose -f docker-compose.full.yaml up -d --build   # app + Ollama + Whis
 # Regenerar CSS Tailwind (após editar classes em .razor)
 tailwindcss -i src/OpenWebUI.Client/tailwind.input.css \
   -o src/OpenWebUI.Client/wwwroot/css/tailwind.css --minify
+
+# Drift guards do client (rodar antes de PRs que tocam .razor/i18n —
+# os mesmos 3 executam no CI, job "Blazor WASM Client Validation")
+python3 tools/check-css-classes.py   # classes usadas vs definidas
+python3 tools/check-form-a11y.py     # controles sem nome acessível
+python3 tools/check-i18n-parity.py   # paridade de chaves nos 8 locales
 ```
 
 ## Code Standards
