@@ -127,11 +127,13 @@
 		@apply flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-800 pb-2;
 	}
 
-	.page-tabs button {
+	.page-tabs button,
+	.page-tabs a {
 		@apply rounded-full px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer;
 	}
 
-	.page-tabs button.active {
+	.page-tabs button.active,
+	.page-tabs a.active {
 		@apply bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100;
 	}
 

@@ -7,8 +7,8 @@
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">📁 @(_folder?.Name ?? "")</h1>
-        <button class="msg-action" @onclick="GoBack">← @L["common.back"]</button>
+        <h1 class="page-title" tabindex="-1"><span aria-hidden="true">📁</span> @(_folder?.Name ?? "")</h1>
+        <a class="msg-action" href="/">← @L["common.back"]</a>
     </div>
 
     @if (_notFound)
@@ -28,12 +28,11 @@
         <div class="card-list">
             @foreach (var chat in _chats)
             {
-                <div class="card-row" role="link" tabindex="0" @onclick='() => Nav.NavigateTo($"/c/{chat.Id}")'
-                     @onkeydown='(e) => { if (e.Key == "Enter") Nav.NavigateTo($"/c/{chat.Id}"); }'>
+                <a class="card-row" href="/c/@chat.Id">
                     <div class="card-main">
                         <div class="card-title">@chat.Title</div>
                     </div>
-                </div>
+                </a>
             }
         </div>
     }
@@ -57,6 +56,4 @@
         }
         _chats = await Api.GetFolderChatsAsync(FolderId);
     }
-
-    private void GoBack() => Nav.NavigateTo("/");
 }
