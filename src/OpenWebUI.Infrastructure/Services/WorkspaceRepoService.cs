@@ -21,7 +21,7 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
 
     /// <summary>Raiz do workspace do usuário (jail das tools).</summary>
     public string WorkspaceRoot(string userId) =>
-        Path.Combine(env.ContentRootPath, "data", "workspaces", userId);
+        Path.Join(env.ContentRootPath, "data", "workspaces", userId);
 
     /// <summary>Binding atual (null quando não há repo vinculado).</summary>
     public Task<WorkspaceRepoBinding?> GetBindingAsync(string userId, CancellationToken ct) =>
@@ -39,8 +39,8 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
             return WorkspaceRoot(userId);
         }
 
-        var dir = Path.Combine(WorkspaceRoot(userId), binding.Dir);
-        return Directory.Exists(Path.Combine(dir, ".git")) ? dir : WorkspaceRoot(userId);
+        var dir = Path.Join(WorkspaceRoot(userId), binding.Dir);
+        return Directory.Exists(Path.Join(dir, ".git")) ? dir : WorkspaceRoot(userId);
     }
 
     /// <summary>
@@ -65,11 +65,11 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
         var name = slug[(slug.IndexOf('/') + 1)..];
         var dir = $"repos/{Sanitize(slug[..slug.IndexOf('/')])}__{Sanitize(name)}";
         var root = WorkspaceRoot(userId);
-        var absDir = Path.Combine(root, dir);
+        var absDir = Path.Join(root, dir);
 
         Directory.CreateDirectory(root);
         string? error;
-        if (Directory.Exists(Path.Combine(absDir, ".git")))
+        if (Directory.Exists(Path.Join(absDir, ".git")))
         {
             // Checkout existente: só troca de branch (fetch + switch + pull).
             // Refspec explícito — clones --single-branch não criam refs/remotes

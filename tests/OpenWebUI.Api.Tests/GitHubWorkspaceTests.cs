@@ -9,7 +9,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using OpenWebUI.Api.Completions;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -36,10 +38,10 @@ public class GitHubWorkspaceTests
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), $"owui-gh-{Guid.NewGuid():N}");
+        _root = Path.Join(Path.GetTempPath(), $"owui-gh-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={Path.Combine(_root, "t.db")}").Options);
+            .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
         _cache = new MemoryCache(new MemoryCacheOptions());
         _config = new ConfigService(_db, _cache);
@@ -153,8 +155,8 @@ public class GitHubWorkspaceTests
 
             var workdir = await _repos.ResolveWorkdirAsync("u1", default);
             Assert.That(workdir, Is.EqualTo(
-                Path.Combine(_root, "data", "workspaces", "u1", "repos", "afonsoft__demo")));
-            Assert.That(File.Exists(Path.Combine(workdir, "readme.md")), Is.True);
+                Path.Join(_root, "data", "workspaces", "u1", "repos", "afonsoft__demo")));
+            Assert.That(File.Exists(Path.Join(workdir, "readme.md")), Is.True);
 
             // O remote gravado não carrega credencial.
             var remote = Git(workdir, "remote", "get-url", "origin");
@@ -191,8 +193,8 @@ public class GitHubWorkspaceTests
                 "u1", "a/b", "main", origin, null, default);
             Assert.That(binding?.Branch, Is.EqualTo("main"));
 
-            var dir = Path.Combine(_root, "data", "workspaces", "u1", "repos", "a__b");
-            File.WriteAllText(Path.Combine(dir, "local.txt"), "x\n");
+            var dir = Path.Join(_root, "data", "workspaces", "u1", "repos", "a__b");
+            File.WriteAllText(Path.Join(dir, "local.txt"), "x\n");
 
             (binding, var error) = await _repos.OpenAsync(
                 "u1", "a/b", "dev", origin, null, default);
@@ -200,7 +202,7 @@ public class GitHubWorkspaceTests
             Assert.That(binding?.Branch, Is.EqualTo("dev"));
             Assert.That(Git(dir, "branch", "--show-current"), Does.Contain("dev"));
             // Arquivo não-rastreado do checkout sobrevive à troca.
-            Assert.That(File.Exists(Path.Combine(dir, "local.txt")), Is.True);
+            Assert.That(File.Exists(Path.Join(dir, "local.txt")), Is.True);
         }
         finally
         {
@@ -219,12 +221,164 @@ public class GitHubWorkspaceTests
             await _repos.UnbindAsync("u1", default);
             Assert.That(await _repos.GetBindingAsync("u1", default), Is.Null);
             Assert.That(await _repos.ResolveWorkdirAsync("u1", default),
-                Is.EqualTo(Path.Combine(_root, "data", "workspaces", "u1")));
+                Is.EqualTo(Path.Join(_root, "data", "workspaces", "u1")));
         }
         finally
         {
             Directory.Delete(origin, recursive: true);
         }
+    }
+
+    // ---------------- EnrichRequestAsync (repo binding) ----------------
+
+    [Test]
+    public async Task Enrich_ComRepoVinculado_InjetaContextoNoSistema()
+    {
+        RequireGit();
+        var origin = CriarOrigem("main");
+        try
+        {
+            await _repos.OpenAsync("u1", "a/b", "main", origin, null, default);
+            var request = new ChatCompletionRequest(
+                "fake:1", [new ChatCompletionMessage("user", "liste os arquivos")]);
+            var effective = await ChatPipeline.EnrichRequestAsync(
+                request,
+                new User { Id = "u1", Name = "U", Email = "u@x" },
+                _db, _config, rag: null!, webSearch: null!, _repos, default);
+            var system = effective.Messages.FirstOrDefault(m => m.Role == "system");
+            Assert.That(system?.Content, Does.Contain("Repositório vinculado ao workspace: a/b")
+                .And.Contain("branch 'main'"));
+        }
+        finally
+        {
+            Directory.Delete(origin, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Enrich_SemRepo_NaoInjetaContexto()
+    {
+        var request = new ChatCompletionRequest(
+            "fake:1", [new ChatCompletionMessage("user", "oi")]);
+        var effective = await ChatPipeline.EnrichRequestAsync(
+            request,
+            new User { Id = "u2", Name = "U", Email = "u2@x" },
+            _db, _config, rag: null!, webSearch: null!, _repos, default);
+        Assert.That(
+            effective.Messages.Where(m => m.Role == "system"),
+            Has.None.Contains("Repositório vinculado"));
+    }
+
+    // ---------------- GitHubService: caminhos de erro ----------------
+
+    [Test]
+    public async Task ListRepos_RespostaNaoArray_RetornaVazio()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.Body = "{}";
+        Assert.That(await _svc.ListReposAsync("u1", default), Is.Empty);
+    }
+
+    [Test]
+    public async Task ListRepos_ErroRede_RetornaVazio()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.Throw = new HttpRequestException("boom");
+        Assert.That(await _svc.ListReposAsync("u1", default), Is.Empty);
+    }
+
+    [Test]
+    public async Task ListBranches_SemBranches_UsaDefault()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.Body = "{\"default_branch\":\"trunk\"}";
+        _github.BranchesBody = "[]";
+        var branches = await _svc.ListBranchesAsync("u1", "a", "b", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(branches!.DefaultBranch, Is.EqualTo("trunk"));
+            Assert.That(branches.Branches, Is.EqualTo(["trunk"]));
+        });
+    }
+
+    [Test]
+    public async Task ListBranches_ErroRede_RetornaNull()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.Throw = new HttpRequestException("boom");
+        Assert.That(await _svc.ListBranchesAsync("u1", "a", "b", default), Is.Null);
+    }
+
+    [Test]
+    public async Task ValidateToken_ErroRede_RetornaNull()
+    {
+        _github.Throw = new HttpRequestException("boom");
+        Assert.That(await _svc.ValidateTokenAsync("pat", default), Is.Null);
+    }
+
+    // ---------------- WorkspaceRepoService: caminhos de erro ----------------
+
+    [Test]
+    public async Task Repo_Open_DiretorioComOutroConteudo_Erro()
+    {
+        var dir = Path.Join(_root, "data", "workspaces", "u1", "repos", "a__b");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Join(dir, "outro.txt"), "x");
+
+        var (binding, error) = await _repos.OpenAsync(
+            "u1", "a/b", "main", "unused", null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(binding, Is.Null);
+            Assert.That(error, Does.Contain("outro conteúdo"));
+        });
+    }
+
+    [Test]
+    public async Task Repo_Open_CheckoutExistente_BranchInexistente_Erro()
+    {
+        RequireGit();
+        var origin = CriarOrigem("main");
+        try
+        {
+            var (first, err1) = await _repos.OpenAsync(
+                "u1", "a/b", "main", origin, null, default);
+            Assert.That(err1, Is.Null);
+
+            var (binding, error) = await _repos.OpenAsync(
+                "u1", "a/b", "branch-fantasma", origin, null, default);
+            Assert.Multiple(() =>
+            {
+                Assert.That(binding, Is.Null);
+                Assert.That(error, Does.Contain("git fetch"));
+            });
+        }
+        finally
+        {
+            Directory.Delete(origin, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Repo_Open_CloneFalha_Erro()
+    {
+        var (binding, error) = await _repos.OpenAsync(
+            "u1", "a/b", "main",
+            Path.Join(_root, "origem-inexistente"), null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(binding, Is.Null);
+            Assert.That(error, Does.StartWith("git clone:"));
+        });
+    }
+
+    [Test]
+    public async Task Repo_Open_Cancelado_PropagaOperacaoCancelada()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            _repos.OpenAsync("u1", "a/b", "main", "unused", null, cts.Token));
     }
 
     // ---------------- Endpoints ----------------
@@ -248,7 +402,7 @@ public class GitHubWorkspaceTests
     [Test]
     public async Task Endpoints_ConfigEBinding_FluxoBasico()
     {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-gh-{Guid.NewGuid():N}.db");
+        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-gh-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={dbPath}");
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
@@ -306,10 +460,10 @@ public class GitHubWorkspaceTests
     /// <summary>Cria um repo local (remote <c>file://</c>) com 1 commit.</summary>
     private static string CriarOrigem(string branch, string? extraBranch = null)
     {
-        var origin = Path.Combine(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
+        var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
         Directory.CreateDirectory(origin);
         Git(origin, "init", "-b", branch);
-        File.WriteAllText(Path.Combine(origin, "readme.md"), "oi\n");
+        File.WriteAllText(Path.Join(origin, "readme.md"), "oi\n");
         Git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
         Git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base");
         if (extraBranch is not null)
@@ -346,13 +500,21 @@ public class GitHubWorkspaceTests
     {
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public string? LastAuth { get; private set; }
+        public string? Body { get; set; }
+        public string? BranchesBody { get; set; }
+        public Exception? Throw { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastAuth = request.Headers.Authorization?.ToString();
+            if (Throw is not null)
+            {
+                throw Throw;
+            }
             var path = request.RequestUri!.AbsolutePath;
-            var body = Status != HttpStatusCode.OK ? "{}"
+            var body = Body
+                ?? (Status != HttpStatusCode.OK ? "{}"
                 : path == "/user" ? "{\"login\":\"afonso\"}"
                 : path == "/user/repos" ? """
                     [{"full_name":"afonsoft/open-webui","name":"open-webui","private":true,
@@ -362,8 +524,8 @@ public class GitHubWorkspaceTests
                       "default_branch":"dev","html_url":"https://github.com/afonsoft/outro",
                       "description":"repo 2","updated_at":null}]
                     """
-                : path.EndsWith("/branches") ? "[{\"name\":\"main\"},{\"name\":\"dev\"}]"
-                : "{\"default_branch\":\"main\"}";
+                : path.EndsWith("/branches") ? (BranchesBody ?? "[{\"name\":\"main\"},{\"name\":\"dev\"}]")
+                : "{\"default_branch\":\"main\"}");
             return Task.FromResult(new HttpResponseMessage(
                 Status == HttpStatusCode.OK ? HttpStatusCode.OK : Status)
             {
