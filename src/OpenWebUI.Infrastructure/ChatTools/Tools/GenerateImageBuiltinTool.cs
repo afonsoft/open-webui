@@ -60,6 +60,10 @@ public sealed class GenerateImageBuiltinTool(ImageGenerationService images) : IB
         {
             return new BuiltinToolResult($"Geração de imagem falhou: {ex.Message}");
         }
+        catch (HttpRequestException ex)
+        {
+            return new BuiltinToolResult($"Geração de imagem falhou: {ex.Message}");
+        }
 
         if (files.Count == 0)
         {
