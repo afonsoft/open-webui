@@ -126,7 +126,8 @@
                             continue;
                         }
                         var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
-                        <MessageBubble
+                        var msgKey = message.Id ?? $"m{index}";
+                        <MessageBubble @key="msgKey"
                             Message="message"
                             Streaming="_streaming && isLastAssistant"
                             ShowActions="true"
@@ -470,6 +471,40 @@
                                      OnTranscript="OnSttTranscript"
                                      OnDictationEnded="OnSttDoneAsync"
                                      OnError="OnSttErr" />
+                        <div class="relative">
+                            <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40 @(ModeButtonClass)"
+                                    title="@ModeTitle" aria-label="@ModeTitle" disabled="@_loading"
+                                    @onclick="() => _showModeMenu = !_showModeMenu">
+                                @ModeIcon(_approvalPreset)
+                            </button>
+                            @if (_showModeMenu)
+                            {
+                                <div class="fixed inset-0 z-30" @onclick="() => _showModeMenu = false"></div>
+                                <div class="absolute bottom-10 right-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden">
+                                    <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                        @L["chat.mode_title"]
+                                    </div>
+                                    @foreach (var mode in ModeOptions)
+                                    {
+                                        <button class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer
+                                                       @(_approvalPreset == mode ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")"
+                                                @onclick="() => SelectModeAsync(mode)">
+                                            @ModeIcon(mode)
+                                            <span class="flex-1 min-w-0">
+                                                <span class="block truncate text-sm">@L["chat.preset_" + mode]</span>
+                                                <span class="block truncate text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.mode_hint_" + mode]</span>
+                                            </span>
+                                            @if (_approvalPreset == mode)
+                                            {
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 flex-none">
+                                                    <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />
+                                                </svg>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
 
                     <div class="self-end flex items-center gap-1 mr-1">
@@ -614,8 +649,24 @@
     private RunQuestionAskedEvent? _pendingQuestion;
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
+    private bool _showModeMenu;
     private static readonly string[] ApprovalPresets =
-        ["allow-readonly", "approve-mutations", "always-allow", "auto"];
+        ["allow-readonly", "approve-mutations", "smart", "always-allow", "auto"];
+
+    /// <summary>
+    /// Modos do seletor rápido ao lado do microfone (os 3 pedidos):
+    /// somente leitura/aprovação (default), smart (executa menos
+    /// alterações de arquivo) e bypass (executa tudo).
+    /// </summary>
+    private static readonly string[] ModeOptions =
+        ["approve-mutations", "smart", "always-allow"];
+
+    /// <summary>
+    /// Cadência mínima entre renders durante o stream (ms): deltas chegam
+    /// em rajadas e renderizar cada um (markdown completo + scroll) afoga
+    /// o thread do WASM — a tela "só aparece no fim". ~60ms ≈ 16 renders/s.
+    /// </summary>
+    private const int RenderIntervalMs = 60;
 
     /// <summary>Estado vivo de uma tool_call + seu tool_result.</summary>
     private sealed class ToolCallView
@@ -635,33 +686,47 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _prompts = await Api.GetPromptsAsync();
-        _tools = await Api.GetToolsAsync();
-        _suggestions = (await Api.GetModelsConfigAsync())?.PromptSuggestions ?? [];
+        // Chamadas independentes em paralelo (antes: ~6 sequenciais no boot).
+        var promptsTask = Api.GetPromptsAsync();
+        var toolsTask = Api.GetToolsAsync();
+        var modelsTask = Api.GetModelsConfigAsync();
+        var configTask = Api.GetAppConfigCachedAsync();
+        var storedTask = StoredWebSearchAsync();
+        await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask);
+
+        _prompts = promptsTask.Result;
+        _tools = toolsTask.Result;
+        _suggestions = modelsTask.Result?.PromptSuggestions ?? [];
         // OnParametersSetAsync pode rodar antes das tools carregarem —
         // garante o default "genéricas ligadas" num chat novo.
         if (ChatId is null && _toolIds.Count == 0)
         {
             _toolIds = DefaultToolIds();
         }
-        var features = (await Api.GetAppConfigCachedAsync())?.Features;
+        var features = configTask.Result?.Features;
         _webSearchAvailable = features?.EnableWebSearch ?? false;
         _imageGenEnabled = features?.EnableImageGeneration ?? false;
         _videoGenEnabled = features?.EnableVideoGeneration ?? false;
+        // Busca web desligada por padrão (o usuário habilita no ícone);
+        // a escolha explícita do usuário (localStorage) tem precedência.
+        _webSearch = storedTask.Result == "true" && _webSearchAvailable;
+
+        Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
+        Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
+        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
+    }
+
+    private async Task<string?> StoredWebSearchAsync()
+    {
         try
         {
-            // Busca web desligada por padrão (o usuário habilita no ícone);
-            // a escolha explícita do usuário (localStorage) tem precedência.
-            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch");
-            _webSearch = stored == "true" && _webSearchAvailable;
+            return await JS.InvokeAsync<string?>("localStorage.getItem", "webui.chat.websearch");
         }
         catch (JSException ex)
         {
             Console.WriteLine($"localStorage indisponível: {ex.Message}");
+            return null;
         }
-        Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
-        Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
-        await Realtime.ConnectAsync(Nav.BaseUri, Auth.Token);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -670,6 +735,8 @@
         {
             _voiceSupported = await JS.InvokeAsync<bool>("openwebui.audio.sttSupported");
             _ttsSupported = await JS.InvokeAsync<bool>("openwebui.audio.ttsSupported");
+            // Listener de "perto do fim" para o auto-scroll do stream.
+            await JS.InvokeVoidAsync("openwebui.initPinnedScroll", _scrollContainer);
             if (_voiceSupported || _ttsSupported)
             {
                 StateHasChanged();
@@ -759,6 +826,8 @@
             _messages.Clear();
             // Chat novo: só as tools genéricas vêm selecionadas por padrão.
             _toolIds = DefaultToolIds();
+            // Modo de permissão volta ao padrão do composer (última escolha).
+            _approvalPreset = await StoredPresetAsync();
             await LoadComposerStateAsync(null);
             return;
         }
@@ -909,20 +978,33 @@
     /// Rascunho persistido por chat (RF-006): o composer sobrevive a
     /// reload/troca de aba — chave <c>chat:draft:{chatId|new}</c>.
     /// </summary>
+    private CancellationTokenSource? _draftCts;
+
     private async Task SaveDraftAsync()
     {
         _historyIndex = -1;
         var key = $"chat:draft:{_loadedChatId ?? "new"}";
+        var text = _input;
+        // Debounce: antes cada keystroke fazia uma escrita no localStorage
+        // via interop; agora só grava ~400ms após a última tecla.
+        _draftCts?.Cancel();
+        _draftCts = new CancellationTokenSource();
+        var ct = _draftCts.Token;
         try
         {
-            if (string.IsNullOrEmpty(_input))
+            await Task.Delay(400, ct);
+            if (string.IsNullOrEmpty(text))
             {
                 await Storage.RemoveAsync(key);
             }
             else
             {
-                await Storage.SetAsync(key, _input);
+                await Storage.SetAsync(key, text);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Tecla seguinte chegou antes do debounce — essa gravação morre.
         }
         catch (JSException)
         {
@@ -1073,6 +1155,12 @@
             _chatTitle = created.Title;
             _pendingNavigateId = created.Id;
             ChatList.NotifyChanged();
+            // Modo escolhido antes do primeiro envio: aplica no chat criado
+            // (o gate relê o preset por call — vale já na primeira tool).
+            if (_approvalPreset != "approve-mutations")
+            {
+                _ = Api.PatchChatAsync(created.Id, _approvalPreset);
+            }
         }
 
         // Chats persistidos usam runs desacopladas (a geração sobrevive a fechar a aba);
@@ -1243,12 +1331,17 @@
                 ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null,
                 WebSearch: _webSearch ? true : null);
 
+            var lastRender = DateTime.MinValue;
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
             {
                 content.Append(delta);
                 _messages[index] = placeholder with { Content = content.ToString() };
-                await InvokeAsync(StateHasChanged);
-                await ScrollToEndAsync();
+                if ((DateTime.UtcNow - lastRender).TotalMilliseconds >= RenderIntervalMs)
+                {
+                    lastRender = DateTime.UtcNow;
+                    await InvokeAsync(StateHasChanged);
+                    await ScrollToEndIfPinnedAsync();
+                }
             }
         }
         catch (OperationCanceledException)
@@ -1416,6 +1509,8 @@
         var sawEvent = false;
         const int StallMs = 60_000;
         const int MaxEmptyAttaches = 5;
+        var lastRender = DateTime.MinValue;
+        var dirty = false;
 
         while (true)
         {
@@ -1439,11 +1534,23 @@
                     {
                         break;
                     }
-                    if (evt is not ChatStreamService.ChatStreamEvent.Heartbeat)
+                    // Deltas chegam em rajada: o conteúdo é sempre aplicado
+                    // acima, mas a tela só re-renderiza na cadência
+                    // RenderIntervalMs (eventos de tool/fase renderizam já).
+                    dirty |= evt is ChatStreamService.ChatStreamEvent.Delta;
+                    if (evt is ChatStreamService.ChatStreamEvent.Delta
+                        or ChatStreamService.ChatStreamEvent.Heartbeat)
                     {
-                        await InvokeAsync(StateHasChanged);
-                        await ScrollToEndAsync();
+                        if (!dirty
+                            || (DateTime.UtcNow - lastRender).TotalMilliseconds < RenderIntervalMs)
+                        {
+                            continue;
+                        }
                     }
+                    dirty = false;
+                    lastRender = DateTime.UtcNow;
+                    await InvokeAsync(StateHasChanged);
+                    await ScrollToEndIfPinnedAsync();
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -1603,9 +1710,22 @@
             answer is null ? "deny" : "approve", false, answer);
     }
 
-    /// <summary>Troca o preset de aprovação do chat (re-lido por call no servidor).</summary>
+    /// <summary>
+    /// Troca o preset de aprovação (re-lido por call no servidor — mudança
+    /// mid-run vale já na próxima tool). Persiste como padrão do composer
+    /// para os próximos chats novos; chat existente recebe PATCH.
+    /// </summary>
     private async Task SetApprovalPresetAsync(string preset)
     {
+        _approvalPreset = preset;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "webui.chat.preset", preset);
+        }
+        catch (JSException)
+        {
+            // localStorage indisponível — o preset vale só nesta tela.
+        }
         if (_loadedChatId is null)
         {
             return;
@@ -1616,6 +1736,61 @@
             _approvalPreset = updated.ApprovalPreset;
         }
     }
+
+    /// <summary>Seleciona um modo no seletor rápido e fecha o menu.</summary>
+    private async Task SelectModeAsync(string mode)
+    {
+        _showModeMenu = false;
+        await SetApprovalPresetAsync(mode);
+    }
+
+    /// <summary>Preset padrão do composer (localStorage) para chats novos.</summary>
+    private async Task<string> StoredPresetAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>(
+                "localStorage.getItem", "webui.chat.preset");
+            return stored is "approve-mutations" or "always-allow"
+                or "smart" or "auto" or "allow-readonly"
+                ? stored
+                : "approve-mutations";
+        }
+        catch (JSException)
+        {
+            return "approve-mutations";
+        }
+    }
+
+    /// <summary>Rótulo do botão de modo (preset atual + descrição).</summary>
+    private string ModeTitle =>
+        $"{L["chat.mode_title"]} — {L["chat.preset_" + _approvalPreset]}";
+
+    /// <summary>Classes do botão de modo: azul no smart, âmbar no bypass.</summary>
+    private string ModeButtonClass => _approvalPreset switch
+    {
+        "smart" or "auto" => "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40",
+        "always-allow" => "text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40",
+        "allow-readonly" => "text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40",
+        _ => "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800",
+    };
+
+    /// <summary>Ícone do modo de permissão (heroicons outline, size-5).</summary>
+    private static MarkupString ModeIcon(string preset) => new(preset switch
+    {
+        // approve-mutations: escudo — pede aprovação antes de cada mutação.
+        "approve-mutations" =>
+            """<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>""",
+        // smart: sparkles — executa direto; só alteração de arquivo pergunta.
+        "smart" or "auto" =>
+            """<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>""",
+        // always-allow (bypass/yolo): raio — executa tudo sem perguntar.
+        "always-allow" =>
+            """<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" /></svg>""",
+        // allow-readonly (fora do seletor rápido): olho — só leitura.
+        _ =>
+            """<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 flex-none"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>""",
+    });
 
     /// <summary>Recarrega o chat do servidor (fonte da verdade após run desacoplada).</summary>
     private async Task ReloadChatAsync()
@@ -2019,6 +2194,22 @@
         catch (JSException ex)
         {
             Console.WriteLine($"scrollToEnd falhou: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Scroll de acompanhamento do stream: só desce quando o usuário já
+    /// está perto do fim — quem subiu para ler não é arrastado de volta.
+    /// </summary>
+    private async Task ScrollToEndIfPinnedAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("openwebui.scrollToEndIfPinned", _scrollContainer);
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"scrollToEndIfPinned falhou: {ex.Message}");
         }
     }
 }

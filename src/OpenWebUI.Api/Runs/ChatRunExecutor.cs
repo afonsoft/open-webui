@@ -139,25 +139,39 @@ public sealed class ChatRunExecutor(
                     OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
                     GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
                     OnResultAsync: (call, output, result, denied, t)
-                        => PublishToolResultAsync(run, call, output, result, denied));
+                        => PublishToolResultAsync(run, call, output, result, denied),
+                    // Texto do modelo sai delta a delta — sem isso a resposta
+                    // inteira só aparecia num blob no fim da run.
+                    OnDeltaAsync: async (piece, t) =>
+                    {
+                        await pauses.WaitIfPausedAsync(run.Id, t);
+                        var processed = piece;
+                        foreach (var (regex, replacement) in outletRules)
+                        {
+                            processed = regex.Replace(processed, replacement);
+                        }
+                        if (processed.Length == 0)
+                        {
+                            return;
+                        }
+                        var chunk = JsonSerializer.Serialize(new
+                        {
+                            choices = new[] { new { index = 0, delta = new { content = processed } } },
+                        });
+                        broadcaster.Publish(run.Id, $"data: {chunk}");
+                        content.Append(processed);
+                        sinceCheckpoint += processed.Length;
+                        if (sinceCheckpoint >= CheckpointBytes)
+                        {
+                            run.PartialContent = content.ToString();
+                            await db.SaveChangesAsync(CancellationToken.None);
+                            sinceCheckpoint = 0;
+                        }
+                    });
                 var builtinContext = BuildToolContext(run, user);
                 var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct, callbacks, builtinContext);
-                if (outcome?.FinalContent is { } final)
-                {
-                    toolMessages = outcome.ToolMessages;
-                    var finished = final;
-                    foreach (var (regex, replacement) in outletRules)
-                    {
-                        finished = regex.Replace(finished, replacement);
-                    }
-                    var chunk = JsonSerializer.Serialize(new
-                    {
-                        choices = new[] { new { index = 0, delta = new { content = finished } } },
-                    });
-                    broadcaster.Publish(run.Id, $"data: {chunk}");
-                    content.Append(finished);
-                }
+                toolMessages = outcome?.ToolMessages;
             }
             else
             {
@@ -326,19 +340,27 @@ public sealed class ChatRunExecutor(
             case "allow-readonly":
                 return ToolGateDecision.Deny;
             case "auto":
+            case "smart":
             {
                 // RF-012 (paridade OpenHands): LOW executa direto; MEDIUM
                 // executa com notice no stream; HIGH cai no fluxo de
-                // pergunta abaixo.
+                // pergunta abaixo. O preset <c>smart</c> segue o mesmo
+                // tiers, mas mutações de arquivo caem na pergunta —
+                // "executa sem aprovação, com restrição em alterações".
+                var workspace = Path.Combine(
+                    env.ContentRootPath, "data", "workspaces", run.UserId);
                 var risk = ToolCallRiskClassifier.Classify(
-                    tool, call.ArgumentsJson,
-                    Path.Combine(env.ContentRootPath, "data", "workspaces", run.UserId));
+                    tool, call.ArgumentsJson, workspace);
+                var fileMutation = risk == ToolCallRisk.Medium
+                    && preset == "smart"
+                    && ToolCallRiskClassifier.IsFileMutation(
+                        tool, call.ArgumentsJson, workspace);
                 if (risk == ToolCallRisk.Low)
                 {
                     return ToolGateDecision.Allow;
                 }
 
-                if (risk == ToolCallRisk.Medium)
+                if (risk == ToolCallRisk.Medium && !fileMutation)
                 {
                     broadcaster.Publish(run.Id,
                         $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("auto_approved", call.Name), JsonOptions)}");

@@ -158,12 +158,13 @@ public sealed record ToolGateDecision(
     public static readonly ToolGateDecision Deny = new(false);
 }
 
-/// <summary>Atualização parcial do chat (preset de aprovação de tools).</summary>
+/// <summary>Atualização parcial do chat (preset de aprovação de tools e/ou título).</summary>
 /// <param name="ApprovalPreset">
-/// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>always-allow</c>
-/// (RF-004). Null não altera.
+/// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>smart</c> |
+/// <c>always-allow</c> | <c>auto</c> (RF-004). Null não altera.
 /// </param>
-public sealed record ChatPatchRequest(string? ApprovalPreset);
+/// <param name="Title">Novo título do chat. Null não altera; vazio é ignorado.</param>
+public sealed record ChatPatchRequest(string? ApprovalPreset, string? Title = null);
 
 /// <summary>Arquivo alterado num workdir git (numstat + status M/A).</summary>
 public sealed record WorkspaceGitFileResponse(

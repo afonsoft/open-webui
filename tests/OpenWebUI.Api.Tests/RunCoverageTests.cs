@@ -155,6 +155,21 @@ public class RunCoverageTests
             {
                 await Task.Delay(_chatDelayMs, ct);
             }
+            // Loop de tools streamed (SPEC-20261008-modes-streaming): o
+            // pedido com tools e sem role=tool devolve a call em chunk;
+            // com role=tool já é a resposta final.
+            if (body.Contains("\"tools\"", StringComparison.Ordinal))
+            {
+                if (body.Contains("\"role\":\"tool\"", StringComparison.Ordinal))
+                {
+                    await ServeSseAsync(ctx, "resposta via tool", ct);
+                }
+                else
+                {
+                    await ServeSseToolCallAsync(ctx, ct);
+                }
+                return;
+            }
             await ServeSseAsync(ctx, "resposta mock openai", ct);
             return;
         }
@@ -167,6 +182,23 @@ public class RunCoverageTests
                 + "\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\","
                 + "\"function\":{\"name\":\"x\",\"arguments\":\"{}\"}}]}}]}";
         await WriteJsonAsync(ctx, 200, json, ct);
+    }
+
+    /// <summary>SSE OpenAI com uma tool_call completa num único chunk.</summary>
+    private static async Task ServeSseToolCallAsync(
+        HttpListenerContext ctx, CancellationToken ct)
+    {
+        var payload =
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,"
+            + "\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"x\","
+            + "\"arguments\":\"{}\"}}]}}]}\n\n"
+            + "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n"
+            + "data: [DONE]\n\n";
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        ctx.Response.StatusCode = 200;
+        ctx.Response.ContentType = "text/event-stream";
+        await ctx.Response.OutputStream.WriteAsync(bytes, ct);
+        ctx.Response.Close();
     }
 
     private static async Task ServeSseAsync(

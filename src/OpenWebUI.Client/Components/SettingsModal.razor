@@ -627,31 +627,66 @@
         }
     }
 
-    protected override async Task OnParametersSetAsync()
+    private bool _wasOpen;
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
     {
-        if (!IsOpen)
+        // Sadece kapalı→açık geçişinde yükle. Önceden OnParametersSetAsync'ti:
+        // Blazor ilk render'ı await bitene kadar bekletiyordu — modal ~10
+        // sıralı HTTP çağrısı (uzun provider timeout'ları dahil) boyunca
+        // açılmıyordu ve her parent render'da baştan çalışıyordu.
+        if (IsOpen && !_wasOpen)
         {
-            return;
+            _wasOpen = true;
+            _ = LoadAsync();
         }
-
-        _version = (await Api.GetVersionAsync())?.Version;
-        _name = Auth.CurrentUser?.Name ?? string.Empty;
-        _profileImage = Auth.CurrentUser?.ProfileImageUrl ?? string.Empty;
-        _apiKeyInfo = await Api.GetApiKeyAsync();
-        _memories = await Api.GetMemoriesAsync();
-
-        _webhook = await Api.GetWebhookAsync();
-        if (_webhook is not null)
+        else if (!IsOpen)
         {
-            _webhookUrl = _webhook.Url;
-            _webhookEvents = _webhook.Events.ToHashSet();
-            _webhookEnabled = _webhook.Enabled;
+            _wasOpen = false;
         }
-        await LoadAudioSettingsAsync();
+    }
 
-        if (Auth.CurrentUser?.Role == "admin")
+    private async Task LoadAsync()
+    {
+        try
         {
-            _connections = await Api.GetConnectionsAsync();
+            // 1. lote: bağımsız temel veriler paralel (önceden sıralıydı).
+            var versionTask = Api.GetVersionAsync();
+            var apiKeyTask = Api.GetApiKeyAsync();
+            var memoriesTask = Api.GetMemoriesAsync();
+            var webhookTask = Api.GetWebhookAsync();
+            await Task.WhenAll(versionTask, apiKeyTask, memoriesTask, webhookTask);
+
+            _version = versionTask.Result?.Version;
+            _name = Auth.CurrentUser?.Name ?? string.Empty;
+            _profileImage = Auth.CurrentUser?.ProfileImageUrl ?? string.Empty;
+            _apiKeyInfo = apiKeyTask.Result;
+            _memories = memoriesTask.Result;
+
+            _webhook = webhookTask.Result;
+            if (_webhook is not null)
+            {
+                _webhookUrl = _webhook.Url;
+                _webhookEvents = _webhook.Events.ToHashSet();
+                _webhookEnabled = _webhook.Enabled;
+            }
+            await LoadAudioSettingsAsync();
+            await InvokeAsync(StateHasChanged);
+
+            if (Auth.CurrentUser?.Role != "admin")
+            {
+                return;
+            }
+
+            // 2. lote: admin + provider keşfi paralel; uzun timeout'lu
+            // provider sorguları açılışı kilitlemeden arka planda doluyor.
+            var connectionsTask = Api.GetConnectionsAsync();
+            var adminConfigTask = Api.GetAdminConfigAsync();
+            var ollamaTask = LoadOllamaModelsAsync();
+            await Task.WhenAll(connectionsTask, adminConfigTask, ollamaTask);
+
+            _connections = connectionsTask.Result;
             if (_connections is not null)
             {
                 _ollamaRows = _connections.OllamaBaseUrls
@@ -671,8 +706,7 @@
                     .ToList();
             }
 
-            var adminConfig = await Api.GetAdminConfigAsync();
-            await LoadOllamaModelsAsync();
+            var adminConfig = adminConfigTask.Result;
             if (adminConfig is not null)
             {
                 _adminWebUiName = adminConfig.WebUiName;
@@ -684,9 +718,15 @@
                 _adminEnableFolders = adminConfig.EnableFolders;
                 _adminEnableMemories = adminConfig.EnableMemories;
 
-                _capabilities = await Api.GetDetectedCapabilitiesAsync();
+                // 3. lote: bağımsız admin verileri paralel.
+                var capsTask = Api.GetDetectedCapabilitiesAsync();
+                var audioTask = Api.GetAudioConfigAsync();
+                var adminWebhookTask = Api.GetAdminWebhookAsync();
+                await Task.WhenAll(capsTask, audioTask, adminWebhookTask);
 
-                var audio = await Api.GetAudioConfigAsync();
+                _capabilities = capsTask.Result;
+
+                var audio = audioTask.Result;
                 if (audio is not null)
                 {
                     _ttsEngine = audio.TtsEngine;
@@ -699,10 +739,10 @@
                     _sttBaseUrl = audio.SttBaseUrl ?? string.Empty;
                     _sttModel = audio.SttModel ?? string.Empty;
                 }
-                await LoadSttProviderModelsAsync();
-                await LoadTtsProviderModelsAsync();
+                // Bu ikisi provider alanlarına bağımlı — audio geldikten sonra.
+                await Task.WhenAll(LoadSttProviderModelsAsync(), LoadTtsProviderModelsAsync());
 
-                _adminWebhook = await Api.GetAdminWebhookAsync();
+                _adminWebhook = adminWebhookTask.Result;
                 if (_adminWebhook is not null)
                 {
                     _adminWebhookUrl = _adminWebhook.Url;
@@ -712,6 +752,11 @@
 
                 _adminLoaded = true;
             }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"settings load: {ex.Message}");
         }
     }
 

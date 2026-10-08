@@ -137,7 +137,9 @@ public class Chat
     /// Preset de permissão de tools da conversa
     /// (SPEC-20261007-chat-tool-streaming RF-004): <c>allow-readonly</c>
     /// (mutáveis negadas), <c>approve-mutations</c> (mutáveis pedem aprovação
-    /// — default) ou <c>always-allow</c> (tudo executa sem perguntar).
+    /// — default), <c>smart</c> (executa sem perguntar; mutações de arquivo
+    /// pedem aprovação), <c>always-allow</c> (tudo executa sem perguntar)
+    /// ou <c>auto</c> (tiers de risco — legacy).
     /// </summary>
     public string ApprovalPreset { get; set; } = "approve-mutations";
 

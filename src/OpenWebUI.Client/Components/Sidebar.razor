@@ -442,10 +442,16 @@ else
 
     private async Task LoadAsync()
     {
-        _chats = await Api.GetChatsAsync();
-        _pinned = await Api.GetPinnedChatsAsync();
-        _folders = await Api.GetFoldersAsync();
-        _channels = await Api.GetChannelsAsync();
+        // Chamadas independentes em paralelo (antes: 4 sequenciais por recarga).
+        var chatsTask = Api.GetChatsAsync();
+        var pinnedTask = Api.GetPinnedChatsAsync();
+        var foldersTask = Api.GetFoldersAsync();
+        var channelsTask = Api.GetChannelsAsync();
+        await Task.WhenAll(chatsTask, pinnedTask, foldersTask, channelsTask);
+        _chats = chatsTask.Result;
+        _pinned = pinnedTask.Result;
+        _folders = foldersTask.Result;
+        _channels = channelsTask.Result;
     }
 
     private async Task CreateDmAsync()
@@ -530,10 +536,10 @@ else
             return;
         }
 
-        var full = await Api.GetChatAsync(chat.Id);
-        if (full is not null)
+        // PATCH leve: antes baixava e reenviava o chat inteiro com todas
+        // as mensagens só para mudar o título.
+        if (await Api.PatchChatAsync(chat.Id, title: title.Trim()) is not null)
         {
-            await Api.UpdateChatAsync(chat.Id, new ChatUpsertRequest(title.Trim(), full.Models, full.Messages));
             await LoadAsync();
         }
     }

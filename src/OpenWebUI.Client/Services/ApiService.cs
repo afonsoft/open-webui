@@ -68,11 +68,13 @@ public class ApiService(HttpClient http, AuthService auth)
 
     /// <summary>
     /// Atualizações parciais do chat (SPEC-20261007-chat-tool-streaming):
-    /// hoje só o <paramref name="approvalPreset"/>.
+    /// <paramref name="approvalPreset"/> e/ou <paramref name="title"/>
+    /// (rename leve, sem enviar o chat inteiro).
     /// </summary>
-    public Task<ChatResponse?> PatchChatAsync(string id, string approvalPreset) =>
+    public Task<ChatResponse?> PatchChatAsync(
+        string id, string? approvalPreset = null, string? title = null) =>
         SendAsync<ChatResponse>(HttpMethod.Patch,
-            $"/api/v1/chats/{id}", new ChatPatchRequest(approvalPreset));
+            $"/api/v1/chats/{id}", new ChatPatchRequest(approvalPreset, title));
 
     /// <summary>Alterna o estado de fixado de um chat.</summary>
     public Task<ChatResponse?> TogglePinChatAsync(string id) =>
