@@ -75,15 +75,13 @@ public sealed class RateLimitService
     public int ResetLoginByEmail(string email)
     {
         var removed = 0;
-        foreach (var key in _logins.Keys)
+        foreach (var key in _logins.Keys.Where(k =>
+                     k.StartsWith(email + "|", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(k, email, StringComparison.OrdinalIgnoreCase)))
         {
-            if (key.StartsWith(email + "|", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(key, email, StringComparison.OrdinalIgnoreCase))
+            if (_logins.TryRemove(key, out _))
             {
-                if (_logins.TryRemove(key, out _))
-                {
-                    removed++;
-                }
+                removed++;
             }
         }
         return removed;

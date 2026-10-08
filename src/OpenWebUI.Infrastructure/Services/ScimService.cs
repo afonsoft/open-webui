@@ -171,12 +171,12 @@ public class ScimService(AppDbContext db, ConfigService config)
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var group = new Group { Name = input.DisplayName.Trim(), CreatedAt = now, UpdatedAt = now };
         db.Groups.Add(group);
-        foreach (var member in input.Members ?? [])
+        var wantedIds = (input.Members ?? []).Select(m => m.Value).ToList();
+        var validIds = await db.Users.Where(u => wantedIds.Contains(u.Id))
+            .Select(u => u.Id).ToListAsync(ct);
+        foreach (var id in validIds)
         {
-            if (await db.Users.AnyAsync(u => u.Id == member.Value, ct))
-            {
-                group.Members.Add(new GroupMember { GroupId = group.Id, UserId = member.Value });
-            }
+            group.Members.Add(new GroupMember { GroupId = group.Id, UserId = id });
         }
 
         await db.SaveChangesAsync(ct);

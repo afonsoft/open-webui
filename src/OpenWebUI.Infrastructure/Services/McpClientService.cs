@@ -187,12 +187,9 @@ public partial class McpClientService(
     private static Dictionary<string, string?> LoadEnvAllowList(string? envJson)
     {
         var env = new Dictionary<string, string?>();
-        foreach (var name in ParseStringList(envJson))
+        foreach (var name in ParseStringList(envJson).Where(n => !string.IsNullOrWhiteSpace(n)))
         {
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                env[name] = Environment.GetEnvironmentVariable(name);
-            }
+            env[name] = Environment.GetEnvironmentVariable(name);
         }
         return env;
     }

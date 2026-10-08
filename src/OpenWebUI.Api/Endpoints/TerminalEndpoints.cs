@@ -175,12 +175,10 @@ public static class TerminalEndpoints
 
         var response = result.Response;
         http.Response.StatusCode = (int)response.StatusCode;
-        foreach (var header in response.Headers.Concat(response.Content.Headers))
+        foreach (var header in response.Headers.Concat(response.Content.Headers)
+                     .Where(h => h.Key is not ("transfer-encoding" or "connection")))
         {
-            if (header.Key is not ("transfer-encoding" or "connection"))
-            {
-                http.Response.Headers[header.Key] = header.Value.ToArray();
-            }
+            http.Response.Headers[header.Key] = header.Value.ToArray();
         }
 
         await response.Content.CopyToAsync(http.Response.Body, ct);

@@ -89,16 +89,9 @@ public static class CommandRiskClassifier
             return new(CommandRiskLevel.Dangerous, "Comando não parseável — fail-closed.");
         }
 
-        foreach (var segment in segments)
-        {
-            var assessment = ClassifySegment(segment, workspacePath);
-            if (assessment.Level > worst.Level)
-            {
-                worst = assessment;
-            }
-        }
-
-        return worst;
+        return segments
+            .Select(segment => ClassifySegment(segment, workspacePath))
+            .Aggregate(worst, (w, a) => a.Level > w.Level ? a : w);
     }
 
     private static CommandRiskAssessment ClassifySegment(

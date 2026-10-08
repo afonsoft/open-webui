@@ -121,14 +121,12 @@ public class ChatHub(AppDbContext db, AccessControlService access) : Hub
                     .Select(m => m.ChannelId)
                     .ToListAsync();
 
-                foreach (var channelId in channelIds)
+                foreach (var channelId in channelIds.Where(id => Presence.ContainsKey(id)))
                 {
-                    if (Presence.TryGetValue(channelId, out var online))
-                    {
-                        online.TryRemove(userId, out _);
-                        await Clients.Group(GroupName(channelId))
-                            .SendAsync("presence", channelId, online.Keys.ToArray());
-                    }
+                    var online = Presence[channelId];
+                    online.TryRemove(userId, out _);
+                    await Clients.Group(GroupName(channelId))
+                        .SendAsync("presence", channelId, online.Keys.ToArray());
                 }
             }
         }
