@@ -1618,13 +1618,11 @@
                     // RenderIntervalMs (eventos de tool/fase renderizam já).
                     dirty |= evt is ChatStreamService.ChatStreamEvent.Delta;
                     if (evt is ChatStreamService.ChatStreamEvent.Delta
-                        or ChatStreamService.ChatStreamEvent.Heartbeat)
+                        or ChatStreamService.ChatStreamEvent.Heartbeat
+                        && (!dirty
+                            || (DateTime.UtcNow - lastRender).TotalMilliseconds < RenderIntervalMs))
                     {
-                        if (!dirty
-                            || (DateTime.UtcNow - lastRender).TotalMilliseconds < RenderIntervalMs)
-                        {
-                            continue;
-                        }
+                        continue;
                     }
                     dirty = false;
                     lastRender = DateTime.UtcNow;

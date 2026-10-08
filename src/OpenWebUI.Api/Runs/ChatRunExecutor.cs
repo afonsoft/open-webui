@@ -247,8 +247,8 @@ public sealed class ChatRunExecutor(
         user.Id,
         run.ChatId,
         run.Id,
-        Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
-        Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
+        Path.Join(env.ContentRootPath, "data", "workspaces", user.Id),
+        Path.Join(env.ContentRootPath, "data", "uploads", user.Id));
 
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
     private Task PublishToolResultAsync(
@@ -347,7 +347,7 @@ public sealed class ChatRunExecutor(
                 // pergunta abaixo. O preset <c>smart</c> segue o mesmo
                 // tiers, mas mutações de arquivo caem na pergunta —
                 // "executa sem aprovação, com restrição em alterações".
-                var workspace = Path.Combine(
+                var workspace = Path.Join(
                     env.ContentRootPath, "data", "workspaces", run.UserId);
                 var risk = ToolCallRiskClassifier.Classify(
                     tool, call.ArgumentsJson, workspace);

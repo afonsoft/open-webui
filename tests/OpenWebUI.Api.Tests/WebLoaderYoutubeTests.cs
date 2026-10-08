@@ -34,6 +34,8 @@ public class WebLoaderYoutubeTests
 
     private sealed class YtHandler : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _created = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -41,22 +43,54 @@ public class WebLoaderYoutubeTests
             var body = url.Contains("/caption")
                 ? TranscriptXml
                 : VideoPage;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            var resp = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8, "text/html"),
-            });
+            };
+            _created.Add(resp);
+            return Task.FromResult(resp);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var r in _created)
+                {
+                    r.Dispose();
+                }
+            }
+            base.Dispose(disposing);
         }
     }
 
     private sealed class FixedHandler(HttpStatusCode status, string body)
         : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _created = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var resp = new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "text/html"),
-            });
+            };
+            _created.Add(resp);
+            return Task.FromResult(resp);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var r in _created)
+                {
+                    r.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class Factory(HttpMessageHandler h) : IHttpClientFactory
@@ -135,13 +169,31 @@ public class WebLoaderYoutubeTests
 
     private sealed class DelegateHandler2(Func<string, string> map) : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _created = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var resp = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
                     map(request.RequestUri!.ToString()), Encoding.UTF8, "text/html"),
-            });
+            };
+            _created.Add(resp);
+            return Task.FromResult(resp);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var r in _created)
+                {
+                    r.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
     }
 
     // ---------------- endpoint /process/youtube ----------------
@@ -149,14 +201,14 @@ public class WebLoaderYoutubeTests
     [Test]
     public async Task Endpoint_Youtube_IndexaComoFile()
     {
-        var dbPath = Path.Combine(Path.GetTempPath(),
+        var dbPath = Path.Join(Path.GetTempPath(),
             $"openwebui-yt-{Guid.NewGuid():N}.db");
         var old = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
         Environment.SetEnvironmentVariable(
             "ConnectionStrings__Default", $"Data Source={dbPath}");
         try
         {
-            await using var factory = new WebApplicationFactory<Program>()
+            using var factory = new WebApplicationFactory<Program>()
                 .WithWebHostBuilder(b => b.ConfigureTestServices(services =>
                 {
                     services.RemoveAll<WebLoaderService>();
@@ -201,7 +253,9 @@ public class WebLoaderYoutubeTests
         finally
         {
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", old);
-            try { File.Delete(dbPath); } catch { /* best effort */ }
+            try { File.Delete(dbPath); }
+            catch (IOException) { /* best effort */ }
+            catch (UnauthorizedAccessException) { /* best effort */ }
         }
     }
 }

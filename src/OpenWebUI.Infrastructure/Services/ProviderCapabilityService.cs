@@ -358,15 +358,12 @@ public class ProviderCapabilityService(
             }
 
             var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
-            var entries = new List<CatalogEntry>();
-            foreach (var item in node?["models"]?.AsArray() ?? [])
-            {
-                var id = item?["name"]?.GetValue<string>();
-                if (!string.IsNullOrEmpty(id))
-                {
-                    entries.Add(new CatalogEntry(id, [], []));
-                }
-            }
+            var entries = (node?["models"]?.AsArray() ?? [])
+                .Select(item => item?["name"]?.GetValue<string>())
+                .OfType<string>()
+                .Where(id => id.Length > 0)
+                .Select(id => new CatalogEntry(id, [], []))
+                .ToList();
             return entries;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException

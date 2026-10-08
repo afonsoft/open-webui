@@ -21,6 +21,7 @@ public class N8nToolsTests
 {
     private string _workspace = null!;
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private N8nService _svc = null!;
@@ -28,13 +29,14 @@ public class N8nToolsTests
     [SetUp]
     public void SetUp()
     {
-        _workspace = Path.Combine(Path.GetTempPath(), $"owui-n8n-{Guid.NewGuid():N}");
+        _workspace = Path.Join(Path.GetTempPath(), $"owui-n8n-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_workspace);
-        var dbPath = Path.Combine(_workspace, "t.db");
+        var dbPath = Path.Join(_workspace, "t.db");
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _config = new ConfigService(_db, new MemoryCache(new MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new N8nService(new StubFactory(_handler), _config,
             new ConfigurationBuilder().Build());
@@ -44,8 +46,11 @@ public class N8nToolsTests
     public void TearDown()
     {
         _db.Dispose();
+        _cache.Dispose();
         _handler.Dispose();
-        try { Directory.Delete(_workspace, true); } catch { /* best effort */ }
+        try { Directory.Delete(_workspace, true); }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort */ }
     }
 
     private BuiltinToolContext Ctx() => new("u1", "c1", "r1", _workspace, _workspace);
@@ -75,8 +80,9 @@ public class N8nToolsTests
         });
 
         // env como fallback quando kv está vazio.
+        using var cache1 = new MemoryCache(new MemoryCacheOptions());
         var env = new N8nService(new StubFactory(_handler),
-            new ConfigService(_db, new MemoryCache(new MemoryCacheOptions())),
+            new ConfigService(_db, cache1),
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -85,11 +91,12 @@ public class N8nToolsTests
                 }).Build());
         // kv do teste anterior não está na cache do novo ConfigService —
         // mas o db é o mesmo: para isolar env-only, nova base.
-        var db2 = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={Path.Combine(_workspace, "t2.db")}").Options);
+        using var db2 = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={Path.Join(_workspace, "t2.db")}").Options);
         DatabaseMigrator.MigrateAsync(db2).GetAwaiter().GetResult();
+        using var cache2 = new MemoryCache(new MemoryCacheOptions());
         env = new N8nService(new StubFactory(_handler),
-            new ConfigService(db2, new MemoryCache(new MemoryCacheOptions())),
+            new ConfigService(db2, cache2),
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -101,7 +108,6 @@ public class N8nToolsTests
             Assert.That(await env.GetBaseUrlAsync(), Is.EqualTo("http://env-n8n"));
             Assert.That(await env.GetApiKeyAsync(), Is.EqualTo("env-key"));
         });
-        db2.Dispose();
     }
 
     [Test]
@@ -126,11 +132,10 @@ public class N8nToolsTests
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
+        _handler.Respond(HttpStatusCode.OK,
             "{\"data\":[{\"id\":\"w1\",\"name\":\"Deploy\",\"active\":true},"
             + "{\"id\":\"w2\",\"name\":\"Batch\",\"active\":false},"
-            + "{\"id\":\"w3\"}]}", // sem name → pulado
-            Encoding.UTF8, "application/json"));
+            + "{\"id\":\"w3\"}]}"); // sem name → pulado
         var items = await _svc.ListWorkflowsAsync(default);
         Assert.Multiple(() =>
         {
@@ -148,8 +153,7 @@ public class N8nToolsTests
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            "[{\"id\":\"w9\",\"name\":\"Root\"}]", Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK, "[{\"id\":\"w9\",\"name\":\"Root\"}]");
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _svc.ListWorkflowsAsync(default));
     }
@@ -159,7 +163,7 @@ public class N8nToolsTests
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent("<html>x</html>"));
+        _handler.Respond(HttpStatusCode.OK, "<html>x</html>", "text/plain");
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => _svc.ListWorkflowsAsync(default));
         Assert.That(ex!.Message, Does.Contain("JSON"));
@@ -170,7 +174,7 @@ public class N8nToolsTests
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.Unauthorized, new StringContent("denied"));
+        _handler.Respond(HttpStatusCode.Unauthorized, "denied", "text/plain");
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => _svc.ListWorkflowsAsync(default));
         Assert.That(ex!.Message, Does.Contain("401"));
@@ -182,7 +186,7 @@ public class N8nToolsTests
     public async Task Trigger_Webhook_PostProducao()
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test/", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent("{\"ok\":true}"));
+        _handler.Respond(HttpStatusCode.OK, "{\"ok\":true}", "text/plain");
         var r = await _svc.TriggerAsync(null, "deploy", JsonDocument.Parse("{\"a\":1}").RootElement, default);
         Assert.Multiple(() =>
         {
@@ -199,7 +203,7 @@ public class N8nToolsTests
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent("{\"executionId\":\"e1\"}"));
+        _handler.Respond(HttpStatusCode.OK, "{\"executionId\":\"e1\"}", "text/plain");
         var r = await _svc.TriggerAsync("w1", null, null, default);
         Assert.Multiple(() =>
         {
@@ -229,7 +233,7 @@ public class N8nToolsTests
     public async Task Trigger_ErroHttp_RetornaResultadoFalho()
     {
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
-        _handler.Respond(HttpStatusCode.InternalServerError, new StringContent("boom"));
+        _handler.Respond(HttpStatusCode.InternalServerError, "boom", "text/plain");
         var r = await _svc.TriggerAsync(null, "wh", null, default);
         Assert.Multiple(() =>
         {
@@ -253,15 +257,12 @@ public class N8nToolsTests
         // Lista vazia.
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK,
-            new StringContent("{\"data\":[]}", Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK, "{\"data\":[]}");
         r = await tool.ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("não tem workflows"));
 
         // Sucesso com flag [ativo].
-        _handler.Respond(HttpStatusCode.OK, new StringContent(
-            "{\"data\":[{\"id\":\"w1\",\"name\":\"Deploy\",\"active\":true}]}",
-            Encoding.UTF8, "application/json"));
+        _handler.Respond(HttpStatusCode.OK, "{\"data\":[{\"id\":\"w1\",\"name\":\"Deploy\",\"active\":true}]}");
         r = await tool.ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("Deploy").And.Contain("[ativo]"));
     }
@@ -281,7 +282,7 @@ public class N8nToolsTests
 
         // Webhook com sucesso.
         await _config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent("done"));
+        _handler.Respond(HttpStatusCode.OK, "done", "text/plain");
         r = await tool.ExecuteAsync(
             Args("{\"webhook_path\":\"wh\",\"payload\":{\"x\":1}}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("disparado").And.Contain("webhook wh"));
@@ -292,7 +293,7 @@ public class N8nToolsTests
 
         // workflow_id com key → sucesso.
         await _config.SetAsync<string?>(N8nService.ApiKeyKey, "k", default);
-        _handler.Respond(HttpStatusCode.OK, new StringContent("{\"executionId\":\"e1\"}"));
+        _handler.Respond(HttpStatusCode.OK, "{\"executionId\":\"e1\"}", "text/plain");
         r = await tool.ExecuteAsync(Args("{\"workflow_id\":\"w1\"}"), Ctx(), default);
         Assert.That(r.Text, Does.Contain("disparado"));
     }
@@ -308,11 +309,12 @@ public class N8nToolsTests
         public HttpRequestMessage? LastRequest { get; private set; }
         public string? LastBody { get; private set; }
 
-        public void Respond(HttpStatusCode status, HttpContent content)
+        public void Respond(HttpStatusCode status, string body,
+            string mediaType = "application/json")
         {
             _status = status;
-            _body = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            _mediaType = content.Headers.ContentType?.MediaType;
+            _body = Encoding.UTF8.GetBytes(body);
+            _mediaType = mediaType;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(

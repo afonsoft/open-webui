@@ -1812,7 +1812,7 @@
             _provConnModels[(type, index)] = result?.Data.Select(m => m.Id).ToList() ?? [];
             _provMessage = result is null || result.Data.Count == 0
                 ? L["admin.prov_test_empty"]
-                : string.Format(L["admin.prov_test_ok"], result.Data.Count);
+                : L.T("admin.prov_test_ok", ("count", result.Data.Count.ToString()));
         }
         finally
         {
@@ -1854,7 +1854,7 @@
             var name = _provPullName.Trim();
             var ok = await Api.PullOllamaModelAsync(name);
             _provPullMessage = ok
-                ? string.Format(L["admin.prov_pull_ok"], name)
+                ? L.T("admin.prov_pull_ok", ("name", name))
                 : L["settings.save_failed"];
             if (ok)
             {
