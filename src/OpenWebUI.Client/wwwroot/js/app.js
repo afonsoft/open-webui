@@ -32,11 +32,21 @@ window.openwebui = {
 	copyText: function (text) {
 		return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve();
 	},
-	prompt: function (message, defaultValue) {
-		return window.prompt(message, defaultValue || '');
-	},
-	confirm: function (message) {
-		return window.confirm(message);
+	// Navegação por setas em tablists e menus: Left/Up = anterior,
+	// Right/Down = próximo, Home/End = extremos. Foca o alvo sem ativá-lo.
+	rovingFocus: function (element, key) {
+		if (!element) return;
+		const items = Array.prototype.filter.call(
+			element.querySelectorAll('[role="tab"], [role="menuitem"]'),
+			function (el) { return !el.disabled && el.offsetParent !== null; });
+		if (!items.length) return;
+		let index = items.indexOf(document.activeElement);
+		if (key === 'Home') index = 0;
+		else if (key === 'End') index = items.length - 1;
+		else if (key === 'ArrowRight' || key === 'ArrowDown') index = (index + 1) % items.length;
+		else if (key === 'ArrowLeft' || key === 'ArrowUp') index = (index - 1 + items.length) % items.length;
+		else return;
+		items[index].focus();
 	},
 	openFilePicker: function (element) {
 		if (element) {

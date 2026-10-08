@@ -596,5 +596,7 @@
   "settings.audio_test": "Probar TTS",
   "settings.audio_testing": "Probando…",
   "settings.audio_test_ok": "TTS OK",
-  "settings.audio_test_fail": "Prueba TTS fallida"
+  "settings.audio_test_fail": "Prueba TTS fallida",
+  "common.confirm": "Confirmar",
+  "common.ok": "Aceptar"
 }

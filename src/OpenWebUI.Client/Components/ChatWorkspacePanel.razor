@@ -1,4 +1,5 @@
 @inject LocalizationService L
+@inject IJSRuntime JS
 
 @* Painel de workspace da run (SPEC-20261007-chat-agent-parity RF-015):
    tabs Tasks | Changes | Jobs | MCPs | Info — o "canvas" do agente ao
@@ -14,20 +15,22 @@
         </button>
     </div>
 
-    <div class="flex gap-1 overflow-x-auto px-2 py-1.5 border-b border-gray-100 dark:border-gray-800">
+    <div class="flex gap-1 overflow-x-auto px-2 py-1.5 border-b border-gray-100 dark:border-gray-800"
+         role="tablist" @ref="_tabList" @onkeydown="OnTabKeyDown">
         @foreach (var tab in Tabs)
         {
             var active = _tab == tab;
             <button class="rounded-lg px-2.5 py-1 text-[0.6875rem] font-medium transition cursor-pointer flex-none
                            @(active ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                                     : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
+                    role="tab" aria-selected="@active"
                     @onclick="() => _tab = tab">
                 @L["chat.panel_tab_" + tab]
             </button>
         }
     </div>
 
-    <div class="flex-1 overflow-y-auto p-2">
+    <div class="flex-1 overflow-y-auto p-2" role="tabpanel">
         @switch (_tab)
         {
             case "tasks":
@@ -287,6 +290,16 @@
 </div>
 
 @code {
+    private ElementReference _tabList;
+
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowLeft" or "ArrowRight" or "ArrowUp" or "ArrowDown" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.rovingFocus", _tabList, e.Key);
+        }
+    }
+
     /// <summary>Snapshot de tarefas da run (evento <c>tasks</c>).</summary>
     [Parameter] public IReadOnlyList<RunTaskItem> Tasks { get; set; } = [];
 
