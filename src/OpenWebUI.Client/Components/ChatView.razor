@@ -126,7 +126,8 @@
                             continue;
                         }
                         var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
-                        <MessageBubble
+                        var msgKey = message.Id ?? $"m{index}";
+                        <MessageBubble @key="msgKey"
                             Message="message"
                             Streaming="_streaming && isLastAssistant"
                             ShowActions="true"
@@ -963,20 +964,33 @@
     /// Rascunho persistido por chat (RF-006): o composer sobrevive a
     /// reload/troca de aba — chave <c>chat:draft:{chatId|new}</c>.
     /// </summary>
+    private CancellationTokenSource? _draftCts;
+
     private async Task SaveDraftAsync()
     {
         _historyIndex = -1;
         var key = $"chat:draft:{_loadedChatId ?? "new"}";
+        var text = _input;
+        // Debounce: antes cada keystroke fazia uma escrita no localStorage
+        // via interop; agora só grava ~400ms após a última tecla.
+        _draftCts?.Cancel();
+        _draftCts = new CancellationTokenSource();
+        var ct = _draftCts.Token;
         try
         {
-            if (string.IsNullOrEmpty(_input))
+            await Task.Delay(400, ct);
+            if (string.IsNullOrEmpty(text))
             {
                 await Storage.RemoveAsync(key);
             }
             else
             {
-                await Storage.SetAsync(key, _input);
+                await Storage.SetAsync(key, text);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Tecla seguinte chegou antes do debounce — essa gravação morre.
         }
         catch (JSException)
         {

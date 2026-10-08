@@ -390,8 +390,9 @@ public static class ChatEndpoints
 
     /// <summary>
     /// Atualização parcial do chat (SPEC-20261007-chat-tool-streaming
-    /// RF-004): hoje só o preset de aprovação de tools —
-    /// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>smart</c> | <c>always-allow</c> | <c>auto</c>.
+    /// RF-004): preset de aprovação de tools —
+    /// <c>allow-readonly</c> | <c>approve-mutations</c> | <c>smart</c> | <c>always-allow</c> | <c>auto</c> —
+    /// e/ou título (rename leve, sem enviar o chat inteiro).
     /// </summary>
     private static async Task<IResult> PatchChatAsync(
         string id,
@@ -407,6 +408,7 @@ public static class ChatEndpoints
             return Results.NotFound();
         }
 
+        var changed = false;
         if (request.ApprovalPreset is not null)
         {
             if (request.ApprovalPreset is not ("allow-readonly"
@@ -416,6 +418,15 @@ public static class ChatEndpoints
                     new { detail = "approvalPreset inválido." });
             }
             chat.ApprovalPreset = request.ApprovalPreset;
+            changed = true;
+        }
+        if (request.Title is { } rawTitle && !string.IsNullOrWhiteSpace(rawTitle))
+        {
+            chat.Title = rawTitle.Trim();
+            changed = true;
+        }
+        if (changed)
+        {
             chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             await db.SaveChangesAsync(ct);
         }

@@ -351,6 +351,22 @@ public class ToolStreamingTests
     }
 
     [Test]
+    public async Task Patch_Titulo_RenomeiaSemEnviarChatTodo()
+    {
+        var auth = await SignUpAsync("PatchT", "patcht@tools.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync();
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}", new ChatPatchRequest(null, "  Novo título  "));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await response.Content.ReadAsStringAsync());
+        var updated = await response.Content.ReadFromJsonAsync<ChatResponse>();
+        Assert.That(updated!.Title, Is.EqualTo("Novo título"));
+    }
+
+    [Test]
     public async Task Patch_PresetInvalido_Retorna400()
     {
         var auth = await SignUpAsync("PatchB", "patchb@tools.local");
