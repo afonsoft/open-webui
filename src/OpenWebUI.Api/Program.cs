@@ -339,6 +339,7 @@ app.MapVideoEndpoints();
 app.MapConfigEndpoints();
 app.MapGitHubEndpoints();
 app.MapWorkspaceFileEndpoints();
+app.MapWorkspaceTestRunEndpoints();
 app.MapRepoSkillEndpoints();
 app.MapIdeEndpoints();
 app.MapAudioEndpoints();

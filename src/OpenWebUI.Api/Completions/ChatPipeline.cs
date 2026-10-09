@@ -181,6 +181,20 @@ public static class ChatPipeline
             }
         }
 
+        // 3.5b. Menções @path do composer (SPEC-20261009-ide-mentions-tests
+        // RF-002): cada chip vira um bloco <file path="…"> no prompt — cap
+        // 16KB/arquivo, 64KB total; fora do jail é descartado em silêncio.
+        if (request.MentionPaths is { Count: > 0 } mentionPaths)
+        {
+            var mentionWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var mentions = await OpenWebUI.Infrastructure.ChatTools.WorkspaceMentionContext
+                .BuildAsync(mentionWorkdir, mentionPaths, ct);
+            if (!string.IsNullOrEmpty(mentions))
+            {
+                systemParts.Add(mentions);
+            }
+        }
+
         // 3.6. Modo plan do agente (SPEC-20261009-agent-modes-plan-build
         // RF-002/RF-004): instrução de somente-leitura + encerramento via
         // plan_exit — o spec de tools anunciado já reflete o ruleset, mas

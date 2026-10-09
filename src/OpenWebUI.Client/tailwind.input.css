@@ -483,6 +483,31 @@
 	.sidebar-empty {
 		@apply px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600;
 	}
+
+	/* IDE S7: chip atômico de menção @path no composer do chat. */
+	.mention-chip {
+		@apply flex items-center gap-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 text-xs text-blue-700 dark:text-blue-300;
+	}
+
+	/* IDE S7: dropdown debounced de paths do workdir (top-20, dirs primeiro). */
+	.mention-list {
+		@apply mb-1 max-h-60 overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50;
+	}
+
+	/* IDE S7: badge ✓/✗ do resultado de testes — cor via bg-* inline. */
+	.test-badge {
+		@apply inline-flex size-4 items-center justify-center rounded-full text-[0.625rem] font-bold text-white;
+	}
+
+	/* IDE S7: tail do log do job de testes. */
+	.test-log {
+		@apply max-h-64 flex-1 overflow-auto rounded-lg bg-gray-50 dark:bg-gray-900 p-2 font-mono text-[0.6875rem] leading-relaxed text-gray-700 dark:text-gray-300;
+	}
+
+	/* IDE S7: chip do header /ide enquanto um test-run está ativo. */
+	.test-running-chip {
+		@apply inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-950/50 px-2 py-0.5 text-[0.625rem] text-blue-700 dark:text-blue-300;
+	}
 }
 
 @utility scrollbar-hidden {

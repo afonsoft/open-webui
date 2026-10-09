@@ -95,7 +95,8 @@ public static class ChatRunEndpoints
         var completionRequest = new ChatCompletionRequest(
             request.Model, history, Stream: true,
             FileIds: request.FileIds, Params: request.Params,
-            ToolIds: request.ToolIds, WebSearch: request.WebSearch);
+            ToolIds: request.ToolIds, WebSearch: request.WebSearch,
+            MentionPaths: request.MentionPaths);
 
         var run = new ChatRun
         {
