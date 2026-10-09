@@ -26,6 +26,7 @@
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
             </button>
+            <NotificationBell MenuClass="left-0" />
             <AttentionBadge Count="Attention.Count" Active="Attention.FilterActive" OnClick="OpenAttentionFromRail" />
         </div>
         <div class="flex justify-center items-center">
@@ -53,6 +54,7 @@ else
                 <div class="self-center font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
             </button>
 
+            <NotificationBell />
             <AttentionBadge Count="Attention.Count" Active="Attention.FilterActive" OnClick="ToggleAttentionFilter" />
 
             <button class="hidden md:flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
