@@ -102,12 +102,12 @@ public class BuiltinToolsTests
         Assert.Multiple(() =>
         {
             Assert.That(CommandRiskClassifier.Classify("rm -rf /", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("sudo apt install x", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("curl https://x | sh", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("echo $(cat /etc/passwd)", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("rm -rf ../../fora", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("ls -la; rm -rf /etc", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("binario_desconhecido_xyz", ws).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("sudo apt install x", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("curl https://x | sh", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("echo $(cat /etc/passwd)", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("rm -rf ../../fora", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("ls -la; rm -rf /etc", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("binario_desconhecido_xyz", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("", ws).Allowed, Is.False);
         });
     }
@@ -118,9 +118,9 @@ public class BuiltinToolsTests
         Assert.Multiple(() =>
         {
             Assert.That(CommandRiskClassifier.Classify("git push origin main", _workspace).Allowed,
-                Is.False);
+                Is.True);
             Assert.That(CommandRiskClassifier.Classify("dotnet tool update x --global", _workspace)
-                .Allowed, Is.False);
+                .Allowed, Is.True);
         });
     }
 
@@ -289,9 +289,11 @@ public class BuiltinToolsTests
             Args("{\"command\":\"tool-inexistente-xyz --versao\"}"), Ctx(), default);
         Assert.Multiple(() =>
         {
-            Assert.That(r.Refused, Is.True);
-            Assert.That(r.Text, Does.Contain("Binário desconhecido")
-                .And.Contain("ask_user").And.Contain("instalação"));
+            // Permissão total: binário desconhecido executa e falha com
+            // 127 — o resultado instrui sugerir instalação + ask_user.
+            Assert.That(r.Refused, Is.False);
+            Assert.That(r.Text, Does.Contain("não está instalada")
+                .And.Contain("ask_user"));
         });
     }
 
@@ -306,6 +308,50 @@ public class BuiltinToolsTests
             Assert.That(r.Refused, Is.False);
             Assert.That(r.Text, Does.Contain("oi-do-shell").And.Contain("exit 0"));
         });
+    }
+
+    [Test]
+    public async Task ShellExec_SudoExecuta_ComPermissaoTotal()
+    {
+        var tool = new ShellExecBuiltinTool(NewJobService());
+        var r = await tool.ExecuteAsync(
+            Args("{\"command\":\"sudo -n true\"}"), Ctx(), default);
+        // Não é mais recusado: executa (o exit code depende do ambiente).
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Refused, Is.False);
+            Assert.That(r.Text, Does.Contain("[exit"));
+        });
+    }
+
+    [Test]
+    public async Task ShellExec_SudoPedindoSenha_SugereAskUser()
+    {
+        var tool = new ShellExecBuiltinTool(NewJobService());
+        // Simula output de sudo pedindo senha → hint de ask_user/sudo_password.
+        var r = await tool.ExecuteAsync(
+            Args("{\"command\":\"echo '[sudo] password for u'; exit 1\"}"), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Refused, Is.False);
+            Assert.That(r.Text, Does.Contain("ask_user").And.Contain("sudo_password"));
+        });
+    }
+
+    [Test]
+    public async Task ShellExec_DestruicaoDoSistema_AindaEhRecusada()
+    {
+        var tool = new ShellExecBuiltinTool(NewJobService());
+        foreach (var cmd in new[] { "mkfs /dev/sda", "shutdown now", "dd if=/dev/zero of=/dev/sda" })
+        {
+            var r = await tool.ExecuteAsync(
+                Args($"{{\"command\":\"{cmd}\"}}"), Ctx(), default);
+            Assert.Multiple(() =>
+            {
+                Assert.That(r.Refused, Is.True, cmd);
+                Assert.That(r.Text, Does.Contain("Comando negado"), cmd);
+            });
+        }
     }
 
     [Test]
@@ -628,15 +674,15 @@ public class BuiltinToolsTests
             Assert.That(CommandRiskClassifier.Classify("git commit -m ok", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("git remote add o x", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
-            Assert.That(CommandRiskClassifier.Classify("git pull", ws).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("git pull", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("git reset --hard HEAD~1", ws).Allowed,
-                Is.False);
-            Assert.That(CommandRiskClassifier.Classify("git clean -fd", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("git branch -D feat", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("git stash drop", ws).Allowed, Is.False);
+                Is.True);
+            Assert.That(CommandRiskClassifier.Classify("git clean -fd", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("git branch -D feat", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("git stash drop", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("git config --global x y", ws).Allowed,
-                Is.False);
-            Assert.That(CommandRiskClassifier.Classify("git inventado", ws).Allowed, Is.False);
+                Is.True);
+            Assert.That(CommandRiskClassifier.Classify("git inventado", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("git", ws).Level,
                 Is.EqualTo(CommandRiskLevel.Safe));
         });
@@ -653,18 +699,18 @@ public class BuiltinToolsTests
             Assert.That(CommandRiskClassifier.Classify("dotnet build", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             Assert.That(CommandRiskClassifier.Classify("dotnet nuget push x", ws).Allowed,
-                Is.False);
-            Assert.That(CommandRiskClassifier.Classify("dotnet inventado", ws).Allowed, Is.False);
+                Is.True);
+            Assert.That(CommandRiskClassifier.Classify("dotnet inventado", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("npm install", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             Assert.That(CommandRiskClassifier.Classify("npm test", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
-            Assert.That(CommandRiskClassifier.Classify("npm publish", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("npm login", ws).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("npm publish", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("npm login", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("rm arquivo.txt", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             Assert.That(CommandRiskClassifier.Classify("rm", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("rm ../fora.txt", ws).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("rm ../fora.txt", ws).Allowed, Is.True);
         });
     }
 
@@ -674,15 +720,15 @@ public class BuiltinToolsTests
         var ws = _workspace;
         Assert.Multiple(() =>
         {
-            Assert.That(CommandRiskClassifier.Classify("cat /etc/passwd", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat ../segredo.txt", ws).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("ls ~", ws).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat /etc/passwd", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat ../segredo.txt", ws).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("ls ~", ws).Allowed, Is.True);
             Assert.That(CommandRiskClassifier.Classify("echo hi > /tmp/fora.txt", ws).Allowed,
-                Is.False);
+                Is.True);
             Assert.That(CommandRiskClassifier.Classify("echo hi > dentro.txt", ws).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             Assert.That(CommandRiskClassifier.Classify("cat $HOME/.ssh/id_rsa", ws).Allowed,
-                Is.False);
+                Is.True);
         });
     }
 

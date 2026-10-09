@@ -51,14 +51,13 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 
-# curl para o HEALTHCHECK; git para o workspace IDE (clone/checkout do repo
-# vinculado, checkpoints e worktrees). A base já traz o usuário `app` (uid 1654).
+# curl para o HEALTHCHECK; git para o workspace IDE; sudo para o agente
+# (shell_exec roda com permissão total dentro do container — single-tenant).
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends curl git \
+ && apt-get install -y --no-install-recommends curl git sudo procps \
  && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /data/workspaces \
- && chown -R app:app /data
+ && mkdir -p /data/workspaces
 
 WORKDIR /app
 COPY --from=build /app/publish ./
@@ -73,7 +72,9 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 
 EXPOSE 8080
 VOLUME ["/data"]
-USER app
+# root: o agente (shell_exec/jobs) precisa de permissão total no container —
+# instalar ferramentas via apt, ler qualquer path, sudo sem senha.
+USER root
 
 # Probe /health — retorna 200 quando o processo está de pé.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

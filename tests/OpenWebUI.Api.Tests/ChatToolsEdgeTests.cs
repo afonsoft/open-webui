@@ -47,8 +47,10 @@ public class ChatToolsEdgeTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(CommandRiskClassifier.Classify("echo $(id)", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("echo `id`", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("echo $(id)", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
+            Assert.That(CommandRiskClassifier.Classify("echo `id`", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
         });
     }
 
@@ -64,7 +66,7 @@ public class ChatToolsEdgeTests
             // Só atribuição, sem binário → fail-closed.
             Assert.That(CommandRiskClassifier.Classify("FOO=bar", _workspace).Allowed, Is.False);
             // Nome de env inválido não é tratado como atribuição.
-            Assert.That(CommandRiskClassifier.Classify("1BAD=x ls", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("1BAD=x ls", _workspace).Allowed, Is.True);
         });
     }
 
@@ -80,10 +82,14 @@ public class ChatToolsEdgeTests
             Assert.That(CommandRiskClassifier.Classify("echo \"x;y\"", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             // && || ; | separam segmentos — o pior vence.
-            Assert.That(CommandRiskClassifier.Classify("ls && sudo x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("ls || sudo x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("ls;sudo x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("ls | sudo x", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("ls && sudo x", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
+            Assert.That(CommandRiskClassifier.Classify("ls || sudo x", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
+            Assert.That(CommandRiskClassifier.Classify("ls;sudo x", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
+            Assert.That(CommandRiskClassifier.Classify("ls | sudo x", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
             // Aspas não fechadas: parser engole o resto — só 'echo' avaliado.
             Assert.That(CommandRiskClassifier.Classify("echo 'abc", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
@@ -111,8 +117,12 @@ public class ChatToolsEdgeTests
             "docker ps", "podman ps", "kubectl get pods", "terraform apply",
         })
         {
-            Assert.That(CommandRiskClassifier.Classify(cmd, _workspace).Allowed,
-                Is.False, cmd);
+            var a = CommandRiskClassifier.Classify(cmd, _workspace);
+            Assert.Multiple(() =>
+            {
+                Assert.That(a.Level, Is.GreaterThanOrEqualTo(CommandRiskLevel.Dangerous), cmd);
+                Assert.That(a.Allowed, Is.EqualTo(a.Level != CommandRiskLevel.Forbidden), cmd);
+            });
         }
     }
 
@@ -161,8 +171,8 @@ public class ChatToolsEdgeTests
             Assert.That(CommandRiskClassifier.Classify("awk -i inplace '{print}' f", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             // -i com alvo fora do workspace → escala para Dangerous.
-            Assert.That(CommandRiskClassifier.Classify("sed -i s/a/b/ /etc/hosts", _workspace).Allowed,
-                Is.False);
+            Assert.That(CommandRiskClassifier.Classify("sed -i s/a/b/ /etc/hosts", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
         });
     }
 
@@ -204,8 +214,12 @@ public class ChatToolsEdgeTests
             "git subcomando_inventado",
         })
         {
-            Assert.That(CommandRiskClassifier.Classify(cmd, _workspace).Allowed,
-                Is.False, cmd);
+            var a = CommandRiskClassifier.Classify(cmd, _workspace);
+            Assert.Multiple(() =>
+            {
+                Assert.That(a.Level, Is.EqualTo(CommandRiskLevel.Dangerous), cmd);
+                Assert.That(a.Allowed, Is.True, cmd);
+            });
         }
     }
 
@@ -249,10 +263,10 @@ public class ChatToolsEdgeTests
                 Assert.That(CommandRiskClassifier.Classify(cmd, _workspace).Level,
                     Is.EqualTo(CommandRiskLevel.WorkspaceWrite), cmd);
             }
-            Assert.That(CommandRiskClassifier.Classify("dotnet nuget push x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("dotnet tool install x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("dotnet workload install x", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("dotnet ef", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("dotnet nuget push x", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("dotnet tool install x", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("dotnet workload install x", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("dotnet ef", _workspace).Allowed, Is.True);
         });
     }
 
@@ -263,11 +277,11 @@ public class ChatToolsEdgeTests
         {
             foreach (var bin in new[] { "npm", "yarn", "pnpm" })
             {
-                Assert.That(CommandRiskClassifier.Classify($"{bin} publish", _workspace).Allowed, Is.False, bin);
-                Assert.That(CommandRiskClassifier.Classify($"{bin} login", _workspace).Allowed, Is.False, bin);
-                Assert.That(CommandRiskClassifier.Classify($"{bin} logout", _workspace).Allowed, Is.False, bin);
-                Assert.That(CommandRiskClassifier.Classify($"{bin} token list", _workspace).Allowed, Is.False, bin);
-                Assert.That(CommandRiskClassifier.Classify($"{bin} config set x y", _workspace).Allowed, Is.False, bin);
+                Assert.That(CommandRiskClassifier.Classify($"{bin} publish", _workspace).Allowed, Is.True, bin);
+                Assert.That(CommandRiskClassifier.Classify($"{bin} login", _workspace).Allowed, Is.True, bin);
+                Assert.That(CommandRiskClassifier.Classify($"{bin} logout", _workspace).Allowed, Is.True, bin);
+                Assert.That(CommandRiskClassifier.Classify($"{bin} token list", _workspace).Allowed, Is.True, bin);
+                Assert.That(CommandRiskClassifier.Classify($"{bin} config set x y", _workspace).Allowed, Is.True, bin);
                 Assert.That(CommandRiskClassifier.Classify($"{bin} install", _workspace).Level,
                     Is.EqualTo(CommandRiskLevel.WorkspaceWrite), bin);
             }
@@ -284,7 +298,7 @@ public class ChatToolsEdgeTests
             // npm sem subcomando → WorkspaceWrite.
             Assert.That(CommandRiskClassifier.Classify("npm", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
-            Assert.That(CommandRiskClassifier.Classify("npm xyz_desconhecido", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("npm xyz_desconhecido", _workspace).Allowed, Is.True);
         });
     }
 
@@ -298,9 +312,9 @@ public class ChatToolsEdgeTests
             Assert.That(CommandRiskClassifier.Classify("rm -rf build", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             var esc = CommandRiskClassifier.Classify("rm -rf /tmp/fora", _workspace);
-            Assert.That(esc.Allowed, Is.False);
+            Assert.That(esc.Allowed, Is.True);
             Assert.That(esc.EscapesSandbox, Is.True);
-            Assert.That(CommandRiskClassifier.Classify("rm ../fora.txt", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("rm ../fora.txt", _workspace).Allowed, Is.True);
         });
     }
 
@@ -321,11 +335,12 @@ public class ChatToolsEdgeTests
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
             Assert.That(CommandRiskClassifier.Classify("ls &> all.txt", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.WorkspaceWrite));
-            // Redirect sem alvo → escape fail-closed.
-            Assert.That(CommandRiskClassifier.Classify("echo x >", _workspace).Allowed, Is.False);
+            // Redirect sem alvo → Dangerous (executa sob permissão total).
+            Assert.That(CommandRiskClassifier.Classify("echo x >", _workspace).Level,
+                Is.EqualTo(CommandRiskLevel.Dangerous));
             // Redirect para fora do workspace → Dangerous + EscapesSandbox.
             var esc = CommandRiskClassifier.Classify("echo x > /tmp/fora.txt", _workspace);
-            Assert.That(esc.Allowed, Is.False);
+            Assert.That(esc.Allowed, Is.True);
             Assert.That(esc.EscapesSandbox, Is.True);
             // Redirect dentro com binário de leitura eleva para WorkspaceWrite.
             Assert.That(CommandRiskClassifier.Classify("cat f > copia.txt", _workspace).Level,
@@ -339,9 +354,9 @@ public class ChatToolsEdgeTests
         Assert.Multiple(() =>
         {
             // Globs amplos puros → Dangerous.
-            Assert.That(CommandRiskClassifier.Classify("cat *", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat **", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat *.*", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat *", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat **", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat *.*", _workspace).Allowed, Is.True);
             // Glob relativo sem escape → resolve.
             Assert.That(CommandRiskClassifier.Classify("cat *.txt", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.Safe));
@@ -350,23 +365,23 @@ public class ChatToolsEdgeTests
             Assert.That(CommandRiskClassifier.Classify("ls fi?e.txt", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.Safe));
             // Glob absoluto/~/$ → Dangerous.
-            Assert.That(CommandRiskClassifier.Classify("cat /etc/*", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat ~/*.txt", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat $HOME/*", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat /etc/*", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat ~/*.txt", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat $HOME/*", _workspace).Allowed, Is.True);
             // Glob com '..' → Dangerous.
-            Assert.That(CommandRiskClassifier.Classify("cat ../*.txt", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat a/../b/*.txt", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat ../*.txt", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat a/../b/*.txt", _workspace).Allowed, Is.True);
             // ~, $VAR, parênteses → Dangerous.
-            Assert.That(CommandRiskClassifier.Classify("cat ~/f", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat $X/f", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat ~/f", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat $X/f", _workspace).Allowed, Is.True);
             // 'f(1)' não parece caminho → arg pulado, comando segue Safe;
             // com '/', parece caminho e os parênteses o tornam irresolúvel.
             Assert.That(CommandRiskClassifier.Classify("cat f(1)", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.Safe));
-            Assert.That(CommandRiskClassifier.Classify("cat dir/f(1)", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat dir/f(1)", _workspace).Allowed, Is.True);
             // '..' comum → fora.
-            Assert.That(CommandRiskClassifier.Classify("cat ../fora", _workspace).Allowed, Is.False);
-            Assert.That(CommandRiskClassifier.Classify("cat a/../../b", _workspace).Allowed, Is.False);
+            Assert.That(CommandRiskClassifier.Classify("cat ../fora", _workspace).Allowed, Is.True);
+            Assert.That(CommandRiskClassifier.Classify("cat a/../../b", _workspace).Allowed, Is.True);
             // Dentro explícito.
             Assert.That(CommandRiskClassifier.Classify("cat ./f.txt", _workspace).Level,
                 Is.EqualTo(CommandRiskLevel.Safe));
@@ -395,7 +410,7 @@ public class ChatToolsEdgeTests
     [Test]
     public void Cmd_BinarioDesconhecido_FailClosed()
     {
-        Assert.That(CommandRiskClassifier.Classify("xYz_NuncaVaiExistir123 arg", _workspace).Allowed, Is.False);
+        Assert.That(CommandRiskClassifier.Classify("xYz_NuncaVaiExistir123 arg", _workspace).Allowed, Is.True);
     }
 
     // ---------------- ToolCallRiskClassifier ----------------
