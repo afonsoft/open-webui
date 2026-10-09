@@ -908,6 +908,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> UnbindWorkspaceRepoAsync() =>
         await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
 
+    /// <summary>
+    /// Aplica o diff do worktree da run no workdir compartilhado (E16 S9):
+    /// conflitos voltam listados no response — nunca aplicados à força.
+    /// </summary>
+    public Task<MergeWorktreeResponse?> MergeWorktreeAsync(string runId) =>
+        SendAsync<MergeWorktreeResponse>(HttpMethod.Post,
+            "/api/v1/workspace/repo/merge-worktree", new MergeWorktreeRequest(runId));
+
     // ---------------- Workspace file API + IDE (SPEC-20261009-web-ide-surface) ----------------
 
     /// <summary>Tree lazy do workdir; null em erro/404 (sem repo vinculado).</summary>

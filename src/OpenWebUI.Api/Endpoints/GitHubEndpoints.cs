@@ -27,6 +27,7 @@ public static class GitHubEndpoints
         wrepo.MapGet("/", GetBindingAsync);
         wrepo.MapPost("/open", OpenRepoAsync);
         wrepo.MapDelete("/", UnbindRepoAsync);
+        wrepo.MapPost("/merge-worktree", MergeWorktreeAsync);
     }
 
     private static async Task<IResult> GetConfigAsync(
@@ -117,7 +118,8 @@ public static class GitHubEndpoints
 
         var binding = await repos.GetBindingAsync(user.Id, ct);
         return Results.Ok(new WorkspaceRepoResponse(
-            binding?.Repo, binding?.Branch, binding?.Dir, binding?.TestCommand));
+            binding?.Repo, binding?.Branch, binding?.Dir, binding?.TestCommand,
+            binding?.FormatCommand));
     }
 
     /// <summary>Clona (ou troca de branch) o repo no workspace do usuário.</summary>
@@ -150,7 +152,53 @@ public static class GitHubEndpoints
             await repos.SetTestCommandAsync(user.Id, request.TestCommand, ct);
             binding = binding with { TestCommand = string.IsNullOrWhiteSpace(request.TestCommand) ? null : request.TestCommand.Trim() };
         }
-        return Results.Ok(new WorkspaceRepoResponse(binding.Repo, binding.Branch, binding.Dir, binding.TestCommand));
+        if (request.FormatCommand is not null)
+        {
+            await repos.SetFormatCommandAsync(user.Id, request.FormatCommand, ct);
+            binding = binding with { FormatCommand = string.IsNullOrWhiteSpace(request.FormatCommand) ? null : request.FormatCommand.Trim() };
+        }
+        return Results.Ok(new WorkspaceRepoResponse(
+            binding.Repo, binding.Branch, binding.Dir, binding.TestCommand,
+            binding.FormatCommand));
+    }
+
+    /// <summary>
+    /// Aplica o diff do worktree da run no workdir compartilhado (RF-002).
+    /// Conflitos são listados — nunca aplicados à força; o worktree fica
+    /// para nova tentativa. Merge limpo remove o worktree.
+    /// </summary>
+    private static async Task<IResult> MergeWorktreeAsync(
+        MergeWorktreeRequest request,
+        HttpContext http, AppDbContext db,
+        WorkspaceRepoService repos, WorktreeService worktrees, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(request.RunId))
+        {
+            return Results.BadRequest(new { detail = "runId é obrigatório." });
+        }
+
+        var run = await db.ChatRuns.AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == request.RunId && r.UserId == user.Id, ct);
+        if (run is null)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+
+        var worktree = worktrees.ResolveIsolated(user.Id, run.Id);
+        if (worktree is null)
+        {
+            return Results.NotFound(new { detail = "A run não tem worktree isolado." });
+        }
+
+        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var result = await worktrees.MergeAsync(mainWorkdir, worktree, ct);
+        return Results.Ok(new MergeWorktreeResponse(
+            result.Merged, result.Applied, result.Conflicts, result.Error));
     }
 
     private static async Task<IResult> UnbindRepoAsync(

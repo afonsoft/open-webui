@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-worktree-hooks` |
 | Ticket | `GAP-impl-worktree` + `GAP-impl-apply-patch` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` (opcional) |
 | Depends on | `SPEC-20261009-agent-modes-plan-build` (S5), `SPEC-20261009-checkpoints-revert` (S6) |
 
@@ -44,7 +44,7 @@
 ## 4. Requirements
 
 ### RF-001: Worktree por run
-`RunIsolation=worktree` → workdir da run = `data/worktrees/{userId}/{runId}`; jobs/terminal da run apontam pra lá; cleanup no fim (ou mantém até merge manual — `[A DEFINIR]`).
+`RunIsolation=worktree` → workdir da run = `data/worktrees/{userId}/{runId}`; jobs/terminal da run apontam pra lá; cleanup: worktree é mantido até o merge manual (botão na aba Changes) ou o prune de órfãos por TTL — DECIDIDO: manter p/ merge manual; órfãos (run inexistente ou terminada há `Workspace:WorktreeTtlHours`, default 168h) são removidos no boot pelo `ChatRunDispatcher`.
 
 ### RF-002: Merge
 `POST /api/v1/workspace/repo/merge-worktree {runId}` → aplica diff do worktree no workdir principal; conflitos listados, nunca forçado às cegas.

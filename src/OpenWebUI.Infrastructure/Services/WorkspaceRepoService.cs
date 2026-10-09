@@ -94,9 +94,10 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
             return (null, error);
         }
 
-        // TestCommand customizado sobrevive a re-open/branch switch (RF-003).
+        // TestCommand/FormatCommand customizados sobrevivem a re-open/branch switch (RF-003).
         var previous = await GetBindingAsync(userId, ct);
-        var binding = new WorkspaceRepoBinding(slug, branch, dir, previous?.TestCommand);
+        var binding = new WorkspaceRepoBinding(
+            slug, branch, dir, previous?.TestCommand, previous?.FormatCommand);
         await config.SetAsync(BindingKey(userId), binding, ct);
         // Bind/branch novo → cache de skills/commands do workdir expira na hora.
         SkillDiscoveryService.Invalidate(absDir);
@@ -120,6 +121,21 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
         }
         await config.SetAsync(BindingKey(userId),
             binding with { TestCommand = string.IsNullOrWhiteSpace(testCommand) ? null : testCommand.Trim() }, ct);
+    }
+
+    /// <summary>
+    /// Define ou limpa o format hook por-repo do binding
+    /// (override do global <c>Format:Command</c> — SPEC-20261009-worktree-format-hooks RF-004).
+    /// </summary>
+    public async Task SetFormatCommandAsync(string userId, string? formatCommand, CancellationToken ct)
+    {
+        var binding = await GetBindingAsync(userId, ct);
+        if (binding is null)
+        {
+            return;
+        }
+        await config.SetAsync(BindingKey(userId),
+            binding with { FormatCommand = string.IsNullOrWhiteSpace(formatCommand) ? null : formatCommand.Trim() }, ct);
     }
 
     private static async Task<string?> CloneAsync(
