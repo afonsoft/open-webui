@@ -127,15 +127,18 @@ public class ToolStreamingTests
             else if (path == "/api/chat")
             {
                 // Segunda chamada do loop: histórico já tem role=tool.
+                // Casa pelo nome exato anunciado no tools spec (builtin_{name}) —
+                // substring solta colide com o system prompt padrão (que cita
+                // "ask_user") e desviava TODA run para o braço errado.
                 json = body.Contains("\"tool_call_id\"", StringComparison.Ordinal)
                     ? "{\"message\":{\"role\":\"assistant\",\"content\":\"resposta pós-tool\"}}"
-                    : body.Contains("ask_user", StringComparison.Ordinal)
+                    : body.Contains("builtin_ask_user", StringComparison.Ordinal)
                         ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-q\",\"function\":{\"name\":\"builtin:ask_user\",\"arguments\":{\"question\":\"Qual env?\",\"options\":[\"dev\",\"prod\"]}}}]}}"
-                        : body.Contains("file_write", StringComparison.Ordinal)
+                        : body.Contains("builtin_file_write", StringComparison.Ordinal)
                         ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-fw\",\"function\":{\"name\":\"builtin:file_write\",\"arguments\":{\"path\":\"saida.txt\",\"content\":\"gerado\"}}}]}}"
-                        : body.Contains("delegate_task", StringComparison.Ordinal)
+                        : body.Contains("builtin_delegate_task", StringComparison.Ordinal)
                             ? "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-dl\",\"function\":{\"name\":\"builtin:delegate_task\",\"arguments\":{\"prompt\":\"resuma o arquivo\"}}}]}}"
-                            : body.Contains("browser_screenshot", StringComparison.Ordinal)
+                            : body.Contains("builtin_browser_screenshot", StringComparison.Ordinal)
                                 ? $"{{\"message\":{{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{{\"id\":\"call-bs\",\"function\":{{\"name\":\"builtin:browser_screenshot\",\"arguments\":{{\"url\":\"{_mockBase}/api/tags\",\"width\":640,\"height\":480}}}}}}]}}}}"
                                 : "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"id\":\"call-1\",\"function\":{\"name\":\"eco\",\"arguments\":{\"texto\":\"oi\"}}}]}}";
             }
