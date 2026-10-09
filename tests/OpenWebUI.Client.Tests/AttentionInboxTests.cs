@@ -70,6 +70,14 @@ public sealed class AttentionInboxTests
             }),
             "/api/v1/chats/pinned" => Json(Array.Empty<object>()),
             "/api/v1/chats/attention/count" => Json(new { count }),
+            // NotificationBell (mergeada da D3) também faz parte da sidebar.
+            "/api/v1/notifications" => Json(new
+            {
+                items = Array.Empty<object>(),
+                total = 0,
+                unread = 0,
+                page = 1,
+            }),
             "/api/v1/folders/" => Json(Array.Empty<object>()),
             "/api/v1/channels" => Json(Array.Empty<object>()),
             "/i18n/pt-BR.json" or "/i18n/en-US.json" => Json(Dict),
