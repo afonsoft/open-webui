@@ -109,12 +109,14 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         IReadOnlyList<string>? fileIds = null,
         IReadOnlyList<string>? toolIds = null,
         bool? webSearch = null,
+        IReadOnlyList<string>? mentionPaths = null,
         CancellationToken ct = default)
     {
         using var httpRequest = auth.CreateRequest(
             HttpMethod.Post, $"/api/v1/chats/{chatId}/messages");
         httpRequest.Content = JsonContent.Create(new EnqueueChatRunRequest(
-            content, model, fileIds, toolIds, WebSearch: webSearch));
+            content, model, fileIds, toolIds, WebSearch: webSearch,
+            MentionPaths: mentionPaths));
 
         using var response = await http.SendAsync(httpRequest, ct);
         await EnsureSuccessAsync(response, "enviar mensagem", ct);

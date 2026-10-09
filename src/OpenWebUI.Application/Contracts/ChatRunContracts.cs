@@ -9,13 +9,15 @@ namespace OpenWebUI.Application.Contracts;
 /// <param name="ToolIds">Ids de tools habilitadas para a run (opcional).</param>
 /// <param name="Params">Parâmetros de geração (temperature, top_p, max_tokens), opcional.</param>
 /// <param name="WebSearch">Quando true, injeta resultados de busca web como contexto.</param>
+/// <param name="MentionPaths">Caminhos do workdir mencionados via chips @path (RF-002 — expandidos em blocos <file> no prompt).</param>
 public sealed record EnqueueChatRunRequest(
     string? Content,
     string Model,
     IReadOnlyList<string>? FileIds = null,
     IReadOnlyList<string>? ToolIds = null,
     IReadOnlyDictionary<string, object>? Params = null,
-    bool? WebSearch = null);
+    bool? WebSearch = null,
+    IReadOnlyList<string>? MentionPaths = null);
 
 /// <summary>Estado serializável de uma run desacoplada de chat.</summary>
 /// <param name="Id">Identificador da run.</param>

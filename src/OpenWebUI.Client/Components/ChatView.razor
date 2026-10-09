@@ -343,6 +343,20 @@
                     }
                 </div>
             }
+            @if (_mentionPaths.Count > 0)
+            {
+                @* Chips de menção @path (RF-001): unidade atômica — × ou Backspace remove inteiro. *@
+                <div class="mb-1 mx-1 flex flex-wrap gap-1.5" aria-label="@L["chat.mentions"]">
+                    @foreach (var path in _mentionPaths)
+                    {
+                        <span class="mention-chip">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                            @path
+                            <button class="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 cursor-pointer" aria-label="@L["chat.mention_remove"]" @onclick="() => _mentionPaths.Remove(path)">×</button>
+                        </span>
+                    }
+                </div>
+            }
 
             <div class="flex-1 flex flex-col relative w-full shadow-lg rounded-3xl border border-gray-100/30 dark:border-gray-850/30 hover:border-gray-200 focus-within:border-gray-100 hover:dark:border-gray-800 focus-within:dark:border-gray-800 transition px-0.5 bg-white/5 dark:bg-gray-500/5 backdrop-blur-sm dark:text-gray-100">
                 <div class="px-2 relative">
@@ -360,6 +374,21 @@
                             }
                         </div>
                     }
+                    @if (_mentionItems.Count > 0)
+                    {
+                        @* Dropdown @path (RF-001): top-20, dirs primeiro, substring no nome/caminho. *@
+                        <div class="mention-list" role="listbox" aria-label="@L["chat.mentions"]">
+                            @foreach (var item in _mentionItems)
+                            {
+                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer flex items-center gap-2"
+                                        role="option"
+                                        @onclick="() => SelectMention(item)">
+                                    <span class="text-[10px] uppercase tracking-wide px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">@(item.Type == "dir" ? "dir" : "file")</span>
+                                    <span class="truncate">@item.Path</span>
+                                </button>
+                            }
+                        </div>
+                    }
                     <textarea
                         class="scrollbar-hidden bg-transparent dark:text-gray-100 outline-none w-full py-3 px-1 resize-none h-fit max-h-96 overflow-auto placeholder:text-gray-400 dark:placeholder:text-gray-600 text-[0.9375rem]"
                         aria-label="@L["chat.input_placeholder"]"
@@ -367,7 +396,7 @@
                         rows="1"
                         @bind="_input"
                         @bind:event="oninput"
-                        @bind:after="SaveDraftAsync"
+                        @bind:after="OnComposerInputAsync"
                         @onkeydown="OnKeyDown"
                         disabled="@_loading"></textarea>
                 </div>
@@ -642,6 +671,15 @@
     private List<PromptResponse> _prompts = [];
     private List<PromptSuggestion> _suggestions = [];
     private List<SlashItem> _promptSuggestions = [];
+    // @menções de arquivos do workdir (SPEC-20261009-ide-mentions-tests RF-001):
+    // dropdown de sugestões + chips selecionados + cache da árvore.
+    private List<WorkspaceFileEntryResponse> _mentionItems = [];
+    private readonly List<string> _mentionPaths = [];
+    private List<WorkspaceFileEntryResponse>? _mentionTree;
+    private string? _mentionTreeFor;
+    private CancellationTokenSource? _mentionCts;
+    private static readonly System.Text.RegularExpressions.Regex MentionTokenRegex =
+        new(@"(?:^|\s)@(?<q>[\w./-]+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
     private List<RepoSkillItemResponse> _repoSkills = [];
     private List<RepoCommandItemResponse> _repoCommands = [];
     private List<string> _followUps = [];
@@ -746,7 +784,7 @@
             : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
 
     private bool SendDisabled =>
-        (string.IsNullOrWhiteSpace(_input) && _attachedFiles.Count == 0)
+        (string.IsNullOrWhiteSpace(_input) && _attachedFiles.Count == 0 && _mentionPaths.Count == 0)
         || string.IsNullOrEmpty(_model) || _loading || _uploading;
 
     protected override async Task OnInitializedAsync()
@@ -1097,6 +1135,20 @@
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
+        // Esc fecha o dropdown de menções (RF-001).
+        if (e.Key == "Escape" && _mentionItems.Count > 0)
+        {
+            _mentionItems = [];
+            return;
+        }
+
+        // Backspace no input vazio remove o chip inteiro (RF-001 — chip é unidade atômica).
+        if (e.Key == "Backspace" && string.IsNullOrEmpty(_input) && _mentionPaths.Count > 0)
+        {
+            _mentionPaths.RemoveAt(_mentionPaths.Count - 1);
+            return;
+        }
+
         if (e.Key == "Enter" && !e.ShiftKey && !SendDisabled && !_streaming)
         {
             await SendAsync();
@@ -1130,6 +1182,104 @@
         }
 
         UpdatePromptSuggestions();
+    }
+
+    /// <summary>
+    /// @bind:after do composer: agenda o lookup de menções @path e grava o rascunho.
+    /// </summary>
+    private async Task OnComposerInputAsync()
+    {
+        QueueMentionLookup();
+        await SaveDraftAsync();
+    }
+
+    /// <summary>
+    /// Token @path no fim do input (RF-001): detecta <c>@query</c> com ≥1 char
+    /// e agenda o filtro da árvore do workdir com debounce (~250ms).
+    /// </summary>
+    private void QueueMentionLookup()
+    {
+        var match = MentionTokenRegex.Match(_input);
+        _mentionCts?.Cancel();
+        if (!match.Success)
+        {
+            _mentionItems = [];
+            return;
+        }
+
+        var query = match.Groups["q"].Value;
+        _mentionCts = new CancellationTokenSource();
+        var ct = _mentionCts.Token;
+        _ = RefreshMentionSuggestionsAsync(query, ct);
+    }
+
+    /// <summary>Filtra a árvore (top-20, dirs primeiro) após o debounce.</summary>
+    private async Task RefreshMentionSuggestionsAsync(string query, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(250, ct);
+            var tree = await EnsureMentionTreeAsync();
+            _mentionItems = tree is null
+                ? []
+                : tree
+                    .Where(e => e.Path.Contains(query, StringComparison.OrdinalIgnoreCase)
+                                || e.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(e => e.Type == "dir")
+                    .ThenBy(e => e.Path, StringComparer.OrdinalIgnoreCase)
+                    .Take(20)
+                    .ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // keystroke mais recente venceu — esperado.
+        }
+    }
+
+    /// <summary>Carrega e cacheia a árvore do workdir (até 3 páginas) por repo vinculado.</summary>
+    private async Task<List<WorkspaceFileEntryResponse>?> EnsureMentionTreeAsync()
+    {
+        var repoKey = _repo?.Repo;
+        if (_mentionTree is not null && _mentionTreeFor == repoKey)
+        {
+            return _mentionTree;
+        }
+
+        var all = new List<WorkspaceFileEntryResponse>();
+        var cursor = (string?)null;
+        for (var page = 0; page < 3; page++)
+        {
+            var tree = await Api.GetWorkspaceTreeAsync("", 3, cursor);
+            if (tree is null)
+            {
+                return null;
+            }
+            all.AddRange(tree.Entries);
+            cursor = tree.NextCursor;
+            if (cursor is null)
+            {
+                break;
+            }
+        }
+        _mentionTree = all;
+        _mentionTreeFor = repoKey;
+        return all;
+    }
+
+    /// <summary>Seleção do dropdown: troca o token @query por um chip com o path (RF-001).</summary>
+    private void SelectMention(WorkspaceFileEntryResponse item)
+    {
+        var match = MentionTokenRegex.Match(_input);
+        if (match.Success)
+        {
+            _input = _input[..match.Index];
+        }
+        if (!_mentionPaths.Contains(item.Path, StringComparer.Ordinal))
+        {
+            _mentionPaths.Add(item.Path);
+        }
+        _mentionItems = [];
     }
 
     /// <summary>
@@ -1266,13 +1416,15 @@
     {
         var text = _input.Trim();
         var fileIds = _attachedFiles.Select(f => f.Id).ToList();
-        if ((text.Length == 0 && fileIds.Count == 0) || string.IsNullOrEmpty(_model))
+        var mentionPaths = _mentionPaths.Count > 0 ? _mentionPaths.ToList() : null;
+        if ((text.Length == 0 && fileIds.Count == 0 && mentionPaths is null) || string.IsNullOrEmpty(_model))
         {
             return;
         }
 
         _input = string.Empty;
         _promptSuggestions = [];
+        _mentionItems = [];
         _followUps = [];
         _error = null;
         _ = PushHistoryAsync(text);
@@ -1286,9 +1438,16 @@
         {
             content += "\n\n📎 " + string.Join(", ", _attachedFiles.Select(f => f.Filename));
         }
+        // Os chips @path viram marcadores 📄 na mensagem persistida — o conteúdo
+        // real é expandido server-side via MentionPaths (o usuário vê o chip, não o dump).
+        if (mentionPaths is not null)
+        {
+            content += (content.Length > 0 ? "\n\n" : "") + "📄 " + string.Join(", ", mentionPaths);
+        }
 
         _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", content, null, now));
         _attachedFiles.Clear();
+        _mentionPaths.Clear();
 
         var isNew = _loadedChatId is null && !Playground;
         if (isNew)
@@ -1325,7 +1484,7 @@
         // Chats persistidos usam runs desacopladas (a geração sobrevive a fechar a aba);
         // playground e demais caminhos seguem no stream direto legado.
         var detached = _loadedChatId is not null && !Playground;
-        await StreamAssistantAsync(fileIds, detached ? content : null);
+        await StreamAssistantAsync(fileIds, detached ? content : null, mentionPaths);
         if (!detached)
         {
             await PersistAsync();
@@ -1458,11 +1617,13 @@
         }
     }
 
-    private async Task StreamAssistantAsync(IReadOnlyList<string> fileIds, string? runContent = null)
+    private async Task StreamAssistantAsync(
+        IReadOnlyList<string> fileIds, string? runContent = null,
+        IReadOnlyList<string>? mentionPaths = null)
     {
         if (_loadedChatId is not null && !Playground)
         {
-            await StreamDetachedRunAsync(fileIds, runContent);
+            await StreamDetachedRunAsync(fileIds, runContent, mentionPaths);
             return;
         }
 
@@ -1488,7 +1649,8 @@
                 Stream: true,
                 FileIds: fileIds.Count > 0 ? fileIds : null,
                 ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null,
-                WebSearch: _webSearch ? true : null);
+                WebSearch: _webSearch ? true : null,
+                MentionPaths: mentionPaths);
 
             var lastRender = DateTime.MinValue;
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
@@ -1530,7 +1692,9 @@
     /// anexa ao stream e, ao fim, recarrega o chat — o servidor é a fonte da
     /// verdade das mensagens.
     /// </summary>
-    private async Task StreamDetachedRunAsync(IReadOnlyList<string> fileIds, string? runContent)
+    private async Task StreamDetachedRunAsync(
+        IReadOnlyList<string> fileIds, string? runContent,
+        IReadOnlyList<string>? mentionPaths = null)
     {
         var placeholder = new ChatMessageModel(
             Guid.NewGuid().ToString(), "assistant", string.Empty, _model,
@@ -1551,6 +1715,7 @@
                 fileIds.Count > 0 ? fileIds : null,
                 _toolIds.Count > 0 ? _toolIds.ToList() : null,
                 _webSearch ? true : null,
+                mentionPaths,
                 _cts.Token);
             _activeRunId = run.Id;
 

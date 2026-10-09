@@ -117,7 +117,7 @@ public static class GitHubEndpoints
 
         var binding = await repos.GetBindingAsync(user.Id, ct);
         return Results.Ok(new WorkspaceRepoResponse(
-            binding?.Repo, binding?.Branch, binding?.Dir));
+            binding?.Repo, binding?.Branch, binding?.Dir, binding?.TestCommand));
     }
 
     /// <summary>Clona (ou troca de branch) o repo no workspace do usuário.</summary>
@@ -141,9 +141,16 @@ public static class GitHubEndpoints
         var (binding, error) = await repos.OpenAsync(
             user.Id, slug, request.Branch.Trim(),
             $"https://github.com/{slug}.git", token, ct);
-        return binding is null
-            ? Results.BadRequest(new { detail = error })
-            : Results.Ok(new WorkspaceRepoResponse(binding.Repo, binding.Branch, binding.Dir));
+        if (binding is null)
+        {
+            return Results.BadRequest(new { detail = error });
+        }
+        if (request.TestCommand is not null)
+        {
+            await repos.SetTestCommandAsync(user.Id, request.TestCommand, ct);
+            binding = binding with { TestCommand = string.IsNullOrWhiteSpace(request.TestCommand) ? null : request.TestCommand.Trim() };
+        }
+        return Results.Ok(new WorkspaceRepoResponse(binding.Repo, binding.Branch, binding.Dir, binding.TestCommand));
     }
 
     private static async Task<IResult> UnbindRepoAsync(

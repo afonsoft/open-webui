@@ -30,15 +30,16 @@ public sealed record GitHubBranchesResponse(string DefaultBranch, IReadOnlyList<
 /// <param name="Repo">Slug owner/repo (null quando não vinculado).</param>
 /// <param name="Branch">Branch aberta.</param>
 /// <param name="Dir">Diretório do checkout dentro do workspace.</param>
-public sealed record WorkspaceRepoResponse(string? Repo, string? Branch, string? Dir);
+public sealed record WorkspaceRepoResponse(string? Repo, string? Branch, string? Dir, string? TestCommand = null);
 
 /// <summary>Vincula/abre um repositório + branch no workspace.</summary>
 /// <param name="Repo">Slug owner/repo.</param>
 /// <param name="Branch">Branch a abrir.</param>
-public sealed record WorkspaceRepoOpenRequest(string? Repo, string? Branch);
+public sealed record WorkspaceRepoOpenRequest(string? Repo, string? Branch, string? TestCommand = null);
 
 /// <summary>Binding persistido do repositório do workspace (kv por usuário).</summary>
 /// <param name="Repo">Slug owner/repo.</param>
 /// <param name="Branch">Branch selecionada.</param>
 /// <param name="Dir">Subdiretório do checkout dentro do workspace.</param>
-public sealed record WorkspaceRepoBinding(string Repo, string Branch, string Dir);
+/// <param name="TestCommand">Comando de teste customizado (override da detecção por manifesto — SPEC-20261009-ide-mentions-tests).</param>
+public sealed record WorkspaceRepoBinding(string Repo, string Branch, string Dir, string? TestCommand = null);

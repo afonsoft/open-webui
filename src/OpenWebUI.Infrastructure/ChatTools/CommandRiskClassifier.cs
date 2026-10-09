@@ -64,7 +64,8 @@ public static class CommandRiskClassifier
     private static readonly HashSet<string> WriteBinaries = new(StringComparer.Ordinal)
     {
         "touch", "mkdir", "rmdir", "cp", "mv", "ln", "tee", "echo", "printf",
-        "npm", "yarn", "pnpm", "dotnet", "make", "cmake", "cargo", "go",
+        "npm", "yarn", "pnpm", "bun", "dotnet", "make", "cmake", "cargo", "go",
+        "pytest",
         "tar", "zip", "unzip", "gzip", "gunzip", "rm"
     };
 

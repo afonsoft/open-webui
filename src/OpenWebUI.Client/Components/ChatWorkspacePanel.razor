@@ -1,5 +1,7 @@
 @inject LocalizationService L
 @inject IJSRuntime JS
+@inject IdeTestRunService TestRun
+@implements IDisposable
 
 @* Painel de workspace da run (SPEC-20261007-chat-agent-parity RF-015):
    tabs Tasks | Changes | Jobs | MCPs | Info — o "canvas" do agente ao
@@ -218,6 +220,11 @@
                 </div>
                 break;
 
+            case "tests":
+                @* Runner de testes do repo vinculado (SPEC-20261009-ide-mentions-tests RF-004). *@
+                <IdeTestsPanel />
+                break;
+
             case "mcps":
                 @if (Mcps.Count == 0)
                 {
@@ -375,8 +382,24 @@
     }
 
     private IEnumerable<string> Tabs => IsAdmin
-        ? ["tasks", "changes", "jobs", "terminal", "mcps", "info"]
-        : ["tasks", "changes", "jobs", "terminal", "info"];
+        ? ["tasks", "changes", "tests", "jobs", "terminal", "mcps", "info"]
+        : ["tasks", "changes", "tests", "jobs", "terminal", "info"];
+
+    /// <summary>Salta à aba Tests quando um run é iniciado (botão Run tests).</summary>
+    protected override void OnInitialized() => TestRun.Changed += OnTestRunChanged;
+
+    /// <inheritdoc/>
+    public void Dispose() => TestRun.Changed -= OnTestRunChanged;
+
+    private void OnTestRunChanged()
+    {
+        if (TestRun.AttentionWanted)
+        {
+            _tab = "tests";
+            TestRun.AttentionWanted = false;
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     private string McpStatusLabel(McpServerResponse server) =>
         !server.Enabled ? L["chat.panel_mcp_disabled"]

@@ -4,6 +4,7 @@
 @inject LocalizationService L
 @inject NavigationManager Nav
 @inject ThemeService Theme
+@inject IdeTestRunService TestRun
 
 @* /ide — Web IDE (SPEC-20261009-web-ide-surface): explorer + editor CodeMirror +
    painel direito (Chat/Changes/Terminal/Jobs). Gated pela flag ide.enabled;
@@ -38,6 +39,15 @@ else
             <span class="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">
                 @_repo.Repo<span class="text-gray-400">@("@")@_repo.Branch</span>
             </span>
+            @if (TestRun.Running)
+            {
+                @* Chip de run de testes em andamento (SPEC-20261009-ide-mentions-tests RF-004). *@
+                <span class="test-running-chip">
+                    <span class="inline-block size-2 animate-pulse rounded-full bg-blue-500"></span>@L["ide.tests_running"]
+                </span>
+            }
+            <button class="msg-action" title="@L["ide.run_tests"]" aria-label="@L["ide.run_tests"]"
+                    @onclick="RunTestsAsync">▶</button>
             <button class="msg-action" title="@L["common.refresh"]" aria-label="@L["common.refresh"]"
                     @onclick="RefreshSideAsync">⟳</button>
             <button class="msg-action lg:hidden" aria-label="@L["ide.panel"]"
@@ -131,6 +141,18 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>Botão ▶ do header — inicia o test run (RF-004).</summary>
+    private Task RunTestsAsync() => TestRun.StartAsync();
+
     /// <inheritdoc/>
-    public void Dispose() => _poll?.Dispose();
+    protected override void OnInitialized() => TestRun.Changed += OnTestRunChanged;
+
+    private void OnTestRunChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        TestRun.Changed -= OnTestRunChanged;
+        _poll?.Dispose();
+    }
 }
