@@ -18,13 +18,13 @@ namespace OpenWebUI.Api.Tests;
 /// classifica /models por modalidade+heurística, probeia os endpoints
 /// e grava audio/images/video/embedding somente em chaves ausentes.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ProviderCapabilityTests
 {
     private string _dbPath = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
+    private MemoryCache _cache = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
     private string _mockUrl = null!;
@@ -43,6 +43,11 @@ public class ProviderCapabilityTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
+        // Cache no campo: um `using var` aqui morreria no fim do setup e o
+        // ConfigService ficaria preso a um MemoryCache descartado.
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db,
+            _cache);
         _mockUrl = StartMock();
     }
 
@@ -53,25 +58,24 @@ public class ProviderCapabilityTests
         while (_paths.TryTake(out _)) { }
 
         await _db.ConfigEntries.ExecuteDeleteAsync();
+        // ExecuteDelete bypassa o ConfigService — sem limpar, o cache de 10s
+        // devolveria configs já apagadas do teste anterior.
+        _cache.Clear();
         _db.ChangeTracker.Clear(); // delete em massa não desanexa entidades
-        // Cache por teste em campo (dispose no TearDown) — um using local
-        // disporia o cache antes do teste usar o _config.
-        _cache = new MemoryCache(new MemoryCacheOptions());
-        _config = new ConfigService(_db, _cache);
+        _config = new ConfigService(_db,
+            _cache);
     }
-
-    [TearDown]
-    public void TearDown() => _cache.Dispose();
 
     [OneTimeTearDown]
     public void OneTimeTearDown()
     {
         _mockCts.Cancel();
         _mock.Stop();
+        _cache.Dispose();
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

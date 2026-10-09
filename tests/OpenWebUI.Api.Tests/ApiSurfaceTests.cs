@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração da superfície da API: config pública, completions enriquecidas, OAuth/OIDC e automações.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ApiSurfaceTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -69,7 +69,7 @@ public class ApiSurfaceTests
         }
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

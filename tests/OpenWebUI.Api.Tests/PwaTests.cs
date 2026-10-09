@@ -7,7 +7,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes de hosting PWA (slice pwa-offline): documento revalida e assets do
 /// manifest/service worker são servidos.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class PwaTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -30,7 +30,7 @@ public class PwaTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -64,5 +64,26 @@ public class PwaTests
 
         var icon = await _client.GetAsync("/assets/icons/icon-512.png");
         Assert.That(icon.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
+    public async Task ServiceWorker_SeparaCacheImutavelDoShellMutavel()
+    {
+        // Regressão do bug pós-E16: um único cache-first servia bundle WASM
+        // velho entre deploys. O SW precisa isolar o cache de framework
+        // (fingerprinted, cache-first) do shell mutável (network-first).
+        var sw = await _client.GetStringAsync("/service-worker.js");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sw, Does.Contain("openwebui-shell-v"));
+            Assert.That(sw, Does.Contain("openwebui-fw-v"));
+            Assert.That(sw, Does.Contain("networkFirst"));
+            Assert.That(sw, Does.Contain("/framework-assets/"));
+            Assert.That(sw, Does.Contain("/_framework/blazor.webassembly.js"));
+            // cache.put consome o body — o put do alias '/' precisa do próprio
+            // clone ou lança "Response body is already used" (E2E pós-#268).
+            Assert.That(sw, Does.Contain("cache.put('/', response.clone())"));
+        });
     }
 }

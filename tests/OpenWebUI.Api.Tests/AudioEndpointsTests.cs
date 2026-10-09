@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// STT /transcriptions (multipart), /voices /models e /capabilities —
 /// com provider OpenAI-compatible mockado via HttpListener.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AudioEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -53,7 +53,7 @@ public class AudioEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

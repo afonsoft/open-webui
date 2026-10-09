@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// /openai/* para os providers configurados, com streaming preservado,
 /// key mascarada server-side e 503/404 conforme a regra.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class PassthroughTests
 {
@@ -56,7 +56,7 @@ public class PassthroughTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

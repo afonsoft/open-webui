@@ -1,9 +1,29 @@
 // Service worker do shell PWA.
-// - Documento/navegações: network-first (evita o loop de reload do upstream;
-//   index.html sai com Cache-Control: no-cache, então sempre revalida).
-// - Assets estáticos (fingerprinted do MapStaticAssets): cache-first.
+// Dois caches com estratégias distintas:
+// - openwebui-fw-* (cache-first): assets de _framework fingerprinted pelo
+//   MapStaticAssets (name.{hash}.ext) e o espelho /framework-assets/{stem}/{ext}
+//   — a URL carrega o hash do build, então conteúdo velho nunca é servido
+//   para um nome novo. Evicção FIFO limita o crescimento entre deploys.
+// - openwebui-shell-* (network-first): documento/navegações e toda a cadeia
+//   mutável em URLs estáveis (index.html, js/*, css/*, i18n/*, assets/*,
+//   manifest, os 3 loaders literais de _framework). Cache é só fallback
+//   offline — um bundle velho nunca é servido depois de um deploy.
 // - API / realtime: nunca cacheia — erros de rede propagam reais.
-const CACHE = 'openwebui-shell-v1';
+const CACHE_SHELL = 'openwebui-shell-v2';
+const CACHE_FW = 'openwebui-fw-v2';
+const KNOWN_CACHES = [CACHE_SHELL, CACHE_FW];
+
+// Cap FIFO de entradas no cache de framework: cada deploy adiciona um build
+// inteiro de nomes fingerprinted; sem limite o cache cresceria sem parar.
+const MAX_FW_ENTRIES = 240;
+
+// Aliases literais (não-fingerprinted) de _framework servidos como documento —
+// mutáveis entre builds, ficam no caminho network-first junto com o restante.
+const MUTABLE_FRAMEWORK_BOOT = new Set([
+  '/_framework/blazor.webassembly.js',
+  '/_framework/dotnet.js',
+  '/_framework/dotnet.boot.js',
+]);
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -12,11 +32,69 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+        Promise.all(keys.filter((k) => !KNOWN_CACHES.includes(k)).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
   );
 });
+
+function isImmutableFrameworkAsset(pathname) {
+  if (pathname.startsWith('/framework-assets/')) return true;
+  return pathname.startsWith('/_framework/') && !MUTABLE_FRAMEWORK_BOOT.has(pathname);
+}
+
+function cacheFirst(request) {
+  return caches.open(CACHE_FW).then((cache) =>
+    cache.match(request).then((hit) => {
+      if (hit) return hit;
+      return fetch(request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          cache.put(request, copy).then(() => evictOldEntries(cache));
+        }
+        return response;
+      });
+    })
+  );
+}
+
+function evictOldEntries(cache) {
+  return cache.keys().then((keys) => {
+    const excess = keys.length - MAX_FW_ENTRIES;
+    if (excess <= 0) return;
+    // keys() vem em ordem de inserção — os mais antigos são de builds velhos.
+    return Promise.all(keys.slice(0, excess).map((k) => cache.delete(k)));
+  });
+}
+
+function networkFirst(request) {
+  return fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        caches.open(CACHE_SHELL).then((cache) => {
+          // Cada cache.put consome o body do Response — um clone só pode ser
+          // usado uma vez ("Response body is already used"), então cada put
+          // clona de novo (o response original ainda não foi lido aqui).
+          cache.put(request, response.clone());
+          // Fallback offline da navegação: sempre aponta para o shell atual.
+          if (request.mode === 'navigate') cache.put('/', response.clone());
+        });
+      }
+      return response;
+    })
+    .catch(() =>
+      caches.open(CACHE_SHELL).then((cache) =>
+        cache.match(request).then((hit) => {
+          if (hit) return hit;
+          return request.mode === 'navigate'
+            ? cache.match('/')
+            // Falha de rede num asset: resolve com erro em vez de rejeitar —
+            // evita "Uncaught (in promise) TypeError: Failed to fetch" no console.
+            : new Response(null, { status: 504, statusText: 'Gateway Timeout' });
+        })
+      )
+    );
+}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -25,37 +103,16 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws')) return;
 
-  if (request.mode === 'navigate') {
+  if (isImmutableFrameworkAsset(url.pathname)) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put('/', copy));
-          return response;
-        })
-        .catch(() =>
-          caches.match(request).then((hit) => hit || caches.match('/'))
-        )
+      cacheFirst(request).catch(
+        () => new Response(null, { status: 504, statusText: 'Gateway Timeout' })
+      )
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((hit) => {
-      if (hit) return hit;
-      return fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        // Falha de rede num asset: resolve com erro em vez de rejeitar —
-        // evita "Uncaught (in promise) TypeError: Failed to fetch" no console.
-        .catch(() => new Response(null, { status: 504, statusText: 'Gateway Timeout' }));
-    })
-  );
+  event.respondWith(networkFirst(request));
 });
 
 // SPEC-20261007-chat-notifications RF-004: Web Push — entrega run.completed

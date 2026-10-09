@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes dos motores de imagem (a1111, gemini, comfyui, openai edits) com
 /// backend mockado via <see cref="HttpListener"/>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ImageEnginesTests
 {
@@ -55,7 +55,7 @@ public class ImageEnginesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -21,7 +21,7 @@ namespace OpenWebUI.Api.Tests;
 /// promove o chat a build (evento <c>mode</c> + coluna persistida).
 /// O mock local (HttpListener) faz de Ollama.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AgentModeTests
 {
     // ---- PermissionRuleset.Evaluate — matriz plan × build (RF-002) ----

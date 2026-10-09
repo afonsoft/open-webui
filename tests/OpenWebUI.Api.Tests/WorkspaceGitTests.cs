@@ -16,7 +16,7 @@ namespace OpenWebUI.Api.Tests;
 /// <c>GET /api/v1/chats/{id}/runs/{runId}/diff</c> com repo real criado
 /// dentro de <c>data/workspaces/{userId}</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceGitTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -49,7 +49,7 @@ public class WorkspaceGitTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

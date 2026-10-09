@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// CRUD de knowledge/skills/functions/pipelines, models (access/import/export),
 /// users (search/settings/permissions) e retrieval (config/reset/process).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class EndpointCoverageTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -45,7 +45,7 @@ public class EndpointCoverageTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

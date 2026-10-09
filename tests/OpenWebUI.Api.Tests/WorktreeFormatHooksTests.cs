@@ -22,7 +22,7 @@ namespace OpenWebUI.Api.Tests;
 /// OpenAI: add/update/delete/move + jail + atomicidade) e format hook
 /// <c>Format:Command</c> (interpolação {files}, timeout, warning-only).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorktreeFormatHooksTests
 {
     private string _root = null!;

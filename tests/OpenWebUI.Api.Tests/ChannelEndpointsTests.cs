@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice realtime-channels: CRUD, membros e mensagens.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ChannelEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -38,7 +38,7 @@ public class ChannelEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

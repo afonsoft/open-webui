@@ -25,7 +25,7 @@ namespace OpenWebUI.Api.Tests;
 /// branch do <see cref="WorkspaceRepoService"/> com remote local, e os
 /// endpoints <c>/api/v1/github/*</c> + <c>/api/v1/workspace/repo</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class GitHubWorkspaceTests
 {
     private string _root = null!;
@@ -491,6 +491,7 @@ public class GitHubWorkspaceTests
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
         foreach (var uri in new[]
@@ -522,7 +523,7 @@ public class GitHubWorkspaceTests
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
             if (File.Exists(dbPath))
             {
-                File.Delete(dbPath);
+                TestInfra.DeleteDb(dbPath);
             }
         }
     }
@@ -555,7 +556,7 @@ public class GitHubWorkspaceTests
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
             if (File.Exists(dbPath))
             {
-                File.Delete(dbPath);
+                TestInfra.DeleteDb(dbPath);
             }
         }
     }
@@ -585,7 +586,7 @@ public class GitHubWorkspaceTests
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
             if (File.Exists(dbPath))
             {
-                File.Delete(dbPath);
+                TestInfra.DeleteDb(dbPath);
             }
         }
     }
@@ -629,7 +630,7 @@ public class GitHubWorkspaceTests
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
             if (File.Exists(dbPath))
             {
-                File.Delete(dbPath);
+                TestInfra.DeleteDb(dbPath);
             }
         }
     }

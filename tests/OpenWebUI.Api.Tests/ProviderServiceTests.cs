@@ -14,7 +14,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Cobertura de branches do ProviderService: múltiplas URLs, dedup, erros do provider, timeout, roteamento e payloads de borda.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ProviderServiceTests
 {
     private string _dbPath = null!;
@@ -73,7 +73,7 @@ public class ProviderServiceTests
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

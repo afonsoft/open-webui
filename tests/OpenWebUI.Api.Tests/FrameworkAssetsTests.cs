@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// binários de _framework, para proxies corporativos que bloqueiam downloads
 /// por extensão (.dat/.wasm/...) ou inspecionam payloads binários.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class FrameworkAssetsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -34,7 +34,7 @@ public class FrameworkAssetsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

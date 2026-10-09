@@ -20,7 +20,7 @@ namespace OpenWebUI.Api.Tests;
 /// symlink, paginação da tree, etag/If-Match, binary-guard, 404 sem
 /// binding e trilha de auditoria nas escritas.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceFileEndpointsTests
 {
     private string _apiDir = null!;
@@ -33,36 +33,17 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
-        // DB próprio (env com try/finally): sem isso o factory herda o
-        // ConnectionStrings__Default do fixture anterior — caminho com estado
-        // residual (WAL órfão) que quebra o migrate do boot ("already exists").
-        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-wf-{Guid.NewGuid():N}.db");
-        Environment.SetEnvironmentVariable(
-            "ConnectionStrings__Default", $"Data Source={dbPath}");
-        try
+        using var dbScope = TestInfra.UseDb();
+        using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        foreach (var uri in new[]
         {
-            using var factory = new WebApplicationFactory<Program>();
-            using var client = factory.CreateClient();
-            foreach (var uri in new[]
-            {
-                "/api/v1/workspace/repo/tree?path=",
-                "/api/v1/workspace/repo/file?path=a.txt",
-            })
-            {
-                var response = await client.GetAsync(uri);
-                Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), uri);
-            }
-        }
-        finally
+            "/api/v1/workspace/repo/tree?path=",
+            "/api/v1/workspace/repo/file?path=a.txt",
+        })
         {
-            Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
-            foreach (var file in new[] { dbPath, $"{dbPath}-wal", $"{dbPath}-shm" })
-            {
-                if (File.Exists(file))
-                {
-                    File.Delete(file);
-                }
-            }
+            var response = await client.GetAsync(uri);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), uri);
         }
     }
 
@@ -424,6 +405,7 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task Git_SemAuth_401_E_SemBinding_404()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var anon = factory.CreateClient();
         var unauth = await anon.GetAsync("/api/v1/workspace/repo/git");
@@ -451,6 +433,7 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task IdeConfig_SemAuth_401_E_DefaultOn()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var anon = factory.CreateClient();
         var unauth = await anon.GetAsync("/api/v1/ide/config");

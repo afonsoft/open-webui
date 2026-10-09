@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes do modelo de access grants (read/write por usuário, grupo ou "*")
 /// em knowledge, notas, modelos, canais e calendários reais.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AccessGrantsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -43,7 +43,7 @@ public class AccessGrantsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

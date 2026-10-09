@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes dos endpoints de arquivos (upload, listagem, conteúdo, delete, contexto no chat e ownership).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class FileEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -48,7 +48,7 @@ public class FileEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -314,7 +314,7 @@ public class FileEndpointsTests
 }
 
 /// <summary>Testes dos endpoints de avaliação (feedback por id, listagens admin, export e delete-all).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class EvaluationEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -345,7 +345,7 @@ public class EvaluationEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

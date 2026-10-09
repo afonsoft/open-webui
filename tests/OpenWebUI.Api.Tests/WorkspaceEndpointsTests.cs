@@ -8,7 +8,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos endpoints de workspace (pastas, prompts, memórias e notas).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -39,7 +39,7 @@ public class WorkspaceEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

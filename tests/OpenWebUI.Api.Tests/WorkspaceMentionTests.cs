@@ -7,7 +7,7 @@ namespace OpenWebUI.Api.Tests;
 /// blocos <c>&lt;file path="…"&gt;</c> no prompt — cap 16KB/arquivo, 64KB
 /// total, binário/oversize → placeholder, fora do jail → drop silencioso.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceMentionTests
 {
     private string _dir = null!;

@@ -18,7 +18,7 @@ namespace OpenWebUI.Api.Tests;
 /// <c>DATA_ROOT=/data</c> (PR #264).
 /// </summary>
 [NonParallelizable] // muta DATA_ROOT (variável de processo)
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class DataPathsTests
 {
     private string _root = null!;

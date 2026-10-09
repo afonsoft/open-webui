@@ -20,7 +20,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Branches de erro e borda dos endpoints de chats, tasks, auth, grupos, imagens e do ToolExecutor.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class EndpointEdgeTests
 {
     private readonly MemoryCache mc1 = new(new MemoryCacheOptions());
@@ -64,7 +64,7 @@ public class EndpointEdgeTests
         mc1.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

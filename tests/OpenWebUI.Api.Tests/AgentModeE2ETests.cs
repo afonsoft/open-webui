@@ -17,7 +17,7 @@ namespace OpenWebUI.Api.Tests;
 /// chamada de tool de escrita em plan devolve erro estruturado e o modo
 /// permanece. O mock local (HttpListener) faz de Ollama.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class AgentModeE2ETests
 {
@@ -67,7 +67,7 @@ public class AgentModeE2ETests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
         // Workdir criado pelo plan_exit dentro do content root da API.
         try
