@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject LocalizationService L
 @inject ChatNotificationsService ChatNotify
+@inject AttentionInboxState Attention
 
 @if (_ready)
 {
@@ -20,8 +21,9 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
                 <span class="text-sm font-normal text-gray-700 dark:text-gray-200">Open WebUI</span>
-                <div class="ml-auto">
+                <div class="ml-auto flex items-center">
                     <NotificationBell />
+                    <AttentionBadge Count="Attention.Count" Active="Attention.FilterActive" OnClick="OpenAttentionMobile" />
                 </div>
             </div>
             <BannerBar />
@@ -59,15 +61,27 @@
         }
 
         L.Changed += OnLocaleChanged;
+        Attention.Changed += OnAttentionChanged;
         _ = ChatNotify.EnsureStartedAsync();
+        _ = Attention.EnsureStartedAsync();
         _ready = true;
     }
 
     private void OnLocaleChanged() => StateHasChanged();
 
+    private void OnAttentionChanged() => StateHasChanged();
+
+    /// <summary>Badge mobile: abre a gaveta já com o filtro "aguardando" ligado.</summary>
+    private void OpenAttentionMobile()
+    {
+        Attention.SetFilter(true);
+        _mobileMenu = true;
+    }
+
     public void Dispose()
     {
         L.Changed -= OnLocaleChanged;
+        Attention.Changed -= OnAttentionChanged;
     }
 
     private void OpenSettings() => _settingsOpen = true;

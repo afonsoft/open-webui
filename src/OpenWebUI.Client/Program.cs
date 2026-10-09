@@ -22,6 +22,7 @@ builder.Services.AddScoped<ChatListState>();
 builder.Services.AddScoped<RealtimeService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<ChatNotificationsService>();
+builder.Services.AddScoped<AttentionInboxState>();
 builder.Services.AddScoped<LocalizationService>();
 builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<IdeTestRunService>();
