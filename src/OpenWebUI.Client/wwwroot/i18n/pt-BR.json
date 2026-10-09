@@ -771,5 +771,8 @@
   "ide.not_a_repo": "A pasta vinculada não é um repositório git.",
   "ide.clean_tree": "Árvore de trabalho limpa.",
   "ide.diff_truncated": "Diff truncado — muito grande.",
-  "ide.tab_chat": "Chat"
+  "ide.tab_chat": "Chat",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

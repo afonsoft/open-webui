@@ -771,5 +771,8 @@
   "ide.not_a_repo": "The bound folder is not a git repository.",
   "ide.clean_tree": "Working tree clean.",
   "ide.diff_truncated": "Diff truncated — too large.",
-  "ide.tab_chat": "Chat"
+  "ide.tab_chat": "Chat",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

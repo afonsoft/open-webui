@@ -906,6 +906,26 @@ public class ApiService(HttpClient http, AuthService auth)
             $"/api/v1/workspace/repo/tree{q}");
     }
 
+    /// <summary>Catálogo de skills do repo vinculado; vazio sem repo/erro.</summary>
+    public async Task<List<RepoSkillItemResponse>> GetRepoSkillsAsync() =>
+        await SendAsync<List<RepoSkillItemResponse>>(HttpMethod.Get,
+            "/api/v1/workspace/repo/skills") ?? [];
+
+    /// <summary>Corpo de uma skill do repo; null quando não existe.</summary>
+    public Task<RepoSkillDetailResponse?> GetRepoSkillAsync(string name) =>
+        SendAsync<RepoSkillDetailResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/skills/{Uri.EscapeDataString(name)}");
+
+    /// <summary>Catálogo de commands markdown do repo vinculado.</summary>
+    public async Task<List<RepoCommandItemResponse>> GetRepoCommandsAsync() =>
+        await SendAsync<List<RepoCommandItemResponse>>(HttpMethod.Get,
+            "/api/v1/workspace/repo/commands") ?? [];
+
+    /// <summary>Corpo (template) de um command do repo; null quando não existe.</summary>
+    public Task<RepoCommandDetailResponse?> GetRepoCommandAsync(string name) =>
+        SendAsync<RepoCommandDetailResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/commands/{Uri.EscapeDataString(name)}");
+
     /// <summary>Lê um arquivo do workdir (fatia de linhas); null em 404/binário/grande.</summary>
     public Task<WorkspaceFileReadResponse?> GetWorkspaceFileAsync(
         string path, int? startLine = null, int? maxLines = null)

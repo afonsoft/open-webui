@@ -41,3 +41,28 @@ public sealed record WorkspaceFileRenameRequest(string? From, string? To);
 
 /// <summary>Remoção de arquivo ou diretório (recursiva).</summary>
 public sealed record WorkspaceFileDeleteRequest(string? Path);
+
+/// <summary>Item de skill do repositório (descoberta em <c>**/SKILL.md</c>).</summary>
+/// <param name="Name">Nome do slash command (frontmatter <c>name</c> ou diretório-pai).</param>
+/// <param name="Description">Descrição curta (frontmatter).</param>
+/// <param name="Source">Origem: <c>skill</c>.</param>
+/// <param name="Path">Caminho relativo ao workdir do arquivo SKILL.md.</param>
+public sealed record RepoSkillItemResponse(
+    string Name, string Description, string Source, string Path);
+
+/// <summary>Skill do repositório com corpo markdown completo.</summary>
+public sealed record RepoSkillDetailResponse(
+    string Name, string Description, string Source, string Path, string Content);
+
+/// <summary>Command markdown do repositório (<c>.opencode/command</c> etc.).</summary>
+/// <param name="Agent">Agente-alvo declarado no frontmatter (informativo).</param>
+/// <param name="Model">Modelo declarado no frontmatter (informativo).</param>
+/// <param name="Subtask">Se o command declara execução em subtask (informativo).</param>
+public sealed record RepoCommandItemResponse(
+    string Name, string Description, string? Agent, string? Model,
+    bool Subtask, string Source, string Path);
+
+/// <summary>Command do repositório com corpo (template <c>$1..$N</c>/<c>$ARGUMENTS</c>).</summary>
+public sealed record RepoCommandDetailResponse(
+    string Name, string Description, string? Agent, string? Model,
+    bool Subtask, string Source, string Path, string Content);

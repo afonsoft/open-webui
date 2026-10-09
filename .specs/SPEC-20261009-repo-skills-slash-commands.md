@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-repo-skills` |
 | Ticket | `GAP-impl-repo-skills` + `GAP-impl-project-instructions` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `high` — pedido explícito do usuário |
 | Depends on | `SPEC-20261009-workspace-file-api` (S1) |
 

@@ -771,5 +771,8 @@
   "ide.not_a_repo": "リンクされたフォルダーは git リポジトリではありません。",
   "ide.clean_tree": "ツリーはクリーンです。",
   "ide.diff_truncated": "はきすぎてりめられました。",
-  "ide.tab_chat": "チャット"
+  "ide.tab_chat": "チャット",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

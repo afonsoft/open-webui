@@ -32,5 +32,8 @@
       "code": "zh-CN",
       "name": ""
     }
-  ]
+  ],
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

@@ -1,0 +1,89 @@
+using System.Text;
+using OpenWebUI.Application.Contracts;
+
+namespace OpenWebUI.Client.Services;
+
+/// <summary>Item de sugestão do composer para <c>/</c> — de qualquer fonte.</summary>
+/// <param name="Command">Nome após a barra.</param>
+/// <param name="Title">Descrição curta exibida na lista.</param>
+/// <param name="Source"><c>prompt</c> | <c>skill</c> | <c>command</c>.</param>
+public sealed record SlashItem(string Command, string Title, string Source);
+
+/// <summary>
+/// Mescla e interpola slash commands do composer
+/// (SPEC-20261009-repo-skills-slash-commands RF-003): prompts do usuário +
+/// skills + commands do repositório, filtrados pelo prefixo digitado, e a
+/// interpolação <c>$ARGUMENTS</c>/<c>$1..$N</c> dos templates de command.
+/// </summary>
+public static class RepoSlashCommands
+{
+    /// <summary>
+    /// Sugestões mescladas: prompts (source <c>prompt</c>), skills e commands
+    /// do repo cujo nome começa com <paramref name="prefix"/> (sem a barra).
+    /// </summary>
+    public static List<SlashItem> Merge(
+        IEnumerable<PromptResponse> prompts,
+        IEnumerable<RepoSkillItemResponse> skills,
+        IEnumerable<RepoCommandItemResponse> commands,
+        string prefix, int take = 8)
+    {
+        bool Match(string s) => s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        return prompts.Where(p => Match(p.Command))
+                .Select(p => new SlashItem(p.Command, p.Title, "prompt"))
+            .Concat(skills.Where(s => Match(s.Name))
+                .Select(s => new SlashItem(s.Name, s.Description, "skill")))
+            .Concat(commands.Where(c => Match(c.Name))
+                .Select(c => new SlashItem(c.Name, c.Description, "command")))
+            .Take(take)
+            .ToList();
+    }
+
+    /// <summary>Texto após <c>/nome</c> no input (os argumentos do command).</summary>
+    public static string ArgsAfter(string input)
+    {
+        var space = input.IndexOf(' ');
+        return space < 0 ? string.Empty : input[(space + 1)..].Trim();
+    }
+
+    /// <summary>
+    /// Interpola o template de um command: <c>$ARGUMENTS</c> recebe o texto
+    /// inteiro dos args; <c>$1</c>..<c>$N</c> recebem os tokens separados por
+    /// espaço (placeholders sem arg viram string vazia).
+    /// </summary>
+    public static string Interpolate(string template, string args)
+    {
+        var tokens = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var sb = new StringBuilder(template.Length + args.Length);
+        for (var i = 0; i < template.Length; i++)
+        {
+            if (template[i] == '$')
+            {
+                if (template.AsSpan(i).StartsWith("$ARGUMENTS", StringComparison.Ordinal))
+                {
+                    sb.Append(args);
+                    i += "$ARGUMENTS".Length - 1;
+                    continue;
+                }
+
+                var j = i + 1;
+                while (j < template.Length && char.IsDigit(template[j]))
+                {
+                    j++;
+                }
+
+                if (j > i + 1
+                    && int.TryParse(template[(i + 1)..j], out var n)
+                    && n >= 1)
+                {
+                    sb.Append(n <= tokens.Length ? tokens[n - 1] : string.Empty);
+                    i = j - 1;
+                    continue;
+                }
+            }
+
+            sb.Append(template[i]);
+        }
+
+        return sb.ToString();
+    }
+}
