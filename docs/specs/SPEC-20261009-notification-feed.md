@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-notification-feed` |
 | Ticket | `GAP-devin-D3-notification-feed` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | — |
 
@@ -54,3 +54,17 @@ Sem flag; migration nova (`Notifications`).
 ## 6. Risks
 
 - Crescimento da tabela → cleanup por TTL se o app já tiver job de manutenção.
+
+## Reconciliation
+
+_Entregue em 2026-10-09 (SPEC-20261009-notification-feed, Issue #253)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Push → `Notification` | delivered | `Api/Notifications/WebPushChatRunNotifier.cs` — grava linha com mesma construção de título/trecho/link antes dos early-returns (feed independe de subscription) |
+| RF-002 Badge + read/read-all | delivered | `Endpoints/NotificationEndpoints.cs` (`GET /api/v1/notifications`, `POST /{id}/read`, `POST /read-all`) + `Components/NotificationBell.razor` |
+| RF-003 Poll 30s | delivered | `NotificationBell.razor` — `PeriodicTimer(30s)` sem SignalR |
+| Tests | delivered | `Api.Tests/NotificationFeedTests.cs` (7) + `Client.Tests/NotificationBellTests.cs` (5) |
+
+Entidade `Notification` + migration `AddNotifications`; sino montado na
+sidebar (expandida/rail) e na barra mobile (`MainLayout`).

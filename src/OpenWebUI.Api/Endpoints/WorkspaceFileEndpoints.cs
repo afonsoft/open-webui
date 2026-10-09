@@ -241,6 +241,7 @@ public static class WorkspaceFileEndpoints
     private static async Task<IResult> WriteAsync(
         WorkspaceFileWriteRequest request,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        OpenWebUI.Infrastructure.Lsp.LspService lsp,
         ILogger<Program> logger, CancellationToken ct)
     {
         var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
@@ -283,6 +284,8 @@ public static class WorkspaceFileEndpoints
             Directory.CreateDirectory(parent);
         }
         await File.WriteAllTextAsync(full, content, ct);
+        // LSP didSave — best-effort, nunca falha o PUT (SPEC S8).
+        await lsp.NotifyFileSavedAsync(workdir, full, ct);
 
         var etag = ETagOf(full, new FileInfo(full).Length);
         var lastModified = File.GetLastWriteTimeUtc(full);

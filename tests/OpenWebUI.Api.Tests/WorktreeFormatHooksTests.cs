@@ -639,7 +639,7 @@ public class WorktreeFormatHooksTests
         // file_write roda o hook quando configurado — warning vai pro result.
         var dir = Directory.CreateDirectory(Path.Join(_root, "ws")).FullName;
         var hook = FormatHook(new() { ["Format:Command"] = "exit 1" });
-        var tool = new FileWriteBuiltinTool(hook);
+        var tool = new FileWriteBuiltinTool(formatHook: hook);
         var args = JsonSerializer.SerializeToElement(new { path = "a.txt", content = "x\n" });
         var result = await tool.ExecuteAsync(args, Ctx(dir), default);
         Assert.Multiple(() =>

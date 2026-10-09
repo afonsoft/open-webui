@@ -42,6 +42,18 @@ public static class NotificationEndpoints
             (HttpContext http, AppDbContext db, string endpoint) =>
                 DeletePushSubscriptionAsync(http, db, endpoint));
 
+        // SPEC-20261009-notification-feed D3: feed in-app do usuário.
+        // Parâmetros de página/filtro são int?/bool? — int não-nulável
+        // tornaria o parâmetro obrigatório (400 antes do handler).
+        group.MapGet("/",
+            (HttpContext http, AppDbContext db, int? page, int? pageSize, bool? unread) =>
+                ListFeedAsync(http, db, page, pageSize, unread));
+        group.MapPost("/{id}/read",
+            (HttpContext http, AppDbContext db, string id) =>
+                MarkFeedReadAsync(http, db, id));
+        group.MapPost("/read-all",
+            (HttpContext http, AppDbContext db) => MarkAllFeedReadAsync(http, db));
+
         return group;
     }
 
@@ -189,6 +201,62 @@ public static class NotificationEndpoints
         db.ChatPushSubscriptions.Remove(existing);
         await db.SaveChangesAsync();
         return Results.Ok(new { subscribed = false });
+    }
+
+    private static async Task<IResult> ListFeedAsync(
+        HttpContext http, AppDbContext db, int? page, int? pageSize, bool? unread)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        var pageNum = page is > 0 ? page.Value : 1;
+        var size = pageSize is > 0 ? Math.Min(pageSize.Value, 50) : 20;
+
+        var baseQuery = db.Notifications.AsNoTracking().Where(n => n.UserId == user.Id);
+        var filtered = unread == true ? baseQuery.Where(n => n.ReadAt == null) : baseQuery;
+
+        var total = await filtered.CountAsync(http.RequestAborted);
+        var unreadCount = await baseQuery.CountAsync(n => n.ReadAt == null, http.RequestAborted);
+        var items = await filtered
+            .OrderByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id)
+            .Skip((pageNum - 1) * size)
+            .Take(size)
+            .Select(n => new NotificationItemResponse(
+                n.Id, n.Kind, n.Title, n.Body, n.Link, n.ReadAt, n.CreatedAt))
+            .ToListAsync(http.RequestAborted);
+
+        return Results.Ok(new NotificationPageResponse(items, total, unreadCount, pageNum));
+    }
+
+    private static async Task<IResult> MarkFeedReadAsync(
+        HttpContext http, AppDbContext db, string id)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        // Leitura idempotente: reler uma já lida responde 200, não 404.
+        var notification = await db.Notifications
+            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == user.Id,
+                http.RequestAborted);
+        if (notification is null) return Results.NotFound();
+
+        notification.ReadAt ??= DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await db.SaveChangesAsync(http.RequestAborted);
+        return Results.Ok(new { ok = true });
+    }
+
+    private static async Task<IResult> MarkAllFeedReadAsync(HttpContext http, AppDbContext db)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, http.RequestAborted);
+        if (user is null) return Results.Unauthorized();
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var updated = await db.Notifications
+            .Where(n => n.UserId == user.Id && n.ReadAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.ReadAt, now),
+                http.RequestAborted);
+        return Results.Ok(new { ok = true, read = updated });
     }
 
     private static Task<NotificationWebhook?> FindAsync(AppDbContext db, User user, bool global, CancellationToken ct) =>

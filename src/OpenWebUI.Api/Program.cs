@@ -16,6 +16,7 @@ using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Infrastructure.Services.Image;
 using OpenWebUI.Infrastructure.Services.Video;
 using OpenWebUI.Infrastructure.Terminal;
+using OpenWebUI.Infrastructure.Lsp;
 using OpenWebUI.Application.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -100,6 +101,15 @@ builder.Services.AddScoped<IBuiltinChatTool, SkillBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, GenerateVideoBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, AskUserBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, PlanExitBuiltinTool>();
+// LSP (SPEC-20261009-lsp-diagnostics): singleton dono dos processos
+// filhos + tools read-only builtin:lsp_*.
+builder.Services.AddSingleton<LspService>();
+builder.Services.AddScoped<IBuiltinChatTool, LspDiagnosticsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspSymbolsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspWorkspaceSymbolsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspDefinitionBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspReferencesBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspHoverBuiltinTool>();
 builder.Services.AddSingleton<VideoEngineFactory>();
 builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
@@ -347,6 +357,7 @@ app.MapCheckpointEndpoints();
 app.MapWorkspaceTestRunEndpoints();
 app.MapRepoSkillEndpoints();
 app.MapIdeEndpoints();
+app.MapLspEndpoints();
 app.MapAudioEndpoints();
 app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();
