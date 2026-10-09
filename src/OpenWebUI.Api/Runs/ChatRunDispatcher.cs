@@ -23,6 +23,7 @@ public sealed class ChatRunDispatcher(
     ChatRunBroadcaster broadcaster,
     ChatJobService jobs,
     ChatRunPauses pauses,
+    WorktreeService worktrees,
     ILogger<ChatRunDispatcher> logger) : BackgroundService, IChatRunDispatcher
 {
     /// <summary>Máximo de runs executando em paralelo.</summary>
@@ -59,6 +60,9 @@ public sealed class ChatRunDispatcher(
         // Jobs running órfãos de restart: o processo não existe mais —
         // marca killed (SPEC-20261007-chat-agent-tools RF-004).
         await jobs.SweepOrphansAsync(stoppingToken);
+        // Worktrees de runs que não existem mais ou já expiraram
+        // (E16 S9 RF-005 — spec worktree-format-hooks).
+        await worktrees.PruneOrphansAsync(stoppingToken);
 
         var workers = Enumerable.Range(0, MaxConcurrent)
             .Select(_ => WorkerAsync(stoppingToken))

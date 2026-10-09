@@ -203,4 +203,5 @@ public sealed record WorkspaceGitResponse(
     int Removed,
     IReadOnlyList<WorkspaceGitFileResponse> Files,
     string? Diff,
-    bool DiffTruncated);
+    bool DiffTruncated,
+    bool Worktree = false);

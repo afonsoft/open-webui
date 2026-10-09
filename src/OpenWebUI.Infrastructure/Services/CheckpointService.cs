@@ -317,7 +317,9 @@ public sealed class CheckpointService(
     // ==================== Backend git ====================
 
     private static bool IsGitWorkdir(string workdir) =>
-        Directory.Exists(Path.Join(workdir, ".git"));
+        // Em linked worktrees `.git` é um arquivo apontando pro gitdir real.
+        Directory.Exists(Path.Join(workdir, ".git"))
+        || File.Exists(Path.Join(workdir, ".git"));
 
     private string GitDirFor(string workdir) =>
         Path.Join(DataRoot, "repo", HashPath(workdir));
