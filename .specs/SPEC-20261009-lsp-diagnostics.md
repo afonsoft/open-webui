@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-lsp` |
 | Ticket | `GAP-impl-lsp` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` (deferível) — mas é o pré-requisito de squiggles/go-to-def no editor |
 | Depends on | `SPEC-20261009-web-ide-surface` (S2) |
 

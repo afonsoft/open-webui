@@ -11,6 +11,7 @@ Base: `/api/v1` — Minimal APIs em `src/OpenWebUI.Api/Endpoints/`. Auth: `Autho
 | `ModelEndpoints` | listagem e modelos custom | modelos |
 | `EvaluationEndpoints` | feedback 👍/👎 de mensagens | avaliações |
 | `TaskEndpoints` | título, follow-ups, tags via LLM | tarefas |
+| `LspEndpoints` | `/api/v1/workspace/lsp` — status, sync de doc (didOpen/didChange/didClose), diagnósticos, hover | IDE |
 | `ApiEndpoints` | `/api/config` (feature flags), `/health` | sistema |
 
 ## Convenções

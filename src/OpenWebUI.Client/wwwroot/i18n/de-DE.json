@@ -767,6 +767,7 @@
   "ide.conflict_overwrite": "Trotzdem überschreiben",
   "ide.conflict_copyas": "Kopie speichern unter…",
   "ide.binary_readonly": "Binärdatei — schreibgeschützt.",
+  "ide.problems": "Probleme",
   "ide.too_big_readonly": "Datei zu groß — schreibgeschützt.",
   "ide.chat_hint": "Über die geöffnete Datei diskutieren oder einen Chat zu diesem Repo starten.",
   "ide.discuss_file": "{{path}} besprechen",

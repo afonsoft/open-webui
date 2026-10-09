@@ -50,6 +50,26 @@
         }
     </div>
 
+    @* Problems (LSP S8): painel de diagnostics — some quando não há servidor/dados. *@
+    @if (_lspProblems.Count > 0)
+    {
+        <div class="border-t border-gray-200 dark:border-gray-800 max-h-32 overflow-y-auto" role="region"
+             aria-label="@L["ide.problems"]">
+            <div class="flex items-center gap-2 px-3 py-1 text-[0.6875rem] font-semibold text-gray-500 dark:text-gray-400">
+                @L["ide.problems"] <span class="font-normal">(@_lspProblems.Count)</span>
+            </div>
+            @foreach (var p in _lspProblems)
+            {
+                <button class="flex w-full items-center gap-2 px-3 py-0.5 text-left text-[0.6875rem] hover:bg-gray-100 dark:hover:bg-gray-800 @(p.Severity == 1 ? "text-red-600 dark:text-red-400" : p.Severity == 2 ? "text-amber-600 dark:text-amber-400" : "text-gray-600 dark:text-gray-300")"
+                        @onclick="() => GotoProblemAsync(p)">
+                    <span aria-hidden="true">@(p.Severity == 1 ? "✕" : p.Severity == 2 ? "⚠" : "ℹ")</span>
+                    <span class="truncate">@p.Message</span>
+                    <span class="ml-auto shrink-0 text-gray-400">@p.Path:@(p.Line + 1)</span>
+                </button>
+            }
+        </div>
+    }
+
     @if (_conflict is not null)
     {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true"
@@ -86,9 +106,13 @@
         public bool Loading;
         public bool ReadOnly;
         public string? Notice;
+        /// <summary>didOpen já enviado ao servidor LSP (evita open duplo).</summary>
+        public bool LspOpened;
     }
 
     private readonly List<IdeTab> _tabs = [];
+    private readonly List<LspDiagnosticItem> _lspProblems = [];
+    private CancellationTokenSource? _lspChangeCts;
     private IdeTab? _active;
     private IdeTab? _conflict;
     private ElementReference _tabList;
@@ -177,6 +201,10 @@
         }
         var wasActive = _active == tab;
         _tabs.Remove(tab);
+        if (tab.LspOpened)
+        {
+            _ = Api.PostLspDocAsync(tab.Path, "close", null);
+        }
         if (wasActive)
         {
             _active = _tabs.LastOrDefault();
@@ -206,6 +234,7 @@
         await JS.InvokeVoidAsync("owuiIde.setDoc", "ide-cm-host", t.Doc, t.Path);
         await JS.InvokeVoidAsync("owuiIde.setLanguage", "ide-cm-host", t.Path);
         await JS.InvokeVoidAsync("owuiIde.setReadonly", "ide-cm-host", t.ReadOnly);
+        _ = SyncLspOpenAsync(t);
     }
 
     /// <summary>Roving tabindex nas abas do editor (SPEC a11y).</summary>
@@ -217,7 +246,7 @@
         }
     }
 
-    /// <summary>JS → doc mudou (marca dirty).</summary>
+    /// <summary>JS → doc mudou (marca dirty + agenda didChange LSP).</summary>
     [JSInvokable]
     public void OnDocChanged(string doc)
     {
@@ -225,6 +254,10 @@
         {
             a.Doc = doc;
             a.Dirty = true;
+            if (a.LspOpened)
+            {
+                ScheduleLspChange(a);
+            }
             StateHasChanged();
         }
     }
@@ -298,9 +331,92 @@
         }
     }
 
+    // ---------- LSP (SPEC-20261009-lsp-diagnostics, S8) ----------
+
+    /// <summary>didOpen uma vez por aba + refresh de diagnostics/squiggles.</summary>
+    private async Task SyncLspOpenAsync(IdeTab tab)
+    {
+        try
+        {
+            var status = await Api.GetLspStatusAsync(tab.Path);
+            if (status is null || !status.Enabled || status.Language is null)
+            {
+                return; // linguagem sem servidor → UI não renderiza nada
+            }
+            if (!tab.LspOpened)
+            {
+                tab.LspOpened = await Api.PostLspDocAsync(tab.Path, "open", tab.Doc);
+            }
+            await RefreshLspDiagnosticsAsync(tab.Path);
+        }
+        catch { /* LSP é best-effort — nunca quebra o editor */ }
+    }
+
+    /// <summary>Pull diagnostics do arquivo e joga nas squiggles/Problems.</summary>
+    private async Task RefreshLspDiagnosticsAsync(string path)
+    {
+        var r = await Api.GetLspDiagnosticsAsync(path);
+        if (r is null)
+        {
+            return;
+        }
+        _lspProblems.Clear();
+        _lspProblems.AddRange(r.Diagnostics);
+        var activeDiags = _lspProblems.Where(d => d.Path == path).ToList();
+        await JS.InvokeVoidAsync("owuiIde.setDiagnostics", "ide-cm-host", activeDiags);
+        StateHasChanged();
+    }
+
+    /// <summary>JS → hover (line/col 1-based) → texto do tooltip ou null.</summary>
+    [JSInvokable]
+    public async Task<string?> OnLspHoverAsync(int line, int col)
+    {
+        if (_active is not { Loading: false, ReadOnly: false } t)
+        {
+            return null;
+        }
+        try { return await Api.GetLspHoverAsync(t.Path, line, col); }
+        catch { return null; }
+    }
+
+    /// <summary>Clique no Problems → abre o arquivo e navega à posição.</summary>
+    private async Task GotoProblemAsync(LspDiagnosticItem p)
+    {
+        if (_active?.Path != p.Path)
+        {
+            await OpenFileAsync(p.Path);
+        }
+        await JS.InvokeVoidAsync("owuiIde.goto", "ide-cm-host", p.Line, p.Col);
+        await JS.InvokeVoidAsync("owuiIde.focus", "ide-cm-host");
+    }
+
+    /// <summary>didChange debounced (800ms) + refresh de diagnostics (1,6s).</summary>
+    private void ScheduleLspChange(IdeTab tab)
+    {
+        _lspChangeCts?.Cancel();
+        _lspChangeCts = new CancellationTokenSource();
+        var ct = _lspChangeCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(800, ct);
+                await Api.PostLspDocAsync(tab.Path, "change", tab.Doc);
+                await Task.Delay(800, ct);
+                await InvokeAsync(async () =>
+                {
+                    await RefreshLspDiagnosticsAsync(tab.Path);
+                });
+            }
+            catch (OperationCanceledException) { /* digitação seguinte cancelou */ }
+            catch { /* LSP best-effort */ }
+        }, ct);
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        _lspChangeCts?.Cancel();
         _selfRef?.Dispose();
         if (_editorReady)
         {

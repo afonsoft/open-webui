@@ -12,6 +12,7 @@ Status detalhado de paridade com o upstream: ver `docs/MIGRACAO-DOTNET.md`.
 - **Workspace**: prompts, modelos custom, arquivos (`/workspace`).
 - **Notas** (`/notes`), **Memórias**, **Arquivados** (`/archived`).
 - **Tarefas**: geração de título, follow-ups e tags via LLM (`/api/v1/tasks`).
+- **IDE/LSP**: diagnósticos (squiggles + painel Problems), hover e símbolos via language servers por workdir — `Lsp:*` config (defaults csharp-ls, typescript-language-server, pylsp, vscode-json-languageserver; binários ausentes degradam para `unavailable`).
 - **Tema**: dark/light/system via `.dark` + `localStorage webui.theme`.
 
 ## Parcial / pendente (roadmap)

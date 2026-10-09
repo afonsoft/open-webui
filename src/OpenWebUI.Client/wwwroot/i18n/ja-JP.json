@@ -767,6 +767,7 @@
   "ide.conflict_overwrite": "それでもき",
   "ide.conflict_copyas": "コピーをで…",
   "ide.binary_readonly": "バイナリファイル — みり。",
+  "ide.problems": "問題",
   "ide.too_big_readonly": "ファイルがきすぎます — みり。",
   "ide.chat_hint": "いているファイルについてするか、このリポジトリのチャットをします。",
   "ide.discuss_file": "{{path}} について",

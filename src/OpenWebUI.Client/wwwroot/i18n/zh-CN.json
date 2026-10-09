@@ -767,6 +767,7 @@
   "ide.conflict_overwrite": "",
   "ide.conflict_copyas": "…",
   "ide.binary_readonly": "——。",
+  "ide.problems": "问题",
   "ide.too_big_readonly": "——。",
   "ide.chat_hint": "，。",
   "ide.discuss_file": " {{path}}",

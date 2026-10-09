@@ -767,6 +767,7 @@
   "ide.conflict_overwrite": "Sobrescrever mesmo assim",
   "ide.conflict_copyas": "Salvar cópia como…",
   "ide.binary_readonly": "Arquivo binário — somente leitura.",
+  "ide.problems": "Problemas",
   "ide.too_big_readonly": "Arquivo muito grande — somente leitura.",
   "ide.chat_hint": "Discuta o arquivo aberto ou inicie um chat sobre este repositório.",
   "ide.discuss_file": "Discutir {{path}}",
