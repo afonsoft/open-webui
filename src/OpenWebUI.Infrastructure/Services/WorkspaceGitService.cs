@@ -41,7 +41,9 @@ public sealed class WorkspaceGitService
     /// </summary>
     public async Task<GitWorkspaceInfo> GetInfoAsync(string workdir, CancellationToken ct)
     {
-        if (!Directory.Exists(Path.Join(workdir, ".git")))
+        // `.git` pode ser ARQUIVO (worktree ligado → aponta pro gitdir real).
+        if (!Directory.Exists(Path.Join(workdir, ".git"))
+            && !File.Exists(Path.Join(workdir, ".git")))
         {
             return Empty;
         }
