@@ -25,6 +25,7 @@
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
             </button>
+            <NotificationBell MenuClass="left-0" />
         </div>
         <div class="flex justify-center items-center">
             <button class="cursor-pointer flex size-8.5 items-center justify-center transition group" title="@L["sidebar.expand"]" aria-label="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
@@ -50,6 +51,8 @@ else
             <button class="flex flex-1 px-0.5 cursor-pointer" @onclick="NewChat">
                 <div class="self-center font-normal text-gray-700 dark:text-gray-200">Open WebUI</div>
             </button>
+
+            <NotificationBell />
 
             <button class="hidden md:flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-w-resize"
                     title="@L["sidebar.collapse"]" aria-label="@L["sidebar.collapse"]" @onclick="() => _collapsed = true">

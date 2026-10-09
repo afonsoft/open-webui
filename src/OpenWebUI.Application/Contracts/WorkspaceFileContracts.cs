@@ -86,3 +86,24 @@ public sealed record WorkspaceCheckpointRevertRequest(bool? Force);
 /// <summary>Resultado do revert: restaurados + conflitos (drift fora da trilha).</summary>
 public sealed record WorkspaceCheckpointRevertResponse(
     IReadOnlyList<string> Reverted, IReadOnlyList<string> Conflicts);
+
+// ---------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ----------
+
+/// <summary>Sync do documento para o LSP (didOpen/didChange/didClose).</summary>
+/// <param name="Path">Caminho relativo ao workdir.</param>
+/// <param name="Kind"><c>open</c> | <c>change</c> | <c>close</c>.</param>
+/// <param name="Text">Conteúdo completo (full-sync v1); null em close.</param>
+public sealed record LspDocSyncRequest(string? Path, string? Kind, string? Text);
+
+/// <summary>Status LSP de um arquivo (linguagem detectada + estado do servidor).</summary>
+public sealed record LspStatusResponse(
+    bool Enabled, string? Language, string State, string? Error);
+
+/// <summary>Um diagnostic LSP no formato do editor (0-based).</summary>
+public sealed record LspDiagnosticItem(
+    string Path, int Line, int Col, int EndLine, int EndCol,
+    int Severity, string? Code, string? Source, string Message);
+
+/// <summary>Diagnostics do arquivo/workdir + flags de cap.</summary>
+public sealed record LspDiagnosticsResponse(
+    List<LspDiagnosticItem> Diagnostics, bool Truncated, int Total);
