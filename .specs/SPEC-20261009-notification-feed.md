@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-notification-feed` |
 | Ticket | `GAP-devin-D3-notification-feed` |
-| Status | `Draft` |
+| Status | `Approved` |
 | Priority | `medium` |
 | Depends on | — |
 
