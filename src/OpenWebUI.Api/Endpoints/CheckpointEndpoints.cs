@@ -58,7 +58,7 @@ public static class CheckpointEndpoints
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         CheckpointService checkpoints, CancellationToken ct)
     {
-        var (userId, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
         if (reject is not null)
         {
             return reject;
@@ -77,7 +77,7 @@ public static class CheckpointEndpoints
         HttpContext http, string hash, AppDbContext db, WorkspaceRepoService repos,
         CheckpointService checkpoints, CancellationToken ct)
     {
-        var (userId, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
         if (reject is not null)
         {
             return reject;

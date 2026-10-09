@@ -228,19 +228,15 @@ public sealed class CheckpointService(
             }
             var log = await RunGitAsync(workdir, gitdir, ct,
                 "log", $"--max-count={take}", "--format=%H %ct %s", Ref, "--");
-            var result = new List<CheckpointSummary>();
-            foreach (var line in SplitLines(log))
-            {
-                var parts = line.Split(' ', 3);
-                if (parts.Length < 2 || !long.TryParse(parts[1], out var created))
-                {
-                    continue;
-                }
-                var turn = parts.Length > 2 && parts[2].StartsWith("turn ", StringComparison.Ordinal)
-                    && int.TryParse(parts[2][5..], out var t) ? t : 0;
-                result.Add(new CheckpointSummary(parts[0], turn, created));
-            }
-            return result;
+            return SplitLines(log)
+                .Select(line => line.Split(' ', 3))
+                .Where(parts => parts.Length >= 2 && long.TryParse(parts[1], out _))
+                .Select(parts => new CheckpointSummary(
+                    parts[0],
+                    parts.Length > 2 && parts[2].StartsWith("turn ", StringComparison.Ordinal)
+                        && int.TryParse(parts[2][5..], out var t) ? t : 0,
+                    long.Parse(parts[1])))
+                .ToList();
         }
         finally
         {
@@ -625,13 +621,8 @@ public sealed class CheckpointService(
         }
         if (prev is not null)
         {
-            foreach (var rel in prev.Files.Keys)
-            {
-                if (!files.ContainsKey(rel))
-                {
-                    changed.Add(rel); // deletado desde o último snapshot
-                }
-            }
+            // deletado desde o último snapshot
+            changed.AddRange(prev.Files.Keys.Where(rel => !files.ContainsKey(rel)));
         }
 
         var manifest = new Manifest(turn, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), id, files);
@@ -789,19 +780,16 @@ public sealed class CheckpointService(
 
     private static int NextSeq(string root)
     {
-        var max = 0;
-        if (Directory.Exists(root))
+        if (!Directory.Exists(root))
         {
-            foreach (var d in Directory.EnumerateDirectories(root))
-            {
-                var name = Path.GetFileName(d);
-                if (name.Length > 1 && name[0] == 'm'
-                    && int.TryParse(name[1..], out var n) && n > max)
-                {
-                    max = n;
-                }
-            }
+            return 1;
         }
+        var max = Directory.EnumerateDirectories(root)
+            .Select(Path.GetFileName)
+            .Where(name => name is { Length: > 1 } && name[0] == 'm')
+            .Select(name => int.TryParse(name![1..], out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
         return max + 1;
     }
 
