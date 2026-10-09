@@ -116,7 +116,7 @@ public class CheckpointServiceTests
             var svc = Service();
             var c0 = await svc.SnapshotAsync(dir, "r1", 0, CancellationToken.None);
             File.WriteAllText(Path.Join(dir, "a.txt"), "v2\n");
-            var c1 = await svc.SnapshotAsync(dir, "r1", 1, CancellationToken.None);
+            await svc.SnapshotAsync(dir, "r1", 1, CancellationToken.None);
 
             // Drift fora da trilha: arquivo mudou DEPOIS do último
             // checkpoint — current ≠ tip → conflito, não sobrescreve.
