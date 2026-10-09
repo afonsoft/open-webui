@@ -209,19 +209,21 @@ public class OAuthEndpointsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        using var mc4 = new MemoryCache(new MemoryCacheOptions());
+        // Sem using: o cache vive junto do serviço retornado (dispose aqui
+        // quebraria o ConfigService antes do teste usá-lo).
+        var mc4 = new MemoryCache(new MemoryCacheOptions());
         return new OAuthService(db, new ConfigService(db, mc4));
     }
 
     private static string NewServiceDbPath() =>
         Path.Join(Path.GetTempPath(), $"openwebui-oauthsvc-{Guid.NewGuid():N}.db");
 
-    /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.</summary>
+    /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.
+    /// Inner por instância: o HttpClient do teste dispõe a cadeia — um inner
+    /// estático morreria para todos os testes seguintes.</summary>
     private sealed class RewriteToMockHandler(Uri mockBase)
-        : DelegatingHandler(SharedInner)
+        : DelegatingHandler(new HttpClientHandler())
     {
-        private static readonly HttpClientHandler SharedInner = new();
-
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken ct)
         {

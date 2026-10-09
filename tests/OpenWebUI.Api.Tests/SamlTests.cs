@@ -66,7 +66,6 @@ public class SamlTests
     {
         _idpCert.Dispose();
         _rogueCert.Dispose();
-        RsaKey.Dispose();
         _anon.Dispose();
         _admin.Dispose();
         _factory.Dispose();
@@ -87,13 +86,16 @@ public class SamlTests
         return (auth!.Token, auth.User.Id);
     }
 
-    private static readonly RSA RsaKey = RSA.Create(2048);
-
-    private static X509Certificate2 NewCert(string cn) =>
-        new CertificateRequest(cn, RsaKey, HashAlgorithmName.SHA256,
+    // RSA novo por cert: uma chave compartilhada entre IdP e rogue faz a
+    // assinatura do rogue validar contra o cert do IdP (T04 aceitaria 302).
+    private static X509Certificate2 NewCert(string cn)
+    {
+        using var rsa = RSA.Create(2048);
+        return new CertificateRequest(cn, rsa, HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1)
             .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
                 DateTimeOffset.UtcNow.AddYears(1));
+    }
 
     /// <summary>GET /saml/metadata retorna EntityDescriptor do SP.</summary>
     [Test, Order(1)]

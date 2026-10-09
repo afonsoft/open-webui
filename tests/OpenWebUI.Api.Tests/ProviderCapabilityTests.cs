@@ -23,6 +23,7 @@ public class ProviderCapabilityTests
 {
     private string _dbPath = null!;
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
@@ -42,9 +43,6 @@ public class ProviderCapabilityTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
-        using var mc2 = new MemoryCache(new MemoryCacheOptions());
-        _config = new ConfigService(_db,
-            mc2);
         _mockUrl = StartMock();
     }
 
@@ -55,11 +53,15 @@ public class ProviderCapabilityTests
         while (_paths.TryTake(out _)) { }
 
         await _db.ConfigEntries.ExecuteDeleteAsync();
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         _db.ChangeTracker.Clear(); // delete em massa não desanexa entidades
-        _config = new ConfigService(_db,
-            mc1);
+        // Cache por teste em campo (dispose no TearDown) — um using local
+        // disporia o cache antes do teste usar o _config.
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
     }
+
+    [TearDown]
+    public void TearDown() => _cache.Dispose();
 
     [OneTimeTearDown]
     public void OneTimeTearDown()

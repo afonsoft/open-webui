@@ -606,7 +606,10 @@ public class WorktreeFormatHooksTests
     public async Task FormatHook_Falha_ViraWarning()
     {
         var dir = Directory.CreateDirectory(Path.Join(_root, "ws")).FullName;
-        var hook = FormatHook(new() { ["Format:Command"] = "echo deu-ruim >&2; exit 3" });
+        // O hook anexa os arquivos como argumentos finais quando o comando não
+        // tem {files}; o "#" comenta o append — "exit 3 'a.txt'" daria "too
+        // many arguments" no bash (dash ignora o excedente).
+        var hook = FormatHook(new() { ["Format:Command"] = "echo deu-ruim >&2; exit 3 # {files}" });
         var warning = await hook.RunForUserAsync("u1", dir, ["a.txt"], default);
         Assert.Multiple(() =>
         {

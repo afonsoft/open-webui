@@ -123,11 +123,13 @@ public class TerminalEndpointsTests
         }
     }
 
-    /// <summary>Servidor WebSocket real (Kestrel) que ecoa frames de volta.</summary>
+    /// <summary>Servidor WebSocket real (Kestrel) que ecoa frames de volta.
+    /// Sem using: o app é devolvido vivo e o fixture o dispõe no teardown —
+    /// dispose aqui mataria o echo antes do teste conectar.</summary>
     private static async Task<(WebApplication App, int Port)> StartWsEchoAsync()
     {
         var port = new Random().Next(40000, 60000);
-        await using var app = WebApplication.Create();
+        var app = WebApplication.Create();
         app.Urls.Add($"http://localhost:{port}");
         app.UseWebSockets();
         app.Map("/{**p}", async http =>

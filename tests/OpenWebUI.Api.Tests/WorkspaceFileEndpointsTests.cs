@@ -33,16 +33,36 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
-        using var factory = new WebApplicationFactory<Program>();
-        using var client = factory.CreateClient();
-        foreach (var uri in new[]
+        // DB próprio (env com try/finally): sem isso o factory herda o
+        // ConnectionStrings__Default do fixture anterior — caminho com estado
+        // residual (WAL órfão) que quebra o migrate do boot ("already exists").
+        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-wf-{Guid.NewGuid():N}.db");
+        Environment.SetEnvironmentVariable(
+            "ConnectionStrings__Default", $"Data Source={dbPath}");
+        try
         {
-            "/api/v1/workspace/repo/tree?path=",
-            "/api/v1/workspace/repo/file?path=a.txt",
-        })
+            using var factory = new WebApplicationFactory<Program>();
+            using var client = factory.CreateClient();
+            foreach (var uri in new[]
+            {
+                "/api/v1/workspace/repo/tree?path=",
+                "/api/v1/workspace/repo/file?path=a.txt",
+            })
+            {
+                var response = await client.GetAsync(uri);
+                Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), uri);
+            }
+        }
+        finally
         {
-            var response = await client.GetAsync(uri);
-            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), uri);
+            Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
+            foreach (var file in new[] { dbPath, $"{dbPath}-wal", $"{dbPath}-shm" })
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                }
+            }
         }
     }
 
