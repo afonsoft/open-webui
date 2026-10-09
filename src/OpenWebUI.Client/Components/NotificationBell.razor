@@ -24,7 +24,7 @@
     @if (_open)
     {
         <div class="fixed inset-0 z-40" @onclick="Close"></div>
-        <div class="absolute @MenuClass top-full mt-1 z-50 w-80 max-w-[calc(100vw-1rem)] max-h-96 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+        <div class="@MenuPositionClass z-50 w-80 max-w-[calc(100vw-1rem)] max-h-96 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
              role="menu" aria-label="@L["notifications.title"]" @onkeydown="OnMenuKeyDown">
             <div class="flex items-center justify-between px-3 pt-2 pb-1">
                 <span class="text-[0.8125rem] font-medium text-gray-700 dark:text-gray-200">@L["notifications.title"]</span>
@@ -86,6 +86,13 @@
     /// <summary>Classe de ancoragem horizontal do dropdown (default: borda direita,
     /// para o sino próximo à margem direita; usar <c>left-0</c> no rail recolhido).</summary>
     [Parameter] public string MenuClass { get; set; } = "right-0";
+
+    /// <summary>Posicionamento do menu: no mobile o sino pode ficar longe da
+    /// borda e <c>absolute</c> cortava o painel fora da viewport — vira
+    /// <c>fixed</c> quase full-width; a partir de md volta a ancorar no sino.</summary>
+    private string MenuPositionClass =>
+        "fixed inset-x-3 top-14 md:absolute md:top-full md:mt-1 "
+        + (MenuClass == "left-0" ? "md:left-0 md:right-auto" : "md:right-0 md:left-auto");
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
 
