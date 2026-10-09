@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes de chats avançados (SPEC chats-advanced): versionamento de
 /// mensagens em edição/regeneração e listagem administrativa de chats.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ChatsAdvancedTests
 {
@@ -56,7 +56,7 @@ public class ChatsAdvancedTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

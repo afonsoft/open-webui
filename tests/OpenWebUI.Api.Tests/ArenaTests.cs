@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice arena-leaderboard: batalha A/B, voto, ELO e grants de modelo.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ArenaTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -48,7 +48,7 @@ public class ArenaTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

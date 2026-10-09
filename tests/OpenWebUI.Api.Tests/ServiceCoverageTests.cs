@@ -20,7 +20,7 @@ namespace OpenWebUI.Api.Tests;
 /// search, motor de imagem OpenAI-compatible, embeddings, provider de modelos
 /// e edges do PTY/session manager.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ServiceCoverageTests
 {
     private readonly List<IDisposable> _owned = [];
@@ -45,7 +45,7 @@ public class ServiceCoverageTests
         _owned.Clear();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

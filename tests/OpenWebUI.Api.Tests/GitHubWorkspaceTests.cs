@@ -25,7 +25,7 @@ namespace OpenWebUI.Api.Tests;
 /// branch do <see cref="WorkspaceRepoService"/> com remote local, e os
 /// endpoints <c>/api/v1/github/*</c> + <c>/api/v1/workspace/repo</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class GitHubWorkspaceTests
 {
     private string _root = null!;
@@ -266,8 +266,22 @@ public class GitHubWorkspaceTests
             new User { Id = "u2", Name = "U", Email = "u2@x" },
             _db, _config, rag: null!, webSearch: null!, _repos, default);
         Assert.That(
-            effective.Messages.Where(m => m.Role == "system"),
-            Has.None.Contains("Repositório vinculado"));
+            effective.Messages.Any(m => m.Role == "system" && m.Content.Contains("Repositório vinculado")),
+            Is.False);
+    }
+
+    [Test]
+    public async Task Enrich_SemModeloCustom_InjetaPromptBaseDeQualidade()
+    {
+        var request = new ChatCompletionRequest(
+            "fake:1", [new ChatCompletionMessage("user", "oi")]);
+        var effective = await ChatPipeline.EnrichRequestAsync(
+            request,
+            new User { Id = "u3", Name = "U3", Email = "u3@x" },
+            _db, _config, rag: null!, webSearch: null!, _repos, default);
+        var system = effective.Messages.FirstOrDefault(m => m.Role == "system");
+        Assert.That(system?.Content, Does.Contain("Open WebUI agent")
+            .And.Contain("autonomous").And.Contain("user's language"));
     }
 
     // ---------------- GitHubService: caminhos de erro ----------------
@@ -382,21 +396,212 @@ public class GitHubWorkspaceTests
             _repos.OpenAsync("u1", "a/b", "main", "unused", null, cts.Token));
     }
 
+    // ---------------- Pulls (SPEC-20261009-pr-ci-panel) ----------------
+
+    [Test]
+    public async Task Pulls_SemToken_NeedsToken()
+    {
+        var result = await _svc.ListPullRequestsAsync("u1", "a", "b", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Github, Is.False);
+            Assert.That(result.NeedsToken, Is.True);
+            Assert.That(result.Pulls, Is.Empty);
+        });
+        Assert.That(_github.RequestCount, Is.Zero, "não deve chamar a API sem token");
+    }
+
+    [Test]
+    public async Task Pulls_TokenInvalido401_NeedsToken()
+    {
+        await _config.SetAsync("u:u1:github.token", "bad-token", default);
+        _github.Status = HttpStatusCode.Unauthorized;
+        var result = await _svc.ListPullRequestsAsync("u1", "a", "b", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Github, Is.False);
+            Assert.That(result.NeedsToken, Is.True);
+            Assert.That(result.Pulls, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task Pulls_ErroRede_GithubFalse()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.Throw = new HttpRequestException("boom");
+        Assert.That(await _svc.ListPullRequestsAsync("u1", "a", "b", default), Is.Null);
+    }
+
+    [Test]
+    public async Task Pulls_HappyPath_MapeiaERollupChecks()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        var result = await _svc.ListPullRequestsAsync("u1", "afonsoft", "demo", default);
+        Assert.That(result, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Github, Is.True);
+            Assert.That(result.NeedsToken, Is.False);
+            Assert.That(result.Pulls, Has.Count.EqualTo(2));
+        });
+
+        var first = result.Pulls[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Number, Is.EqualTo(7));
+            Assert.That(first.Title, Is.EqualTo("feat: painel"));
+            Assert.That(first.Author, Is.EqualTo("afonso"));
+            Assert.That(first.HeadRef, Is.EqualTo("devin/x"));
+            Assert.That(first.Url, Does.Contain("/pull/7"));
+            Assert.That(first.Draft, Is.False);
+            // stub: status success+pending, check-runs success+failure+in_progress
+            Assert.That(first.Checks.Total, Is.EqualTo(5));
+            Assert.That(first.Checks.Passing, Is.EqualTo(2));
+            Assert.That(first.Checks.Failing, Is.EqualTo(1));
+            Assert.That(first.Checks.Pending, Is.EqualTo(2));
+            Assert.That(first.Checks.State, Is.EqualTo("failure"));
+        });
+        Assert.That(result.Pulls[1].Draft, Is.True);
+    }
+
+    [Test]
+    public async Task Pulls_RollupSucessoEPendente()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        _github.StatusBody = "{\"state\":\"success\",\"statuses\":[{\"state\":\"success\"}]}";
+        _github.CheckRunsBody = "{\"check_runs\":[{\"status\":\"completed\",\"conclusion\":\"success\"}]}";
+        var ok = await _svc.ListPullRequestsAsync("u1", "a", "b", default);
+        Assert.That(ok!.Pulls[0].Checks.State, Is.EqualTo("success"));
+        Assert.That(ok.Pulls[0].Checks.Passing, Is.EqualTo(2));
+
+        var svc2 = new GitHubService(new StubFactory(_github), _config);
+        _github.StatusBody = "{\"state\":\"pending\",\"statuses\":[{\"state\":\"pending\"}]}";
+        _github.CheckRunsBody = "{\"check_runs\":[]}";
+        var pending = await svc2.ListPullRequestsAsync("u1", "a", "b", default);
+        Assert.That(pending!.Pulls[0].Checks.State, Is.EqualTo("pending"));
+    }
+
+    [Test]
+    public async Task Pulls_Cache60s_NaoRepeteChamada()
+    {
+        await _svc.SetTokenAsync("u1", "pat-1", default);
+        var svc = new GitHubService(new StubFactory(_github), _config, _cache);
+        var before = _github.RequestCount;
+        var first = await svc.ListPullRequestsAsync("u1", "a", "b", default);
+        var afterFirst = _github.RequestCount;
+        var second = await svc.ListPullRequestsAsync("u1", "a", "b", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(first!.Pulls, Has.Count.EqualTo(2));
+            Assert.That(second, Is.SameAs(first), "60s cache devolve a mesma resposta");
+            Assert.That(_github.RequestCount, Is.EqualTo(afterFirst));
+            Assert.That(afterFirst, Is.GreaterThan(before));
+        });
+    }
+
     // ---------------- Endpoints ----------------
 
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
         foreach (var uri in new[]
         {
             "/api/v1/github/config", "/api/v1/github/repos",
-            "/api/v1/workspace/repo/",
+            "/api/v1/workspace/repo/", "/api/v1/workspace/repo/pulls",
         })
         {
             var response = await client.GetAsync(uri);
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), uri);
+        }
+    }
+
+    [Test]
+    public async Task Endpoints_Pulls_SemBinding_404()
+    {
+        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-pulls-{Guid.NewGuid():N}.db");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={dbPath}");
+        using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        try
+        {
+            var (auth, _) = await SignUpAsync(client, "pulls0");
+            var response = await client.GetAsync("/api/v1/workspace/repo/pulls");
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
+            if (File.Exists(dbPath))
+            {
+                TestInfra.DeleteDb(dbPath);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Endpoints_Pulls_BindingSemToken_NeedsTokenENunca500()
+    {
+        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-pulls-{Guid.NewGuid():N}.db");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={dbPath}");
+        using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        try
+        {
+            var (auth, userId) = await SignUpAsync(client, "pulls1");
+            // Semeia o binding direto no kv (o endpoint de open clonaria de verdade).
+            await SeedKvAsync(dbPath, $"u:{userId}:workspace.repo",
+                new WorkspaceRepoBinding("a/b", "main", "repos/a__b"));
+
+            var pulls = await client.GetFromJsonAsync<WorkspacePullsResponse>(
+                "/api/v1/workspace/repo/pulls");
+            Assert.Multiple(() =>
+            {
+                Assert.That(pulls!.Github, Is.False);
+                Assert.That(pulls.NeedsToken, Is.True);
+                Assert.That(pulls.Pulls, Is.Empty);
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
+            if (File.Exists(dbPath))
+            {
+                TestInfra.DeleteDb(dbPath);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Endpoints_Pulls_TokenBogus_GithubFalse()
+    {
+        var dbPath = Path.Join(Path.GetTempPath(), $"openwebui-pulls-{Guid.NewGuid():N}.db");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={dbPath}");
+        using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        try
+        {
+            var (auth, userId) = await SignUpAsync(client, "pulls2");
+            await SeedKvAsync(dbPath, $"u:{userId}:workspace.repo",
+                new WorkspaceRepoBinding("a/b", "main", "repos/a__b"));
+            await SeedKvAsync(dbPath, $"u:{userId}:github.token", "token-bogus-x");
+
+            var response = await client.GetAsync("/api/v1/workspace/repo/pulls");
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            var pulls = await response.Content.ReadFromJsonAsync<WorkspacePullsResponse>();
+            // api.github.com inalcançável ou 401 → sempre github:false, nunca 500.
+            Assert.That(pulls!.Github, Is.False);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
+            if (File.Exists(dbPath))
+            {
+                TestInfra.DeleteDb(dbPath);
+            }
         }
     }
 
@@ -439,7 +644,7 @@ public class GitHubWorkspaceTests
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
             if (File.Exists(dbPath))
             {
-                File.Delete(dbPath);
+                TestInfra.DeleteDb(dbPath);
             }
         }
     }
@@ -494,6 +699,28 @@ public class GitHubWorkspaceTests
         return process.ExitCode == 0 ? process.StandardOutput.ReadToEnd().Trim() : null;
     }
 
+    /// <summary>Cadastra um usuário via signup e autentica o client.</summary>
+    private static async Task<(AuthResponse Auth, string UserId)> SignUpAsync(
+        HttpClient client, string name)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/auths/signup", new SignUpRequest(name, $"{name}@t.local", "senha123"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", auth.Token);
+        return (auth, auth.User.Id);
+    }
+
+    /// <summary>Grava uma entrada no kv da base da factory (seed de binding/token).</summary>
+    private static async Task SeedKvAsync<T>(string dbPath, string key, T value)
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={dbPath}").Options);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        await new ConfigService(db, cache).SetAsync(key, value, default);
+    }
+
     /// <summary>Stub da API do GitHub: /user, /user/repos, /repos/{o}/{r}*.</summary>
     private sealed class GitHubStub : HttpMessageHandler
     {
@@ -501,12 +728,17 @@ public class GitHubWorkspaceTests
         public string? LastAuth { get; private set; }
         public string? Body { get; set; }
         public string? BranchesBody { get; set; }
+        public string? PullsBody { get; set; }
+        public string? StatusBody { get; set; }
+        public string? CheckRunsBody { get; set; }
         public Exception? Throw { get; set; }
+        public int RequestCount { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastAuth = request.Headers.Authorization?.ToString();
+            RequestCount++;
             if (Throw is not null)
             {
                 throw Throw;
@@ -523,6 +755,22 @@ public class GitHubWorkspaceTests
                       "default_branch":"dev","html_url":"https://github.com/afonsoft/outro",
                       "description":"repo 2","updated_at":null}]
                     """
+                : path.EndsWith("/pulls") ? (PullsBody ?? """
+                    [{"number":7,"title":"feat: painel","draft":false,
+                      "user":{"login":"afonso"},"head":{"ref":"devin/x","sha":"abc1"},
+                      "updated_at":"2026-10-09T10:00:00Z","html_url":"https://github.com/a/b/pull/7"},
+                     {"number":8,"title":"fix: bug","draft":true,
+                      "user":{"login":"bia"},"head":{"ref":"devin/y","sha":"def2"},
+                      "updated_at":"2026-10-08T09:00:00Z","html_url":"https://github.com/a/b/pull/8"}]
+                    """)
+                : path.EndsWith("/check-runs") ? (CheckRunsBody ?? """
+                    {"check_runs":[{"status":"completed","conclusion":"success"},
+                                   {"status":"completed","conclusion":"failure"},
+                                   {"status":"in_progress","conclusion":null}]}
+                    """)
+                : path.EndsWith("/status") ? (StatusBody ?? """
+                    {"state":"success","statuses":[{"state":"success"},{"state":"pending"}]}
+                    """)
                 : path.EndsWith("/branches") ? (BranchesBody ?? "[{\"name\":\"main\"},{\"name\":\"dev\"}]")
                 : "{\"default_branch\":\"main\"}");
             var response = new HttpResponseMessage(

@@ -369,6 +369,15 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                     continue;
                 }
 
+                // Gateways podem emitir `data:` com JSON não-objeto (string
+                // solta, número, bool — keepalive/erro de provider). Indexar
+                // JsonValue por nome lança InvalidOperationException ("requires
+                // an element of type 'Object'") e derrubava o stream inteiro.
+                if (node is JsonValue)
+                {
+                    continue;
+                }
+
                 switch (evt)
                 {
                     case "tool_call":
@@ -488,8 +497,10 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                         break;
                 }
             }
-            catch (JsonException)
+            catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException)
             {
+                // Evento individual malformado/divergente não deve derrubar o
+                // stream — a próxima linha `data:` segue o consumo.
                 continue;
             }
 

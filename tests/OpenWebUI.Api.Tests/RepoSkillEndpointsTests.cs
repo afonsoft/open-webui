@@ -18,7 +18,7 @@ namespace OpenWebUI.Api.Tests;
 /// <see cref="SkillDiscoveryService"/> (dedup, frontmatter, caps) e
 /// <see cref="SkillDiscoveryService.LoadProjectInstructions"/>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RepoSkillEndpointsTests
 {
     private string _apiDir = null!;
@@ -31,6 +31,7 @@ public class RepoSkillEndpointsTests
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
         var res = await client.GetAsync("/api/v1/workspace/repo/skills");

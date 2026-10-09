@@ -1,0 +1,35 @@
+@inject LocalizationService L
+
+@* D2 (SPEC-20261009-attention-inbox): badge "aguardando você" ao lado do
+   sino de notificações — some com count 0, mostra o número de chats com
+   run bloqueada em aprovação/pergunta. O clique cabe ao consumidor
+   (toggle do filtro na sidebar, abrir a gaveta no mobile). *@
+
+@if (Count > 0)
+{
+    <button type="button"
+            class="relative flex size-[1.875rem] items-center justify-center rounded-lg transition cursor-pointer
+                   @(Active
+                       ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900")"
+            title="@L.T("sidebar.attention_aria", ("count", Count.ToString()))"
+            aria-label="@L.T("sidebar.attention_aria", ("count", Count.ToString()))"
+            aria-pressed="@(Active ? "true" : "false")"
+            @onclick="OnClick">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+        <span class="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-amber-500 px-1 text-[0.6rem] font-medium leading-4 text-white text-center">
+            @Count
+        </span>
+    </button>
+}
+
+@code {
+    /// <summary>Chats aguardando ação (0 → o badge não renderiza).</summary>
+    [Parameter] public int Count { get; set; }
+
+    /// <summary>Se o filtro "aguardando" está ativo (estilo + aria-pressed).</summary>
+    [Parameter] public bool Active { get; set; }
+
+    /// <summary>Clique no badge.</summary>
+    [Parameter] public EventCallback OnClick { get; set; }
+}

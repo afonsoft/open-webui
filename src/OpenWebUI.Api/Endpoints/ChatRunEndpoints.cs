@@ -496,6 +496,7 @@ public static class ChatRunEndpoints
         AppDbContext db,
         WorkspaceRepoService repos,
         WorkspaceGitService git,
+        WorktreeService worktrees,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -511,14 +512,18 @@ public static class ChatRunEndpoints
             return Results.NotFound(new { detail = "Run não encontrada." });
         }
 
-        // Com repo vinculado o snapshot sai do checkout do repo.
-        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        // Com repo vinculado o snapshot sai do checkout do repo; numa run
+        // isolada (Workspace:RunIsolation=worktree, E16 S9) sai do worktree.
+        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var isolated = worktrees.ResolveIsolated(user.Id, runId);
+        var workdir = isolated ?? mainWorkdir;
         var info = await git.GetInfoAsync(workdir, ct);
         return Results.Ok(new WorkspaceGitResponse(
             info.IsRepo, info.Branch, info.Added, info.Removed,
             info.Files.Select(f => new WorkspaceGitFileResponse(
                 f.Path, f.Added, f.Removed, f.Status)).ToList(),
-            info.Diff, info.DiffTruncated));
+            info.Diff, info.DiffTruncated,
+            Worktree: isolated is not null));
     }
 
     private static ChatRunResponse ToResponse(ChatRun run) => new(

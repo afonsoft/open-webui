@@ -30,16 +30,64 @@ public sealed record GitHubBranchesResponse(string DefaultBranch, IReadOnlyList<
 /// <param name="Repo">Slug owner/repo (null quando não vinculado).</param>
 /// <param name="Branch">Branch aberta.</param>
 /// <param name="Dir">Diretório do checkout dentro do workspace.</param>
-public sealed record WorkspaceRepoResponse(string? Repo, string? Branch, string? Dir, string? TestCommand = null);
+public sealed record WorkspaceRepoResponse(
+    string? Repo, string? Branch, string? Dir, string? TestCommand = null,
+    string? FormatCommand = null);
 
 /// <summary>Vincula/abre um repositório + branch no workspace.</summary>
 /// <param name="Repo">Slug owner/repo.</param>
 /// <param name="Branch">Branch a abrir.</param>
-public sealed record WorkspaceRepoOpenRequest(string? Repo, string? Branch, string? TestCommand = null);
+public sealed record WorkspaceRepoOpenRequest(
+    string? Repo, string? Branch, string? TestCommand = null, string? FormatCommand = null);
 
 /// <summary>Binding persistido do repositório do workspace (kv por usuário).</summary>
 /// <param name="Repo">Slug owner/repo.</param>
 /// <param name="Branch">Branch selecionada.</param>
 /// <param name="Dir">Subdiretório do checkout dentro do workspace.</param>
 /// <param name="TestCommand">Comando de teste customizado (override da detecção por manifesto — SPEC-20261009-ide-mentions-tests).</param>
-public sealed record WorkspaceRepoBinding(string Repo, string Branch, string Dir, string? TestCommand = null);
+/// <param name="FormatCommand">Format hook por-repo (SPEC-20261009-worktree-format-hooks) — override do global <c>Format:Command</c>.</param>
+public sealed record WorkspaceRepoBinding(
+    string Repo, string Branch, string Dir, string? TestCommand = null,
+    string? FormatCommand = null);
+
+/// <summary>Aplica o diff do worktree de uma run no workdir compartilhado (RF-002).</summary>
+/// <param name="RunId">Id da run cujo worktree deve ser mergeado.</param>
+public sealed record MergeWorktreeRequest(string? RunId);
+
+/// <summary>Resultado do merge worktree → workdir.</summary>
+/// <param name="Merged">True quando tudo aplicou e o worktree foi removido.</param>
+/// <param name="Applied">Arquivos aplicados com sucesso.</param>
+/// <param name="Conflicts">Arquivos com conflito (nunca aplicados à força).</param>
+/// <param name="Error">Erro inesperado.</param>
+public sealed record MergeWorktreeResponse(
+    bool Merged, IReadOnlyList<string> Applied, IReadOnlyList<string> Conflicts,
+    string? Error = null);
+
+/// <summary>Rollup dos checks de CI de um pull request (SPEC-20261009-pr-ci-panel).</summary>
+/// <param name="Total">Total de checks (status contexts + check runs).</param>
+/// <param name="Passing">Checks verdes (success/neutral/skipped).</param>
+/// <param name="Failing">Checks falhos (failure/error/timed_out/cancelled/action_required).</param>
+/// <param name="Pending">Checks em andamento (pending/queued/in_progress/stale).</param>
+/// <param name="State">Estado agregado: <c>success</c> | <c>failure</c> | <c>pending</c>.</param>
+public sealed record WorkspacePrChecksResponse(
+    int Total, int Passing, int Failing, int Pending, string State);
+
+/// <summary>Pull request aberto do repositório vinculado.</summary>
+/// <param name="Number">Número do PR.</param>
+/// <param name="Title">Título.</param>
+/// <param name="Author">Login do autor.</param>
+/// <param name="HeadRef">Branch de origem.</param>
+/// <param name="UpdatedAt">Última atualização (ISO 8601).</param>
+/// <param name="Url">URL web do PR.</param>
+/// <param name="Draft">Se é rascunho.</param>
+/// <param name="Checks">Rollup de CI do head.</param>
+public sealed record WorkspacePullResponse(
+    int Number, string Title, string? Author, string? HeadRef,
+    string? UpdatedAt, string Url, bool Draft, WorkspacePrChecksResponse Checks);
+
+/// <summary>Resposta de <c>GET /api/v1/workspace/repo/pulls</c>.</summary>
+/// <param name="Github">false quando o GitHub está inacessível/sem auth.</param>
+/// <param name="NeedsToken">true quando falta (ou expirou) o PAT do usuário.</param>
+/// <param name="Pulls">PRs abertos do repo vinculado.</param>
+public sealed record WorkspacePullsResponse(
+    bool Github, bool NeedsToken, IReadOnlyList<WorkspacePullResponse> Pulls);

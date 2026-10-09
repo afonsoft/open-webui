@@ -41,16 +41,24 @@ mantendo o layout, as funcionalidades e a configuração do original.
   quando a resposta termina com o site fechado
 - **Tool streaming + aprovação** — `tool_call`/`tool_result`/status no SSE, gate de
   aprovação para tools mutáveis com preset por conversa (readonly/aprovar/sempre/
-  **auto por risco** LOW-MED-HIGH), negar com instrução para o modelo corrigir a rota
+  **auto por risco** LOW-MED-HIGH), negar com instrução para o modelo corrigir a rota;
+  `shell_exec` sugere instalar a ferramenta ausente e pede aprovação (`ask_user`)
+  antes de tentar de novo
 - **21 builtin agent tools** — `generate_image`/`generate_video` (mídia inline),
   `code_interpreter`, `shell_exec` + jobs em background, `fetch_url`, `web_search`,
   `file_*` (list/read/grep/glob/write/edit no workspace com diff), `todo_write`,
   `ask_user` (pergunta estruturada mid-run), `delegate_task` (subtarefa navegável),
   `browser_screenshot` (Chrome headless), `n8n_list_workflows`/`n8n_trigger`
 - **Painel Workspace** ao lado do chat — tabs Tasks, Changes (diff git do workspace),
-  Jobs, MCPs e Info/estado da run (padrão Devin/OpenHands)
+  Jobs, MCPs e Info/estado da run (padrão Devin/OpenHands); divisor arrastável
+  redimensiona a largura (persistida no navegador)
 - **Runs pausáveis** — pause/resume cooperativo + chip de estado da run
   (gerando/aguardando aprovação/pausada)
+- **Prompt base injetado** — o servidor prefixa todo payload com um system prompt
+  de qualidade (análise, estrutura, exemplos) antes do system do modelo custom
+- **Slash commands** — `/` no composer lista prompts do workspace + skills e
+  commands descobertos no repo vinculado (`.claude/skills`, `.agents/skills`,
+  `.opencode/...`), com filtro incremental e Envio com o prompt expandido
 - **Terminal embutido** — PTY real via WebSocket + xterm.js (`/terminal`, flag admin)
 - **Automação inbound** — webhooks anônimos `POST /api/v1/hooks/{token}` enfileiram
   runs no chat (n8n, cron, CI); integração n8n admin (listar/disparar workflows)
@@ -66,7 +74,9 @@ mantendo o layout, as funcionalidades e a configuração do original.
 - **Voz** — ditado (STT), leitura de mensagens (TTS) e modo Call via Web Speech API
 - **Automações** — execuções agendadas (intervalo/diário/semanal) + calendário mensal
 - **Auth** — JWT, chaves `sk-*`, OAuth/OIDC (Google/GitHub/Microsoft), SAML, LDAP, SCIM, grupos/RBAC
-- **PWA** — manifest + service worker do shell, instalável e offline-safe
+- **PWA** — manifest + service worker dual-cache: shell network-first (index, i18n,
+  assets mutáveis) + framework cache-first por URL fingerprinted (cap FIFO);
+  instalável e offline-safe
 - **i18n** — 8 locales (pt-BR, en-US, es, fr, de, it, ja, zh) com troca sem reload
 - **Temas** — claro por padrão, seletor claro/escuro/sistema no menu do usuário
 - **Mobile-first** — gaveta flutuante com backdrop (clique fora fecha),
@@ -75,6 +85,9 @@ mantendo o layout, as funcionalidades e a configuração do original.
   analytics, avaliações, leaderboard + Configurações com abas Geral, Providers
   (Ollama/OpenAI-compat add/edit/testar, pull de modelos), Modelos, Recursos, Áudio,
   Retrieval, MCP e Integrações (n8n, webhooks, geração de vídeo, browser_screenshot)
+
+- **Indicador "Pensando"** — 🧠 animado + reticências em ciclo enquanto a run
+  processa (neutralizado por `prefers-reduced-motion`)
 
 Mapa de paridade detalhado: [`docs/MIGRACAO-DOTNET.md`](docs/MIGRACAO-DOTNET.md).
 Arquitetura: [`docs/architecture/architecture.md`](docs/architecture/architecture.md).

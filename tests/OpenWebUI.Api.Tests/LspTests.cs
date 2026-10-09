@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// normalização path↔URI com espaços/unicode e degrade de linguagem sem
 /// binário instalado.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspFramingTests
 {
     [Test]
@@ -96,7 +96,7 @@ public class LspFramingTests
     }
 }
 
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspLanguageMapTests
 {
     [TestCase("src/App.cs", "csharp", "csharp")]
@@ -142,7 +142,7 @@ public class LspLanguageMapTests
     }
 }
 
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspOptionsTests
 {
     [Test]
@@ -183,7 +183,7 @@ public class LspOptionsTests
 /// teste): responde initialize/publishDiagnostics/shutdown e morre quando
 /// recebe a notificação <c>die</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspClientTests
 {
     private string _workdir = null!;
@@ -378,7 +378,7 @@ public class LspClientTests
         """;
 }
 
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspServiceTests
 {
     private string _workdir = null!;
@@ -470,7 +470,7 @@ public class LspServiceTests
     }
 }
 
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class LspResponseTests
 {
     [Test]

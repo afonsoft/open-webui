@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos endpoints utilitários (/api/v1/utils).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class UtilsEndpointsTests
 {
@@ -43,7 +43,7 @@ public class UtilsEndpointsTests
         _client.Dispose();
         _factory.Dispose();
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", null);
-        if (File.Exists(_dbPath)) File.Delete(_dbPath);
+        if (File.Exists(_dbPath)) TestInfra.DeleteDb(_dbPath);
     }
 
     private void UseToken(string token) =>

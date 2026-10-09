@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes do endpoint de analytics (agregações admin-only).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AnalyticsEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -38,7 +38,7 @@ public class AnalyticsEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

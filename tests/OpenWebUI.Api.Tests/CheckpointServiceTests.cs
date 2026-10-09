@@ -24,7 +24,7 @@ namespace OpenWebUI.Api.Tests;
 /// .git + as rotas <c>/api/v1/workspace/repo/checkpoints*</c> (404 sem
 /// repo vinculado, 409 com run ativa, round-trip via endpoint).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class CheckpointServiceTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -57,7 +57,7 @@ public class CheckpointServiceTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
@@ -13,15 +14,29 @@ public class ApiService(HttpClient http, AuthService auth)
     // ---------------- Chats ----------------
 
     /// <summary>Lista os chats do usuário, opcionalmente filtrados por texto.</summary>
-    public async Task<List<ChatSummaryResponse>> GetChatsAsync(string? query = null, bool includeFolders = false)
+    /// <param name="attention">Quando true, só chats aguardando ação do usuário (D2).</param>
+    public async Task<List<ChatSummaryResponse>> GetChatsAsync(
+        string? query = null, bool includeFolders = false, bool attention = false)
     {
         var uri = "/api/v1/chats/?includeFolders=" + (includeFolders ? "true" : "false");
         if (!string.IsNullOrWhiteSpace(query))
         {
             uri += $"&query={Uri.EscapeDataString(query)}";
         }
+        if (attention)
+        {
+            uri += "&attention=1";
+        }
 
         return await SendAsync<List<ChatSummaryResponse>>(HttpMethod.Get, uri) ?? [];
+    }
+
+    /// <summary>Contagem de chats aguardando ação do usuário (D2) — poll leve do badge.</summary>
+    public async Task<int> GetAttentionCountAsync()
+    {
+        var result = await SendAsync<AttentionCountResponse>(
+            HttpMethod.Get, "/api/v1/chats/attention/count");
+        return result?.Count ?? 0;
     }
 
     /// <summary>Lista chats arquivados.</summary>
@@ -160,7 +175,8 @@ public class ApiService(HttpClient http, AuthService auth)
                         chat.TryGetProperty("folderId", out var f) ? f.GetString() : null,
                         [],
                         chat.GetProperty("createdAt").GetInt64(),
-                        chat.GetProperty("updatedAt").GetInt64()));
+                        chat.GetProperty("updatedAt").GetInt64(),
+                        chat.TryGetProperty("awaiting", out var a) && a.GetBoolean()));
                 }
             }
 
@@ -893,6 +909,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> UnbindWorkspaceRepoAsync() =>
         await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
 
+    /// <summary>
+    /// Aplica o diff do worktree da run no workdir compartilhado (E16 S9):
+    /// conflitos voltam listados no response — nunca aplicados à força.
+    /// </summary>
+    public Task<MergeWorktreeResponse?> MergeWorktreeAsync(string runId) =>
+        SendAsync<MergeWorktreeResponse>(HttpMethod.Post,
+            "/api/v1/workspace/repo/merge-worktree", new MergeWorktreeRequest(runId));
+
     // ---------------- Workspace file API + IDE (SPEC-20261009-web-ide-surface) ----------------
 
     /// <summary>Tree lazy do workdir; null em erro/404 (sem repo vinculado).</summary>
@@ -1001,6 +1025,10 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
         SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
 
+    /// <summary>PRs abertos do repo vinculado (SPEC-20261009-pr-ci-panel); null em 404/erro.</summary>
+    public Task<WorkspacePullsResponse?> GetWorkspacePullsAsync() =>
+        SendAsync<WorkspacePullsResponse>(HttpMethod.Get, "/api/v1/workspace/repo/pulls");
+
     // ---------------- Checkpoints do workdir (S6) ----------------
 
     /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>
@@ -1040,6 +1068,30 @@ public class ApiService(HttpClient http, AuthService auth)
     {
         var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/ide/config");
         return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Lê a feature flag do port preview (on por default — E16 D4).</summary>
+    public async Task<bool> GetPreviewEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/preview/config");
+        return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Probe autenticado em <c>/preview/{port}/</c>: devolve o status
+    /// HTTP (qualquer resposta prova que algo escuta na porta) ou null se o
+    /// próprio proxy/host falhou na conexão.</summary>
+    public async Task<HttpStatusCode?> ProbePreviewAsync(int port)
+    {
+        try
+        {
+            using var request = auth.CreateRequest(HttpMethod.Get, $"/preview/{port}/");
+            using var response = await http.SendAsync(request);
+            return response.StatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
     }
 
     // --------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ---------
@@ -1140,6 +1192,22 @@ public class ApiService(HttpClient http, AuthService auth)
 
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
+
+    // ---------------- Feed de notificações (D3) ----------------
+
+    /// <summary>Página do feed in-app; <paramref name="unreadOnly"/> filtra só não-lidas.</summary>
+    public async Task<NotificationPageResponse?> GetNotificationsAsync(
+        int page = 1, bool unreadOnly = false, int pageSize = 20) =>
+        await SendAsync<NotificationPageResponse>(HttpMethod.Get,
+            $"/api/v1/notifications?page={page}&pageSize={pageSize}&unread={(unreadOnly ? "true" : "false")}");
+
+    /// <summary>Marca uma notificação como lida.</summary>
+    public async Task<bool> MarkNotificationReadAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Post, $"/api/v1/notifications/{id}/read");
+
+    /// <summary>Marca todas as notificações do usuário como lidas.</summary>
+    public async Task<bool> MarkAllNotificationsReadAsync() =>
+        await SendStatusAsync(HttpMethod.Post, "/api/v1/notifications/read-all");
 
     // ---------------- Analytics (admin) ----------------
 

@@ -55,6 +55,37 @@ public class ChatStreamServiceTests
     }
 
     [Test]
+    public async Task Stream_DataComJsonNaoObjeto_IgnoraENaoDerruba()
+    {
+        // Gateways podem emitir `data:` com JSON não-objeto (string solta,
+        // número — keepalive/diagnóstico do provider). Indexar JsonValue por
+        // nome lançava InvalidOperationException ("requires an element of
+        // type 'Object'") e o stream morria no meio da resposta.
+        var sse = string.Join('\n',
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Olá\"}}]}",
+            "",
+            "data: \"keepalive\"",
+            "",
+            "data: 42",
+            "",
+            "data: {\"choices\":[{\"delta\":{\"content\":\" mundo\"}}]}",
+            "",
+            "data: [DONE]",
+            "");
+
+        var service = CreateService(sse);
+
+        var deltas = new List<string>();
+        await foreach (var delta in service.StreamCompletionAsync(
+            new OpenWebUI.Application.Contracts.ChatCompletionRequest("m", [])))
+        {
+            deltas.Add(delta);
+        }
+
+        Assert.That(deltas, Is.EqualTo(new[] { "Olá", " mundo" }));
+    }
+
+    [Test]
     public async Task Stream_ChunkDeErro_LancaInvalidOperation()
     {
         var sse = "data: {\"error\":\"provider caiu\"}\n\ndata: [DONE]\n";

@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// <c>E2E_LLM_API_KEY</c> e <c>E2E_LLM_MODEL</c> estão definidas — fora disso a
 /// fixture é ignorada (o gate do workflow <c>chat-e2e.yml</c> ativa via secrets).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [Category("e2e-chat")]
 public class ChatRealE2eTests
 {
@@ -106,7 +106,7 @@ public class ChatRealE2eTests
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", _savedConnStr);
         if (_dbPath is not null && File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

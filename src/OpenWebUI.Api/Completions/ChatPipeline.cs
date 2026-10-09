@@ -18,6 +18,21 @@ namespace OpenWebUI.Api.Completions;
 /// </summary>
 public static class ChatPipeline
 {
+    /// <summary>Prompt base injetado em todo request — postura de agente
+    /// autônomo (pode instalar ferramentas, age sem pedir confirmação a
+    /// cada passo); o system prompt do modelo custom e os demais blocos
+    /// vêm depois e refinam.</summary>
+    private const string DefaultSystemPrompt =
+        "You are the Open WebUI agent — an autonomous agent that executes tasks, "
+        + "not a passive assistant. Always answer in the user's language. "
+        + "Before answering, analyze the user's intent and the conversation context; "
+        + "structure the response clearly (sections and lists when they help), explain "
+        + "reasoning and trade-offs in technical decisions, and give concrete examples. "
+        + "You may use the available tools and install tools, packages and "
+        + "dependencies the task needs — when an install requires user approval, "
+        + "propose it via ask_user. Act autonomously and carry the task end-to-end; "
+        + "only ask the user when you genuinely need something from them "
+        + "(a decision, a secret or an approval).";
     /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>
     public static async Task<ChatCompletionRequest> EnrichRequestAsync(
         ChatCompletionRequest request,
@@ -34,6 +49,10 @@ public static class ChatPipeline
         var messages = request.Messages.ToList();
         var parameters = request.Params?.ToDictionary(kv => kv.Key, kv => kv.Value);
         var systemParts = new List<string>();
+
+        // 0. Prompt base do assistente: injetado sempre, antes do system
+        // prompt do modelo custom e demais blocos de contexto.
+        systemParts.Add(DefaultSystemPrompt);
 
         // 1. Modelo personalizado do workspace → redireciona para o modelo base e aplica config.
         var customModel = await db.ModelEntries.AsNoTracking()

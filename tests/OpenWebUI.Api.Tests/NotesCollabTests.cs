@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// usuário com write grant) propagam ops; read-only é rejeitado;
 /// versão defasada recebe note:rejected com o estado atual.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class NotesCollabTests
 {
@@ -53,7 +53,7 @@ public class NotesCollabTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

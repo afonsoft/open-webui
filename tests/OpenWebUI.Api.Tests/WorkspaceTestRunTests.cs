@@ -17,7 +17,7 @@ namespace OpenWebUI.Api.Tests;
 /// (WorkspaceWrite → comando visível antes de rodar) e ciclo de vida do
 /// job via <c>/api/v1/workspace/repo/test-run</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceTestRunTests
 {
     private string _apiDir = null!;
@@ -170,6 +170,7 @@ public class WorkspaceTestRunTests
     [Test]
     public async Task TestRun_SemAuth_401()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
         var post = await client.PostAsJsonAsync("/api/v1/workspace/repo/test-run",

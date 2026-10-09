@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes da slice automations-calendar: CRUD/ownership, run-now com provedor
 /// mockado, run failed não bloqueando agenda e validação do schedule.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AutomationEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -51,7 +51,7 @@ public class AutomationEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

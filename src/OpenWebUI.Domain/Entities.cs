@@ -1126,6 +1126,36 @@ public class NotificationWebhook
     public long CreatedAt { get; set; }
 }
 
+/// <summary>Notificação persistida do feed in-app (sino) — mesma construção
+/// de título/corpo/link do Web Push, mas navegável sem depender de push
+/// (SPEC-20261009-notification-feed D3).</summary>
+public class Notification
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da notificação (isolamento por usuário).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Tipo/origem do evento (ex.: run.completed, run.failed).</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Título curto exibido na lista.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Corpo/trecho da notificação (opcional).</summary>
+    public string? Body { get; set; }
+
+    /// <summary>Deep-link in-app aberto ao clicar (ex.: /c/{chatId}).</summary>
+    public string? Link { get; set; }
+
+    /// <summary>Leitura (epoch seconds); null = não lida.</summary>
+    public long? ReadAt { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+}
+
 /// <summary>Skill do workspace — conteúdo de instrução anexável a modelos custom
 /// (MetaJson.skill_ids) e injetado no system prompt.</summary>
 public class Skill

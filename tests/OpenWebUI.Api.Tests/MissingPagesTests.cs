@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes das páginas adicionadas na slice missing-pages: POST /api/config
 /// (feature flags admin) e GET /api/v1/evaluations/feedbacks/list com usuário.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class MissingPagesTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -41,7 +41,7 @@ public class MissingPagesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

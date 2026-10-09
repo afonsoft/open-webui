@@ -23,7 +23,7 @@ namespace OpenWebUI.Api.Tests;
 /// (<c>tools/call</c>) roteada pelo <see cref="ToolExecutor"/>.
 /// Usa um server MCP fake sobre streamable HTTP (JSON-RPC puro).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class McpTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -59,7 +59,7 @@ public class McpTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -253,7 +253,7 @@ public class WebLoaderYoutubeTests
         finally
         {
             Environment.SetEnvironmentVariable("ConnectionStrings__Default", old);
-            try { File.Delete(dbPath); }
+            try { TestInfra.DeleteDb(dbPath); }
             catch (IOException) { /* best effort */ }
             catch (UnauthorizedAccessException) { /* best effort */ }
         }

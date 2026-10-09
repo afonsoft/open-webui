@@ -14,10 +14,9 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Cobertura de branches do ProviderService: múltiplas URLs, dedup, erros do provider, timeout, roteamento e payloads de borda.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ProviderServiceTests
 {
-    private readonly MemoryCache mc1 = new(new MemoryCacheOptions());
     private string _dbPath = null!;
     private AppDbContext _db = null!;
     private MemoryCache _cache = null!;
@@ -71,18 +70,20 @@ public class ProviderServiceTests
         _mockCts.Cancel();
         _mock.Stop();
         _cache.Dispose();
-        mc1.Dispose();
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
     private ProviderService NewService() =>
         new(new FakeHttpClientFactory(_clientTimeout), _config,
             NullLogger<ProviderService>.Instance,
-            mc1);
+            // Cache novo por serviço: o cache de modelos (TTL 60s) é chaveado
+            // pelo fingerprint das conexões — compartilhar entre testes faz um
+            // teste ler a resposta em cache de outro.
+            new MemoryCache(new MemoryCacheOptions()));
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>

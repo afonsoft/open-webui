@@ -6,7 +6,7 @@ using OpenWebUI.Infrastructure.Data;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes do baseline de migrações EF Core (SPEC-20261001-ef-migrations).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class MigrationsTests
 {
     private string _dbPath = null!;
@@ -20,7 +20,7 @@ public class MigrationsTests
     {
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

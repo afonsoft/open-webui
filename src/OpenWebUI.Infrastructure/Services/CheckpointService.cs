@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenWebUI.Domain;
 
 namespace OpenWebUI.Infrastructure.Services;
 
@@ -81,7 +82,7 @@ public sealed class CheckpointService(
     /// <summary>Janela para <c>gc --prune</c>; ≤0 dias poda tudo agora.</summary>
     private string PruneWindow => MaxAgeDays <= 0 ? "now" : $"{MaxAgeDays}.days";
 
-    private string DataRoot => Path.Join(env.ContentRootPath, "data", "checkpoints");
+    private string DataRoot => Path.Join(DataPaths.Root(env.ContentRootPath), "checkpoints");
 
     /// <summary>Lock por workdir (padrão opencode <c>locks: Map&lt;string, Semaphore&gt;</c>).</summary>
     public SemaphoreSlim LockFor(string workdir) =>
@@ -317,7 +318,9 @@ public sealed class CheckpointService(
     // ==================== Backend git ====================
 
     private static bool IsGitWorkdir(string workdir) =>
-        Directory.Exists(Path.Join(workdir, ".git"));
+        // Em linked worktrees `.git` é um arquivo apontando pro gitdir real.
+        Directory.Exists(Path.Join(workdir, ".git"))
+        || File.Exists(Path.Join(workdir, ".git"));
 
     private string GitDirFor(string workdir) =>
         Path.Join(DataRoot, "repo", HashPath(workdir));

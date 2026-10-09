@@ -13,7 +13,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos serviços de infraestrutura: providers SSE (Ollama/OpenAI), embeddings+RAG, schedule, JWT, OAuth e tools.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class InfraServicesTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -57,7 +57,7 @@ public class InfraServicesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

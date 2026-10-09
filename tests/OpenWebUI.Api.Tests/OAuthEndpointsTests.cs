@@ -17,7 +17,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes dos endpoints OAuth/OIDC e do OAuthService com provedor mockado.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class OAuthEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -57,7 +57,7 @@ public class OAuthEndpointsTests
         SetEnv("GITHUB_CLIENT_SECRET", "test-gh-secret");
 
         _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-oauth-{Guid.NewGuid():N}.db");
-        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
+        SetEnv("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -87,7 +87,7 @@ public class OAuthEndpointsTests
         }
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -209,7 +209,8 @@ public class OAuthEndpointsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        using var mc4 = new MemoryCache(new MemoryCacheOptions());
+        // Sem `using`: o serviço retornado usa o cache além do fim do método.
+        var mc4 = new MemoryCache(new MemoryCacheOptions());
         return new OAuthService(db, new ConfigService(db, mc4));
     }
 
@@ -218,9 +219,11 @@ public class OAuthEndpointsTests
 
     /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.</summary>
     private sealed class RewriteToMockHandler(Uri mockBase)
-        : DelegatingHandler(SharedInner)
+        : DelegatingHandler(new HttpClientHandler())
     {
-        private static readonly HttpClientHandler SharedInner = new();
+        // Cada instância tem seu próprio inner handler: um handler estático
+        // compartilhado é descartado junto com o primeiro HttpClient (dispose
+        // em cascata) e os testes seguintes falham com ObjectDisposedException.
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken ct)
@@ -607,7 +610,7 @@ public class OAuthEndpointsTests
             Assert.That(empty, Is.EqualTo(string.Empty));
             Assert.That(filled, Is.EqualTo("segredo-x"));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     // ---- OAuthService.LinkOrCreateAsync ----
@@ -632,7 +635,7 @@ public class OAuthEndpointsTests
             Assert.That(await db.Users.CountAsync(), Is.EqualTo(1));
             Assert.That(await db.OAuthAccounts.CountAsync(), Is.EqualTo(1));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(51)]
@@ -666,7 +669,7 @@ public class OAuthEndpointsTests
             Assert.That(account.Provider, Is.EqualTo("oidc"));
             Assert.That(account.Email, Is.EqualTo("exist@b.c"));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(52)]
@@ -687,7 +690,7 @@ public class OAuthEndpointsTests
             Assert.That(user.Name, Is.EqualTo("first@b.c")); // name em branco → e-mail
             Assert.That(user.PasswordHash, Is.EqualTo(string.Empty));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(53)]
@@ -714,6 +717,6 @@ public class OAuthEndpointsTests
         Assert.That(link.NewUser, Is.True);
         var user = await db.Users.FirstAsync(u => u.Email == "p@b.c");
         Assert.That(user.Role, Is.EqualTo(UserRoles.Pending));
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 }

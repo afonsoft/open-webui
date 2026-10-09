@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes dos endpoints de tarefas auxiliares de IA (título, follow-ups, tags, queries) com provedor Ollama mockado.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class TaskEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -51,7 +51,7 @@ public class TaskEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

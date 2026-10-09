@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// descoberta de pipes e roteamento de completions `pipeline:{id}`.
 /// Nenhum código arbitrário executa no servidor — só HTTP.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class PluginEcosystemTests
 {
@@ -64,7 +64,7 @@ public class PluginEcosystemTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

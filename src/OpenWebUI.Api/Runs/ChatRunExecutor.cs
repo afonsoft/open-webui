@@ -27,6 +27,7 @@ public sealed class ChatRunExecutor(
     PipelineClientService pipelines,
     WebSearchService webSearch,
     WorkspaceRepoService repos,
+    WorktreeService worktrees,
     BuiltinToolRegistry builtins,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
@@ -293,15 +294,29 @@ public sealed class ChatRunExecutor(
     /// Contexto das tools built-in da run (SPEC-20261007-chat-agent-tools):
     /// workspace confinado em <c>data/workspaces/{userId}</c> e uploads em
     /// <c>data/uploads/{userId}</c> (mesma raiz das telas de Imagens).
+    /// Com <c>Workspace:RunIsolation=worktree</c> a run ganha um worktree
+    /// isolado (E16 S9) — sem git ele cai em <c>shared</c> com aviso.
     /// </summary>
     private async Task<BuiltinToolContext> BuildToolContextAsync(
-        ChatRun run, User user, CancellationToken ct) => new(
-        user.Id,
-        run.ChatId,
-        run.Id,
+        ChatRun run, User user, CancellationToken ct)
+    {
         // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
-        await repos.ResolveWorkdirAsync(user.Id, ct),
-        Path.Join(env.ContentRootPath, "data", "uploads", user.Id));
+        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var (isolated, warning) = await worktrees.TryCreateForRunAsync(
+            user.Id, run.Id, workdir, ct);
+        if (warning is not null)
+        {
+            // Fallback shared: visível no stream como fase informativa.
+            await PublishPhaseAsync(run, "worktree", warning);
+        }
+
+        return new BuiltinToolContext(
+            user.Id,
+            run.ChatId,
+            run.Id,
+            isolated ?? workdir,
+            Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id));
+    }
 
     /// <summary>apply_patch pode chegar como builtin por nome legado — cobre o nome cru.</summary>
     private static bool IsApplyPatch(string name) =>
@@ -351,8 +366,10 @@ public sealed class ChatRunExecutor(
             broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
         }
 
-        // file_write/file_edit acumulam o diff por path e publicam o
-        // snapshot `changes` (RF-015) — aba Changes do painel lateral.
+        // file_write/file_edit (path único) e apply_patch (files[])
+        // acumulam o diff por path e publicam o snapshot `changes`
+        // (RF-015) — aba Changes do painel lateral.
+        var changesTouched = false;
         if (result is { } chg && chg.ValueKind == JsonValueKind.Object
             && chg.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String
             && chg.TryGetProperty("added", out var a) && a.ValueKind == JsonValueKind.Number
@@ -363,6 +380,30 @@ public sealed class ChatRunExecutor(
                 : null;
             _changes[p.GetString()!] = new RunChangeItem(
                 p.GetString()!, a.GetInt32(), r.GetInt32(), diff);
+            changesTouched = true;
+        }
+        if (result is { } chgFiles && chgFiles.ValueKind == JsonValueKind.Object
+            && chgFiles.TryGetProperty("files", out var files)
+            && files.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var f in files.EnumerateArray())
+            {
+                if (f.TryGetProperty("path", out var fp) && fp.ValueKind == JsonValueKind.String
+                    && f.TryGetProperty("added", out var fa) && fa.ValueKind == JsonValueKind.Number
+                    && f.TryGetProperty("removed", out var fr) && fr.ValueKind == JsonValueKind.Number)
+                {
+                    var fdiff = f.TryGetProperty("diff", out var fd)
+                        && fd.ValueKind == JsonValueKind.String
+                        ? Truncate(fd.GetString()!, ChangeDiffChars)
+                        : null;
+                    _changes[fp.GetString()!] = new RunChangeItem(
+                        fp.GetString()!, fa.GetInt32(), fr.GetInt32(), fdiff);
+                    changesTouched = true;
+                }
+            }
+        }
+        if (changesTouched)
+        {
             broadcaster.Publish(run.Id,
                 $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
         }
@@ -448,7 +489,7 @@ public sealed class ChatRunExecutor(
                 // tiers, mas mutações de arquivo caem na pergunta —
                 // "executa sem aprovação, com restrição em alterações".
                 var workspace = Path.Join(
-                    env.ContentRootPath, "data", "workspaces", run.UserId);
+                    DataPaths.Root(env.ContentRootPath), "workspaces", run.UserId);
                 var risk = ToolCallRiskClassifier.Classify(
                     tool, call.ArgumentsJson, workspace);
                 var fileMutation = risk == ToolCallRisk.Medium

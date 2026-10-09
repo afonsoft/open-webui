@@ -19,7 +19,7 @@ namespace OpenWebUI.Api.Tests;
 /// sweep de runs órfãs, stop de run finalizada e envio real do
 /// <c>WebPushSender</c> contra um push service mock (HttpListener).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RunCoverageTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -57,7 +57,7 @@ public class RunCoverageTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
