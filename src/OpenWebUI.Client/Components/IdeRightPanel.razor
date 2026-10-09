@@ -98,6 +98,11 @@
                 </div>
                 break;
 
+            case "pulls":
+                @* PRs abertos do repo vinculado + rollup de checks (D1). *@
+                <WorkspacePullsPanel />
+                break;
+
             case "tests":
                 <IdeTestsPanel />
                 break;
@@ -157,8 +162,8 @@
     private Dictionary<string, string>? _gitDiffByFile;
 
     private IEnumerable<string> Tabs => _terminalEnabled
-        ? ["chat", "changes", "tests", "terminal", "jobs"]
-        : ["chat", "changes", "tests", "jobs"];
+        ? ["chat", "changes", "pulls", "tests", "terminal", "jobs"]
+        : ["chat", "changes", "pulls", "tests", "jobs"];
 
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
@@ -197,6 +202,7 @@
     {
         "chat" => L["ide.tab_chat"],
         "changes" => L["chat.panel_tab_changes"],
+        "pulls" => L["chat.panel_tab_pulls"],
         "terminal" => L["chat.panel_tab_terminal"],
         "jobs" => L["chat.panel_tab_jobs"],
         "tests" => L["chat.panel_tab_tests"],

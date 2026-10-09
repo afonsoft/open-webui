@@ -27,6 +27,7 @@ public static class GitHubEndpoints
         wrepo.MapGet("/", GetBindingAsync);
         wrepo.MapPost("/open", OpenRepoAsync);
         wrepo.MapDelete("/", UnbindRepoAsync);
+        wrepo.MapGet("/pulls", ListPullsAsync);
     }
 
     private static async Task<IResult> GetConfigAsync(
@@ -164,5 +165,36 @@ public static class GitHubEndpoints
 
         await repos.UnbindAsync(user.Id, ct);
         return Results.Ok(new StatusResponse(true));
+    }
+
+    /// <summary>
+    /// PRs abertos do repo vinculado + rollup de checks (SPEC-20261009-pr-ci-panel):
+    /// 404 sem binding; <c>github:false/needsToken</c> sem PAT válido — nunca 500
+    /// por token ausente ou indisponibilidade do GitHub.
+    /// </summary>
+    private static async Task<IResult> ListPullsAsync(
+        HttpContext http, AppDbContext db,
+        WorkspaceRepoService repos, GitHubService github, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var binding = await repos.GetBindingAsync(user.Id, ct);
+        if (binding is null)
+        {
+            return Results.NotFound(new { detail = "Nenhum repositório vinculado ao workspace." });
+        }
+
+        var parts = binding.Repo.Split('/', 2);
+        if (parts.Length != 2)
+        {
+            return Results.NotFound(new { detail = "Binding de repositório inválido." });
+        }
+
+        var pulls = await github.ListPullRequestsAsync(user.Id, parts[0], parts[1], ct);
+        return Results.Ok(pulls ?? new WorkspacePullsResponse(false, false, []));
     }
 }
