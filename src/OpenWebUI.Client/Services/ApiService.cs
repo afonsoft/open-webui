@@ -1001,6 +1001,40 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
         SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
 
+    // ---------------- Checkpoints do workdir (S6) ----------------
+
+    /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>
+    public async Task<IReadOnlyList<WorkspaceCheckpointItem>> GetCheckpointsAsync() =>
+        await SendAsync<List<WorkspaceCheckpointItem>>(
+            HttpMethod.Get, "/api/v1/workspace/repo/checkpoints") ?? [];
+
+    /// <summary>Detalhe do checkpoint: arquivos cobertos + diff de preview.</summary>
+    public Task<WorkspaceCheckpointDetailResponse?> GetCheckpointAsync(string hash) =>
+        SendAsync<WorkspaceCheckpointDetailResponse>(
+            HttpMethod.Get,
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}");
+
+    /// <summary>
+    /// Reverte o workdir ao checkpoint. Devolve o resultado (reverted/
+    /// conflicts) ou <c>(null, 409)</c> quando há run ativa no workspace.
+    /// </summary>
+    public async Task<(WorkspaceCheckpointRevertResponse? Result, int Status)> RevertCheckpointAsync(
+        string hash, bool force = false)
+    {
+        using var request = auth.CreateRequest(
+            HttpMethod.Post,
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}/revert");
+        request.Content = JsonContent.Create(
+            new WorkspaceCheckpointRevertRequest(force), options: JsonOptions);
+        using var response = await http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return (null, (int)response.StatusCode);
+        }
+        return (await response.Content
+            .ReadFromJsonAsync<WorkspaceCheckpointRevertResponse>(JsonOptions), 200);
+    }
+
     /// <summary>Lê a feature flag da superfície /ide (on por default).</summary>
     public async Task<bool> GetIdeEnabledAsync()
     {

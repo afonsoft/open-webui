@@ -126,6 +126,15 @@ public sealed record RunChangeItem(
 public sealed record RunChangesEvent(IReadOnlyList<RunChangeItem> Changes);
 
 /// <summary>
+/// Evento SSE <c>checkpoint</c> (SPEC-20261009-checkpoints-revert RF-001):
+/// snapshot imutável do workdir criado antes da run (turn 0) e após cada
+/// tool mutável — <paramref name="Hash"/> identifica o commit na ref
+/// oculta do snapshot e alimenta o botão Revert da aba Changes.
+/// </summary>
+public sealed record RunCheckpointEvent(
+    string Hash, IReadOnlyList<string> Files, int Turn);
+
+/// <summary>
 /// Projeção de um <c>ChatJob</c> para o cliente (lista da aba Jobs do
 /// painel, <c>GET /api/v1/jobs</c>).
 /// </summary>

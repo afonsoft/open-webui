@@ -1,0 +1,128 @@
+@inject ApiService Api
+@inject DialogService Dialogs
+@inject ToastService Toast
+@inject LocalizationService L
+
+@* Lista de checkpoints do workdir (SPEC-20261009-checkpoints-revert RF-003):
+   um botão Revert por snapshot — confirm modal mostra os arquivos que o
+   revert tocaria (+ diff truncado quando o backend é git), conflitos de
+   drift pedem o force explícito, 409 = run ativa no workspace. *@
+
+@if (Checkpoints.Count > 0)
+{
+    <div class="mb-1.5 rounded-lg border border-gray-100 dark:border-gray-800">
+        <div class="px-2 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            @L["chat.checkpoints"]
+        </div>
+        <ul class="flex flex-col">
+            @foreach (var cp in Checkpoints)
+            {
+                <li class="flex items-center gap-2 px-2 py-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 flex-none text-gray-400">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-700 dark:text-gray-300" title="@cp.Hash">
+                        @cp.Hash[..Math.Min(10, cp.Hash.Length)]
+                        <span class="text-gray-400 dark:text-gray-500">· @L.T("chat.checkpoint_turn", ("turn", cp.Turn.ToString()))</span>
+                    </span>
+                    <button class="flex-none cursor-pointer rounded-md px-1.5 py-0.5 text-[0.625rem] font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 disabled:opacity-40"
+                            disabled="@_busy"
+                            title="@L["chat.revert"]" aria-label="@L["chat.revert"]"
+                            @onclick="() => RevertAsync(cp.Hash)">
+                        @L["chat.revert"]
+                    </button>
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    /// <summary>Checkpoints do workdir (mais novo primeiro).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<WorkspaceCheckpointItem> Checkpoints { get; set; } = [];
+
+    /// <summary>Disparado após um revert bem-sucedido (pai recarrega git/árvore).</summary>
+    [Parameter] public EventCallback OnReverted { get; set; }
+
+    /// <summary>Limite do diff embutido no confirm (o detalhe vem truncado a 64 KB).</summary>
+    private const int ConfirmDiffChars = 2000;
+
+    private bool _busy;
+
+    private async Task RevertAsync(string hash)
+    {
+        if (_busy)
+        {
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var detail = await Api.GetCheckpointAsync(hash);
+            var files = detail?.Files ?? [];
+            var shortHash = hash[..Math.Min(10, hash.Length)];
+            var message = L.T("chat.revert_confirm",
+                ("count", files.Count.ToString()), ("hash", shortHash));
+            if (files.Count > 0)
+            {
+                message += "\n\n" + string.Join("\n", files.Take(20))
+                    + (files.Count > 20 ? $"\n… +{files.Count - 20}" : string.Empty);
+            }
+            if (detail?.Diff is { Length: > 0 } diff)
+            {
+                message += "\n\n" + (diff.Length > ConfirmDiffChars
+                    ? diff[..ConfirmDiffChars] + "\n…" : diff);
+            }
+            if (!await Dialogs.ConfirmAsync(message, danger: true))
+            {
+                return;
+            }
+
+            var (result, status) = await Api.RevertCheckpointAsync(hash);
+            if (status == 409)
+            {
+                Toast.Show(L["chat.revert_blocked"], ToastType.Warning);
+                return;
+            }
+            if (result is null)
+            {
+                Toast.Show(L["chat.revert_failed"], ToastType.Error);
+                return;
+            }
+            if (result.Conflicts.Count > 0)
+            {
+                var force = await Dialogs.ConfirmAsync(
+                    L.T("chat.revert_force_confirm", ("count", result.Conflicts.Count.ToString()))
+                        + "\n\n" + string.Join("\n", result.Conflicts.Take(20)),
+                    danger: true);
+                if (!force)
+                {
+                    return;
+                }
+                (result, status) = await Api.RevertCheckpointAsync(hash, force: true);
+                if (status == 409)
+                {
+                    Toast.Show(L["chat.revert_blocked"], ToastType.Warning);
+                    return;
+                }
+                if (result is null)
+                {
+                    Toast.Show(L["chat.revert_failed"], ToastType.Error);
+                    return;
+                }
+            }
+
+            Toast.Show(
+                result.Conflicts.Count > 0
+                    ? L.T("chat.reverted_conflicts",
+                        ("count", result.Reverted.Count.ToString()), ("conflicts", result.Conflicts.Count.ToString()))
+                    : L.T("chat.reverted", ("count", result.Reverted.Count.ToString())),
+                result.Conflicts.Count > 0 ? ToastType.Warning : ToastType.Success);
+            await OnReverted.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
