@@ -26,6 +26,13 @@
                     <img src="favicon.png" class="size-5 rounded-full" alt="Open WebUI" />
                 </div>
             </button>
+            @* Expandir no topo também — o botão do rodapé fica fora da tela
+               em janelas altas (o usuário não o enxergava). *@
+            <button class="flex size-8.5 items-center justify-center transition group cursor-pointer" title="@L["sidebar.expand"]" aria-label="@L["sidebar.expand"]" @onclick="() => _collapsed = false">
+                <div class="self-center flex size-[30px] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                </div>
+            </button>
             <NotificationBell MenuClass="left-0" />
             <AttentionBadge Count="Attention.Count" Active="Attention.FilterActive" OnClick="OpenAttentionFromRail" />
         </div>
