@@ -34,6 +34,7 @@ public static class WorkspaceFileEndpoints
         repo.MapPost("/mkdir", MkdirAsync);
         repo.MapPost("/rename", RenameAsync);
         repo.MapPost("/delete", DeleteAsync);
+        repo.MapGet("/git", GitAsync);
     }
 
     /// <summary>Guard comum: usuário autenticado + repo vinculado → workdir.</summary>
@@ -60,6 +61,29 @@ public static class WorkspaceFileEndpoints
 
     private static IResult NotFoundResult() =>
         Results.NotFound(new { ok = false, error = "Caminho não encontrado." });
+
+    // ---------- GET /git ----------
+
+    /// <summary>Snapshot git do workdir (S2: aba Changes do /ide — mesma
+    /// carga de <c>GET /chats/{id}/runs/{runId}/diff</c>, sem run).</summary>
+    private static async Task<IResult> GitAsync(
+        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        WorkspaceGitService git, CancellationToken ct)
+    {
+        var (_, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        if (reject is not null)
+        {
+            return reject;
+        }
+        var workdir = w!;
+
+        var info = await git.GetInfoAsync(workdir, ct);
+        return Results.Ok(new WorkspaceGitResponse(
+            info.IsRepo, info.Branch, info.Added, info.Removed,
+            info.Files.Select(f => new WorkspaceGitFileResponse(
+                f.Path, f.Added, f.Removed, f.Status)).ToList(),
+            info.Diff, info.DiffTruncated));
+    }
 
     // ---------- GET /tree ----------
 

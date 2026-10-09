@@ -399,6 +399,76 @@ public class WorkspaceFileEndpointsTests
         }
     }
 
+    // ---------- S2: GET /workspace/repo/git + /api/v1/ide/config ----------
+
+    [Test]
+    public async Task Git_SemAuth_401_E_SemBinding_404()
+    {
+        using var factory = new WebApplicationFactory<Program>();
+        using var anon = factory.CreateClient();
+        var unauth = await anon.GetAsync("/api/v1/workspace/repo/git");
+        Assert.That(unauth.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
+        using var ctx = await NewAppAsync(bound: false);
+        var res = await ctx.Client.GetAsync("/api/v1/workspace/repo/git");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.That(body.GetProperty("bound").GetBoolean(), Is.False);
+    }
+
+    [Test]
+    public async Task Git_RepoVinculado_RetornaSnapshot()
+    {
+        using var ctx = await NewAppAsync(bound: true);
+        var res = await ctx.Client.GetAsync("/api/v1/workspace/repo/git");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var body = await res.Content.ReadFromJsonAsync<WorkspaceGitResponse>();
+        Assert.That(body, Is.Not.Null);
+        // O workdir semeado tem .git vazio → IsRepo true (repo existe, sem diff).
+        Assert.That(body!.Git, Is.True);
+    }
+
+    [Test]
+    public async Task IdeConfig_SemAuth_401_E_DefaultOn()
+    {
+        using var factory = new WebApplicationFactory<Program>();
+        using var anon = factory.CreateClient();
+        var unauth = await anon.GetAsync("/api/v1/ide/config");
+        Assert.That(unauth.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+
+        using var ctx = await NewAppAsync(bound: false);
+        var res = await ctx.Client.GetAsync("/api/v1/ide/config");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.That(body.GetProperty("enabled").GetBoolean(), Is.True);
+
+        // O primeiro signup vira admin — pra exercitar o gate admin-only,
+        // abaixa o DefaultUserRole e cria um segundo usuário (role "user").
+        var cfg = await ctx.Client.PostAsJsonAsync("/api/v1/auths/admin/config",
+            AdminConfig.Default with { DefaultUserRole = "user" });
+        Assert.That(cfg.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var previousAuth = ctx.Client.DefaultRequestHeaders.Authorization;
+        ctx.Client.DefaultRequestHeaders.Authorization = null;
+        try
+        {
+            var tag2 = Guid.NewGuid().ToString("N")[..6];
+            var signup2 = await ctx.Client.PostAsJsonAsync(
+                "/api/v1/auths/signup", new SignUpRequest($"W2{tag2}", $"w2{tag2}@wf.local", "senha123"));
+            Assert.That(signup2.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            var auth2 = (await signup2.Content.ReadFromJsonAsync<AuthResponse>())!;
+
+            ctx.Client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", auth2.Token);
+            var put = await ctx.Client.PutAsJsonAsync("/api/v1/ide/config", new { enabled = false });
+            Assert.That(put.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+        }
+        finally
+        {
+            ctx.Client.DefaultRequestHeaders.Authorization = previousAuth;
+        }
+    }
+
     // ---------- fixture helpers ----------
 
     private sealed class Ctx : IDisposable
