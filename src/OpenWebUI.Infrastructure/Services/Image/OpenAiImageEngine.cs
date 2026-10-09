@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -79,10 +80,10 @@ public sealed class OpenAiImageEngine(IHttpClientFactory httpClientFactory) : Im
             await GetJsonAsync(config, $"{Base(config)}/models", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 
     private async Task<byte[]?> ResolveBytesAsync(JsonNode? item, ImagesConfig config, CancellationToken ct)

@@ -120,16 +120,15 @@ public static class ChannelEndpoints
             ChannelId = channel.Id, UserId = user.Id, Role = "admin", CreatedAt = now,
         });
 
-        foreach (var memberId in (request.MemberIds ?? [])
-                 .Where(id => id != user.Id).Distinct())
+        var wantedIds = (request.MemberIds ?? []).Where(id => id != user.Id).Distinct().ToList();
+        var validIds = await db.Users.AsNoTracking()
+            .Where(u => wantedIds.Contains(u.Id)).Select(u => u.Id).ToListAsync(ct);
+        foreach (var memberId in validIds)
         {
-            if (await db.Users.AnyAsync(u => u.Id == memberId, ct))
+            channel.Members.Add(new ChannelMember
             {
-                channel.Members.Add(new ChannelMember
-                {
-                    ChannelId = channel.Id, UserId = memberId, CreatedAt = now,
-                });
-            }
+                ChannelId = channel.Id, UserId = memberId, CreatedAt = now,
+            });
         }
 
         db.Channels.Add(channel);

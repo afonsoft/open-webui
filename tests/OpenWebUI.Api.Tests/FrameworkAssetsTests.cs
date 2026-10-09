@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// binários de _framework, para proxies corporativos que bloqueiam downloads
 /// por extensão (.dat/.wasm/...) ou inspecionam payloads binários.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class FrameworkAssetsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -21,7 +21,7 @@ public class FrameworkAssetsTests
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-fwassets-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-fwassets-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient(); // anônimo — deve servir antes do login
@@ -34,7 +34,7 @@ public class FrameworkAssetsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -92,7 +92,6 @@ public class FrameworkAssetsTests
     {
         // O body base64 deve decodificar byte a byte para o arquivo real, para o
         // check SHA-256 do cliente bater com o hash de integridade do boot.
-        var env = _factory.Services.GetRequiredService<IWebHostEnvironment>();
         var file = PickAsset(".dat");
         var (stem, ext) = Split(file.Name);
 

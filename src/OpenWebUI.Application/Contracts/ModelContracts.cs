@@ -36,4 +36,6 @@ public sealed record ChatCompletionRequest(
     IReadOnlyDictionary<string, object>? Params = null,
     IReadOnlyList<string>? ToolIds = null,
     IReadOnlyList<System.Text.Json.JsonElement>? Tools = null,
-    bool? WebSearch = null);
+    bool? WebSearch = null,
+    /// <summary>Caminhos do workdir mencionados via chips @path (SPEC-20261009-ide-mentions-tests).</summary>
+    IReadOnlyList<string>? MentionPaths = null);

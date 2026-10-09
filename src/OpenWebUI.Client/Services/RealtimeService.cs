@@ -125,6 +125,7 @@ public class RealtimeService : IAsyncDisposable
             }
             catch (Exception)
             {
+                // Hub indisponível — join é best-effort.
             }
         }
     }
@@ -141,6 +142,7 @@ public class RealtimeService : IAsyncDisposable
             }
             catch (Exception)
             {
+                // Hub indisponível — saída é best-effort.
             }
         }
     }
@@ -195,6 +197,7 @@ public class RealtimeService : IAsyncDisposable
             }
             catch (Exception)
             {
+                // Hub indisponível — broadcast é best-effort.
             }
         }
     }
@@ -207,10 +210,12 @@ public class RealtimeService : IAsyncDisposable
         {
             try
             {
+                // Hub indisponível — typing é best-effort.
                 await _connection!.InvokeAsync("Typing", channelId);
             }
             catch (Exception)
             {
+                // Hub indisponível — typing é best-effort.
             }
         }
     }

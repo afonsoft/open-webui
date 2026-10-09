@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes dos endpoints de modelos custom (CRUD, import/export, /api/models com provider mock).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ModelEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -22,7 +22,7 @@ public class ModelEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-models-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-models-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -48,7 +48,7 @@ public class ModelEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

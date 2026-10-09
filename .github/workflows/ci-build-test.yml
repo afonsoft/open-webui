@@ -117,8 +117,9 @@ jobs:
           rows.append(f"| **Total** | **{line:.1f}%** | **{branch:.1f}%** |")
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f: f.write('\n'.join(rows)+'\n')
           ok = True
-          if line < lb: print(f"::error::Line coverage {line:.2f}% < baseline {lb}%"); ok = False
-          if branch < bb: print(f"::error::Branch coverage {branch:.2f}% < baseline {bb}%"); ok = False
+          TOL = 0.05  # banda de variância de medição entre runs idênticas (±0.04 observado)
+          if line < lb - TOL: print(f"::error::Line coverage {line:.2f}% < baseline {lb}%"); ok = False
+          if branch < bb - TOL: print(f"::error::Branch coverage {branch:.2f}% < baseline {bb}%"); ok = False
           sys.exit(0 if ok else 1)
           PY
           echo "Coverage gate passed (line + branch)."
@@ -175,6 +176,15 @@ jobs:
           fi
           echo "Blazor WASM assets gerados com sucesso: $(basename "$app_wasm")"
           echo "payloads em _framework: $(ls "$fw" | wc -l)"
+
+      # Drift guards do E13: classes CSS inexistentes, controles de
+      # formulário sem nome acessível e chaves i18n sem paridade nos 8
+      # locales. Falha em qualquer um quebra o job (SPEC-20261008-ci-tool-guards).
+      - name: Drift guards (css-classes, form-a11y, i18n-parity)
+        run: |
+          python3 tools/check-css-classes.py
+          python3 tools/check-form-a11y.py
+          python3 tools/check-i18n-parity.py
 
   # Hard rule do repo: tailwind.css é artefato gerado e commitado junto das
   # mudanças de classe nos .razor — este job pega o esquecimento no diff.

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -58,38 +59,32 @@ public sealed class BrowserScreenshotService(
             return Cache(configured);
         }
 
-        foreach (var name in PathCandidates)
+        var found = PathCandidates.Select(FindOnPath).FirstOrDefault(p => p is not null);
+        if (found is not null)
         {
-            var found = FindOnPath(name);
-            if (found is not null)
-            {
-                return Cache(found);
-            }
+            return Cache(found);
         }
 
         // Cache do Playwright: ~/.cache/ms-playwright/<browser>-*/... — pega
         // a revisão mais recente (ordenação desc por nome do diretório).
-        var playwrightRoot = Path.Combine(
+        var playwrightRoot = Path.Join(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".cache", "ms-playwright");
         if (Directory.Exists(playwrightRoot))
         {
-            foreach (var dir in Directory.GetDirectories(playwrightRoot)
-                         .OrderByDescending(d => d, StringComparer.Ordinal))
+            string[] rels =
+            [
+                Path.Join("chrome-linux", "headless_shell"),
+                Path.Join("chrome-linux", "chrome"),
+                Path.Join("chrome-linux64", "chrome"),
+            ];
+            var candidate = Directory.GetDirectories(playwrightRoot)
+                .OrderByDescending(d => d, StringComparer.Ordinal)
+                .SelectMany(dir => rels.Select(rel => Path.Join(dir, rel)))
+                .FirstOrDefault(File.Exists);
+            if (candidate is not null)
             {
-                foreach (var rel in new[]
-                         {
-                             Path.Combine("chrome-linux", "headless_shell"),
-                             Path.Combine("chrome-linux", "chrome"),
-                             Path.Combine("chrome-linux64", "chrome"),
-                         })
-                {
-                    var candidate = Path.Combine(dir, rel);
-                    if (File.Exists(candidate))
-                    {
-                        return Cache(candidate);
-                    }
-                }
+                return Cache(candidate);
             }
         }
 
@@ -121,7 +116,7 @@ public sealed class BrowserScreenshotService(
         width = Math.Clamp(width, MinDimension, MaxDimension);
         height = Math.Clamp(height, MinDimension, MaxDimension);
 
-        var output = Path.Combine(
+        var output = Path.Join(
             Path.GetTempPath(), $"webui-shot-{Guid.NewGuid():N}.png");
         try
         {
@@ -154,7 +149,10 @@ public sealed class BrowserScreenshotService(
             }
             catch (TimeoutException)
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { /* processo já saiu */ }
+                catch (Win32Exception) { /* processo já saiu */ }
+                catch (NotSupportedException) { /* plataforma sem kill-tree */ }
                 throw new InvalidOperationException(
                     $"Browser headless excedeu {ProcessTimeout.TotalSeconds}s sem responder.");
             }
@@ -171,7 +169,9 @@ public sealed class BrowserScreenshotService(
         }
         finally
         {
-            try { File.Delete(output); } catch { /* best effort */ }
+            try { File.Delete(output); }
+            catch (IOException) { /* best effort */ }
+            catch (UnauthorizedAccessException) { /* best effort */ }
         }
     }
 
@@ -190,7 +190,7 @@ public sealed class BrowserScreenshotService(
                 continue;
             }
 
-            var candidate = Path.Combine(dir, name);
+            var candidate = Path.Join(dir, name);
             if (File.Exists(candidate))
             {
                 return candidate;

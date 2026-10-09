@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -40,7 +41,9 @@ public sealed class WorkspaceGitService
     /// </summary>
     public async Task<GitWorkspaceInfo> GetInfoAsync(string workdir, CancellationToken ct)
     {
-        if (!Directory.Exists(Path.Combine(workdir, ".git")))
+        // `.git` pode ser ARQUIVO (worktree ligado → aponta pro gitdir real).
+        if (!Directory.Exists(Path.Join(workdir, ".git"))
+            && !File.Exists(Path.Join(workdir, ".git")))
         {
             return Empty;
         }
@@ -57,13 +60,10 @@ public sealed class WorkspaceGitService
             workdir, ct, "diff", "HEAD", "--numstat", "--no-renames") ?? string.Empty;
         var added = 0;
         var removed = 0;
-        foreach (var line in numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var parts in numstat.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(line => line.Split('\t'))
+                     .Where(p => p.Length >= 3))
         {
-            var parts = line.Split('\t');
-            if (parts.Length < 3)
-            {
-                continue;
-            }
 
             var a = int.TryParse(parts[0], out var av) ? av : 0; // "-" = binário
             var r = int.TryParse(parts[1], out var rv) ? rv : 0;
@@ -94,7 +94,7 @@ public sealed class WorkspaceGitService
                 continue;
             }
 
-            var a = CountLines(Path.Combine(workdir, path));
+            var a = CountLines(Path.Join(workdir, path));
             added += a;
             files.Add(new GitChangedFile(path, a, 0, "A"));
         }
@@ -136,7 +136,11 @@ public sealed class WorkspaceGitService
             }
             return count;
         }
-        catch
+        catch (IOException)
+        {
+            return 0;
+        }
+        catch (UnauthorizedAccessException)
         {
             return 0;
         }
@@ -180,9 +184,10 @@ public sealed class WorkspaceGitService
         {
             throw; // cancelamento do request propaga, não vira "sem git"
         }
-        catch
-        {
-            return null; // git ausente, timeout ou spawn falhou
-        }
+        catch (Win32Exception) { return null; }
+        catch (ObjectDisposedException) { return null; }
+        catch (InvalidOperationException) { return null; }
+        catch (IOException) { return null; }
+        catch (TimeoutException) { return null; }
     }
 }

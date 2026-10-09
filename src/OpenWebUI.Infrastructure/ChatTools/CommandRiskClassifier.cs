@@ -64,7 +64,8 @@ public static class CommandRiskClassifier
     private static readonly HashSet<string> WriteBinaries = new(StringComparer.Ordinal)
     {
         "touch", "mkdir", "rmdir", "cp", "mv", "ln", "tee", "echo", "printf",
-        "npm", "yarn", "pnpm", "dotnet", "make", "cmake", "cargo", "go",
+        "npm", "yarn", "pnpm", "bun", "dotnet", "make", "cmake", "cargo", "go",
+        "pytest",
         "tar", "zip", "unzip", "gzip", "gunzip", "rm"
     };
 
@@ -89,16 +90,9 @@ public static class CommandRiskClassifier
             return new(CommandRiskLevel.Dangerous, "Comando não parseável — fail-closed.");
         }
 
-        foreach (var segment in segments)
-        {
-            var assessment = ClassifySegment(segment, workspacePath);
-            if (assessment.Level > worst.Level)
-            {
-                worst = assessment;
-            }
-        }
-
-        return worst;
+        return segments
+            .Select(segment => ClassifySegment(segment, workspacePath))
+            .Aggregate(worst, (w, a) => a.Level > w.Level ? a : w);
     }
 
     private static CommandRiskAssessment ClassifySegment(
@@ -340,7 +334,15 @@ public static class CommandRiskClassifier
             var full = Path.GetFullPath(arg, workspacePath);
             return PathInside(workspacePath, full);
         }
-        catch
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (PathTooLongException)
         {
             return false;
         }

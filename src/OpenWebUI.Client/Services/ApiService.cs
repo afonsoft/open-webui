@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
@@ -13,15 +14,29 @@ public class ApiService(HttpClient http, AuthService auth)
     // ---------------- Chats ----------------
 
     /// <summary>Lista os chats do usuário, opcionalmente filtrados por texto.</summary>
-    public async Task<List<ChatSummaryResponse>> GetChatsAsync(string? query = null, bool includeFolders = false)
+    /// <param name="attention">Quando true, só chats aguardando ação do usuário (D2).</param>
+    public async Task<List<ChatSummaryResponse>> GetChatsAsync(
+        string? query = null, bool includeFolders = false, bool attention = false)
     {
         var uri = "/api/v1/chats/?includeFolders=" + (includeFolders ? "true" : "false");
         if (!string.IsNullOrWhiteSpace(query))
         {
             uri += $"&query={Uri.EscapeDataString(query)}";
         }
+        if (attention)
+        {
+            uri += "&attention=1";
+        }
 
         return await SendAsync<List<ChatSummaryResponse>>(HttpMethod.Get, uri) ?? [];
+    }
+
+    /// <summary>Contagem de chats aguardando ação do usuário (D2) — poll leve do badge.</summary>
+    public async Task<int> GetAttentionCountAsync()
+    {
+        var result = await SendAsync<AttentionCountResponse>(
+            HttpMethod.Get, "/api/v1/chats/attention/count");
+        return result?.Count ?? 0;
     }
 
     /// <summary>Lista chats arquivados.</summary>
@@ -72,9 +87,10 @@ public class ApiService(HttpClient http, AuthService auth)
     /// (rename leve, sem enviar o chat inteiro).
     /// </summary>
     public Task<ChatResponse?> PatchChatAsync(
-        string id, string? approvalPreset = null, string? title = null) =>
+        string id, string? approvalPreset = null, string? title = null,
+        string? mode = null) =>
         SendAsync<ChatResponse>(HttpMethod.Patch,
-            $"/api/v1/chats/{id}", new ChatPatchRequest(approvalPreset, title));
+            $"/api/v1/chats/{id}", new ChatPatchRequest(approvalPreset, title, mode));
 
     /// <summary>Alterna o estado de fixado de um chat.</summary>
     public Task<ChatResponse?> TogglePinChatAsync(string id) =>
@@ -159,7 +175,8 @@ public class ApiService(HttpClient http, AuthService auth)
                         chat.TryGetProperty("folderId", out var f) ? f.GetString() : null,
                         [],
                         chat.GetProperty("createdAt").GetInt64(),
-                        chat.GetProperty("updatedAt").GetInt64()));
+                        chat.GetProperty("updatedAt").GetInt64(),
+                        chat.TryGetProperty("awaiting", out var a) && a.GetBoolean()));
                 }
             }
 
@@ -855,6 +872,296 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<AdminConfig?> UpdateAppConfigAsync(AdminConfig config) =>
         SendAsync<AdminConfig>(HttpMethod.Post, "/api/config", config);
 
+    // ---------------- GitHub / workspace repo ----------------
+
+    /// <summary>Status da integração GitHub do usuário (token mascarado).</summary>
+    public Task<GitHubConfigResponse?> GetGitHubConfigAsync() =>
+        SendAsync<GitHubConfigResponse>(HttpMethod.Get, "/api/v1/github/config");
+
+    /// <summary>Valida e salva o PAT do usuário; null em token inválido.</summary>
+    public Task<GitHubConfigResponse?> SetGitHubTokenAsync(string token) =>
+        SendAsync<GitHubConfigResponse>(HttpMethod.Put, "/api/v1/github/config",
+            new GitHubTokenRequest(token));
+
+    /// <summary>Remove o PAT do usuário.</summary>
+    public async Task<bool> ClearGitHubTokenAsync() =>
+        await SendStatusAsync(HttpMethod.Delete, "/api/v1/github/config");
+
+    /// <summary>Repositórios do usuário (precisa de PAT configurado).</summary>
+    public async Task<List<GitHubRepoResponse>> GetGitHubReposAsync() =>
+        await SendAsync<List<GitHubRepoResponse>>(HttpMethod.Get, "/api/v1/github/repos") ?? [];
+
+    /// <summary>Branches + default do repositório.</summary>
+    public Task<GitHubBranchesResponse?> GetGitHubBranchesAsync(string owner, string repo) =>
+        SendAsync<GitHubBranchesResponse>(HttpMethod.Get,
+            $"/api/v1/github/repos/{owner}/{repo}/branches");
+
+    /// <summary>Binding repo↔workspace atual (campos null quando não vinculado).</summary>
+    public Task<WorkspaceRepoResponse?> GetWorkspaceRepoAsync() =>
+        SendAsync<WorkspaceRepoResponse>(HttpMethod.Get, "/api/v1/workspace/repo/");
+
+    /// <summary>Clona (ou troca de branch) o repo no workspace.</summary>
+    public Task<WorkspaceRepoResponse?> OpenWorkspaceRepoAsync(string repo, string branch) =>
+        SendAsync<WorkspaceRepoResponse>(HttpMethod.Post, "/api/v1/workspace/repo/open",
+            new WorkspaceRepoOpenRequest(repo, branch));
+
+    /// <summary>Desvincula o repo do workspace.</summary>
+    public async Task<bool> UnbindWorkspaceRepoAsync() =>
+        await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
+
+    /// <summary>
+    /// Aplica o diff do worktree da run no workdir compartilhado (E16 S9):
+    /// conflitos voltam listados no response — nunca aplicados à força.
+    /// </summary>
+    public Task<MergeWorktreeResponse?> MergeWorktreeAsync(string runId) =>
+        SendAsync<MergeWorktreeResponse>(HttpMethod.Post,
+            "/api/v1/workspace/repo/merge-worktree", new MergeWorktreeRequest(runId));
+
+    // ---------------- Workspace file API + IDE (SPEC-20261009-web-ide-surface) ----------------
+
+    /// <summary>Tree lazy do workdir; null em erro/404 (sem repo vinculado).</summary>
+    public Task<WorkspaceFileTreeResponse?> GetWorkspaceTreeAsync(
+        string? path = null, int? depth = null, string? cursor = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path ?? "")
+            + (depth is null ? "" : $"&depth={depth}")
+            + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
+        return SendAsync<WorkspaceFileTreeResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/tree{q}");
+    }
+
+    /// <summary>Catálogo de skills do repo vinculado; vazio sem repo/erro.</summary>
+    public async Task<List<RepoSkillItemResponse>> GetRepoSkillsAsync() =>
+        await SendAsync<List<RepoSkillItemResponse>>(HttpMethod.Get,
+            "/api/v1/workspace/repo/skills") ?? [];
+
+    /// <summary>Corpo de uma skill do repo; null quando não existe.</summary>
+    public Task<RepoSkillDetailResponse?> GetRepoSkillAsync(string name) =>
+        SendAsync<RepoSkillDetailResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/skills/{Uri.EscapeDataString(name)}");
+
+    /// <summary>Catálogo de commands markdown do repo vinculado.</summary>
+    public async Task<List<RepoCommandItemResponse>> GetRepoCommandsAsync() =>
+        await SendAsync<List<RepoCommandItemResponse>>(HttpMethod.Get,
+            "/api/v1/workspace/repo/commands") ?? [];
+
+    /// <summary>Corpo (template) de um command do repo; null quando não existe.</summary>
+    public Task<RepoCommandDetailResponse?> GetRepoCommandAsync(string name) =>
+        SendAsync<RepoCommandDetailResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/commands/{Uri.EscapeDataString(name)}");
+
+    /// <summary>Lê um arquivo do workdir (fatia de linhas); null em 404/binário/grande.</summary>
+    public Task<WorkspaceFileReadResponse?> GetWorkspaceFileAsync(
+        string path, int? startLine = null, int? maxLines = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path)
+            + (startLine is null ? "" : $"&startLine={startLine}")
+            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+        return SendAsync<WorkspaceFileReadResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/file{q}");
+    }
+
+    /// <summary>Leitura com status — a IDE distingue 404, binário(415) e grande(413).</summary>
+    public async Task<IdeFileResult> GetWorkspaceFileStatusAsync(
+        string path, int? startLine = null, int? maxLines = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path)
+            + (startLine is null ? "" : $"&startLine={startLine}")
+            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+        using var request = auth.CreateRequest(HttpMethod.Get,
+            $"/api/v1/workspace/repo/file{q}");
+        using var response = await http.SendAsync(request);
+        var code = (int)response.StatusCode;
+        if (code == 200)
+        {
+            var body = await response.Content.ReadFromJsonAsync<WorkspaceFileReadResponse>(JsonOptions);
+            return new IdeFileResult(200, body);
+        }
+        return new IdeFileResult(code, null);
+    }
+
+    /// <summary>Grava arquivo com If-Match opcional; 409 devolve o etag atual para o dialog.</summary>
+    public async Task<IdeSaveResult> PutWorkspaceFileAsync(
+        string path, string content, string? ifMatch = null)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Put, "/api/v1/workspace/repo/file");
+        request.Content = JsonContent.Create(
+            new WorkspaceFileWriteRequest(path, content), options: JsonOptions);
+        if (!string.IsNullOrEmpty(ifMatch))
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+
+        using var response = await http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadFromJsonAsync<WorkspaceFileWriteResponse>(JsonOptions);
+            return new IdeSaveResult(true, body?.ETag, null);
+        }
+        if ((int)response.StatusCode == 409)
+        {
+            var node = await response.Content.ReadFromJsonAsync<JsonObject>(JsonOptions);
+            return new IdeSaveResult(false, null, node?["etag"]?.GetValue<string>());
+        }
+        return new IdeSaveResult(false, null, null);
+    }
+
+    /// <summary>Cria diretório (recursivo) no workdir.</summary>
+    public Task<bool> WorkspaceMkdirAsync(string path) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/mkdir",
+            new WorkspaceFileMkdirRequest(path));
+
+    /// <summary>Renomeia/move dentro do workdir; false em 404/409.</summary>
+    public Task<bool> WorkspaceRenameAsync(string from, string to) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/rename",
+            new WorkspaceFileRenameRequest(from, to));
+
+    /// <summary>Remove arquivo ou diretório (recursivo) do workdir.</summary>
+    public Task<bool> WorkspaceDeleteAsync(string path) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/delete",
+            new WorkspaceFileDeleteRequest(path));
+
+    /// <summary>Snapshot git do workdir (aba Changes do /ide); null em falha/404.</summary>
+    public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
+        SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
+
+    /// <summary>PRs abertos do repo vinculado (SPEC-20261009-pr-ci-panel); null em 404/erro.</summary>
+    public Task<WorkspacePullsResponse?> GetWorkspacePullsAsync() =>
+        SendAsync<WorkspacePullsResponse>(HttpMethod.Get, "/api/v1/workspace/repo/pulls");
+
+    // ---------------- Checkpoints do workdir (S6) ----------------
+
+    /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>
+    public async Task<IReadOnlyList<WorkspaceCheckpointItem>> GetCheckpointsAsync() =>
+        await SendAsync<List<WorkspaceCheckpointItem>>(
+            HttpMethod.Get, "/api/v1/workspace/repo/checkpoints") ?? [];
+
+    /// <summary>Detalhe do checkpoint: arquivos cobertos + diff de preview.</summary>
+    public Task<WorkspaceCheckpointDetailResponse?> GetCheckpointAsync(string hash) =>
+        SendAsync<WorkspaceCheckpointDetailResponse>(
+            HttpMethod.Get,
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}");
+
+    /// <summary>
+    /// Reverte o workdir ao checkpoint. Devolve o resultado (reverted/
+    /// conflicts) ou <c>(null, 409)</c> quando há run ativa no workspace.
+    /// </summary>
+    public async Task<(WorkspaceCheckpointRevertResponse? Result, int Status)> RevertCheckpointAsync(
+        string hash, bool force = false)
+    {
+        using var request = auth.CreateRequest(
+            HttpMethod.Post,
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}/revert");
+        request.Content = JsonContent.Create(
+            new WorkspaceCheckpointRevertRequest(force), options: JsonOptions);
+        using var response = await http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return (null, (int)response.StatusCode);
+        }
+        return (await response.Content
+            .ReadFromJsonAsync<WorkspaceCheckpointRevertResponse>(JsonOptions), 200);
+    }
+
+    /// <summary>Lê a feature flag da superfície /ide (on por default).</summary>
+    public async Task<bool> GetIdeEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/ide/config");
+        return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Lê a feature flag do port preview (on por default — E16 D4).</summary>
+    public async Task<bool> GetPreviewEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/preview/config");
+        return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Probe autenticado em <c>/preview/{port}/</c>: devolve o status
+    /// HTTP (qualquer resposta prova que algo escuta na porta) ou null se o
+    /// próprio proxy/host falhou na conexão.</summary>
+    public async Task<HttpStatusCode?> ProbePreviewAsync(int port)
+    {
+        try
+        {
+            using var request = auth.CreateRequest(HttpMethod.Get, $"/preview/{port}/");
+            using var response = await http.SendAsync(request);
+            return response.StatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    // --------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ---------
+
+    /// <summary>Status LSP do arquivo (linguagem/estado do servidor); null em erro.</summary>
+    public Task<LspStatusResponse?> GetLspStatusAsync(string? path) =>
+        SendAsync<LspStatusResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/status?path={Uri.EscapeDataString(path ?? "")}");
+
+    /// <summary>Sync do documento: kind open|change|close (didOpen/didChange/didClose).</summary>
+    public Task<bool> PostLspDocAsync(string path, string kind, string? text) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/lsp/doc",
+            new LspDocSyncRequest(path, kind, text));
+
+    /// <summary>Diagnostics do arquivo (ou workdir sem path); null em erro.</summary>
+    public Task<LspDiagnosticsResponse?> GetLspDiagnosticsAsync(string? path) =>
+        SendAsync<LspDiagnosticsResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/diagnostics?path={Uri.EscapeDataString(path ?? "")}");
+
+    /// <summary>Hover na posição (1-based); null quando servidor não responde.</summary>
+    public async Task<string?> GetLspHoverAsync(string path, int line, int col)
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/hover?path={Uri.EscapeDataString(path)}&line={line}&col={col}");
+        return node?["hover"]?.GetValue<string>();
+    }
+
+    /// <summary>Resultado do PUT de arquivo da IDE (etag novo ou o atual em conflito).</summary>
+    public sealed record IdeSaveResult(bool Ok, string? ETag, string? ConflictETag);
+
+    /// <summary>Resultado da leitura de arquivo da IDE: status http + body quando 200.</summary>
+    public sealed record IdeFileResult(int Status, WorkspaceFileReadResponse? Body);
+
+    // --------- Test runs do workspace (SPEC-20261009-ide-mentions-tests) ---------
+
+    /// <summary>Resultado cru do POST de test-run (422 carrega detail/suggested).</summary>
+    public sealed record IdeTestRunStartResult(
+        int Status, TestRunStartResponse? Body, string? Detail, string? Suggested);
+
+    /// <summary>
+    /// Inicia um test run do repo vinculado (RF-003). <paramref name="confirmed"/>
+    /// confirma comandos WorkspaceWrite depois do cartão de aprovação.
+    /// </summary>
+    public async Task<IdeTestRunStartResult> StartTestRunAsync(bool confirmed = false)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Post, "/api/v1/workspace/repo/test-run");
+        request.Content = JsonContent.Create(new TestRunStartRequest(confirmed), options: JsonOptions);
+        using var response = await http.SendAsync(request);
+        var node = await response.Content.ReadFromJsonAsync<JsonObject>(JsonOptions);
+        if (!response.IsSuccessStatusCode || node is null)
+        {
+            return new IdeTestRunStartResult(
+                (int)response.StatusCode, null,
+                node?["detail"]?.GetValue<string>(),
+                node?["suggested"]?.GetValue<string>());
+        }
+        var body = System.Text.Json.JsonSerializer.Deserialize<TestRunStartResponse>(node.ToJsonString(), JsonOptions);
+        return new IdeTestRunStartResult((int)response.StatusCode, body, null, null);
+    }
+
+    /// <summary>Estado + resumo + cauda do log de um test run; null em falha/404.</summary>
+    public Task<TestRunStatusResponse?> GetTestRunAsync(string jobId) =>
+        SendAsync<TestRunStatusResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/test-run/{jobId}");
+
+    /// <summary>Define/limpa o TestCommand customizado do binding (override do manifesto).</summary>
+    public Task<bool> SetTestCommandAsync(string? command) =>
+        SendStatusAsync(HttpMethod.Put, "/api/v1/workspace/repo/test-command",
+            new TestCommandRequest(command));
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)
@@ -885,6 +1192,22 @@ public class ApiService(HttpClient http, AuthService auth)
 
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
+
+    // ---------------- Feed de notificações (D3) ----------------
+
+    /// <summary>Página do feed in-app; <paramref name="unreadOnly"/> filtra só não-lidas.</summary>
+    public async Task<NotificationPageResponse?> GetNotificationsAsync(
+        int page = 1, bool unreadOnly = false, int pageSize = 20) =>
+        await SendAsync<NotificationPageResponse>(HttpMethod.Get,
+            $"/api/v1/notifications?page={page}&pageSize={pageSize}&unread={(unreadOnly ? "true" : "false")}");
+
+    /// <summary>Marca uma notificação como lida.</summary>
+    public async Task<bool> MarkNotificationReadAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Post, $"/api/v1/notifications/{id}/read");
+
+    /// <summary>Marca todas as notificações do usuário como lidas.</summary>
+    public async Task<bool> MarkAllNotificationsReadAsync() =>
+        await SendStatusAsync(HttpMethod.Post, "/api/v1/notifications/read-all");
 
     // ---------------- Analytics (admin) ----------------
 

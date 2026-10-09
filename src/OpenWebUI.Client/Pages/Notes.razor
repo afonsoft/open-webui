@@ -3,13 +3,14 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject DialogService Dialogs
 
 <PageTitle>@L["page.notes"] — Open WebUI</PageTitle>
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">@L["page.notes"]</h1>
-        <button class="auth-submit page-new" @onclick='() => Nav.NavigateTo("/notes/new")'>@L["notes.new"]</button>
+        <h1 class="page-title" tabindex="-1">@L["page.notes"]</h1>
+        <a href="/notes/new" class="auth-submit page-new text-center">@L["notes.new"]</a>
     </div>
     @if (_notes is null)
     {
@@ -30,8 +31,8 @@
                         <div class="card-sub card-pre">@note.Content</div>
                     </div>
                     <div class="card-actions">
-                        <button class="msg-action" @onclick='() => Nav.NavigateTo($"/notes/{note.Id}")'>@L["common.edit"]</button>
-                        <button class="msg-action danger" @onclick="() => DeleteNoteAsync(note)">🗑</button>
+                        <a class="msg-action" href="/notes/@note.Id">@L["common.edit"]</a>
+                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteNoteAsync(note)">🗑</button>
                     </div>
                 </div>
             }
@@ -49,7 +50,7 @@
 
     private async Task DeleteNoteAsync(NoteResponse note)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm", L.T("common.confirm_delete", ("name", note.Title)))
+        if (await Dialogs.ConfirmAsync( L.T("common.confirm_delete", ("name", note.Title)), danger: true)
             && await Api.DeleteNoteAsync(note.Id))
         {
             _notes?.Remove(note);

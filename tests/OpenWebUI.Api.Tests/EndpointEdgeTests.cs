@@ -20,9 +20,10 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Branches de erro e borda dos endpoints de chats, tasks, auth, grupos, imagens e do ToolExecutor.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class EndpointEdgeTests
 {
+    private readonly MemoryCache mc1 = new(new MemoryCacheOptions());
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
     private HttpListener _mock = null!;
@@ -35,7 +36,7 @@ public class EndpointEdgeTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-edges-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-edges-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -60,9 +61,10 @@ public class EndpointEdgeTests
         _mock.Stop();
         _client.Dispose();
         _factory.Dispose();
+        mc1.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -109,7 +111,8 @@ public class EndpointEdgeTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             var (status, json) = Route(ctx.Request.Url!.AbsolutePath, body);
             var bytes = Encoding.UTF8.GetBytes(json);
             ctx.Response.StatusCode = status;
@@ -179,8 +182,8 @@ public class EndpointEdgeTests
         var auth = await SignUpAsync("BadJson", "badjson@edges.local", "senha123");
         UseToken(auth.Token);
 
-        var response = await _client.PostAsync("/api/v1/chats/",
-            new StringContent("{nao e json", Encoding.UTF8, "application/json"));
+        using var content = new StringContent("{nao e json", Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("/api/v1/chats/", content);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
@@ -680,8 +683,8 @@ public class EndpointEdgeTests
     private static PythonToolExecutor NewPythonExecutor() =>
         new(new ConfigurationBuilder().Build());
 
-    private static McpClientService NewMcp(AppDbContext db) =>
-        new(db, new MemoryCache(new MemoryCacheOptions()));
+    private McpClientService NewMcp(AppDbContext db) =>
+        new(db, mc1);
 
     private static BuiltinToolRegistry EmptyRegistry() =>
         new([], new ConfigurationBuilder().Build());

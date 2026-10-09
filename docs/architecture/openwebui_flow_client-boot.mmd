@@ -1,0 +1,34 @@
+flowchart TD
+    IDX["index.html<br/>(defer scripts · meta description<br/>splash 96px · sem xterm no boot)"]
+    IDX --> BOOT["js/boot.js<br/>(autostart=false — boot manual)"]
+    IDX --> CSS["css/tailwind.css<br/>(Tailwind v4 gerado e commitado)"]
+
+    BOOT --> FA{"asset _framework/*<br/>tem extensão .js?"}
+    FA -->|"sim (.js)"| DIR["GET /_framework/*<br/>(MapStaticAssets + fingerprint)"]
+    FA -->|"não (.dat/.wasm/…)"| MIR["GET /framework-assets/{stem}/{ext}<br/>(espelho sem extensão original)<br/>?enc=b64 fallback anti-sniffing"]
+
+    DIR --> WASM["blazor.webassembly.js<br/>→ dotnet.wasm → *.dll"]
+    MIR --> WASM
+
+    WASM --> ROUTER["App.razor / Router<br/>FocusOnNavigate → h1[tabindex=-1]"]
+    I18N["i18n/{lang}.json<br/>(8 locales · carrega no boot<br/>troca sem reload)"] --> ROUTER
+    ROUTER --> READY["✅ UI interativa"]
+
+    subgraph Lazy["Lazy sob demanda (fora do boot)"]
+        XT["terminal.js → xterm.js<br/>(só ao abrir TerminalView)"]
+        PY["py-worker.js → Pyodide WASM<br/>(só ao executar Python)"]
+        SW["service-worker.js<br/>shell cache (PWA)"]
+    end
+    READY -.-> Lazy
+
+    BOOT -->|falha fatal| ERR["boot error-ui<br/>(copy localizada en/pt)"]
+
+    classDef boot fill:#90EE90,stroke:#333,stroke-width:2px,color:#145A32
+    classDef mirror fill:#FFD700,stroke:#333,stroke-width:2px,color:#5C4400
+    classDef lazy fill:#E6E6FA,stroke:#333,stroke-width:2px,color:#3B2E7A
+    classDef err fill:#FFB6C1,stroke:#DC143C,stroke-width:2px,color:#4A0E1B
+
+    class IDX,BOOT,CSS,WASM,ROUTER,READY boot
+    class FA,DIR,MIR,I18N mirror
+    class Lazy,XT,PY,SW lazy
+    class ERR err

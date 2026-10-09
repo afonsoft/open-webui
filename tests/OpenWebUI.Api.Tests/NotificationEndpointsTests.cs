@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes dos webhooks de notificação: CRUD por usuário/global, validação de URL,
 /// disparo de teste com assinatura HMAC e best-effort.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class NotificationEndpointsTests
 {
@@ -32,7 +32,7 @@ public class NotificationEndpointsTests
     public async Task OneTimeSetUp()
     {
         _sinkUrl = StartSink();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-notif-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-notif-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -54,7 +54,7 @@ public class NotificationEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -96,7 +96,8 @@ public class NotificationEndpointsTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             lock (_received)
             {
                 _received.Add((

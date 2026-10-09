@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// engine mockada (SearXNG), config admin com chave mascarada e reset.
 /// O mock HTTP serve o endpoint /api/embed do Ollama e o /search do SearXNG.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RetrievalEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -28,7 +28,7 @@ public class RetrievalEndpointsTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-retrieval-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-retrieval-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", _mockBaseUrl);
         _factory = new WebApplicationFactory<Program>();
@@ -50,7 +50,7 @@ public class RetrievalEndpointsTests
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

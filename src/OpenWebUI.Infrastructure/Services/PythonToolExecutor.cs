@@ -30,9 +30,9 @@ public class PythonToolExecutor(IConfiguration configuration)
     public async Task<string> ExecuteAsync(
         Tool tool, string functionName, string argumentsJson, CancellationToken ct = default)
     {
-        var workDir = Path.Combine(Path.GetTempPath(), "openwebui-tools");
+        var workDir = Path.Join(Path.GetTempPath(), "openwebui-tools");
         Directory.CreateDirectory(workDir);
-        var scriptPath = Path.Combine(workDir, $"tool-{Guid.NewGuid():N}.py");
+        var scriptPath = Path.Join(workDir, $"tool-{Guid.NewGuid():N}.py");
         try
         {
             await File.WriteAllTextAsync(scriptPath, BuildScript(tool.Code ?? string.Empty), ct);
@@ -40,7 +40,9 @@ public class PythonToolExecutor(IConfiguration configuration)
         }
         finally
         {
-            try { File.Delete(scriptPath); } catch (IOException) { }
+            try { File.Delete(scriptPath); } catch (IOException) {
+                // Arquivo temporário pode nem existir — best-effort.
+            }
         }
     }
 
@@ -184,6 +186,7 @@ __owui_main__()
         }
         catch (InvalidOperationException)
         {
+            // Processo já morreu entre o check e o kill — ignora.
         }
     }
 }

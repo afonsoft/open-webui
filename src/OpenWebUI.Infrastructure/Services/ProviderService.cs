@@ -269,10 +269,10 @@ public class ProviderService(
         {
             var baseUrl = FirstBaseUrl(connections)
                 ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
+            using var content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json");
             using var response = await httpClientFactory.CreateClient().PostAsync(
-                $"{TrimSlash(baseUrl)}/api/chat",
-                new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
-                ct);
+                $"{TrimSlash(baseUrl)}/api/chat", content, ct);
             response.EnsureSuccessStatusCode();
             json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
         }
@@ -293,15 +293,15 @@ public class ProviderService(
         {
             foreach (var call in callsNode)
             {
-                var name = call?["function"]?["name"]?.GetValue<string>();
+                var name = call!["function"]?["name"]?.GetValue<string>();
                 if (name is null)
                 {
                     continue;
                 }
-                var args = call?["function"]?["arguments"];
+                var args = call!["function"]?["arguments"];
                 var argsJson = args is JsonValue ? args.GetValue<string>() : args?.ToJsonString() ?? "{}";
                 calls.Add(new ProviderToolCall(
-                    call?["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                    call!["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
                     name, argsJson));
             }
         }
@@ -503,12 +503,11 @@ public class ProviderService(
         if (request.Params is { Count: > 0 })
         {
             var options = new JsonObject();
-            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" })
+            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" }
+                         .Where(k => payload.ContainsKey(k)))
             {
-                if (payload.Remove(key, out var value))
-                {
-                    options[MapOllamaParam(key)] = value;
-                }
+                options[MapOllamaParam(key)] = payload[key];
+                payload.Remove(key);
             }
 
             if (options.Count > 0)
@@ -570,17 +569,17 @@ public class ProviderService(
         var parsed = new List<ProviderToolCall>();
         foreach (var call in callNodes)
         {
-            var name = call?["function"]?["name"]?.GetValue<string>();
+            var name = call!["function"]?["name"]?.GetValue<string>();
             if (name is null)
             {
                 continue;
             }
-            var args = call?["function"]?["arguments"];
+            var args = call!["function"]?["arguments"];
             var argsJson = args is JsonValue value && value.TryGetValue<string>(out var s)
                 ? s
                 : args?.ToJsonString() ?? "{}";
             parsed.Add(new ProviderToolCall(
-                call?["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
+                call!["id"]?.GetValue<string>() ?? Guid.NewGuid().ToString("N"),
                 name, argsJson));
         }
 
@@ -675,10 +674,10 @@ public class ProviderService(
             ?? throw new InvalidOperationException("Nenhuma URL do Ollama configurada.");
 
         var payload = BuildPayload(request, stream: false);
+        using var content = new StringContent(
+            payload.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await httpClientFactory.CreateClient().PostAsync(
-            $"{TrimSlash(baseUrl)}/api/chat",
-            new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json"),
-            ct);
+            $"{TrimSlash(baseUrl)}/api/chat", content, ct);
         response.EnsureSuccessStatusCode();
 
         var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
@@ -724,12 +723,11 @@ public class ProviderService(
         if (request.Params is { Count: > 0 })
         {
             var options = new JsonObject();
-            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" })
+            foreach (var key in new[] { "temperature", "top_p", "top_k", "num_predict", "repeat_penalty", "seed", "stop" }
+                .Where(payload.ContainsKey))
             {
-                if (payload.Remove(key, out var value))
-                {
-                    options[MapOllamaParam(key)] = value;
-                }
+                payload.Remove(key, out var value);
+                options[MapOllamaParam(key)] = value;
             }
 
             if (options.Count > 0)

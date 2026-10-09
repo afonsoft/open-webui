@@ -19,7 +19,7 @@ namespace OpenWebUI.Api.Tests;
 /// config/args, motores OpenAI-compatible e ComfyUI contra handler fake,
 /// factory e endpoints admin de <c>/api/v1/videos/config</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class VideoTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -30,8 +30,8 @@ public class VideoTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-video-{Guid.NewGuid():N}.db");
-        _uploadDir = Path.Combine(Path.GetTempPath(), $"openwebui-video-up-{Guid.NewGuid():N}");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-video-{Guid.NewGuid():N}.db");
+        _uploadDir = Path.Join(Path.GetTempPath(), $"openwebui-video-up-{Guid.NewGuid():N}");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -52,7 +52,7 @@ public class VideoTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
         if (Directory.Exists(_uploadDir))
         {
@@ -99,7 +99,8 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc3);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
         await service.SetConfigAsync(VideoConfig.Default with
@@ -167,7 +168,8 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc2);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
         await service.SetConfigAsync(VideoConfig.Default with
@@ -247,14 +249,15 @@ public class VideoTests
     private VideoGenerationService NewVideoService()
     {
         var db = NewIsolatedDb();
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         return new VideoGenerationService(
             new VideoEngineFactory(new StubFactory()),
-            new ConfigService(db, new MemoryCache(new MemoryCacheOptions())), db);
+            new ConfigService(db, mc1), db);
     }
 
     private AppDbContext NewIsolatedDb()
     {
-        var path = Path.Combine(Path.GetTempPath(),
+        var path = Path.Join(Path.GetTempPath(),
             $"openwebui-video-svc-{Guid.NewGuid():N}.db");
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);

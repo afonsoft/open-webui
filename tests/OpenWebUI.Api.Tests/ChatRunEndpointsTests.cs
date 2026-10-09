@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// com replay e stop. Sem provider configurado a run vai a <c>failed</c> — o que
 /// já prova que o dispatcher executou em background sem a conexão do cliente.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ChatRunEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -22,7 +22,7 @@ public class ChatRunEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-runs-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-runs-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -45,7 +45,7 @@ public class ChatRunEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

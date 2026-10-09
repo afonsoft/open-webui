@@ -18,7 +18,7 @@ namespace OpenWebUI.Api.Tests;
 /// enfileira uma run no chat vinculado, config admin do n8n e o
 /// <see cref="N8nService"/> contra um handler fake.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AutomationHookTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -28,7 +28,7 @@ public class AutomationHookTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-hooks-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-hooks-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -49,7 +49,7 @@ public class AutomationHookTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -258,7 +258,8 @@ public class AutomationHookTests
         // Db próprio: a base do fixture pode ter n8n.base_url gravada
         // por testes de endpoint anteriores.
         var serviceDb = NewIsolatedDb();
-        var config = new ConfigService(serviceDb, new MemoryCache(new MemoryCacheOptions()));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(serviceDb, mc2);
         await config.SetAsync<string?>(N8nService.BaseUrlKey, "http://n8n.test", default);
         await config.SetAsync<string?>(N8nService.ApiKeyKey, "k-123", default);
         var service = new N8nService(new StubFactory(handler), config,
@@ -284,7 +285,8 @@ public class AutomationHookTests
     public async Task N8nService_SemConfig_LancaInvalidOperation()
     {
         var serviceDb = NewIsolatedDb();
-        var config = new ConfigService(serviceDb, new MemoryCache(new MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(serviceDb, mc1);
         var service = new N8nService(new StubFactory(), config,
             new ConfigurationBuilder().Build());
 
@@ -305,7 +307,7 @@ public class AutomationHookTests
 
     private AppDbContext NewIsolatedDb()
     {
-        var path = Path.Combine(Path.GetTempPath(),
+        var path = Path.Join(Path.GetTempPath(),
             $"openwebui-hooks-svc-{Guid.NewGuid():N}.db");
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);

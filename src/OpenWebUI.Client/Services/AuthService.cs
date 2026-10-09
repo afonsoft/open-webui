@@ -97,9 +97,9 @@ public class AuthService(HttpClient http, BrowserStorage storage, LocalizationSe
             : string.Empty;
         string? token = null;
         string? error = null;
-        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var parts in query.Split('&', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(pair => pair.Split('=', 2)))
         {
-            var parts = pair.Split('=', 2);
             var key = Uri.UnescapeDataString(parts[0]);
             var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
             if (key == "oauth_token")

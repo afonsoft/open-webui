@@ -65,9 +65,30 @@ public class ToolExecutor(
         CancellationToken ct) =>
         ExecuteAsync(tools, functionName, argumentsJson, null, ct);
 
-    /// <summary>Localiza a tool pelo nome da função do spec.</summary>
-    private Tool? FindTool(IReadOnlyList<Tool> tools, string functionName) =>
-        tools.FirstOrDefault(t => FunctionName(t) == functionName);
+    /// <summary>
+    /// Localiza a tool pelo nome da função do spec. Além do match exato,
+    /// built-ins (<c>builtin://{name}</c>) casam por qualquer forma do nome
+    /// (<c>name</c>, <c>builtin:name</c>, <c>builtin_name</c>) — providers
+    /// podem sanitizar/emitir o nome anunciado sem o prefixo.
+    /// </summary>
+    public static Tool? FindTool(IReadOnlyList<Tool> tools, string functionName)
+    {
+        var tool = tools.FirstOrDefault(t => FunctionName(t) == functionName);
+        if (tool is not null)
+        {
+            return tool;
+        }
+
+        var bare = functionName.StartsWith(BuiltinToolRegistry.IdPrefix, StringComparison.OrdinalIgnoreCase)
+            ? functionName[BuiltinToolRegistry.IdPrefix.Length..]
+            : functionName.StartsWith(BuiltinToolRegistry.SpecPrefix, StringComparison.OrdinalIgnoreCase)
+                ? functionName[BuiltinToolRegistry.SpecPrefix.Length..]
+                : functionName;
+        return tools.FirstOrDefault(t =>
+            t.Url?.StartsWith(BuiltinToolRegistry.UrlPrefix, StringComparison.OrdinalIgnoreCase) == true
+            && string.Equals(t.Url[BuiltinToolRegistry.UrlPrefix.Length..], bare,
+                StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     /// Executa a tool pelo nome da função chamada e retorna o texto do
@@ -130,10 +151,9 @@ public class ToolExecutor(
         {
             using var http = httpClientFactory.CreateClient();
             http.Timeout = Timeout;
-            using var response = await http.PostAsync(
-                tool.Url,
-                new StringContent(argumentsJson, System.Text.Encoding.UTF8, "application/json"),
-                ct);
+            using var content = new StringContent(
+                argumentsJson, System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync(tool.Url, content, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
             {

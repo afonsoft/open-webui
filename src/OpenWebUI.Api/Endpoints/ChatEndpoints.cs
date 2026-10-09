@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Api.Hubs;
+using OpenWebUI.Api.Runs;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -27,6 +28,7 @@ public static class ChatEndpoints
         group.MapGet("/pinned", ListPinnedAsync);
         group.MapGet("/archived", ListArchivedAsync);
         group.MapGet("/archived/count", CountArchivedAsync);
+        group.MapGet("/attention/count", CountAttentionAsync);
         group.MapGet("/all/tags", ListAllTagsAsync);
         group.MapGet("/all/db", ExportAllAsync);
         group.MapGet("/shared", ListSharedAsync);
@@ -67,17 +69,25 @@ public static class ChatEndpoints
         string? folderId,
         HttpContext http,
         AppDbContext db,
+        ChatRunApprovals approvals,
         CancellationToken ct,
         string? query = null,
         bool includeFolders = false,
         int skip = 0,
-        int limit = 0)
+        int limit = 0,
+        string? attention = null)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
         {
             return Results.Unauthorized();
         }
+
+        // D2 (attention-inbox): chats com run bloqueada esperando decisão do
+        // dono — aprovação de tool ou pergunta ask_user/plan_exit. A pendência
+        // vive em memória no gate (uma run parada esperando o usuário), não no
+        // banco: um snapshot do HashSet vira filtro/flag sem N+1.
+        var awaiting = approvals.PendingChatIds();
 
         var chats = db.Chats.AsNoTracking().Where(c => c.UserId == user.Id && !c.Archived);
 
@@ -88,6 +98,11 @@ public static class ChatEndpoints
         else if (!includeFolders)
         {
             chats = chats.Where(c => c.FolderId == null);
+        }
+
+        if (attention is "1" or "true")
+        {
+            chats = chats.Where(c => awaiting.Contains(c.Id));
         }
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -108,11 +123,16 @@ public static class ChatEndpoints
             ? await ordered.Skip(Math.Max(0, skip)).Take(limit).ToListAsync(ct)
             : await ordered.ToListAsync(ct);
 
-        return Results.Ok(list.Select(ToSummary).ToList());
+        return Results.Ok(list.Select(c => ToSummary(c, awaiting.Contains(c.Id))).ToList());
     }
 
-    private static async Task<IResult> ListPinnedAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+    /// <summary>
+    /// Contagem leve de chats aguardando o dono — poll do badge da sidebar
+    /// (D2) sem baixar a lista inteira a cada tick.
+    /// </summary>
+    private static async Task<IResult> CountAttentionAsync(
+        HttpContext http, AppDbContext db,
+        ChatRunApprovals approvals, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -120,16 +140,34 @@ public static class ChatEndpoints
             return Results.Unauthorized();
         }
 
+        var awaiting = approvals.PendingChatIds();
+        var count = await db.Chats.CountAsync(
+            c => c.UserId == user.Id && !c.Archived && awaiting.Contains(c.Id), ct);
+        return Results.Ok(new AttentionCountResponse(count));
+    }
+
+    private static async Task<IResult> ListPinnedAsync(
+        HttpContext http, AppDbContext db,
+        ChatRunApprovals approvals, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var awaiting = approvals.PendingChatIds();
         var list = await db.Chats.AsNoTracking()
             .Where(c => c.UserId == user.Id && c.Pinned && !c.Archived)
             .OrderByDescending(c => c.UpdatedAt)
             .ToListAsync(ct);
 
-        return Results.Ok(list.Select(ToSummary).ToList());
+        return Results.Ok(list.Select(c => ToSummary(c, awaiting.Contains(c.Id))).ToList());
     }
 
     private static async Task<IResult> ListArchivedAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db,
+        ChatRunApprovals approvals, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -137,12 +175,13 @@ public static class ChatEndpoints
             return Results.Unauthorized();
         }
 
+        var awaiting = approvals.PendingChatIds();
         var list = await db.Chats.AsNoTracking()
             .Where(c => c.UserId == user.Id && c.Archived)
             .OrderByDescending(c => c.UpdatedAt)
             .ToListAsync(ct);
 
-        return Results.Ok(list.Select(ToSummary).ToList());
+        return Results.Ok(list.Select(c => ToSummary(c, awaiting.Contains(c.Id))).ToList());
     }
 
     private static async Task<IResult> CountArchivedAsync(
@@ -185,6 +224,7 @@ public static class ChatEndpoints
         TagQueryRequest request,
         HttpContext http,
         AppDbContext db,
+        ChatRunApprovals approvals,
         CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -198,10 +238,11 @@ public static class ChatEndpoints
             .OrderByDescending(c => c.UpdatedAt)
             .ToListAsync(ct);
 
+        var awaiting = approvals.PendingChatIds();
         var filtered = chats
             .Where(c => (JsonSerializer.Deserialize<List<string>>(c.TagsJson, JsonOptions) ?? [])
                 .Any(t => request.Tags.Contains(t, StringComparer.OrdinalIgnoreCase)))
-            .Select(ToSummary)
+            .Select(c => ToSummary(c, awaiting.Contains(c.Id)))
             .ToList();
 
         return Results.Ok(filtered);
@@ -221,7 +262,7 @@ public static class ChatEndpoints
             .OrderByDescending(c => c.UpdatedAt)
             .ToListAsync(ct);
 
-        return Results.Ok(list.Select(ToSummary).ToList());
+        return Results.Ok(list.Select(c => ToSummary(c)).ToList());
     }
 
     private static async Task<IResult> GetSharedChatAsync(
@@ -374,14 +415,12 @@ public static class ChatEndpoints
             .ToDictionary(m => m.Id, m => (m.Content, m.Model, m.VersionsJson));
         db.ChatMessages.RemoveRange(chat.Messages);
         chat.Messages = MapMessages(request.Messages, chat.Id, now);
-        foreach (var m in chat.Messages)
+        foreach (var m in chat.Messages.Where(m => previous.ContainsKey(m.Id)))
         {
-            if (previous.TryGetValue(m.Id, out var old))
-            {
-                m.VersionsJson = old.Content == m.Content
-                    ? old.VersionsJson
-                    : PushVersion(old.VersionsJson, old.Content, old.Model, now);
-            }
+            var old = previous[m.Id];
+            m.VersionsJson = old.Content == m.Content
+                ? old.VersionsJson
+                : PushVersion(old.VersionsJson, old.Content, old.Model, now);
         }
 
         await db.SaveChangesAsync(ct);
@@ -418,6 +457,16 @@ public static class ChatEndpoints
                     new { detail = "approvalPreset inválido." });
             }
             chat.ApprovalPreset = request.ApprovalPreset;
+            changed = true;
+        }
+        if (request.Mode is not null)
+        {
+            // SPEC-20261009-agent-modes-plan-build RF-001: build | plan.
+            if (request.Mode is not ("build" or "plan"))
+            {
+                return Results.BadRequest(new { detail = "mode inválido." });
+            }
+            chat.Mode = request.Mode;
             changed = true;
         }
         if (request.Title is { } rawTitle && !string.IsNullOrWhiteSpace(rawTitle))
@@ -872,14 +921,15 @@ public static class ChatEndpoints
             .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
     }
 
-    private static ChatSummaryResponse ToSummary(Chat chat) => new(
+    private static ChatSummaryResponse ToSummary(Chat chat, bool awaiting = false) => new(
         chat.Id,
         chat.Title,
         chat.Pinned,
         chat.FolderId,
         JsonSerializer.Deserialize<List<string>>(chat.TagsJson, JsonOptions) ?? [],
         chat.CreatedAt,
-        chat.UpdatedAt);
+        chat.UpdatedAt,
+        awaiting);
 
     private static ChatResponse ToResponse(Chat chat) => new(
         chat.Id,
@@ -900,7 +950,8 @@ public static class ChatEndpoints
         JsonSerializer.Deserialize<List<string>>(chat.ToolIdsJson, JsonOptions) ?? [],
         chat.CreatedAt,
         chat.UpdatedAt,
-        chat.ApprovalPreset);
+        chat.ApprovalPreset,
+        chat.Mode);
 
     /// <summary>Filtro por tags.</summary>
     public sealed record TagQueryRequest(IReadOnlyList<string> Tags);

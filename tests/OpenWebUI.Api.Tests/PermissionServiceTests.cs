@@ -8,7 +8,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes diretos do PermissionService (união de permissões por grupos) sobre SQLite.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class PermissionServiceTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -18,7 +18,7 @@ public class PermissionServiceTests
     [SetUp]
     public async Task SetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-permissions-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-permissions-{Guid.NewGuid():N}.db");
         await using var db = CreateContext();
         await db.Database.EnsureCreatedAsync();
     }
@@ -28,7 +28,7 @@ public class PermissionServiceTests
     {
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

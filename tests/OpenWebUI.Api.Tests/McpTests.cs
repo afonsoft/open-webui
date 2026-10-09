@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -22,7 +23,7 @@ namespace OpenWebUI.Api.Tests;
 /// (<c>tools/call</c>) roteada pelo <see cref="ToolExecutor"/>.
 /// Usa um server MCP fake sobre streamable HTTP (JSON-RPC puro).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class McpTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -34,7 +35,7 @@ public class McpTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-mcp-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-mcp-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -58,7 +59,7 @@ public class McpTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -273,9 +274,10 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
-            new McpClientService(db, new MemoryCache(new MemoryCacheOptions())), EmptyRegistry());
+            new McpClientService(db, mc2), EmptyRegistry());
 
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 
@@ -298,7 +300,8 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
-        var mcp = new McpClientService(db, new MemoryCache(new MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mcp = new McpClientService(db, mc1);
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 
         // Server desabilitado → mensagem de erro (não exceção).
@@ -473,18 +476,9 @@ internal sealed class FakeMcpServer : IDisposable
             await ctx.Response.OutputStream.WriteAsync(bytes);
             ctx.Response.Close();
         }
-        catch (Exception)
-        {
-            try
-            {
-                ctx.Response.StatusCode = 500;
-                ctx.Response.Close();
-            }
-            catch (Exception)
-            {
-                // conexão já encerrada
-            }
-        }
+        catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+        catch (IOException) { /* cliente desconectou — ignora */ }
+        catch (ObjectDisposedException) { /* listener parou */ }
     }
 
     private static JsonObject CallTool(JsonElement p)

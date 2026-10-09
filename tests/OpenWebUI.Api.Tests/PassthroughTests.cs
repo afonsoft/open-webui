@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// /openai/* para os providers configurados, com streaming preservado,
 /// key mascarada server-side e 503/404 conforme a regra.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class PassthroughTests
 {
@@ -31,7 +31,7 @@ public class PassthroughTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-pass-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-pass-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -56,7 +56,7 @@ public class PassthroughTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -364,8 +364,8 @@ public class PassthroughTests
         var digest = $"sha256:{new string('a', 64)}";
         var payload = Encoding.UTF8.GetBytes("blob-de-teste");
 
-        var upload = await _client.PostAsync($"/ollama/api/blobs/{digest}",
-            new ByteArrayContent(payload));
+        using var content = new ByteArrayContent(payload);
+        var upload = await _client.PostAsync($"/ollama/api/blobs/{digest}", content);
         Assert.That(upload.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
         using var headReq = new HttpRequestMessage(HttpMethod.Head,

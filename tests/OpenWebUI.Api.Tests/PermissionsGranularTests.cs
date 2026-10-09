@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// override por usuário vencendo o grupo, endpoint admin de permissões
 /// e membership automático por domínio de e-mail no signup.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class PermissionsGranularTests
 {
@@ -24,7 +24,7 @@ public class PermissionsGranularTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-perm-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-perm-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -45,7 +45,7 @@ public class PermissionsGranularTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -10,7 +11,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice auth-sso-rbac: grupos, permissões e vínculo OAuth.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class GroupAndSsoTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -22,7 +23,7 @@ public class GroupAndSsoTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-sso-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-sso-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("GITHUB_CLIENT_ID", "gh-test-id");
         Environment.SetEnvironmentVariable("GITHUB_CLIENT_SECRET", "gh-test-secret");
@@ -46,7 +47,7 @@ public class GroupAndSsoTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -134,7 +135,8 @@ public class GroupAndSsoTests
     public async Task OAuth_VinculaOuCriaUsuario()
     {
         await using var db = CreateContext();
-        var oauth = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var oauth = new OAuthService(db, new ConfigService(db, mc1));
 
         var linked = await oauth.LinkOrCreateAsync(
             "github", "gh-42", "user@test.local", "User GH");

@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// CRUD de knowledge/skills/functions/pipelines, models (access/import/export),
 /// users (search/settings/permissions) e retrieval (config/reset/process).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class EndpointCoverageTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -24,7 +24,7 @@ public class EndpointCoverageTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-ecov-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-ecov-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -45,7 +45,7 @@ public class EndpointCoverageTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -375,8 +375,8 @@ public class EndpointCoverageTests
 
         var ws = await _client.PostAsJsonAsync("/api/v1/retrieval/process/web/search",
             new { query = "devin" });
-        // Sem engine configurada → 503; com engine → 200. Nunca 404/500 solto.
-        Assert.That((int)ws.StatusCode, Is.EqualTo(200).Or.EqualTo(503));
+        // Sem engine → 503; engine ok → 200; engine inalcançável → 502. Nunca 404/500 solto.
+        Assert.That((int)ws.StatusCode, Is.EqualTo(200).Or.EqualTo(503).Or.EqualTo(502));
     }
 
     // ---------------- helpers ----------------

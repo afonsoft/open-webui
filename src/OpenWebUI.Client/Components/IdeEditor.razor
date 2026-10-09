@@ -1,0 +1,430 @@
+@inject ApiService Api
+@inject LocalizationService L
+@inject DialogService Dialog
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@* Editor da /ide (S2 RF-002): abas com dirty-dot, CodeMirror 6 vendored
+   (ide-editor.js → bundle lazy), Ctrl+S salva com etag, 409 → dialog
+   Reload/Overwrite/Copiar-como, binário/grande abre read-only com aviso. *@
+
+<div class="flex h-full min-h-0 flex-col">
+    <div class="flex items-center overflow-x-auto border-b border-gray-200 dark:border-gray-800"
+         role="tablist" aria-label="@L["ide.tabs"]" @ref="_tabList" @onkeydown="OnTabKeyDown">
+        @foreach (var tab in _tabs)
+        {
+            var isActive = tab == _active;
+            <button class="flex items-center gap-1.5 whitespace-nowrap border-r border-gray-200 dark:border-gray-800 px-3 py-1.5 text-xs @(isActive ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200")"
+                    role="tab" aria-selected="@(isActive ? "true" : "false")"
+                    @onclick="() => ActivateAsync(tab)">
+                <span class="truncate max-w-36">@tab.Name</span>
+                @if (tab.Dirty)
+                {
+                    <span class="text-amber-500" aria-hidden="true">●</span>
+                }
+                <span class="text-gray-400 hover:text-red-500" role="button" tabindex="-1"
+                      aria-label="@L["ide.close"]"
+                      @onclick="() => CloseAsync(tab)" @onclick:stopPropagation>✕</span>
+            </button>
+        }
+    </div>
+
+    <div class="relative flex-1 min-h-0">
+        @if (_active is null)
+        {
+            <div class="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
+                @L["ide.no_file_open"]
+            </div>
+        }
+        else if (_active.Loading)
+        {
+            <div class="absolute inset-0 flex items-center justify-center text-xs text-gray-400">…</div>
+        }
+        <div id="ide-cm-host" class="absolute inset-0 @(_active is null || _active.Loading ? "opacity-0" : "")"></div>
+
+        @if (_active?.Notice is { } notice)
+        {
+            <div class="absolute top-0 inset-x-0 flex items-center gap-2 border-b border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-3 py-1.5 text-[0.6875rem] text-amber-700 dark:text-amber-300">
+                <span aria-hidden="true">⚠</span> @notice
+            </div>
+        }
+    </div>
+
+    @* Problems (LSP S8): painel de diagnostics — some quando não há servidor/dados. *@
+    @if (_lspProblems.Count > 0)
+    {
+        <div class="border-t border-gray-200 dark:border-gray-800 max-h-32 overflow-y-auto" role="region"
+             aria-label="@L["ide.problems"]">
+            <div class="flex items-center gap-2 px-3 py-1 text-[0.6875rem] font-semibold text-gray-500 dark:text-gray-400">
+                @L["ide.problems"] <span class="font-normal">(@_lspProblems.Count)</span>
+            </div>
+            @foreach (var p in _lspProblems)
+            {
+                <button class="flex w-full items-center gap-2 px-3 py-0.5 text-left text-[0.6875rem] hover:bg-gray-100 dark:hover:bg-gray-800 @(p.Severity == 1 ? "text-red-600 dark:text-red-400" : p.Severity == 2 ? "text-amber-600 dark:text-amber-400" : "text-gray-600 dark:text-gray-300")"
+                        @onclick="() => GotoProblemAsync(p)">
+                    <span aria-hidden="true">@(p.Severity == 1 ? "✕" : p.Severity == 2 ? "⚠" : "ℹ")</span>
+                    <span class="truncate">@p.Message</span>
+                    <span class="ml-auto shrink-0 text-gray-400">@p.Path:@(p.Line + 1)</span>
+                </button>
+            }
+        </div>
+    }
+
+    @if (_conflict is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true"
+             aria-label="@L["ide.conflict_title"]">
+            <div class="w-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-xl">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-1">@L["ide.conflict_title"]</h3>
+                <p class="text-xs text-gray-500 mb-3">@L.T("ide.conflict_body", ("path", _conflict.Path))</p>
+                <div class="flex flex-col gap-1.5">
+                    <button class="auth-submit !w-auto px-3 py-1.5 text-xs" @onclick="() => ResolveConflictAsync(ConflictChoice.Reload)">@L["ide.conflict_reload"]</button>
+                    <button class="auth-submit !w-auto px-3 py-1.5 text-xs" @onclick="() => ResolveConflictAsync(ConflictChoice.Overwrite)">@L["ide.conflict_overwrite"]</button>
+                    <button class="auth-submit !w-auto px-3 py-1.5 text-xs" @onclick="() => ResolveConflictAsync(ConflictChoice.CopyAs)">@L["ide.conflict_copyas"]</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Callback pós-save — a página recarrega git/tree.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    /// <summary>Tema escuro ativo (sincronizado pela página).</summary>
+    [Parameter] public bool Dark { get; set; }
+
+    private enum ConflictChoice { Reload, Overwrite, CopyAs }
+
+    private sealed class IdeTab
+    {
+        public required string Path { get; init; }
+        public string Name => Path[(Path.LastIndexOf('/') + 1)..];
+        public string Doc = "";
+        public string? ETag;
+        public bool Dirty;
+        public bool Loading;
+        public bool ReadOnly;
+        public string? Notice;
+        /// <summary>didOpen já enviado ao servidor LSP (evita open duplo).</summary>
+        public bool LspOpened;
+    }
+
+    private readonly List<IdeTab> _tabs = [];
+    private readonly List<LspDiagnosticItem> _lspProblems = [];
+    private CancellationTokenSource? _lspChangeCts;
+    private IdeTab? _active;
+    private IdeTab? _conflict;
+    private ElementReference _tabList;
+    private DotNetObjectReference<IdeEditor>? _selfRef;
+    private bool _editorReady;
+    private bool _dark;
+
+    /// <inheritdoc/>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("owuiIde.create", "ide-cm-host",
+                new { dark = _dark }, _selfRef);
+            _editorReady = true;
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_editorReady && Dark != _dark)
+        {
+            _dark = Dark;
+            await JS.InvokeVoidAsync("owuiIde.setDark", "ide-cm-host", _dark);
+        }
+    }
+
+    /// <summary>Abre (ou ativa) um arquivo — chamado pelo explorer.</summary>
+    public async Task OpenFileAsync(string path)
+    {
+        var existing = _tabs.FirstOrDefault(t => t.Path == path);
+        if (existing is not null)
+        {
+            await ActivateAsync(existing);
+            return;
+        }
+        var tab = new IdeTab { Path = path, Loading = true };
+        _tabs.Add(tab);
+        await ActivateAsync(tab);
+
+        var r = await Api.GetWorkspaceFileStatusAsync(path);
+        tab.Loading = false;
+        if (r.Body is { } body)
+        {
+            tab.Doc = body.Content;
+            tab.ETag = body.ETag;
+            tab.ReadOnly = false;
+        }
+        else if (r.Status == 415 || r.Status == 413)
+        {
+            tab.Doc = "";
+            tab.ReadOnly = true;
+            tab.Notice = r.Status == 415 ? L["ide.binary_readonly"] : L["ide.too_big_readonly"];
+        }
+        else
+        {
+            _tabs.Remove(tab);
+            if (_active == tab)
+            {
+                _active = _tabs.LastOrDefault();
+                await PushActiveToJsAsync();
+            }
+            StateHasChanged();
+            return;
+        }
+        await PushActiveToJsAsync();
+        // OpenFileAsync é chamada de fora via @ref — Blazor não re-renderiza
+        // o componente nesse caminho (evento foi do explorer, params inalterados).
+        StateHasChanged();
+    }
+
+    private async Task ActivateAsync(IdeTab tab)
+    {
+        await StashActiveFromJsAsync();
+        _active = tab;
+        await PushActiveToJsAsync();
+    }
+
+    private async Task CloseAsync(IdeTab tab)
+    {
+        if (tab.Dirty)
+        {
+            var ok = await Dialog.ConfirmAsync(L.T("ide.confirm_close_dirty", ("path", tab.Path)));
+            if (!ok)
+            {
+                return;
+            }
+        }
+        var wasActive = _active == tab;
+        _tabs.Remove(tab);
+        if (tab.LspOpened)
+        {
+            _ = Api.PostLspDocAsync(tab.Path, "close", null);
+        }
+        if (wasActive)
+        {
+            _active = _tabs.LastOrDefault();
+            await PushActiveToJsAsync();
+        }
+    }
+
+    private async Task StashActiveFromJsAsync()
+    {
+        if (_editorReady && _active is { Loading: false } a)
+        {
+            a.Doc = await JS.InvokeAsync<string>("owuiIde.getDoc", "ide-cm-host");
+        }
+    }
+
+    private async Task PushActiveToJsAsync()
+    {
+        if (!_editorReady)
+        {
+            return;
+        }
+        var t = _active;
+        if (t is null || t.Loading)
+        {
+            return;
+        }
+        await JS.InvokeVoidAsync("owuiIde.setDoc", "ide-cm-host", t.Doc, t.Path);
+        await JS.InvokeVoidAsync("owuiIde.setLanguage", "ide-cm-host", t.Path);
+        await JS.InvokeVoidAsync("owuiIde.setReadonly", "ide-cm-host", t.ReadOnly);
+        _ = SyncLspOpenAsync(t);
+    }
+
+    /// <summary>Roving tabindex nas abas do editor (SPEC a11y).</summary>
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowLeft" or "ArrowRight" or "ArrowUp" or "ArrowDown" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.rovingFocus", _tabList, e.Key);
+        }
+    }
+
+    /// <summary>JS → doc mudou (marca dirty + agenda didChange LSP).</summary>
+    [JSInvokable]
+    public void OnDocChanged(string doc)
+    {
+        if (_active is { } a && a.Doc != doc)
+        {
+            a.Doc = doc;
+            a.Dirty = true;
+            if (a.LspOpened)
+            {
+                ScheduleLspChange(a);
+            }
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>JS → Ctrl+S/Cmd+S no editor.</summary>
+    [JSInvokable]
+    public async Task OnSaveRequested() => await SaveAsync();
+
+    /// <summary>Salva a aba ativa (etag; conflito abre o dialog).</summary>
+    public async Task SaveAsync()
+    {
+        if (_active is not { Loading: false } t || t.ReadOnly || !t.Dirty)
+        {
+            return;
+        }
+        await StashActiveFromJsAsync();
+        var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, t.ETag);
+        if (r.Ok)
+        {
+            t.ETag = r.ETag;
+            t.Dirty = false;
+            await OnSaved.InvokeAsync();
+            return;
+        }
+        _conflict = t;
+    }
+
+    private async Task ResolveConflictAsync(ConflictChoice choice)
+    {
+        var t = _conflict!;
+        _conflict = null;
+        switch (choice)
+        {
+            case ConflictChoice.Reload:
+                {
+                    var r = await Api.GetWorkspaceFileStatusAsync(t.Path);
+                    if (r.Body is { } body)
+                    {
+                        t.Doc = body.Content;
+                        t.ETag = body.ETag;
+                        t.Dirty = false;
+                        if (_active == t)
+                        {
+                            await JS.InvokeVoidAsync("owuiIde.setDoc", "ide-cm-host", t.Doc, t.Path);
+                        }
+                    }
+                    break;
+                }
+            case ConflictChoice.Overwrite:
+                {
+                    var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, "*");
+                    if (r.Ok)
+                    {
+                        t.ETag = r.ETag;
+                        t.Dirty = false;
+                        await OnSaved.InvokeAsync();
+                    }
+                    break;
+                }
+            case ConflictChoice.CopyAs:
+                {
+                    var to = await Dialog.PromptAsync(L["ide.conflict_copyas"], t.Path + ".copy");
+                    if (string.IsNullOrWhiteSpace(to))
+                    {
+                        return;
+                    }
+                    await Api.PutWorkspaceFileAsync(to, t.Doc);
+                    await OnSaved.InvokeAsync();
+                    break;
+                }
+        }
+    }
+
+    // ---------- LSP (SPEC-20261009-lsp-diagnostics, S8) ----------
+
+    /// <summary>didOpen uma vez por aba + refresh de diagnostics/squiggles.</summary>
+    private async Task SyncLspOpenAsync(IdeTab tab)
+    {
+        try
+        {
+            var status = await Api.GetLspStatusAsync(tab.Path);
+            if (status is null || !status.Enabled || status.Language is null)
+            {
+                return; // linguagem sem servidor → UI não renderiza nada
+            }
+            if (!tab.LspOpened)
+            {
+                tab.LspOpened = await Api.PostLspDocAsync(tab.Path, "open", tab.Doc);
+            }
+            await RefreshLspDiagnosticsAsync(tab.Path);
+        }
+        catch { /* LSP é best-effort — nunca quebra o editor */ }
+    }
+
+    /// <summary>Pull diagnostics do arquivo e joga nas squiggles/Problems.</summary>
+    private async Task RefreshLspDiagnosticsAsync(string path)
+    {
+        var r = await Api.GetLspDiagnosticsAsync(path);
+        if (r is null)
+        {
+            return;
+        }
+        _lspProblems.Clear();
+        _lspProblems.AddRange(r.Diagnostics);
+        var activeDiags = _lspProblems.Where(d => d.Path == path).ToList();
+        await JS.InvokeVoidAsync("owuiIde.setDiagnostics", "ide-cm-host", activeDiags);
+        StateHasChanged();
+    }
+
+    /// <summary>JS → hover (line/col 1-based) → texto do tooltip ou null.</summary>
+    [JSInvokable]
+    public async Task<string?> OnLspHoverAsync(int line, int col)
+    {
+        if (_active is not { Loading: false, ReadOnly: false } t)
+        {
+            return null;
+        }
+        try { return await Api.GetLspHoverAsync(t.Path, line, col); }
+        catch { return null; }
+    }
+
+    /// <summary>Clique no Problems → abre o arquivo e navega à posição.</summary>
+    private async Task GotoProblemAsync(LspDiagnosticItem p)
+    {
+        if (_active?.Path != p.Path)
+        {
+            await OpenFileAsync(p.Path);
+        }
+        await JS.InvokeVoidAsync("owuiIde.goto", "ide-cm-host", p.Line, p.Col);
+        await JS.InvokeVoidAsync("owuiIde.focus", "ide-cm-host");
+    }
+
+    /// <summary>didChange debounced (800ms) + refresh de diagnostics (1,6s).</summary>
+    private void ScheduleLspChange(IdeTab tab)
+    {
+        _lspChangeCts?.Cancel();
+        _lspChangeCts = new CancellationTokenSource();
+        var ct = _lspChangeCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(800, ct);
+                await Api.PostLspDocAsync(tab.Path, "change", tab.Doc);
+                await Task.Delay(800, ct);
+                await InvokeAsync(async () =>
+                {
+                    await RefreshLspDiagnosticsAsync(tab.Path);
+                });
+            }
+            catch (OperationCanceledException) { /* digitação seguinte cancelou */ }
+            catch { /* LSP best-effort */ }
+        }, ct);
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask DisposeAsync()
+    {
+        _lspChangeCts?.Cancel();
+        _selfRef?.Dispose();
+        if (_editorReady)
+        {
+            try { await JS.InvokeVoidAsync("owuiIde.destroy", "ide-cm-host"); } catch { /* circuit/heap já morreu */ }
+        }
+    }
+}

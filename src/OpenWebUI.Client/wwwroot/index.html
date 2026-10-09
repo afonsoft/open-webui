@@ -1,16 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<meta name="theme-color" content="#ffffff" />
+		<meta name="description" content="Open WebUI — self-hosted AI chat interface for Ollama, OpenAI and compatible providers." />
 		<title>Open WebUI</title>
 		<base href="/" />
 		<link rel="manifest" href="manifest.webmanifest" />
 		<link rel="icon" type="image/png" href="favicon.png" />
 		<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+		<link rel="preload" href="assets/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin />
+		<link rel="preload" href="js/boot.js" as="script" />
+		<link rel="preload" href="_framework/blazor.webassembly.js" as="script" />
 		<link rel="stylesheet" href="css/tailwind.css" />
-		<link rel="stylesheet" href="lib/xterm/xterm.css" />
 		<script>
 			// Aplica o tema antes do primeiro paint, como no upstream.
 			const theme = localStorage.getItem('webui.theme') || 'light';
@@ -20,13 +23,12 @@
 			document.documentElement.classList.toggle('dark', isDark);
 			document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
 		</script>
-		<script src="js/app.js"></script>
-		<script src="js/audio.js"></script>
-		<script src="js/codeexec.js"></script>
-		<script src="js/collab.js"></script>
-		<script src="lib/xterm/xterm.js"></script>
-		<script src="lib/xterm/xterm-addon-fit.js"></script>
-		<script src="js/terminal.js"></script>
+		<script src="js/app.js" defer></script>
+		<script src="js/audio.js" defer></script>
+		<script src="js/codeexec.js" defer></script>
+		<script src="js/collab.js" defer></script>
+		<script src="js/terminal.js" defer></script>
+		<script src="js/ide-editor.js" defer></script>
 		<script>
 			if ('serviceWorker' in navigator) {
 				navigator.serviceWorker.register('service-worker.js');
@@ -37,7 +39,7 @@
 	<body>
 		<div id="app">
 			<div class="boot-splash">
-				<img src="assets/splash-dark.png" alt="Open WebUI" />
+				<img src="assets/splash-dark.png" alt="Open WebUI" width="128" height="128" fetchpriority="high" />
 				<span>Open WebUI</span>
 			</div>
 		</div>
@@ -46,10 +48,10 @@
 			An unhandled error has occurred.
 			<a href="." class="reload">Reload</a>
 			<button type="button" class="error-details-toggle">Details</button>
-			<span class="dismiss">🗙</span>
+			<button type="button" class="dismiss" aria-label="Dismiss">🗙</button>
 			<pre class="error-details" hidden></pre>
 		</div>
-		<script src="_framework/blazor.webassembly.js" autostart="false"></script>
-		<script src="js/boot.js"></script>
+		<script src="_framework/blazor.webassembly.js" autostart="false" defer></script>
+		<script src="js/boot.js" defer></script>
 	</body>
 </html>

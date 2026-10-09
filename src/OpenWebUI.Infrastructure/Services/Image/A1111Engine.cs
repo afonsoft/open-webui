@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -66,23 +67,18 @@ public sealed class A1111Engine(IHttpClientFactory httpClientFactory) : ImageEng
             await GetJsonAsync(config, $"{Base(config)}/sdapi/v1/options", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 
     private static List<byte[]> DecodeImages(JsonNode? json)
     {
-        var result = new List<byte[]>();
-        foreach (var item in json?["images"]?.AsArray() ?? [])
-        {
-            var b64 = item?.GetValue<string>();
-            if (!string.IsNullOrEmpty(b64))
-            {
-                result.Add(Convert.FromBase64String(b64));
-            }
-        }
-        return result;
+        return (json?["images"]?.AsArray() ?? [])
+            .Select(item => item?.GetValue<string>())
+            .Where(b64 => !string.IsNullOrEmpty(b64))
+            .Select(b64 => Convert.FromBase64String(b64!))
+            .ToList();
     }
 }

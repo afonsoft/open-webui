@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 # Open WebUI (.NET) — multi-stage build, padrão afonsoft/KnowledgeRAG.
 # Stage 1: .NET SDK 10 → publish self-contained para linux-x64/arm64.
-# Stage 2: runtime-deps (Debian slim), usuário non-root, volume /data, healthcheck.
+# Stage 2: runtime-deps (Debian slim) + git e curl, usuário non-root `app`
+# (uid 1654), volume /data com DATA_ROOT=/data — uploads, workspaces do IDE,
+# checkpoints e worktrees persistem no volume (o content root /app pertence
+# a root e não é gravável pelo processo); healthcheck em /health.
 #
 # NOTA: linux-musl-x64/Alpine não é possível — o cliente Blazor WASM hospedado
 # restaura Microsoft.NETCore.App.Runtime.Mono.<rid>, que não é publicado para
@@ -48,20 +51,25 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 
-# curl para o HEALTHCHECK; a imagem base já traz o usuário non-root `app` (uid 1654).
+# curl para o HEALTHCHECK; git para o workspace IDE (clone/checkout do repo
+# vinculado, checkpoints e worktrees). A base já traz o usuário `app` (uid 1654).
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl git \
  && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /data \
- && chown app:app /data
+ && mkdir -p /data/workspaces \
+ && chown -R app:app /data
 
 WORKDIR /app
 COPY --from=build /app/publish ./
 
+# DATA_ROOT alimenta DataPaths.Root: tudo que o app grava em runtime
+# (uploads, workspaces, checkpoints, worktrees) pousa no volume — sem
+# isso o app tentaria criar /app/data e tomaria 500 (EACCES, /app é root).
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
-    ConnectionStrings__Default="Data Source=/data/openwebui.db"
+    ConnectionStrings__Default="Data Source=/data/openwebui.db" \
+    DATA_ROOT=/data
 
 EXPOSE 8080
 VOLUME ["/data"]

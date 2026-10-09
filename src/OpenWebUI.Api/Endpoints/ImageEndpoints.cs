@@ -114,7 +114,7 @@ public static class ImageEndpoints
         {
             return Results.StatusCode(StatusCodes.Status501NotImplemented);
         }
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
+        var uploadDir = Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id);
         try
         {
             var file = await images.EditAsync(
@@ -160,7 +160,7 @@ public static class ImageEndpoints
             return Results.StatusCode(StatusCodes.Status501NotImplemented);
         }
 
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
+        var uploadDir = Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id);
         try
         {
             var files = await images.GenerateAsync(

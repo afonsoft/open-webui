@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -16,7 +17,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes dos endpoints OAuth/OIDC e do OAuthService com provedor mockado.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class OAuthEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -55,8 +56,8 @@ public class OAuthEndpointsTests
         SetEnv("GITHUB_CLIENT_ID", "test-gh-client");
         SetEnv("GITHUB_CLIENT_SECRET", "test-gh-secret");
 
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-oauth-{Guid.NewGuid():N}.db");
-        Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-oauth-{Guid.NewGuid():N}.db");
+        SetEnv("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -86,7 +87,7 @@ public class OAuthEndpointsTests
         }
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -208,16 +209,22 @@ public class OAuthEndpointsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        return new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        // Sem `using`: o serviço retornado usa o cache além do fim do método.
+        var mc4 = new MemoryCache(new MemoryCacheOptions());
+        return new OAuthService(db, new ConfigService(db, mc4));
     }
 
     private static string NewServiceDbPath() =>
-        Path.Combine(Path.GetTempPath(), $"openwebui-oauthsvc-{Guid.NewGuid():N}.db");
+        Path.Join(Path.GetTempPath(), $"openwebui-oauthsvc-{Guid.NewGuid():N}.db");
 
     /// <summary>HttpMessageHandler que reescreve qualquer host para o mock local.</summary>
     private sealed class RewriteToMockHandler(Uri mockBase)
         : DelegatingHandler(new HttpClientHandler())
     {
+        // Cada instância tem seu próprio inner handler: um handler estático
+        // compartilhado é descartado junto com o primeiro HttpClient (dispose
+        // em cascata) e os testes seguintes falham com ObjectDisposedException.
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken ct)
         {
@@ -603,7 +610,7 @@ public class OAuthEndpointsTests
             Assert.That(empty, Is.EqualTo(string.Empty));
             Assert.That(filled, Is.EqualTo("segredo-x"));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     // ---- OAuthService.LinkOrCreateAsync ----
@@ -615,7 +622,8 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var service = new OAuthService(db, new ConfigService(db, mc3));
 
         var first = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
         var second = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
@@ -627,7 +635,7 @@ public class OAuthEndpointsTests
             Assert.That(await db.Users.CountAsync(), Is.EqualTo(1));
             Assert.That(await db.OAuthAccounts.CountAsync(), Is.EqualTo(1));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(51)]
@@ -644,7 +652,8 @@ public class OAuthEndpointsTests
         };
         db.Users.Add(existente);
         await db.SaveChangesAsync();
-        var service = new OAuthService(db, new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())));
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var service = new OAuthService(db, new ConfigService(db, mc2));
 
         var link = await service.LinkOrCreateAsync(" OIDC ", "sub-9", " exist@b.c ", null);
 
@@ -660,7 +669,7 @@ public class OAuthEndpointsTests
             Assert.That(account.Provider, Is.EqualTo("oidc"));
             Assert.That(account.Email, Is.EqualTo("exist@b.c"));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(52)]
@@ -681,7 +690,7 @@ public class OAuthEndpointsTests
             Assert.That(user.Name, Is.EqualTo("first@b.c")); // name em branco → e-mail
             Assert.That(user.PasswordHash, Is.EqualTo(string.Empty));
         });
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 
     [Test, Order(53)]
@@ -691,7 +700,8 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mc1);
         await config.SetAsync("admin.config",
             AdminConfig.Default with { DefaultUserRole = "convidado" });
         db.Users.Add(new User
@@ -707,6 +717,6 @@ public class OAuthEndpointsTests
         Assert.That(link.NewUser, Is.True);
         var user = await db.Users.FirstAsync(u => u.Email == "p@b.c");
         Assert.That(user.Role, Is.EqualTo(UserRoles.Pending));
-        File.Delete(dbPath);
+        TestInfra.DeleteDb(dbPath);
     }
 }

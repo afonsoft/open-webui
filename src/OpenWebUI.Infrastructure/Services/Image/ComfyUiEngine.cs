@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -57,13 +58,13 @@ public sealed class ComfyUiEngine(IHttpClientFactory httpClientFactory) : ImageE
             {
                 foreach (var image in node.Value?["images"]?.AsArray() ?? [])
                 {
-                    var filename = image?["filename"]?.GetValue<string>();
+                    var filename = image!["filename"]?.GetValue<string>();
                     if (filename is null)
                     {
                         continue;
                     }
-                    var subfolder = image?["subfolder"]?.GetValue<string>() ?? "";
-                    var type = image?["type"]?.GetValue<string>() ?? "output";
+                    var subfolder = image!["subfolder"]?.GetValue<string>() ?? "";
+                    var type = image!["type"]?.GetValue<string>() ?? "output";
                     var viewUrl = $"{Base(config)}/view?filename={Uri.EscapeDataString(filename)}" +
                         $"&subfolder={Uri.EscapeDataString(subfolder)}&type={Uri.EscapeDataString(type)}";
                     images.Add(await GetBytesAsync(viewUrl, config, ct));
@@ -86,9 +87,9 @@ public sealed class ComfyUiEngine(IHttpClientFactory httpClientFactory) : ImageE
             await GetJsonAsync(config, $"{Base(config)}/system_stats", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }

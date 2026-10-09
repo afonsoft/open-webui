@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -9,21 +10,32 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Branches de erro e borda do RagService (chunking, search e retrieval) e do DatabaseMigrator.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RagEdgeTests
 {
     private string _dbPath = null!;
+    private MemoryCache _mc1 = null!;
+    private MemoryCache _mc2 = null!;
+    private MemoryCache _mc3 = null!;
 
     [SetUp]
-    public void SetUp() =>
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-rag-{Guid.NewGuid():N}.db");
+    public void SetUp()
+    {
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-rag-{Guid.NewGuid():N}.db");
+        _mc1 = new MemoryCache(new MemoryCacheOptions());
+        _mc2 = new MemoryCache(new MemoryCacheOptions());
+        _mc3 = new MemoryCache(new MemoryCacheOptions());
+    }
 
     [TearDown]
     public void TearDown()
     {
+        _mc1.Dispose();
+        _mc2.Dispose();
+        _mc3.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -38,9 +50,8 @@ public class RagEdgeTests
         await db.Database.EnsureCreatedAsync();
         return db;
     }
-
     private RagService NewRag(AppDbContext db) =>
-        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))), new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())), new StubHttpClientFactory());
+        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db, _mc2)), new ConfigService(db, _mc3), new StubHttpClientFactory());
 
     private sealed class StubHttpClientFactory : IHttpClientFactory
     {
@@ -133,12 +144,10 @@ public class RagEdgeTests
         });
         Assert.That(await db.EmbeddingChunks.CountAsync(), Is.EqualTo(0));
     }
-
     /// <summary>Zera as conexões: o default aponta para localhost:11434 e um
     /// Ollama real no host tornaria o teste dependente do ambiente.</summary>
-    private static async Task SeedSemConexoesAsync(AppDbContext db) =>
-        await new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
-            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))
+    private async Task SeedSemConexoesAsync(AppDbContext db) =>
+        await new ConfigService(db, _mc1)
             .SetAsync("connections", new ConnectionsConfig([], [], []));
 
     [Test]

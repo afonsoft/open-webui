@@ -1,0 +1,86 @@
+@inject LocalizationService L
+
+@* Modal de vínculo repo↔workspace (SPEC-20261008-github-repo-workspace):
+   o corpo é o RepoBindingPanel — também usado na aba Integrações das
+   configurações admin. A branch/repo vinculados viram pill no header do
+   chat. *@
+@if (Active)
+{
+    <div class="modal-backdrop" @onclick="CloseAsync">
+        <div class="modal flex flex-col" style="max-width: 36rem;" role="dialog" aria-modal="true"
+             aria-label="@L["chat.repo_title"]" tabindex="-1" @onclick:stopPropagation
+             @onkeydown="OnKeyDown" @ref="_dialog">
+            <div class="modal-header">
+                <span>@L["chat.repo_title"]</span>
+                <button type="button" class="icon-btn" aria-label="@L["common.close"]"
+                        @onclick="CloseAsync">×</button>
+            </div>
+            <div class="modal-body">
+                <RepoBindingPanel BoundChanged="OnBoundChangedAsync"
+                                  Opened="CloseAsync" Unbound="OnUnboundAsync" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Controla a visibilidade do modal.</summary>
+    [Parameter] public bool Active { get; set; }
+
+    /// <summary>Notifica mudança de <see cref="Active"/>.</summary>
+    [Parameter] public EventCallback<bool> ActiveChanged { get; set; }
+
+    /// <summary>Disparado quando o binding muda (null = desvinculado).</summary>
+    [Parameter] public EventCallback<WorkspaceRepoResponse?> Bound { get; set; }
+
+    private bool _wasActive;
+    private bool _focusPending;
+    private ElementReference _dialog;
+
+    protected override void OnParametersSet()
+    {
+        // _dialog só é bound depois do primeiro render com Active=true —
+        // focar aqui (OnParametersSet*) quebrava o modal ao abrir.
+        if (Active && !_wasActive)
+        {
+            _wasActive = true;
+            _focusPending = true;
+        }
+        else if (!Active)
+        {
+            _wasActive = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPending && Active)
+        {
+            _focusPending = false;
+            await _dialog.FocusAsync();
+        }
+    }
+
+    private async Task OnBoundChangedAsync(WorkspaceRepoResponse? binding) =>
+        await Bound.InvokeAsync(binding);
+
+    /// <summary>
+    /// O botão de desvincular some junto com a linha e o foco cai no
+    /// <body> — sem isso o Escape para de fechar o modal.
+    /// </summary>
+    private async Task OnUnboundAsync() => await _dialog.FocusAsync();
+
+    private async Task CloseAsync()
+    {
+        Active = false;
+        await ActiveChanged.InvokeAsync(false);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+}

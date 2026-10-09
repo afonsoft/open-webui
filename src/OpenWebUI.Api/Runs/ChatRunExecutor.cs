@@ -26,9 +26,13 @@ public sealed class ChatRunExecutor(
     ToolExecutor toolExecutor,
     PipelineClientService pipelines,
     WebSearchService webSearch,
+    WorkspaceRepoService repos,
+    WorktreeService worktrees,
+    BuiltinToolRegistry builtins,
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
     ChatRunPauses pauses,
+    CheckpointService checkpoints,
     IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
@@ -91,7 +95,7 @@ public sealed class ChatRunExecutor(
                 ? request.Model["arena:".Length..]
                 : request.Model;
             if (await ChatPipeline.TryRunArenaAsync(
-                request, arenaModel, user, db, config, rag, providers, webSearch,
+                request, arenaModel, user, db, config, rag, providers, webSearch, repos,
                 line =>
                 {
                     // O [DONE] do arena é retido: sai depois do FinishAsync.
@@ -108,8 +112,14 @@ public sealed class ChatRunExecutor(
                 return;
             }
 
+            // Modo do agente do chat (SPEC-20261009 RF-001): plan/build
+            // guia o prompt e o spec de tools anunciado.
+            var chatMode = await db.Chats.AsNoTracking()
+                .Where(c => c.Id == run.ChatId)
+                .Select(c => c.Mode).FirstOrDefaultAsync(ct) ?? "build";
+
             var effective = await ChatPipeline.EnrichRequestAsync(
-                request, user, db, config, rag, webSearch, ct);
+                request, user, db, config, rag, webSearch, repos, ct, chatMode);
 
             var outletRules = ModelFilterService.OutletRules(
                 ModelFilterService.Parse(await db.ModelEntries.AsNoTracking()
@@ -122,9 +132,28 @@ public sealed class ChatRunExecutor(
                 : null;
             if (tools is { Count: > 0 })
             {
+                var builtinContext = await BuildToolContextAsync(run, user, ct);
+
+                // Checkpoints do workdir (SPEC-20261009-checkpoints-revert):
+                // turn 0 = estado pré-run; cada tool mutável depois — o
+                // evento `checkpoint` alimenta o Revert da aba Changes.
+                var checkpointTurn = 0;
+                await PublishCheckpointAsync(
+                    run, builtinContext.WorkspacePath, checkpointTurn, ct);
+                // plan_exit entra no catálogo sintético da run (RF-003): só
+                // é anunciado em modo plan; em build fica invisível — o gate
+                // o conhece para interceptar a call se ela escapar.
+                if (tools.All(t => t.Url != BuiltinToolRegistry.UrlPrefix + "plan_exit")
+                    && builtins.All.FirstOrDefault(t => t.Name == "plan_exit") is { } planExit)
+                {
+                    tools.Add(builtins.ToSyntheticTool(planExit));
+                }
+                // Spec da primeira rodada já filtrado pelo modo (RF-002);
+                // as próximas passam pelo AnnounceToolsAsync do callback.
                 effective = effective with
                 {
                     Tools = tools
+                        .Where(t => PermissionRuleset.ShouldAnnounce(chatMode, t))
                         .Select(t => JsonSerializer.Deserialize<JsonElement>(t.SpecJson))
                         .ToList(),
                 };
@@ -137,9 +166,33 @@ public sealed class ChatRunExecutor(
                         await PublishPhaseAsync(run, phase, label);
                     },
                     OnCallAsync: (call, t) => PublishToolCallAsync(run, call),
-                    GateAsync: (call, t) => GateToolCallAsync(run, tools, call, t),
-                    OnResultAsync: (call, output, result, denied, t)
-                        => PublishToolResultAsync(run, call, output, result, denied),
+                    GateAsync: (call, t) => GateToolCallAsync(
+                        run, tools, call, builtinContext, t),
+                    // Modo relido por rodada — o plan_exit aprovado
+                    // promove a build já na próxima chamada do modelo.
+                    AnnounceToolsAsync: async t =>
+                    {
+                        var mode = await db.Chats.AsNoTracking()
+                            .Where(c => c.Id == run.ChatId)
+                            .Select(c => c.Mode).FirstOrDefaultAsync(t) ?? "build";
+                        return tools
+                            .Where(tool => PermissionRuleset.ShouldAnnounce(mode, tool))
+                            .Select(tool => JsonSerializer.Deserialize<JsonElement>(tool.SpecJson))
+                            .ToList();
+                    },
+                    OnResultAsync: async (call, output, result, denied, t) =>
+                    {
+                        await PublishToolResultAsync(run, call, output, result, denied);
+                        if (!denied && ToolExecutor.FindTool(tools, call.Name) is { } tool
+                            && (ToolCallRiskClassifier.IsFileMutation(
+                                    tool, call.ArgumentsJson, builtinContext.WorkspacePath)
+                                || IsApplyPatch(call.Name)))
+                        {
+                            checkpointTurn++;
+                            await PublishCheckpointAsync(
+                                run, builtinContext.WorkspacePath, checkpointTurn, t);
+                        }
+                    },
                     // Texto do modelo sai delta a delta — sem isso a resposta
                     // inteira só aparecia num blob no fim da run.
                     OnDeltaAsync: async (piece, t) =>
@@ -168,7 +221,6 @@ public sealed class ChatRunExecutor(
                             sinceCheckpoint = 0;
                         }
                     });
-                var builtinContext = BuildToolContext(run, user);
                 var outcome = await ChatPipeline.RunToolLoopAsync(
                     effective, tools, toolExecutor, providers, ct, callbacks, builtinContext);
                 toolMessages = outcome?.ToolMessages;
@@ -242,13 +294,49 @@ public sealed class ChatRunExecutor(
     /// Contexto das tools built-in da run (SPEC-20261007-chat-agent-tools):
     /// workspace confinado em <c>data/workspaces/{userId}</c> e uploads em
     /// <c>data/uploads/{userId}</c> (mesma raiz das telas de Imagens).
+    /// Com <c>Workspace:RunIsolation=worktree</c> a run ganha um worktree
+    /// isolado (E16 S9) — sem git ele cai em <c>shared</c> com aviso.
     /// </summary>
-    private BuiltinToolContext BuildToolContext(ChatRun run, User user) => new(
-        user.Id,
-        run.ChatId,
-        run.Id,
-        Path.Combine(env.ContentRootPath, "data", "workspaces", user.Id),
-        Path.Combine(env.ContentRootPath, "data", "uploads", user.Id));
+    private async Task<BuiltinToolContext> BuildToolContextAsync(
+        ChatRun run, User user, CancellationToken ct)
+    {
+        // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
+        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var (isolated, warning) = await worktrees.TryCreateForRunAsync(
+            user.Id, run.Id, workdir, ct);
+        if (warning is not null)
+        {
+            // Fallback shared: visível no stream como fase informativa.
+            await PublishPhaseAsync(run, "worktree", warning);
+        }
+
+        return new BuiltinToolContext(
+            user.Id,
+            run.ChatId,
+            run.Id,
+            isolated ?? workdir,
+            Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id));
+    }
+
+    /// <summary>apply_patch pode chegar como builtin por nome legado — cobre o nome cru.</summary>
+    private static bool IsApplyPatch(string name) =>
+        name.EndsWith("apply_patch", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tira um snapshot do workdir e publica o evento <c>checkpoint</c>
+    /// (E16 S6). Falhas são engolidas pelo serviço — nunca derrubam a run.
+    /// </summary>
+    private async Task PublishCheckpointAsync(
+        ChatRun run, string workdir, int turn, CancellationToken ct)
+    {
+        var info = await checkpoints.SnapshotAsync(workdir, run.Id, turn, ct);
+        if (info is null)
+        {
+            return;
+        }
+        broadcaster.Publish(run.Id,
+            $"event: checkpoint\ndata: {JsonSerializer.Serialize(new RunCheckpointEvent(info.Hash, info.Files, turn), JsonOptions)}");
+    }
 
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
     private Task PublishToolResultAsync(
@@ -278,8 +366,10 @@ public sealed class ChatRunExecutor(
             broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
         }
 
-        // file_write/file_edit acumulam o diff por path e publicam o
-        // snapshot `changes` (RF-015) — aba Changes do painel lateral.
+        // file_write/file_edit (path único) e apply_patch (files[])
+        // acumulam o diff por path e publicam o snapshot `changes`
+        // (RF-015) — aba Changes do painel lateral.
+        var changesTouched = false;
         if (result is { } chg && chg.ValueKind == JsonValueKind.Object
             && chg.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String
             && chg.TryGetProperty("added", out var a) && a.ValueKind == JsonValueKind.Number
@@ -290,6 +380,30 @@ public sealed class ChatRunExecutor(
                 : null;
             _changes[p.GetString()!] = new RunChangeItem(
                 p.GetString()!, a.GetInt32(), r.GetInt32(), diff);
+            changesTouched = true;
+        }
+        if (result is { } chgFiles && chgFiles.ValueKind == JsonValueKind.Object
+            && chgFiles.TryGetProperty("files", out var files)
+            && files.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var f in files.EnumerateArray())
+            {
+                if (f.TryGetProperty("path", out var fp) && fp.ValueKind == JsonValueKind.String
+                    && f.TryGetProperty("added", out var fa) && fa.ValueKind == JsonValueKind.Number
+                    && f.TryGetProperty("removed", out var fr) && fr.ValueKind == JsonValueKind.Number)
+                {
+                    var fdiff = f.TryGetProperty("diff", out var fd)
+                        && fd.ValueKind == JsonValueKind.String
+                        ? Truncate(fd.GetString()!, ChangeDiffChars)
+                        : null;
+                    _changes[fp.GetString()!] = new RunChangeItem(
+                        fp.GetString()!, fa.GetInt32(), fr.GetInt32(), fdiff);
+                    changesTouched = true;
+                }
+            }
+        }
+        if (changesTouched)
+        {
             broadcaster.Publish(run.Id,
                 $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
         }
@@ -307,11 +421,20 @@ public sealed class ChatRunExecutor(
     /// O preset é relido a cada call — mudança mid-run vale já no próximo.
     /// </summary>
     private async Task<ToolGateDecision> GateToolCallAsync(
-        ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call, CancellationToken ct)
+        ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call,
+        BuiltinToolContext builtinContext, CancellationToken ct)
     {
         // Checkpoint de pausa antes do gate (RF-013) — a call pendente
         // só resolve depois do resume.
         await pauses.WaitIfPausedAsync(run.Id, ct);
+
+        // Preset + modo do chat relidos a cada call — mudança mid-run
+        // (como a promoção do plan_exit) vale já na próxima call.
+        var gateInfo = await db.Chats.AsNoTracking()
+            .Where(c => c.Id == run.ChatId)
+            .Select(c => new { c.ApprovalPreset, c.Mode })
+            .FirstOrDefaultAsync(ct);
+        var mode = PermissionRuleset.Normalize(gateInfo?.Mode);
 
         // ask_user (RF-005): sempre pausa — a pergunta é o próprio gate;
         // não passa por preset nem por remembered. A resposta volta como
@@ -321,18 +444,36 @@ public sealed class ChatRunExecutor(
             return await AskUserAsync(run, call, ct);
         }
 
-        var tool = tools.FirstOrDefault(t => ToolExecutor.FunctionName(t) == call.Name);
+        // plan_exit (RF-003): gate próprio — grava o plano, pergunta o
+        // dono e aprovado promove o chat a build.
+        if (string.Equals(call.Name, "builtin:plan_exit", StringComparison.OrdinalIgnoreCase))
+        {
+            return await PlanExitAsync(run, tools, call, builtinContext, mode, ct);
+        }
+
+        var tool = ToolExecutor.FindTool(tools, call.Name);
+
+        // Ruleset do modo do agente (RF-002): negação estruturada — nem
+        // anunciada ao provider; uma call que escape devolve erro direto,
+        // sem executar e sem prompt de aprovação.
+        if (tool is not null
+            && PermissionRuleset.Evaluate(mode, tool, call.ArgumentsJson)
+                == PermissionDecision.Deny)
+        {
+            return new ToolGateDecision(true, Output:
+                $"Erro: a tool '{call.Name}' está bloqueada no modo {mode} "
+                + "(somente leitura). Ajuste o plano com as tools de leitura "
+                + "disponíveis e chame builtin_plan_exit quando terminar.");
+        }
+
         if (tool is null || !ToolExecutor.IsMutable(tool)
-            || approvals.IsRemembered(run.ChatId, call.Name))
+            || approvals.IsRemembered(run.ChatId, call.Name,
+                PermissionRuleset.ArgPattern(call.Name, call.ArgumentsJson)))
         {
             return ToolGateDecision.Allow;
         }
 
-        var preset = await db.Chats.AsNoTracking()
-            .Where(c => c.Id == run.ChatId)
-            .Select(c => c.ApprovalPreset)
-            .FirstOrDefaultAsync(ct)
-            ?? "approve-mutations";
+        var preset = gateInfo?.ApprovalPreset ?? "approve-mutations";
         switch (preset)
         {
             case "always-allow":
@@ -347,8 +488,8 @@ public sealed class ChatRunExecutor(
                 // pergunta abaixo. O preset <c>smart</c> segue o mesmo
                 // tiers, mas mutações de arquivo caem na pergunta —
                 // "executa sem aprovação, com restrição em alterações".
-                var workspace = Path.Combine(
-                    env.ContentRootPath, "data", "workspaces", run.UserId);
+                var workspace = Path.Join(
+                    DataPaths.Root(env.ContentRootPath), "workspaces", run.UserId);
                 var risk = ToolCallRiskClassifier.Classify(
                     tool, call.ArgumentsJson, workspace);
                 var fileMutation = risk == ToolCallRisk.Medium
@@ -380,11 +521,69 @@ public sealed class ChatRunExecutor(
             $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
         broadcaster.Publish(run.Id,
             $"event: approval_asked\ndata: {JsonSerializer.Serialize(new RunApprovalAskedEvent(call.Id, call.Name, kind, argsPreview), JsonOptions)}");
-        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id, call.Name, ct);
+        var result = await approvals.WaitAsync(run.Id, run.ChatId, call.Id,
+            call.Name, ct, PermissionRuleset.ArgPattern(call.Name, call.ArgumentsJson));
         var message = string.IsNullOrWhiteSpace(result.Message)
             ? null
             : Scrub(Truncate(result.Message!, PreviewChars));
         return new ToolGateDecision(result.Approved, message);
+    }
+
+    /// <summary>
+    /// Gate do <c>builtin:plan_exit</c> (SPEC-20261009 RF-003): só existe
+    /// no modo plan — grava o plano em <c>.openwebui/plans/</c> e pergunta
+    /// "Executar este plano?". Aprovado: promove o chat a build, publica o
+    /// evento <c>mode</c> e devolve a instrução de execução como
+    /// <see cref="ToolGateDecision.Output"/>; negado: devolve o caminho
+    /// para o modelo ajustar o plano.
+    /// </summary>
+    private async Task<ToolGateDecision> PlanExitAsync(
+        ChatRun run, IReadOnlyList<Tool> tools, ProviderToolCall call,
+        BuiltinToolContext builtinContext, string mode, CancellationToken ct)
+    {
+        if (mode != PermissionRuleset.PlanMode)
+        {
+            return new ToolGateDecision(true, Output:
+                "Erro: plan_exit só existe no modo plan — a conversa já está em build.");
+        }
+
+        // 1. Grava o plano no workdir jailed — mesmo negado, fica salvo.
+        var write = await toolExecutor.ExecuteAsync(
+            tools, call.Name, call.ArgumentsJson, builtinContext, ct);
+        if (write.Text.StartsWith("Erro", StringComparison.Ordinal))
+        {
+            return new ToolGateDecision(true, Output: write.Text);
+        }
+
+        // 2. Pergunta ao dono pelo mesmo mecanismo do ask_user.
+        broadcaster.Publish(run.Id,
+            $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent("awaiting_approval", call.Name), JsonOptions)}");
+        broadcaster.Publish(run.Id,
+            $"event: question_asked\ndata: {JsonSerializer.Serialize(new RunQuestionAskedEvent(call.Id, "Executar este plano?", ["Executar o plano", "Continuar planejando"], false), JsonOptions)}");
+        var result = await approvals.WaitAsync(
+            run.Id, run.ChatId, call.Id, call.Name, ct);
+
+        if (!result.Approved)
+        {
+            var note = string.IsNullOrWhiteSpace(result.Message)
+                ? string.Empty
+                : $" (nota: {Scrub(Truncate(result.Message!, PreviewChars))})";
+            return new ToolGateDecision(true, Output:
+                $"{write.Text}\n\nPlano não aprovado{note} — ajuste o plano "
+                + "com as tools de leitura e chame plan_exit de novo.");
+        }
+
+        // 3. Promoção plan → build: persiste no chat, publica o evento
+        //    (o chip do cliente atualiza ao vivo) e instrui o modelo.
+        await db.Chats.Where(c => c.Id == run.ChatId)
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                c => c.Mode, PermissionRuleset.BuildMode), ct);
+        broadcaster.Publish(run.Id,
+            $"event: mode\ndata: {JsonSerializer.Serialize(new RunModeEvent("build"), JsonOptions)}");
+        return new ToolGateDecision(true, Output:
+            $"{write.Text}\n\nPlano aprovado — execute o plano agora. "
+            + "O modo build está ativo: tools de escrita/execução liberadas "
+            + "nesta run (o gate de aprovação do preset segue valendo).");
     }
 
     /// <summary>

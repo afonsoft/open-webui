@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// STT /transcriptions (multipart), /voices /models e /capabilities —
 /// com provider OpenAI-compatible mockado via HttpListener.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AudioEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -33,7 +33,7 @@ public class AudioEndpointsTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-audio-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-audio-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -53,7 +53,7 @@ public class AudioEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -317,19 +317,9 @@ public class AudioEndpointsTests
     public async Task Whisper_SttExterno_Transcreve()
     {
         UseToken(_admin.Token);
-        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
-        {
-            sttEngine = "whisper",
-            sttBaseUrl = _mockBaseUrl,
-            sttApiKey = (string?)null,
-            sttModel = "Systran/faster-whisper-small",
-            ttsEngine = "openai",
-            ttsBaseUrl = _mockBaseUrl,
-            ttsApiKey = "segredo-tts",
-            ttsModel = "tts-1",
-            ttsVoice = "alloy",
-            azureRegion = (string?)null,
-        });
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new AudioConfig(
+            "whisper", _mockBaseUrl, null, "Systran/faster-whisper-small",
+            "openai", _mockBaseUrl, "segredo-tts", "tts-1", "alloy", null));
         Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
             await update.Content.ReadAsStringAsync());
 
@@ -347,19 +337,9 @@ public class AudioEndpointsTests
     public async Task ElevenLabs_Tts_RetornaAudioComXiApiKey()
     {
         UseToken(_admin.Token);
-        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
-        {
-            sttEngine = "whisper",
-            sttBaseUrl = _mockBaseUrl,
-            sttApiKey = (string?)null,
-            sttModel = "whisper-1",
-            ttsEngine = "elevenlabs",
-            ttsBaseUrl = _mockBaseUrl,
-            ttsApiKey = "segredo-11l",
-            ttsModel = "eleven_multilingual_v2",
-            ttsVoice = "rachel",
-            azureRegion = (string?)null,
-        });
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new AudioConfig(
+            "whisper", _mockBaseUrl, null, "whisper-1",
+            "elevenlabs", _mockBaseUrl, "segredo-11l", "eleven_multilingual_v2", "rachel", null));
         Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
             await update.Content.ReadAsStringAsync());
 
@@ -382,19 +362,9 @@ public class AudioEndpointsTests
     public async Task Azure_Tts_EnviaSsmlEChaveDeAssinatura()
     {
         UseToken(_admin.Token);
-        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
-        {
-            sttEngine = "whisper",
-            sttBaseUrl = _mockBaseUrl,
-            sttApiKey = (string?)null,
-            sttModel = "whisper-1",
-            ttsEngine = "azure",
-            ttsBaseUrl = _mockBaseUrl,
-            ttsApiKey = "segredo-azure",
-            ttsModel = (string?)null,
-            ttsVoice = "pt-BR-FranciscaNeural",
-            azureRegion = "brazilsouth",
-        });
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new AudioConfig(
+            "whisper", _mockBaseUrl, null, "whisper-1",
+            "azure", _mockBaseUrl, "segredo-azure", null, "pt-BR-FranciscaNeural", "brazilsouth"));
         Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
             await update.Content.ReadAsStringAsync());
 
@@ -415,19 +385,9 @@ public class AudioEndpointsTests
     public async Task Azure_SomenteRegiao_HabilitaTtsECapabilitiesMostramEngines()
     {
         UseToken(_admin.Token);
-        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new
-        {
-            sttEngine = "whisper",
-            sttBaseUrl = _mockBaseUrl,
-            sttApiKey = (string?)null,
-            sttModel = "whisper-1",
-            ttsEngine = "azure",
-            ttsBaseUrl = (string?)null,
-            ttsApiKey = "segredo-azure",
-            ttsModel = (string?)null,
-            ttsVoice = "pt-BR-FranciscaNeural",
-            azureRegion = "brazilsouth",
-        });
+        var update = await _client.PostAsJsonAsync("/api/v1/audio/config", new AudioConfig(
+            "whisper", _mockBaseUrl, null, "whisper-1",
+            "azure", null, "segredo-azure", null, "pt-BR-FranciscaNeural", "brazilsouth"));
         Assert.That(update.StatusCode, Is.EqualTo(HttpStatusCode.OK),
             await update.Content.ReadAsStringAsync());
 
@@ -446,19 +406,9 @@ public class AudioEndpointsTests
     {
         UseToken(_admin.Token);
 
-        var response = await _client.PostAsJsonAsync("/api/v1/audio/config", new
-        {
-            sttEngine = "banana",
-            sttBaseUrl = (string?)null,
-            sttApiKey = (string?)null,
-            sttModel = (string?)null,
-            ttsEngine = "openai",
-            ttsBaseUrl = (string?)null,
-            ttsApiKey = (string?)null,
-            ttsModel = (string?)null,
-            ttsVoice = (string?)null,
-            azureRegion = (string?)null,
-        });
+        var response = await _client.PostAsJsonAsync("/api/v1/audio/config", new AudioConfig(
+            "banana", null, null, null,
+            "openai", null, null, null, null, null));
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }

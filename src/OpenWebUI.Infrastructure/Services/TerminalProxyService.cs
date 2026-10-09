@@ -163,6 +163,7 @@ public class TerminalProxyService(
             }
             catch (OperationCanceledException)
             {
+                // Relay falhou (sessão fechou) — ignora.
             }
         }
     }
@@ -199,9 +200,11 @@ public class TerminalProxyService(
         }
         catch (OperationCanceledException)
         {
+            // Relay falhou (sessão fechou) — ignora.
         }
         catch (WebSocketException)
         {
+            // Relay falhou (sessão fechou) — ignora.
         }
     }
 
@@ -218,6 +221,7 @@ public class TerminalProxyService(
         }
         catch (WebSocketException)
         {
+            // Relay falhou (sessão fechou) — ignora.
         }
 
         try
@@ -229,6 +233,7 @@ public class TerminalProxyService(
         }
         catch (WebSocketException)
         {
+            // Relay falhou (sessão fechou) — ignora.
         }
     }
 

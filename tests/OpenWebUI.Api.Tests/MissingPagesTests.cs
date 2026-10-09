@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes das páginas adicionadas na slice missing-pages: POST /api/config
 /// (feature flags admin) e GET /api/v1/evaluations/feedbacks/list com usuário.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class MissingPagesTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -21,7 +21,7 @@ public class MissingPagesTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-pages-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-pages-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -41,7 +41,7 @@ public class MissingPagesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

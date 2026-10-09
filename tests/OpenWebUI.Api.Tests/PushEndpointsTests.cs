@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// (SPEC-20261007-chat-notifications RF-004): chave VAPID, upsert por
 /// endpoint e delete escopado ao dono.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public sealed class PushEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -23,7 +23,7 @@ public sealed class PushEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(
+        _dbPath = Path.Join(
             Path.GetTempPath(), $"openwebui-push-tests-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
@@ -61,6 +61,7 @@ public sealed class PushEndpointsTests
         }
         catch (IOException)
         {
+            // Limpeza best-effort — subscription pode nem existir.
         }
     }
 

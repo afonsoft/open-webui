@@ -54,11 +54,11 @@ public static class FileEndpoints
         }
 
         var id = Guid.NewGuid().ToString();
-        var uploadDir = Path.Combine(env.ContentRootPath, "data", "uploads", user.Id);
+        var uploadDir = Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id);
         Directory.CreateDirectory(uploadDir);
 
         var safeName = Path.GetFileName(file.FileName);
-        var storagePath = Path.Combine(uploadDir, $"{id}_{safeName}");
+        var storagePath = Path.Join(uploadDir, $"{id}_{safeName}");
 
         await using (var fs = File.Create(storagePath))
         {

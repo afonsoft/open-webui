@@ -384,16 +384,8 @@ public sealed class PtySession : IPtySession
             return null;
         }
 
-        foreach (var dir in path.Split(Path.PathSeparator,
-                     StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = Path.Combine(dir, name);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
+        return path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(dir => Path.Join(dir, name))
+            .FirstOrDefault(File.Exists);
     }
 }

@@ -449,6 +449,10 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.Property<string>("FolderId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ModelsJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -496,7 +500,6 @@ namespace OpenWebUI.Infrastructure.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ChatId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Command")
@@ -1150,6 +1153,42 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.ToTable("Notes");
                 });
 
+            modelBuilder.Entity("OpenWebUI.Domain.Notification", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Link")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ReadAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("OpenWebUI.Domain.NotificationWebhook", b =>
                 {
                     b.Property<string>("Id")
@@ -1523,8 +1562,7 @@ namespace OpenWebUI.Infrastructure.Migrations
                     b.HasOne("OpenWebUI.Domain.Chat", null)
                         .WithMany()
                         .HasForeignKey("ChatId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("OpenWebUI.Domain.ChatMessage", b =>

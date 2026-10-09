@@ -125,7 +125,7 @@ public class ImageGenerationService(
         {
             var id = Guid.NewGuid().ToString();
             var filename = $"generated-{id[..8]}.png";
-            var storagePath = Path.Combine(uploadDir, $"{id}_{filename}");
+            var storagePath = Path.Join(uploadDir, $"{id}_{filename}");
             await File.WriteAllBytesAsync(storagePath, bytes, ct);
 
             var entry = new FileEntry

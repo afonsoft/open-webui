@@ -1,0 +1,15 @@
+@inject LocalizationService L
+
+@* Chip do modo do agente no header do chat (SPEC-20261009 RF-004):
+   visível durante a run ou sempre que o modo for plan — "badge Modo
+   plano" lembrando que a conversa é somente-leitura. *@
+<span class="hidden sm:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium @AgentModeVisuals.ChipClass(Mode)"
+      role="status" title="@L["chat.mode_agent"]">
+    @AgentModeVisuals.Icon(Mode)
+    @AgentModeVisuals.Label(L, Mode)
+</span>
+
+@code {
+    /// <summary>Modo atual do agente (<c>build</c> | <c>plan</c>).</summary>
+    [Parameter] public string Mode { get; set; } = "build";
+}

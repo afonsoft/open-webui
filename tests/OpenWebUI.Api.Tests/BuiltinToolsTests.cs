@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -29,12 +30,12 @@ public class BuiltinToolsTests
     [SetUp]
     public void SetUp()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"owui-builtin-{Guid.NewGuid():N}");
-        _workspace = Path.Combine(root, "workspace");
-        _uploadDir = Path.Combine(root, "uploads");
+        var root = Path.Join(Path.GetTempPath(), $"owui-builtin-{Guid.NewGuid():N}");
+        _workspace = Path.Join(root, "workspace");
+        _uploadDir = Path.Join(root, "uploads");
         Directory.CreateDirectory(_workspace);
         Directory.CreateDirectory(_uploadDir);
-        _dbPath = Path.Combine(root, "test.db");
+        _dbPath = Path.Join(root, "test.db");
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(
@@ -281,6 +282,20 @@ public class BuiltinToolsTests
     }
 
     [Test]
+    public async Task ShellExec_ComandoInexistenteSugereInstalarTool()
+    {
+        var tool = new ShellExecBuiltinTool(NewJobService());
+        var r = await tool.ExecuteAsync(
+            Args("{\"command\":\"tool-inexistente-xyz --versao\"}"), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Refused, Is.True);
+            Assert.That(r.Text, Does.Contain("Binário desconhecido")
+                .And.Contain("ask_user").And.Contain("instalação"));
+        });
+    }
+
+    [Test]
     public async Task ShellExec_ForegroundExecutaERetornaStatus()
     {
         var tool = new ShellExecBuiltinTool(NewJobService());
@@ -395,10 +410,10 @@ public class BuiltinToolsTests
         var registry = new BuiltinToolRegistry(
             [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
             new ConfigurationBuilder().Build());
+        using var mc3 = new MemoryCache(new MemoryCacheOptions());
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new ConfigurationBuilder().Build()),
-            new McpClientService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
+            new McpClientService(db, mc3),
             registry);
 
         var tools = await executor.LoadEnabledAsync("u1", ["builtin:fetch_url"]);
@@ -413,6 +428,33 @@ public class BuiltinToolsTests
         var comCtx = await executor.ExecuteAsync(tools, "builtin:fetch_url",
             "{\"url\":\"http://127.0.0.1:1/\"}", Ctx(), default);
         Assert.That(comCtx.Text, Does.Contain("ssrf").Or.Contain("privad").Or.Contain("negad"));
+    }
+
+    [Test]
+    public async Task Executor_NomeSemOuComPrefixo_ResolveBuiltin()
+    {
+        // Providers sanitizam o nome da função (':' é inválido no spec OpenAI):
+        // o modelo pode emitir "fetch_url" ou "builtin_fetch_url" — ambos
+        // precisam resolver a built-in em vez de "não está habilitada".
+        using var db = NewDb();
+        var registry = new BuiltinToolRegistry(
+            [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
+            new ConfigurationBuilder().Build());
+        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var executor = new ToolExecutor(db, new StubHttpClientFactory(),
+            new PythonToolExecutor(new ConfigurationBuilder().Build()),
+            new McpClientService(db, mc2),
+            registry);
+
+        var tools = await executor.LoadEnabledAsync("u1", ["builtin:fetch_url"]);
+        Assert.That(ToolExecutor.FunctionName(tools[0]), Is.EqualTo("builtin_fetch_url"));
+
+        foreach (var name in new[] { "builtin_fetch_url", "builtin:fetch_url", "fetch_url" })
+        {
+            var outcome = await executor.ExecuteAsync(tools, name,
+                "{\"url\":\"http://127.0.0.1:1/\"}", Ctx(), default);
+            Assert.That(outcome.Text, Does.Not.Contain("não está habilitada"), name);
+        }
     }
 
     [Test]
@@ -481,7 +523,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task ShellExec_TimeoutForegroundReporta()
     {
-        await File.WriteAllTextAsync(Path.Combine(_workspace, "j.log"), "linha\n");
+        await File.WriteAllTextAsync(Path.Join(_workspace, "j.log"), "linha\n");
         var tool = new ShellExecBuiltinTool(NewJobService());
         var r = await tool.ExecuteAsync(
             Args("{\"command\":\"tail -f j.log\",\"timeout_seconds\":1}"), Ctx(), default);
@@ -492,7 +534,7 @@ public class BuiltinToolsTests
 
     private GenerateImageBuiltinTool NewImageTool()
     {
-        var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
         var svc = new ImageGenerationService(
             new ImageEngineFactory(new StubHttpClientFactory()),
@@ -517,7 +559,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task WebSearch_ArgsObrigatoriosESemEngine()
     {
-        var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
+        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
         var db = NewDb();
         // engine=none explícito: o default passou a ser duckduckgo.
@@ -709,10 +751,10 @@ public class BuiltinToolsTests
         await db.SaveChangesAsync();
 
         var ddgJson = "{\"RelatedTopics\":[{\"Text\":\"Resultado um\",\"FirstURL\":\"https://ex.com\"}]}";
+        using var mc1 = new MemoryCache(new MemoryCacheOptions());
         var tool = new WebSearchBuiltinTool(new WebSearchService(
             new StubHttpClientFactory(new FakeHandler(HttpStatusCode.OK, ddgJson, "application/json")),
-            new ConfigService(NewDb(), new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))));
+            new ConfigService(NewDb(), mc1)));
 
         var r = await tool.ExecuteAsync(
             Args("{\"query\":\"devin\",\"count\":3}"), Ctx(), default);
@@ -730,7 +772,7 @@ public class BuiltinToolsTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(Path.Combine(_workspace, "src", "a.txt")),
+            Assert.That(File.ReadAllText(Path.Join(_workspace, "src", "a.txt")),
                 Is.EqualTo("linha1\nlinha2\n"));
             Assert.That(r.Text, Does.Contain("a.txt").And.Contain("+linha1"));
             Assert.That(tool.RequiresApproval, Is.True);
@@ -753,13 +795,13 @@ public class BuiltinToolsTests
                 Args("{\"path\":\"~/home.txt\",\"content\":\"x\"}"), Ctx(), default)).Text,
                 Does.Contain("não resolve"));
         });
-        Assert.That(File.Exists(Path.Combine(_workspace, "..", "fora.txt")), Is.False);
+        Assert.That(File.Exists(Path.Join(_workspace, "..", "fora.txt")), Is.False);
     }
 
     [Test]
     public async Task FileRead_LeComNumeracao_EPagina()
     {
-        var path = Path.Combine(_workspace, "num.txt");
+        var path = Path.Join(_workspace, "num.txt");
         File.WriteAllLines(path, Enumerable.Range(1, 20).Select(i => $"l{i}"));
 
         var tool = new FileReadBuiltinTool();
@@ -777,7 +819,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileEdit_SubstituiUmaOcorrencia_ERetornaDiff()
     {
-        File.WriteAllText(Path.Combine(_workspace, "e.txt"), "aaa bbb ccc\n");
+        File.WriteAllText(Path.Join(_workspace, "e.txt"), "aaa bbb ccc\n");
         var tool = new FileEditBuiltinTool();
 
         var r = await tool.ExecuteAsync(
@@ -785,7 +827,7 @@ public class BuiltinToolsTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(Path.Combine(_workspace, "e.txt")), Is.EqualTo("aaa XXX ccc\n"));
+            Assert.That(File.ReadAllText(Path.Join(_workspace, "e.txt")), Is.EqualTo("aaa XXX ccc\n"));
             Assert.That(r.Text, Does.Contain("-aaa bbb ccc").And.Contain("+aaa XXX ccc"));
         });
     }
@@ -793,7 +835,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileEdit_AmbiguoSemReplaceAll_FalhaComDica()
     {
-        File.WriteAllText(Path.Combine(_workspace, "amb.txt"), "x x x\n");
+        File.WriteAllText(Path.Join(_workspace, "amb.txt"), "x x x\n");
         var tool = new FileEditBuiltinTool();
 
         var r = await tool.ExecuteAsync(
@@ -803,14 +845,14 @@ public class BuiltinToolsTests
         var ok = await tool.ExecuteAsync(
             Args("{\"path\":\"amb.txt\",\"old_string\":\"x\",\"new_string\":\"y\",\"replace_all\":true}"),
             Ctx(), default);
-        Assert.That(File.ReadAllText(Path.Combine(_workspace, "amb.txt")), Is.EqualTo("y y y\n"));
+        Assert.That(File.ReadAllText(Path.Join(_workspace, "amb.txt")), Is.EqualTo("y y y\n"));
         Assert.That(ok.Text, Does.Contain("editado"));
     }
 
     [Test]
     public async Task FileEdit_TrechoNaoEncontrado_RetornaDica()
     {
-        File.WriteAllText(Path.Combine(_workspace, "m.txt"), "conteudo\n");
+        File.WriteAllText(Path.Join(_workspace, "m.txt"), "conteudo\n");
         var tool = new FileEditBuiltinTool();
         var r = await tool.ExecuteAsync(
             Args("{\"path\":\"m.txt\",\"old_string\":\"inexistente\",\"new_string\":\"z\"}"), Ctx(), default);
@@ -820,9 +862,9 @@ public class BuiltinToolsTests
     [Test]
     public async Task FileGrep_FileGlob_FileList_Funcionam()
     {
-        Directory.CreateDirectory(Path.Combine(_workspace, "sub"));
-        File.WriteAllText(Path.Combine(_workspace, "sub", "um.cs"), "class Foo {}\n// TODO: x\n");
-        File.WriteAllText(Path.Combine(_workspace, "dois.md"), "sem match\n");
+        Directory.CreateDirectory(Path.Join(_workspace, "sub"));
+        File.WriteAllText(Path.Join(_workspace, "sub", "um.cs"), "class Foo {}\n// TODO: x\n");
+        File.WriteAllText(Path.Join(_workspace, "dois.md"), "sem match\n");
 
         var grep = new FileGrepBuiltinTool();
         var g = await grep.ExecuteAsync(
@@ -952,13 +994,31 @@ public class BuiltinToolsTests
     private sealed class FakeHandler(HttpStatusCode status, string content, string mediaType)
         : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
+            HttpRequestMessage request, CancellationToken cancellationToken) 
+        {
+            var response = new HttpResponseMessage(status)
             {
                 Content = new StringContent(
                     content, System.Text.Encoding.UTF8, mediaType),
-            });
+            };
+            _pending.Add(response);
+            return Task.FromResult(response);
+        }
     }
 
     private sealed class ThrowingHandler : HttpMessageHandler

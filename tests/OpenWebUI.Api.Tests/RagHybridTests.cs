@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
@@ -12,21 +13,29 @@ namespace OpenWebUI.Api.Tests;
 /// produzem rankings diferentes em corpus controlado, e o rerank
 /// reordena por cobertura de termos.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RagHybridTests
 {
     private string _dbPath = null!;
+    private MemoryCache _mc1 = null!;
+    private MemoryCache _mc2 = null!;
 
     [SetUp]
-    public void SetUp() =>
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-hybrid-{Guid.NewGuid():N}.db");
+    public void SetUp()
+    {
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-hybrid-{Guid.NewGuid():N}.db");
+        _mc1 = new MemoryCache(new MemoryCacheOptions());
+        _mc2 = new MemoryCache(new MemoryCacheOptions());
+    }
 
     [TearDown]
     public void TearDown()
     {
+        _mc1.Dispose();
+        _mc2.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -37,10 +46,9 @@ public class RagHybridTests
         await db.Database.EnsureCreatedAsync();
         return db;
     }
-
-    private static RagService NewRag(AppDbContext db) =>
-        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()))),
-            new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())), new StubHttpClientFactory());
+    private RagService NewRag(AppDbContext db) =>
+        new(db, new EmbeddingService(new StubHttpClientFactory(), new ConfigService(db, _mc1)),
+            new ConfigService(db, _mc2), new StubHttpClientFactory());
 
     private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null)
         : IHttpClientFactory
@@ -52,12 +60,30 @@ public class RagHybridTests
     /// <summary>Responde {"scores":[0.01,0.99]} a qualquer request.</summary>
     private sealed class RerankHandler : HttpMessageHandler
     {
+        private readonly List<HttpResponseMessage> _pending = [];
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var response in _pending)
+                {
+                    response.Dispose();
+                }
+            }
+            base.Dispose(disposing);
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            HttpRequestMessage request, CancellationToken cancellationToken) 
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"scores\":[0.01,0.99]}"),
-            });
+            };
+            _pending.Add(response);
+            return Task.FromResult(response);
+        }
     }
 
     /// <summary>Falha toda request (provider indisponível).</summary>
@@ -112,7 +138,8 @@ public class RagHybridTests
             Chunk("f1", 1, "zebra girafa zebra girafa", [0f, 1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        using var mcl1 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mcl1);
         await config.SetAsync("retrieval.config",
             RetrievalConfig.Default with { Hybrid = true, HybridWeight = 0, TopK = 1 });
 
@@ -150,7 +177,8 @@ public class RagHybridTests
             Chunk("f1", 1, "beta", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        using var mcl2 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mcl2);
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
             Rerank = true,
@@ -177,7 +205,8 @@ public class RagHybridTests
             Chunk("f1", 1, "alfa beta gama", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        var config = new ConfigService(db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        using var mcl3 = new MemoryCache(new MemoryCacheOptions());
+        var config = new ConfigService(db, mcl3);
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
             Rerank = true,

@@ -8,6 +8,7 @@
 @inject IJSRuntime JS
 @inject RealtimeService Realtime
 @inject BrowserStorage Storage
+@inject AttentionInboxState Attention
 @implements IDisposable
 
 <div class="flex h-full w-full min-w-0">
@@ -22,6 +23,10 @@
                         </div>
                     </div>
                     <div class="lg:mr-1 flex flex-none items-center gap-2 self-center">
+                        @if (_streaming || _agentMode == "plan")
+                        {
+                            <AgentModeBadge Mode="@_agentMode" />
+                        }
                         @if (_streaming && !string.IsNullOrEmpty(_statusLabel))
                         {
                             <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 dark:text-gray-400"
@@ -49,6 +54,41 @@
                                     <span class="font-mono text-green-600 dark:text-green-400">+@g.Added</span>
                                     <span class="font-mono text-red-500 dark:text-red-400">−@g.Removed</span>
                                 }
+                            </button>
+                        }
+                        @if (_repo is { Repo: { } repoSlug })
+                        {
+                            <div class="inline-flex items-center gap-1.5">
+                                <a class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                                   href="https://github.com/@repoSlug" target="_blank" rel="noopener noreferrer"
+                                   title="@L.T("chat.repo_open", ("repo", repoSlug))"
+                                   aria-label="@L.T("chat.repo_open", ("repo", repoSlug))">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>
+                                    <span class="max-w-16 sm:max-w-44 truncate font-mono">@repoSlug</span>
+                                </a>
+                                <button type="button" class="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 cursor-pointer"
+                                        title="@L["chat.repo_branch_title"]" aria-label="@L["chat.repo_branch_title"]"
+                                        @onclick="() => _repoPicker = true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 3v12" />
+                                        <circle cx="18" cy="6" r="3" />
+                                        <circle cx="6" cy="18" r="3" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9a9 9 0 0 1-9 9" />
+                                    </svg>
+                                    <span class="max-w-14 sm:max-w-44 truncate font-mono">@_repo.Branch</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                                </button>
+                                <a href="/ide" class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                                        title="@L["ide.open"]" aria-label="@L["ide.open"]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" /></svg>
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            <button type="button" class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                                    title="@L["chat.repo_link"]" aria-label="@L["chat.repo_link"]" @onclick="() => _repoPicker = true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3.5" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>
                             </button>
                         }
                         @if (_voiceSupported)
@@ -304,26 +344,60 @@
                     }
                 </div>
             }
+            @if (_mentionPaths.Count > 0)
+            {
+                @* Chips de menção @path (RF-001): unidade atômica — × ou Backspace remove inteiro. *@
+                <div class="mb-1 mx-1 flex flex-wrap gap-1.5" aria-label="@L["chat.mentions"]">
+                    @foreach (var path in _mentionPaths)
+                    {
+                        <span class="mention-chip">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                            @path
+                            <button class="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 cursor-pointer" aria-label="@L["chat.mention_remove"]" @onclick="() => _mentionPaths.Remove(path)">×</button>
+                        </span>
+                    }
+                </div>
+            }
 
             <div class="flex-1 flex flex-col relative w-full shadow-lg rounded-3xl border border-gray-100/30 dark:border-gray-850/30 hover:border-gray-200 focus-within:border-gray-100 hover:dark:border-gray-800 focus-within:dark:border-gray-800 transition px-0.5 bg-white/5 dark:bg-gray-500/5 backdrop-blur-sm dark:text-gray-100">
                 <div class="px-2 relative">
                     @if (_promptSuggestions.Count > 0)
                     {
-                        <div class="mb-1 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                        <div class="mb-1 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 overflow-hidden" role="listbox">
                             @foreach (var p in _promptSuggestions)
                             {
-                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
-                                        @onclick="() => SelectPrompt(p)">/@p.Command @p.Title</button>
+                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer flex items-center gap-2"
+                                        role="option"
+                                        @onclick="() => SelectPrompt(p)">
+                                    <span class="text-[10px] uppercase tracking-wide px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">@L[$"chat.src_{p.Source}"]</span>
+                                    <span class="truncate">/@p.Command @p.Title</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    @if (_mentionItems.Count > 0)
+                    {
+                        @* Dropdown @path (RF-001): top-20, dirs primeiro, substring no nome/caminho. *@
+                        <div class="mention-list" role="listbox" aria-label="@L["chat.mentions"]">
+                            @foreach (var item in _mentionItems)
+                            {
+                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer flex items-center gap-2"
+                                        role="option"
+                                        @onclick="() => SelectMention(item)">
+                                    <span class="text-[10px] uppercase tracking-wide px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">@(item.Type == "dir" ? "dir" : "file")</span>
+                                    <span class="truncate">@item.Path</span>
+                                </button>
                             }
                         </div>
                     }
                     <textarea
                         class="scrollbar-hidden bg-transparent dark:text-gray-100 outline-none w-full py-3 px-1 resize-none h-fit max-h-96 overflow-auto placeholder:text-gray-400 dark:placeholder:text-gray-600 text-[0.9375rem]"
+                        aria-label="@L["chat.input_placeholder"]"
                         placeholder="@(_uploading ? L["chat.uploading"] : L["chat.input_placeholder"])"
                         rows="1"
                         @bind="_input"
                         @bind:event="oninput"
-                        @bind:after="SaveDraftAsync"
+                        @bind:after="OnComposerInputAsync"
                         @onkeydown="OnKeyDown"
                         disabled="@_loading"></textarea>
                 </div>
@@ -335,14 +409,15 @@
                             <div class="relative">
                                 <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40
                                                @(_toolIds.Count > 0 || _webSearch ? "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40" : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800")"
-                                        title="@L["chat.tools"]" aria-label="@L["chat.tools"]" disabled="@_loading"
-                                        @onclick="() => _showToolsMenu = !_showToolsMenu">
+                                        title="@L["chat.tools"]" aria-label="@L["chat.tools"]" aria-expanded="@_showToolsMenu" aria-haspopup="dialog" disabled="@_loading"
+                                        @ref="_toolsTrigger" @onclick="ToggleToolsMenu">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg>
                                 </button>
                                 @if (_showToolsMenu)
                                 {
                                     <div class="fixed inset-0 z-30" @onclick="() => _showToolsMenu = false"></div>
-                                    <div class="absolute bottom-10 left-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg max-h-[60vh] overflow-y-auto overflow-x-hidden">
+                                    <div class="absolute bottom-10 left-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg max-h-[60vh] overflow-y-auto overflow-x-hidden"
+                                         role="group" aria-label="@L["chat.tools"]" @ref="_toolsMenu" @onkeydown="OnToolsMenuKeyDown">
                                         @if (_webSearchAvailable)
                                         {
                                             <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">@L["chat.tools_features"]</div>
@@ -473,14 +548,15 @@
                                      OnError="OnSttErr" />
                         <div class="relative">
                             <button class="size-8 flex items-center justify-center rounded-full transition cursor-pointer disabled:opacity-40 @(ModeButtonClass)"
-                                    title="@ModeTitle" aria-label="@ModeTitle" disabled="@_loading"
-                                    @onclick="() => _showModeMenu = !_showModeMenu">
+                                    title="@ModeTitle" aria-label="@ModeTitle" aria-expanded="@_showModeMenu" aria-haspopup="menu" disabled="@_loading"
+                                    @ref="_modeTrigger" @onclick="ToggleModeMenu">
                                 @ModeIcon(_approvalPreset)
                             </button>
                             @if (_showModeMenu)
                             {
                                 <div class="fixed inset-0 z-30" @onclick="() => _showModeMenu = false"></div>
-                                <div class="absolute bottom-10 right-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden">
+                                <div class="absolute bottom-10 right-0 z-40 w-64 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg overflow-hidden"
+                                     role="menu" aria-label="@L["chat.mode_title"]" @ref="_modeMenu" @onkeydown="OnModeMenuKeyDown">
                                     <div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                                         @L["chat.mode_title"]
                                     </div>
@@ -488,6 +564,7 @@
                                     {
                                         <button class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer
                                                        @(_approvalPreset == mode ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")"
+                                                role="menuitemradio" aria-checked="@(_approvalPreset == mode)"
                                                 @onclick="() => SelectModeAsync(mode)">
                                             @ModeIcon(mode)
                                             <span class="flex-1 min-w-0">
@@ -508,6 +585,8 @@
                     </div>
 
                     <div class="self-end flex items-center gap-1 mr-1">
+                        <AgentModeToggle Mode="@_agentMode" Disabled="@_loading"
+                                         OnToggle="ToggleAgentModeAsync" />
                         @if (_streaming)
                         {
                             if (_paused)
@@ -547,6 +626,7 @@
         </div>
     </div>
 
+    <RepoPickerModal @bind-Active="_repoPicker" Bound="OnRepoBoundAsync" />
     <CallOverlay Active="_callActive" Lang="@SttLang"
                  OnTurn="ExecuteVoiceTurnAsync"
                  OnClose="() => _callActive = false" />
@@ -555,23 +635,31 @@
 @if (_showPanel)
 {
     @* Painel de workspace (RF-015): coluna ≥lg, drawer no mobile. *@
-    <aside class="hidden lg:flex w-80 xl:w-96 flex-none">
+    <aside class="hidden lg:flex w-80 xl:w-96 flex-none relative" @ref="_panelEl">
+        <div class="absolute inset-y-0 -left-1 w-2 z-10 cursor-col-resize rounded transition-colors hover:bg-blue-500/20 active:bg-blue-500/30"
+             role="separator" aria-orientation="vertical" aria-label="@L["chat.panel_resize"]"
+             title="@L["chat.panel_resize"]" tabindex="0" @ref="_panelResizer"></div>
         <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
                             Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
                             Model="@_model" RunId="@_activeRunId" Git="_git"
                             IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
-                            RequestedTab="_requestedPanelTab"
+                            RequestedTab="@_requestedPanelTab"
+                            Checkpoints="_runCheckpoints"
+                            OnReverted="OnCheckpointRevertedAsync"
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
     </aside>
-    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" tabindex="-1"
+         @ref="_drawerEl" @onkeydown="OnDrawerKeyDown">
         <div class="absolute inset-0 bg-black/40" @onclick="() => _showPanel = false"></div>
         <aside class="absolute inset-y-0 right-0 w-80 max-w-[85vw] shadow-xl">
             <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
                                 Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
                                 Model="@_model" RunId="@_activeRunId" Git="_git"
                                 IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
-                                RequestedTab="_requestedPanelTab"
+                                RequestedTab="@_requestedPanelTab"
+                                Checkpoints="_runCheckpoints"
+                                OnReverted="OnCheckpointRevertedAsync"
                                 OnClose="() => _showPanel = false"
                                 OnKillJob="KillJobAsync" />
         </aside>
@@ -590,7 +678,18 @@
     private readonly List<FileResponse> _attachedFiles = [];
     private List<PromptResponse> _prompts = [];
     private List<PromptSuggestion> _suggestions = [];
-    private List<PromptResponse> _promptSuggestions = [];
+    private List<SlashItem> _promptSuggestions = [];
+    // @menções de arquivos do workdir (SPEC-20261009-ide-mentions-tests RF-001):
+    // dropdown de sugestões + chips selecionados + cache da árvore.
+    private List<WorkspaceFileEntryResponse> _mentionItems = [];
+    private readonly List<string> _mentionPaths = [];
+    private List<WorkspaceFileEntryResponse>? _mentionTree;
+    private string? _mentionTreeFor;
+    private CancellationTokenSource? _mentionCts;
+    private static readonly System.Text.RegularExpressions.Regex MentionTokenRegex =
+        new(@"(?:^|\s)@(?<q>[\w./-]+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private List<RepoSkillItemResponse> _repoSkills = [];
+    private List<RepoCommandItemResponse> _repoCommands = [];
     private List<string> _followUps = [];
     private ArenaCompletionResult? _arena;
     private ArenaFeedbackResponse? _arenaFeedback;
@@ -624,6 +723,8 @@
     private string? _activeRunId;
     /// <summary>Snapshot git do workspace (git bar do header + aba Changes).</summary>
     private WorkspaceGitResponse? _git;
+    private WorkspaceRepoResponse? _repo;
+    private bool _repoPicker;
     /// <summary>Aba que o painel abre na próxima renderização (clique no chip git).</summary>
     private string? _requestedPanelTab;
     private ElementReference _scrollContainer;
@@ -641,6 +742,9 @@
     /// <summary>Arquivos alterados pela run (evento <c>changes</c>, RF-015 — aba Changes).</summary>
     private List<RunChangeItem> _runChanges = [];
 
+    /// <summary>Checkpoints do workdir emitidos pela run (S6 — aba Changes).</summary>
+    private List<WorkspaceCheckpointItem> _runCheckpoints = [];
+
     /// <summary>Painel de workspace lateral (abas Tasks/Changes/Jobs/MCPs/Info).</summary>
     private bool _showPanel;
     private List<ChatJobResponse> _jobs = [];
@@ -649,7 +753,19 @@
     private RunQuestionAskedEvent? _pendingQuestion;
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
+    // SPEC-20261009-agent-modes-plan-build: build (default) | plan.
+    private string _agentMode = "build";
     private bool _showModeMenu;
+    private ElementReference _toolsTrigger;
+    private ElementReference _toolsMenu;
+    private ElementReference _modeTrigger;
+    private ElementReference _modeMenu;
+    private ElementReference _drawerEl;
+    private ElementReference _panelEl;
+    private ElementReference _panelResizer;
+    private bool _focusToolsMenu;
+    private bool _focusModeMenu;
+    private bool _drawerTrapped;
     private static readonly string[] ApprovalPresets =
         ["allow-readonly", "approve-mutations", "smart", "always-allow", "auto"];
 
@@ -681,7 +797,7 @@
             : Auth.CurrentUser!.Name.Trim()[0].ToString().ToUpperInvariant();
 
     private bool SendDisabled =>
-        (string.IsNullOrWhiteSpace(_input) && _attachedFiles.Count == 0)
+        (string.IsNullOrWhiteSpace(_input) && _attachedFiles.Count == 0 && _mentionPaths.Count == 0)
         || string.IsNullOrEmpty(_model) || _loading || _uploading;
 
     protected override async Task OnInitializedAsync()
@@ -692,7 +808,8 @@
         var modelsTask = Api.GetModelsConfigAsync();
         var configTask = Api.GetAppConfigCachedAsync();
         var storedTask = StoredWebSearchAsync();
-        await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask);
+        var repoTask = Api.GetWorkspaceRepoAsync();
+        await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask, repoTask);
 
         _prompts = promptsTask.Result;
         _tools = toolsTask.Result;
@@ -702,6 +819,12 @@
         if (ChatId is null && _toolIds.Count == 0)
         {
             _toolIds = DefaultToolIds();
+        }
+        _repo = repoTask.Result;
+        if (_repo?.Repo is not null)
+        {
+            _repoSkills = await Api.GetRepoSkillsAsync();
+            _repoCommands = await Api.GetRepoCommandsAsync();
         }
         var features = configTask.Result?.Features;
         _webSearchAvailable = features?.EnableWebSearch ?? false;
@@ -741,6 +864,77 @@
             {
                 StateHasChanged();
             }
+        }
+        if (_focusToolsMenu)
+        {
+            _focusToolsMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _toolsMenu);
+        }
+        if (_focusModeMenu)
+        {
+            _focusModeMenu = false;
+            await JS.InvokeVoidAsync("openwebui.focusFirst", _modeMenu);
+        }
+        if (_showPanel)
+        {
+            // Divisor arrastável da coluna (idempotente via flag no elemento).
+            await JS.InvokeVoidAsync("openwebui.panelResize", _panelResizer, _panelEl);
+        }
+        if (_showPanel && !_drawerTrapped)
+        {
+            _drawerTrapped = true;
+            await JS.InvokeVoidAsync("openwebui.trapFocus", _drawerEl);
+        }
+        else if (!_showPanel && _drawerTrapped)
+        {
+            _drawerTrapped = false;
+            await JS.InvokeVoidAsync("openwebui.releaseFocus", _drawerEl);
+        }
+    }
+
+    private void ToggleToolsMenu()
+    {
+        _showToolsMenu = !_showToolsMenu;
+        if (_showToolsMenu) _focusToolsMenu = true;
+    }
+
+    private void ToggleModeMenu()
+    {
+        _showModeMenu = !_showModeMenu;
+        if (_showModeMenu) _focusModeMenu = true;
+    }
+
+    private async Task OnToolsMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showToolsMenu = false;
+            await _toolsTrigger.FocusAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _toolsMenu, e.Key);
+        }
+    }
+
+    private async Task OnModeMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showModeMenu = false;
+            await _modeTrigger.FocusAsync();
+        }
+        else if (e.Key is "ArrowDown" or "ArrowUp" or "Home" or "End")
+        {
+            await JS.InvokeVoidAsync("openwebui.menuNav", _modeMenu, e.Key);
+        }
+    }
+
+    private void OnDrawerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showPanel = false;
         }
     }
 
@@ -810,6 +1004,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _runChanges = [];
+        _runCheckpoints = [];
         _git = null;
         _pendingApproval = null;
         _pendingQuestion = null;
@@ -828,6 +1023,7 @@
             _toolIds = DefaultToolIds();
             // Modo de permissão volta ao padrão do composer (última escolha).
             _approvalPreset = await StoredPresetAsync();
+            _agentMode = await StoredAgentModeAsync();
             await LoadComposerStateAsync(null);
             return;
         }
@@ -850,6 +1046,7 @@
                 ? chat.ToolIds.ToHashSet()
                 : DefaultToolIds();
             _approvalPreset = chat.ApprovalPreset;
+            _agentMode = chat.Mode is "plan" ? "plan" : "build";
             _messages.Clear();
             _messages.AddRange(chat.Messages);
             await LoadComposerStateAsync(chat.Id);
@@ -860,15 +1057,10 @@
 
             // Run ainda em execução (aba fechou/reload): anexa ao stream e mostra a geração ao vivo.
             var activeRun = await ChatStream.GetActiveRunAsync(chat.Id);
-            if (activeRun is not null)
-            {
-                _ = AttachActiveRunAsync(activeRun);
-            }
-            else
-            {
+            _ = activeRun is not null
+                ? AttachActiveRunAsync(activeRun)
                 // Git bar: snapshot do workspace quando há runs anteriores.
-                _ = RefreshGitAsync();
-            }
+                : RefreshGitAsync();
         }
         finally
         {
@@ -931,14 +1123,51 @@
         _input = suggestion.Content;
     }
 
-    private void SelectPrompt(PromptResponse prompt)
+    private async Task SelectPrompt(SlashItem item)
     {
-        _input = prompt.Content;
         _promptSuggestions = [];
+        if (item.Source == "prompt")
+        {
+            var prompt = _prompts.FirstOrDefault(
+                p => p.Command.Equals(item.Command, StringComparison.OrdinalIgnoreCase));
+            if (prompt is not null)
+            {
+                _input = prompt.Content;
+            }
+
+            return;
+        }
+
+        // skill → corpo markdown no input; command → template com $N interpolado.
+        var args = RepoSlashCommands.ArgsAfter(_input);
+        if (item.Source == "skill")
+        {
+            var detail = await Api.GetRepoSkillAsync(item.Command);
+            _input = detail?.Content ?? _input;
+        }
+        else
+        {
+            var detail = await Api.GetRepoCommandAsync(item.Command);
+            _input = detail is null ? _input : RepoSlashCommands.Interpolate(detail.Content, args);
+        }
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
+        // Esc fecha o dropdown de menções (RF-001).
+        if (e.Key == "Escape" && _mentionItems.Count > 0)
+        {
+            _mentionItems = [];
+            return;
+        }
+
+        // Backspace no input vazio remove o chip inteiro (RF-001 — chip é unidade atômica).
+        if (e.Key == "Backspace" && string.IsNullOrEmpty(_input) && _mentionPaths.Count > 0)
+        {
+            _mentionPaths.RemoveAt(_mentionPaths.Count - 1);
+            return;
+        }
+
         if (e.Key == "Enter" && !e.ShiftKey && !SendDisabled && !_streaming)
         {
             await SendAsync();
@@ -972,6 +1201,108 @@
         }
 
         UpdatePromptSuggestions();
+    }
+
+    /// <summary>
+    /// @bind:after do composer: agenda o lookup de menções @path e grava o rascunho.
+    /// </summary>
+    private async Task OnComposerInputAsync()
+    {
+        // Sugestões de slash atualizam APÓS o bind — no @onkeydown o _input
+        // ainda não recebeu o char digitado (a lista ficava 1 tecla atrasada
+        // e '/' sozinho não abria nada).
+        UpdatePromptSuggestions();
+        QueueMentionLookup();
+        await SaveDraftAsync();
+    }
+
+    /// <summary>
+    /// Token @path no fim do input (RF-001): detecta <c>@query</c> com ≥1 char
+    /// e agenda o filtro da árvore do workdir com debounce (~250ms).
+    /// </summary>
+    private void QueueMentionLookup()
+    {
+        var match = MentionTokenRegex.Match(_input);
+        _mentionCts?.Cancel();
+        if (!match.Success)
+        {
+            _mentionItems = [];
+            return;
+        }
+
+        var query = match.Groups["q"].Value;
+        _mentionCts = new CancellationTokenSource();
+        var ct = _mentionCts.Token;
+        _ = RefreshMentionSuggestionsAsync(query, ct);
+    }
+
+    /// <summary>Filtra a árvore (top-20, dirs primeiro) após o debounce.</summary>
+    private async Task RefreshMentionSuggestionsAsync(string query, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(250, ct);
+            var tree = await EnsureMentionTreeAsync();
+            _mentionItems = tree is null
+                ? []
+                : tree
+                    .Where(e => e.Path.Contains(query, StringComparison.OrdinalIgnoreCase)
+                                || e.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(e => e.Type == "dir")
+                    .ThenBy(e => e.Path, StringComparer.OrdinalIgnoreCase)
+                    .Take(20)
+                    .ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // keystroke mais recente venceu — esperado.
+        }
+    }
+
+    /// <summary>Carrega e cacheia a árvore do workdir (até 3 páginas) por repo vinculado.</summary>
+    private async Task<List<WorkspaceFileEntryResponse>?> EnsureMentionTreeAsync()
+    {
+        var repoKey = _repo?.Repo;
+        if (_mentionTree is not null && _mentionTreeFor == repoKey)
+        {
+            return _mentionTree;
+        }
+
+        var all = new List<WorkspaceFileEntryResponse>();
+        var cursor = (string?)null;
+        for (var page = 0; page < 3; page++)
+        {
+            var tree = await Api.GetWorkspaceTreeAsync("", 3, cursor);
+            if (tree is null)
+            {
+                return null;
+            }
+            all.AddRange(tree.Entries);
+            cursor = tree.NextCursor;
+            if (cursor is null)
+            {
+                break;
+            }
+        }
+        _mentionTree = all;
+        _mentionTreeFor = repoKey;
+        return all;
+    }
+
+    /// <summary>Seleção do dropdown: troca o token @query por um chip com o path (RF-001).</summary>
+    private void SelectMention(WorkspaceFileEntryResponse item)
+    {
+        var match = MentionTokenRegex.Match(_input);
+        if (match.Success)
+        {
+            _input = _input[..match.Index];
+        }
+        if (!_mentionPaths.Contains(item.Path, StringComparer.Ordinal))
+        {
+            _mentionPaths.Add(item.Path);
+        }
+        _mentionItems = [];
     }
 
     /// <summary>
@@ -1065,12 +1396,13 @@
 
     private void UpdatePromptSuggestions()
     {
-        _promptSuggestions = _input.StartsWith('/')
-            ? _prompts
-                .Where(p => p.Command.StartsWith(_input[1..], StringComparison.OrdinalIgnoreCase))
-                .Take(5)
-                .ToList()
-            : [];
+        // RF-003: '/' mescla prompts do usuário + skills/commands do repo.
+        var prefix = _input.StartsWith('/')
+            ? _input[1..].Split(' ', 2)[0]
+            : null;
+        _promptSuggestions = prefix is null
+            ? []
+            : RepoSlashCommands.Merge(_prompts, _repoSkills, _repoCommands, prefix);
     }
 
     private async Task TriggerFilePicker()
@@ -1107,13 +1439,15 @@
     {
         var text = _input.Trim();
         var fileIds = _attachedFiles.Select(f => f.Id).ToList();
-        if ((text.Length == 0 && fileIds.Count == 0) || string.IsNullOrEmpty(_model))
+        var mentionPaths = _mentionPaths.Count > 0 ? _mentionPaths.ToList() : null;
+        if ((text.Length == 0 && fileIds.Count == 0 && mentionPaths is null) || string.IsNullOrEmpty(_model))
         {
             return;
         }
 
         _input = string.Empty;
         _promptSuggestions = [];
+        _mentionItems = [];
         _followUps = [];
         _error = null;
         _ = PushHistoryAsync(text);
@@ -1127,9 +1461,16 @@
         {
             content += "\n\n📎 " + string.Join(", ", _attachedFiles.Select(f => f.Filename));
         }
+        // Os chips @path viram marcadores 📄 na mensagem persistida — o conteúdo
+        // real é expandido server-side via MentionPaths (o usuário vê o chip, não o dump).
+        if (mentionPaths is not null)
+        {
+            content += (content.Length > 0 ? "\n\n" : "") + "📄 " + string.Join(", ", mentionPaths);
+        }
 
         _messages.Add(new ChatMessageModel(Guid.NewGuid().ToString(), "user", content, null, now));
         _attachedFiles.Clear();
+        _mentionPaths.Clear();
 
         var isNew = _loadedChatId is null && !Playground;
         if (isNew)
@@ -1157,16 +1498,16 @@
             ChatList.NotifyChanged();
             // Modo escolhido antes do primeiro envio: aplica no chat criado
             // (o gate relê o preset por call — vale já na primeira tool).
-            if (_approvalPreset != "approve-mutations")
+            if (_approvalPreset != "approve-mutations" || _agentMode != "build")
             {
-                _ = Api.PatchChatAsync(created.Id, _approvalPreset);
+                _ = Api.PatchChatAsync(created.Id, _approvalPreset, mode: _agentMode);
             }
         }
 
         // Chats persistidos usam runs desacopladas (a geração sobrevive a fechar a aba);
         // playground e demais caminhos seguem no stream direto legado.
         var detached = _loadedChatId is not null && !Playground;
-        await StreamAssistantAsync(fileIds, detached ? content : null);
+        await StreamAssistantAsync(fileIds, detached ? content : null, mentionPaths);
         if (!detached)
         {
             await PersistAsync();
@@ -1299,11 +1640,13 @@
         }
     }
 
-    private async Task StreamAssistantAsync(IReadOnlyList<string> fileIds, string? runContent = null)
+    private async Task StreamAssistantAsync(
+        IReadOnlyList<string> fileIds, string? runContent = null,
+        IReadOnlyList<string>? mentionPaths = null)
     {
         if (_loadedChatId is not null && !Playground)
         {
-            await StreamDetachedRunAsync(fileIds, runContent);
+            await StreamDetachedRunAsync(fileIds, runContent, mentionPaths);
             return;
         }
 
@@ -1329,7 +1672,8 @@
                 Stream: true,
                 FileIds: fileIds.Count > 0 ? fileIds : null,
                 ToolIds: _toolIds.Count > 0 ? _toolIds.ToList() : null,
-                WebSearch: _webSearch ? true : null);
+                WebSearch: _webSearch ? true : null,
+                MentionPaths: mentionPaths);
 
             var lastRender = DateTime.MinValue;
             await foreach (var delta in ChatStream.StreamCompletionAsync(request, _cts.Token))
@@ -1346,6 +1690,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -1370,7 +1715,9 @@
     /// anexa ao stream e, ao fim, recarrega o chat — o servidor é a fonte da
     /// verdade das mensagens.
     /// </summary>
-    private async Task StreamDetachedRunAsync(IReadOnlyList<string> fileIds, string? runContent)
+    private async Task StreamDetachedRunAsync(
+        IReadOnlyList<string> fileIds, string? runContent,
+        IReadOnlyList<string>? mentionPaths = null)
     {
         var placeholder = new ChatMessageModel(
             Guid.NewGuid().ToString(), "assistant", string.Empty, _model,
@@ -1391,6 +1738,7 @@
                 fileIds.Count > 0 ? fileIds : null,
                 _toolIds.Count > 0 ? _toolIds.ToList() : null,
                 _webSearch ? true : null,
+                mentionPaths,
                 _cts.Token);
             _activeRunId = run.Id;
 
@@ -1399,6 +1747,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -1456,6 +1805,7 @@
         }
         catch (OperationCanceledException)
         {
+            // Cancelamento é o caminho esperado de shutdown.
         }
         catch (Exception ex)
         {
@@ -1498,6 +1848,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _runChanges = [];
+        _runCheckpoints = [];
 
         // Resume loop (SPEC-20261007-chat-tool-streaming): se o stream cair
         // no meio da run (proxy derrubando SSE ocioso, troca de rede, aba
@@ -1539,13 +1890,11 @@
                     // RenderIntervalMs (eventos de tool/fase renderizam já).
                     dirty |= evt is ChatStreamService.ChatStreamEvent.Delta;
                     if (evt is ChatStreamService.ChatStreamEvent.Delta
-                        or ChatStreamService.ChatStreamEvent.Heartbeat)
+                        or ChatStreamService.ChatStreamEvent.Heartbeat
+                        && (!dirty
+                            || (DateTime.UtcNow - lastRender).TotalMilliseconds < RenderIntervalMs))
                     {
-                        if (!dirty
-                            || (DateTime.UtcNow - lastRender).TotalMilliseconds < RenderIntervalMs)
-                        {
-                            continue;
-                        }
+                        continue;
                     }
                     dirty = false;
                     lastRender = DateTime.UtcNow;
@@ -1642,6 +1991,11 @@
                     // file_* escreveu no workdir — a git bar/aba Changes atualiza.
                     await RefreshGitAsync();
                     break;
+                case ChatStreamService.ChatStreamEvent.Checkpoint checkpoint:
+                    _runCheckpoints.Add(new WorkspaceCheckpointItem(
+                        checkpoint.Snapshot.Hash, checkpoint.Snapshot.Turn,
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+                    break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
                     switch (phase.Status.Phase)
                     {
@@ -1669,9 +2023,15 @@
                     break;
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
+                    _ = Attention.RefreshAsync();
                     break;
                 case ChatStreamService.ChatStreamEvent.QuestionAsked question:
                     _pendingQuestion = question.Asked;
+                    _ = Attention.RefreshAsync();
+                    break;
+                case ChatStreamService.ChatStreamEvent.Mode modeEvt:
+                    // plan_exit aprovado promoveu o chat a build mid-run.
+                    _agentMode = modeEvt.Info.Mode is "plan" ? "plan" : "build";
                     break;
             }
         return false;
@@ -1691,6 +2051,7 @@
         }
         await ChatStream.DecideApprovalAsync(
             _loadedChatId, _activeRunId, callId, decision, remember, message);
+        _ = Attention.RefreshAsync();
     }
 
     /// <summary>
@@ -1708,6 +2069,7 @@
         await ChatStream.DecideApprovalAsync(
             _loadedChatId, _activeRunId, callId,
             answer is null ? "deny" : "approve", false, answer);
+        _ = Attention.RefreshAsync();
     }
 
     /// <summary>
@@ -1734,6 +2096,52 @@
         if (updated is not null)
         {
             _approvalPreset = updated.ApprovalPreset;
+        }
+    }
+
+    /// <summary>
+    /// Alterna o modo do agente plan↔build (SPEC-20261009 RF-004): persiste
+    /// como padrão do composer (localStorage) e aplica no chat carregado
+    /// via PATCH — o executor relê o modo por call.
+    /// </summary>
+    private async Task ToggleAgentModeAsync() =>
+        await SetAgentModeAsync(_agentMode == "plan" ? "build" : "plan");
+
+    /// <summary>Aplica o modo do agente (composer + chat carregado).</summary>
+    private async Task SetAgentModeAsync(string mode)
+    {
+        _agentMode = mode;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "webui.chat.agentmode", mode);
+        }
+        catch (JSException)
+        {
+            // localStorage indisponível — o modo vale só nesta tela.
+        }
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+        var updated = await Api.PatchChatAsync(_loadedChatId, mode: mode);
+        if (updated is not null)
+        {
+            _agentMode = updated.Mode is "plan" ? "plan" : "build";
+        }
+    }
+
+    /// <summary>Modo padrão do composer (localStorage) para chats novos.</summary>
+    private async Task<string> StoredAgentModeAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>(
+                "localStorage.getItem", "webui.chat.agentmode");
+            return stored is "plan" ? "plan" : "build";
+        }
+        catch (JSException)
+        {
+            return "build";
         }
     }
 
@@ -1903,6 +2311,28 @@
     /// Snapshot git do workspace (RF-018): usa a run ativa, senão a mais
     /// recente do chat. Silencioso — sem repo retorna <c>Git=false</c>.
     /// </summary>
+    /// <summary>Binding repo↔workspace mudou: atualiza o pill e o snapshot git.</summary>
+    private async Task OnRepoBoundAsync(WorkspaceRepoResponse? binding)
+    {
+        _repo = binding?.Repo is null ? null : binding;
+        if (_repo?.Repo is not null)
+        {
+            _repoSkills = await Api.GetRepoSkillsAsync();
+            _repoCommands = await Api.GetRepoCommandsAsync();
+        }
+        else
+        {
+            _repoSkills = [];
+            _repoCommands = [];
+        }
+        _git = null;
+        await RefreshGitAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Pós-revert de checkpoint (S6): recarrega o git bar/aba Changes.</summary>
+    private async Task OnCheckpointRevertedAsync() => await RefreshGitAsync();
+
     private async Task RefreshGitAsync()
     {
         if (_loadedChatId is null)
@@ -1918,10 +2348,8 @@
                 runId = (await ChatStream.GetRunsAsync(_loadedChatId))
                     .FirstOrDefault()?.Id;
             }
-            catch
-            {
-                return;
-            }
+            catch (HttpRequestException) { return; }
+            catch (TaskCanceledException) { return; }
         }
         if (runId is null)
         {
@@ -1936,6 +2364,8 @@
         {
             Console.WriteLine($"git diff indisponível: {ex.Message}");
         }
+        // Chamado fire-and-forget no load do chat — precisa repintar o chip.
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>Recarrega jobs do usuário e servidores MCP (admin).</summary>

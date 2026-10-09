@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes dos motores de imagem (a1111, gemini, comfyui, openai edits) com
 /// backend mockado via <see cref="HttpListener"/>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ImageEnginesTests
 {
@@ -33,7 +33,7 @@ public class ImageEnginesTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-imgengines-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-imgengines-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -55,7 +55,7 @@ public class ImageEnginesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -191,9 +191,9 @@ public class ImageEnginesTests
         await SetEngineAsync("a1111", "{\"steps\":5}");
         Assert.That(await GenerateAsync(), Is.EqualTo(200));
 
-        var result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
+        await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
         UseToken(_admin.Token);
-        result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
+        var result = await _client.PostAsJsonAsync("/api/v1/images/config/test", new { });
         var test = await result.Content.ReadFromJsonAsync<ImageTestResponse>();
         Assert.That(test!.Ok, Is.True);
     }

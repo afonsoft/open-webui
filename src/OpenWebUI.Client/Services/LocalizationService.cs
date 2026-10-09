@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using Microsoft.JSInterop;
 
@@ -34,6 +35,15 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
 
     /// <summary>Idioma atual (código, ex.: "pt-BR").</summary>
     public string Language { get; private set; } = DefaultLanguage;
+
+    /// <summary>Cultura BCP-47 resolvida do idioma ativo — base para datas/números.</summary>
+    public CultureInfo Culture => new(Language);
+
+    /// <summary>Formata data e hora curtas na cultura do idioma ativo.</summary>
+    public string FormatDateTime(DateTime value) => value.ToString("g", Culture);
+
+    /// <summary>Formata apenas a data na cultura do idioma ativo.</summary>
+    public string FormatDate(DateTime value) => value.ToString("d", Culture);
 
     /// <summary>Disparado quando o idioma muda — componentes devem re-renderizar.</summary>
     public event Action? Changed;
@@ -109,6 +119,7 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
         }
         catch (JSException)
         {
+            // Fetch/parse do locale falhou — mantém o fallback anterior.
         }
         catch (InvalidOperationException)
         {
@@ -133,9 +144,11 @@ public sealed class LocalizationService(HttpClient http, IJSRuntime js)
         }
         catch (HttpRequestException)
         {
+            // Locale do browser indisponível — usa fallback.
         }
         catch (System.Text.Json.JsonException)
         {
+            // Locale do browser indisponível — usa fallback.
         }
     }
 

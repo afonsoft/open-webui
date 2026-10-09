@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,12 +35,12 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
         }
 
         Directory.CreateDirectory(context.WorkspacePath);
-        var jobsDir = Path.Combine(context.WorkspacePath, ".chat-jobs");
+        var jobsDir = Path.Join(context.WorkspacePath, ".chat-jobs");
         Directory.CreateDirectory(jobsDir);
 
         var job = new ChatJob
         {
-            ChatId = context.ChatId ?? string.Empty,
+            ChatId = context.ChatId,
             UserId = context.UserId,
             RunId = context.RunId,
             Command = command,
@@ -47,7 +48,7 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
             Status = ChatJobStatus.Running,
             StartedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
-        job.OutputPath = Path.Combine(jobsDir, $"{job.Id}.log");
+        job.OutputPath = Path.Join(jobsDir, $"{job.Id}.log");
 
         var psi = new ProcessStartInfo
         {
@@ -67,7 +68,25 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
             process.Start();
             job.Pid = process.Id;
         }
-        catch (Exception ex)
+        catch (Win32Exception ex)
+        {
+            job.Status = ChatJobStatus.Failed;
+            job.Error = $"Falha ao iniciar: {ex.Message}";
+            job.FinishedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+        catch (ObjectDisposedException ex)
+        {
+            job.Status = ChatJobStatus.Failed;
+            job.Error = $"Falha ao iniciar: {ex.Message}";
+            job.FinishedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+        catch (InvalidOperationException ex)
+        {
+            job.Status = ChatJobStatus.Failed;
+            job.Error = $"Falha ao iniciar: {ex.Message}";
+            job.FinishedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+        catch (PlatformNotSupportedException ex)
         {
             job.Status = ChatJobStatus.Failed;
             job.Error = $"Falha ao iniciar: {ex.Message}";
@@ -172,10 +191,11 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
             {
                 Process.GetProcessById(pid.Value).Kill(entireProcessTree: true);
             }
-            catch
-            {
-                // Já morreu — o watcher marca o status final.
-            }
+            catch (ArgumentException) { /* Já morreu. */ }
+            catch (InvalidOperationException) { /* Já morreu. */ }
+            catch (Win32Exception) { /* Já morreu. */ }
+            catch (NotSupportedException) { /* Já morreu. */ }
+            catch (AggregateException) { /* Já morreu. */ }
         }
 
         return true;
@@ -212,10 +232,9 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
         {
             return !Process.GetProcessById(pid).HasExited;
         }
-        catch
-        {
-            return false;
-        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (Win32Exception) { return false; }
     }
 
     /// <summary>
@@ -250,10 +269,9 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
                 {
                     process.Kill(entireProcessTree: true);
                 }
-                catch
-                {
-                    // Já morreu.
-                }
+                catch (InvalidOperationException) { /* Já morreu. */ }
+                catch (Win32Exception) { /* Já morreu. */ }
+                catch (NotSupportedException) { /* Já morreu. */ }
             }
 
             await Task.WhenAll(pumpOut, pumpErr);

@@ -160,7 +160,7 @@ public static class TerminalEndpoints
         byte[]? body = null;
         if (http.Request.ContentLength is > 0 || http.Request.Headers.ContainsKey("Transfer-Encoding"))
         {
-            var buffer = new MemoryStream();
+            using var buffer = new MemoryStream();
             await http.Request.Body.CopyToAsync(buffer, ct);
             body = buffer.ToArray();
         }
@@ -175,12 +175,10 @@ public static class TerminalEndpoints
 
         var response = result.Response;
         http.Response.StatusCode = (int)response.StatusCode;
-        foreach (var header in response.Headers.Concat(response.Content.Headers))
+        foreach (var header in response.Headers.Concat(response.Content.Headers)
+                     .Where(h => h.Key is not ("transfer-encoding" or "connection")))
         {
-            if (header.Key is not ("transfer-encoding" or "connection"))
-            {
-                http.Response.Headers[header.Key] = header.Value.ToArray();
-            }
+            http.Response.Headers[header.Key] = header.Value.ToArray();
         }
 
         await response.Content.CopyToAsync(http.Response.Body, ct);

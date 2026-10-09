@@ -32,16 +32,52 @@ window.openwebui = {
 	copyText: function (text) {
 		return navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.resolve();
 	},
-	prompt: function (message, defaultValue) {
-		return window.prompt(message, defaultValue || '');
-	},
-	confirm: function (message) {
-		return window.confirm(message);
+	// Navegação por setas em tablists e menus: Left/Up = anterior,
+	// Right/Down = próximo, Home/End = extremos. Foca o alvo sem ativá-lo.
+	rovingFocus: function (element, key) {
+		if (!element) return;
+		const items = Array.prototype.filter.call(
+			element.querySelectorAll('[role="tab"], [role="menuitem"]'),
+			function (el) { return !el.disabled && el.offsetParent !== null; });
+		if (!items.length) return;
+		let index = items.indexOf(document.activeElement);
+		if (key === 'Home') index = 0;
+		else if (key === 'End') index = items.length - 1;
+		else if (key === 'ArrowRight' || key === 'ArrowDown') index = (index + 1) % items.length;
+		else if (key === 'ArrowLeft' || key === 'ArrowUp') index = (index - 1 + items.length) % items.length;
+		else return;
+		items[index].focus();
 	},
 	openFilePicker: function (element) {
 		if (element) {
 			element.click();
 		}
+	},
+	// Divisor arrastável do painel de workspace: arrasta p/ esquerda
+	// alarga o painel (clamp 240–720px), largura persiste em localStorage.
+	panelResize: function (handle, panel) {
+		if (!handle || !panel || handle._openwebuiRs) return;
+		handle._openwebuiRs = true;
+		const saved = parseInt(localStorage.getItem('openwebui.panelWidth') || '', 10);
+		if (saved >= 240 && saved <= 720) panel.style.width = saved + 'px';
+		handle.addEventListener('pointerdown', function (e) {
+			e.preventDefault();
+			const startX = e.clientX;
+			const startW = panel.getBoundingClientRect().width;
+			function move(ev) {
+				const w = Math.min(720, Math.max(240, startW + (startX - ev.clientX)));
+				panel.style.width = w + 'px';
+			}
+			function up() {
+				document.removeEventListener('pointermove', move);
+				document.removeEventListener('pointerup', up);
+				localStorage.setItem(
+					'openwebui.panelWidth',
+					String(Math.round(panel.getBoundingClientRect().width)));
+			}
+			document.addEventListener('pointermove', move);
+			document.addEventListener('pointerup', up);
+		});
 	},
 	autoResize: function (element) {
 		if (element) {
@@ -99,6 +135,33 @@ window.openwebui = {
 			element.removeEventListener('keydown', element._openwebuiTrap);
 			element._openwebuiTrap = null;
 		}
+	},
+	// Navegação por setas em menus/listboxes: ArrowUp/Down/Home/End movem o
+	// foco entre os itens focáveis do contêiner (Escape fica no .razor).
+	menuNav: function (container, key) {
+		if (!container) return;
+		const items = Array.prototype.filter.call(
+			container.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'),
+			function (el) { return !el.disabled && el.offsetParent !== null; });
+		if (!items.length) return;
+		const i = items.indexOf(document.activeElement);
+		if (key === 'ArrowDown') { (items[i + 1] || items[0]).focus(); }
+		else if (key === 'ArrowUp') { (items[i - 1] || items[items.length - 1]).focus(); }
+		else if (key === 'Home') { items[0].focus(); }
+		else if (key === 'End') { items[items.length - 1].focus(); }
+		else { return; }
+	},
+	// Foca o primeiro item interativo de um menu recém-aberto.
+	focusFirst: function (container) {
+		if (!container) return;
+		const first = container.querySelector(
+			'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+		if (first && !first.disabled) first.focus();
+	},
+	// Devolve o foco a um trigger identificado por seletor (menus sem @ref).
+	focusSelector: function (selector) {
+		const el = document.querySelector(selector);
+		if (el) el.focus();
 	}
 };
 

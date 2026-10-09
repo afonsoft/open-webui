@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// upstream): endpoints aceitam Url OU Code, e o PythonToolExecutor roda a
 /// fonte em subprocess com resultado via linha marcada no stdout.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class PythonToolExecutorTests
 {
     private const string Spec =
@@ -22,8 +22,8 @@ public class PythonToolExecutorTests
 
     private static bool HasPython() =>
         Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator)
-            .Any(dir => File.Exists(Path.Combine(dir, "python3"))
-                     || File.Exists(Path.Combine(dir, "python3.exe")));
+            .Any(dir => File.Exists(Path.Join(dir, "python3"))
+                     || File.Exists(Path.Join(dir, "python3.exe")));
 
     private static PythonToolExecutor NewExecutor() =>
         new(new ConfigurationBuilder().Build());
@@ -105,7 +105,7 @@ public class PythonToolExecutorTests
 }
 
 /// <summary>Testes de endpoint: aceitação de Code como alternativa a Url.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ToolCodeEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -120,7 +120,7 @@ public class ToolCodeEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-toolcode-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-toolcode-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -139,7 +139,7 @@ public class ToolCodeEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

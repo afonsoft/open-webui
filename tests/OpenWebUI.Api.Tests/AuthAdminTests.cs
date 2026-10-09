@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos endpoints de autenticação administrativa e perfil.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AuthAdminTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -18,7 +18,7 @@ public class AuthAdminTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-authadmin-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-authadmin-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         // Garante LDAP desabilitado: sem servidor/template o TryBindAsync retorna null
         // e o signin cai para a autenticação local.
@@ -43,7 +43,7 @@ public class AuthAdminTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -213,7 +213,7 @@ public class AuthAdminTests
             new SignInRequest("naoexiste@authadmin.local", "senha123"));
         Assert.That(unknown.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
 
-        var user = await SignUpAsync("Local", "local@authadmin.local", "senha123");
+        await SignUpAsync("Local", "local@authadmin.local", "senha123");
         var wrongPass = await _client.PostAsJsonAsync("/api/v1/auths/signin",
             new SignInRequest("local@authadmin.local", "errada"));
         Assert.That(wrongPass.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));

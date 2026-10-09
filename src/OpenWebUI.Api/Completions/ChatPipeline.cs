@@ -18,6 +18,21 @@ namespace OpenWebUI.Api.Completions;
 /// </summary>
 public static class ChatPipeline
 {
+    /// <summary>Prompt base injetado em todo request — postura de agente
+    /// autônomo (pode instalar ferramentas, age sem pedir confirmação a
+    /// cada passo); o system prompt do modelo custom e os demais blocos
+    /// vêm depois e refinam.</summary>
+    private const string DefaultSystemPrompt =
+        "You are the Open WebUI agent — an autonomous agent that executes tasks, "
+        + "not a passive assistant. Always answer in the user's language. "
+        + "Before answering, analyze the user's intent and the conversation context; "
+        + "structure the response clearly (sections and lists when they help), explain "
+        + "reasoning and trade-offs in technical decisions, and give concrete examples. "
+        + "You may use the available tools and install tools, packages and "
+        + "dependencies the task needs — when an install requires user approval, "
+        + "propose it via ask_user. Act autonomously and carry the task end-to-end; "
+        + "only ask the user when you genuinely need something from them "
+        + "(a decision, a secret or an approval).";
     /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>
     public static async Task<ChatCompletionRequest> EnrichRequestAsync(
         ChatCompletionRequest request,
@@ -26,12 +41,18 @@ public static class ChatPipeline
         ConfigService config,
         RagService rag,
         WebSearchService webSearch,
-        CancellationToken ct)
+        WorkspaceRepoService repos,
+        CancellationToken ct,
+        string? agentMode = null)
     {
         var model = request.Model;
         var messages = request.Messages.ToList();
         var parameters = request.Params?.ToDictionary(kv => kv.Key, kv => kv.Value);
         var systemParts = new List<string>();
+
+        // 0. Prompt base do assistente: injetado sempre, antes do system
+        // prompt do modelo custom e demais blocos de contexto.
+        systemParts.Add(DefaultSystemPrompt);
 
         // 1. Modelo personalizado do workspace → redireciona para o modelo base e aplica config.
         var customModel = await db.ModelEntries.AsNoTracking()
@@ -71,6 +92,7 @@ public static class ChatPipeline
                 }
                 catch (JsonException)
                 {
+                    // Payload auxiliar malformado — segue sem ele.
                 }
             }
         }
@@ -94,6 +116,7 @@ public static class ChatPipeline
             }
             catch (JsonException)
             {
+                // Payload auxiliar malformado — segue sem ele.
             }
         }
 
@@ -151,6 +174,61 @@ public static class ChatPipeline
                 systemParts.Add(
                     "Memórias do usuário:\n" + string.Join("\n", memories.Select(m => $"- {m}")));
             }
+        }
+
+        // 3.5. Repositório vinculado ao workspace (SPEC-20261008-github-repo-workspace):
+        // o modelo precisa saber que as tools file_*/shell_exec operam dentro
+        // do checkout do repo vinculado (a raiz do workspace vira a raiz do repo).
+        var repoBinding = await repos.GetBindingAsync(user.Id, ct);
+        if (repoBinding is not null)
+        {
+            systemParts.Add(
+                $"Repositório vinculado ao workspace: {repoBinding.Repo} " +
+                $"(branch '{repoBinding.Branch}'). As tools de arquivo e shell " +
+                "operam dentro do checkout desse repositório — a raiz do " +
+                "workspace é a raiz do repo.");
+
+            // SPEC-20261009-repo-skills-slash-commands RF-005: instruções do
+            // projeto (AGENTS.md → CLAUDE.md → .cursor/rules/*.md → README.md,
+            // cap 32KB) entram como bloco marcado no system prompt.
+            var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var instructions = SkillDiscoveryService.LoadProjectInstructions(workdir);
+            if (!string.IsNullOrWhiteSpace(instructions))
+            {
+                systemParts.Add(
+                    "<project_instructions>\n" + instructions + "\n</project_instructions>");
+            }
+        }
+
+        // 3.5b. Menções @path do composer (SPEC-20261009-ide-mentions-tests
+        // RF-002): cada chip vira um bloco <file path="…"> no prompt — cap
+        // 16KB/arquivo, 64KB total; fora do jail é descartado em silêncio.
+        if (request.MentionPaths is { Count: > 0 } mentionPaths)
+        {
+            var mentionWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var mentions = await OpenWebUI.Infrastructure.ChatTools.WorkspaceMentionContext
+                .BuildAsync(mentionWorkdir, mentionPaths, ct);
+            if (!string.IsNullOrEmpty(mentions))
+            {
+                systemParts.Add(mentions);
+            }
+        }
+
+        // 3.6. Modo plan do agente (SPEC-20261009-agent-modes-plan-build
+        // RF-002/RF-004): instrução de somente-leitura + encerramento via
+        // plan_exit — o spec de tools anunciado já reflete o ruleset, mas
+        // o prompt reforça o contrato para modelos teimosos.
+        if (OpenWebUI.Infrastructure.ChatTools.PermissionRuleset.Normalize(agentMode)
+            == OpenWebUI.Infrastructure.ChatTools.PermissionRuleset.PlanMode)
+        {
+            systemParts.Add(
+                "Modo PLAN ativo: você está em modo de planejamento somente-leitura. "
+                + "NÃO crie, modifique ou apague arquivos, NÃO execute comandos que "
+                + "alterem o sistema e NÃO chame tools de escrita — apenas leia, "
+                + "pesquise e analise. Quando o plano estiver pronto, apresente-o "
+                + "em markdown e chame a tool builtin_plan_exit passando o plano "
+                + "completo no argumento `plan`; o usuário decide se executa "
+                + "(modo build).");
         }
 
         // 4. Mescla partes de sistema numa única mensagem inicial.
@@ -254,7 +332,14 @@ public static class ChatPipeline
         Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
         Func<ProviderToolCall, CancellationToken, Task<ToolGateDecision>>? GateAsync = null,
         Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null,
-        Func<string, CancellationToken, Task>? OnDeltaAsync = null);
+        Func<string, CancellationToken, Task>? OnDeltaAsync = null,
+        /// <summary>
+        /// Spec de tools anunciado por rodada (SPEC-20261009-agent-modes-
+        /// plan-build): o executor refiltra pelo modo a cada round — o
+        /// plan_exit aprovado promove a build já na próxima rodada. Null
+        /// anuncia <c>request.Tools</c> como está.
+        /// </summary>
+        Func<CancellationToken, Task<IReadOnlyList<JsonElement>?>>? AnnounceToolsAsync = null);
 
     /// <summary>
     /// Loop de tool calling: chama o modelo com tools até resposta final
@@ -351,6 +436,12 @@ public static class ChatPipeline
         ToolLoopCallbacks? callbacks,
         CancellationToken ct)
     {
+        // Refiltra o spec anunciado por rodada (modo plan/build pode
+        // mudar mid-run); Tools=null explícito (round final) respeitado.
+        if (request.Tools is not null && callbacks?.AnnounceToolsAsync is { } announce)
+        {
+            request = request with { Tools = await announce(ct) };
+        }
         var step = await providers.CompleteWithToolsStreamingAsync(
             request, callbacks?.OnDeltaAsync, ct);
         if (step is not null)
@@ -382,6 +473,7 @@ public static class ChatPipeline
         RagService rag,
         ProviderService providers,
         WebSearchService webSearch,
+        WorkspaceRepoService repos,
         Func<string, Task> emitLineAsync,
         CancellationToken ct)
     {
@@ -417,7 +509,7 @@ public static class ChatPipeline
             {
                 var effective = await EnrichRequestAsync(
                     request with { Model = competitor, Stream = false },
-                    user, db, config, rag, webSearch, ct);
+                    user, db, config, rag, webSearch, repos, ct);
                 responses.Add(await providers.CompleteAsync(effective, ct));
             }
         }
@@ -493,6 +585,7 @@ public static class ChatPipeline
                 }
                 catch (JsonException)
                 {
+                    // JSON da tool malformado — segue com o argumento bruto.
                 }
             }
 

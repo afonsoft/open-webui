@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// grupos via /scim/v2 com bearer token dedicado, CRUD completo, filtro
 /// userName eq e desativação via active=false.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ScimTests
 {
@@ -23,7 +23,7 @@ public class ScimTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-scim-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-scim-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _admin = _factory.CreateClient();
@@ -58,7 +58,7 @@ public class ScimTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -146,7 +146,7 @@ public class ScimTests
             "/scim/v2/Users?filter=userName%20eq%20%22provisionado%40scim.local%22");
         var id = list!.Resources[0].Id;
 
-        var patch = new HttpRequestMessage(HttpMethod.Patch, $"/scim/v2/Users/{id}")
+        using var patch = new HttpRequestMessage(HttpMethod.Patch, $"/scim/v2/Users/{id}")
         {
             Content = JsonContent.Create(new
             {

@@ -17,7 +17,7 @@ namespace OpenWebUI.Api.Tests;
 /// certificado self-signed gerado em teste) — JIT user + JWT + 401 quando
 /// a assinatura/issuer/audiência não confere.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class SamlTests
 {
@@ -34,7 +34,7 @@ public class SamlTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-saml-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-saml-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _admin = _factory.CreateClient();
@@ -47,8 +47,8 @@ public class SamlTests
         await _admin.PostAsJsonAsync("/api/v1/auths/admin/config",
             AdminConfig.Default with { DefaultUserRole = "user" });
 
-        _idpCert = NewCert("cn=idp-test");
-        _rogueCert = NewCert("cn=rogue");
+        _idpCert = NewCert("cn=idp-test", IdpRsaKey);
+        _rogueCert = NewCert("cn=rogue", RogueRsaKey);
 
         var cfg = await _admin.PostAsJsonAsync("/api/v1/configs/saml",
             new SamlConfigRequest(
@@ -66,12 +66,14 @@ public class SamlTests
     {
         _idpCert.Dispose();
         _rogueCert.Dispose();
+        IdpRsaKey.Dispose();
+        RogueRsaKey.Dispose();
         _anon.Dispose();
         _admin.Dispose();
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -86,8 +88,14 @@ public class SamlTests
         return (auth!.Token, auth.User.Id);
     }
 
-    private static X509Certificate2 NewCert(string cn) =>
-        new CertificateRequest(cn, RSA.Create(2048), HashAlgorithmName.SHA256,
+    // Cada certificado precisa da própria chave: compartilhar uma RSA faz o
+    // cert "rogue" assinar com a mesma chave do IdP — a assinatura passa na
+    // validação e T04 deixa de testar o que deveria.
+    private static readonly RSA IdpRsaKey = RSA.Create(2048);
+    private static readonly RSA RogueRsaKey = RSA.Create(2048);
+
+    private static X509Certificate2 NewCert(string cn, RSA key) =>
+        new CertificateRequest(cn, key, HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1)
             .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),
                 DateTimeOffset.UtcNow.AddYears(1));

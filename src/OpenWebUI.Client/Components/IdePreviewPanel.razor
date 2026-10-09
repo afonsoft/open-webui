@@ -1,0 +1,116 @@
+@inject ApiService Api
+@inject LocalizationService L
+@inject IJSRuntime JS
+
+@* Aba Preview do /ide (SPEC-20261009-port-preview, E16 D4): porta do dev
+   server → probe autenticado GET /preview/{port}/ → iframe sandboxed pro
+   proxy do host da API. 502/504/sem-resposta = app fora do ar; qualquer
+   outro status prova que algo escuta na porta e o iframe pode abrir. *@
+
+@if (_enabled is null)
+{
+    <div class="sidebar-empty">@L["common.loading"]</div>
+}
+else if (_enabled == false)
+{
+    <div class="sidebar-empty px-4">
+        <div class="text-gray-500 dark:text-gray-400">@L["ide.preview_disabled"]</div>
+    </div>
+}
+else
+{
+    <div class="flex h-full min-h-0 flex-col">
+        <div class="flex items-center gap-1.5 px-2 py-1.5 border-b border-gray-200 dark:border-gray-800">
+            <input class="w-24 rounded-lg border border-gray-200 dark:border-gray-800 bg-transparent px-2 py-1 text-xs text-gray-800 dark:text-gray-200"
+                   type="number" min="1024" max="65535" placeholder="3000"
+                   aria-label="@L["ide.preview_port"]"
+                   @bind="_portInput" @bind:event="oninput"
+                   @onkeydown="OnPortKeyDown" />
+            <button class="auth-submit !w-auto px-3 py-1 text-xs" @onclick="OpenAsync">
+                @L["ide.preview_open"]
+            </button>
+            @if (_previewUrl is not null)
+            {
+                <button class="msg-action" title="@L["ide.preview_reload"]"
+                        aria-label="@L["ide.preview_reload"]" @onclick="Reload">
+                    ↻
+                </button>
+                <button class="msg-action" title="@L["ide.preview_new_tab"]"
+                        aria-label="@L["ide.preview_new_tab"]" @onclick="OpenInNewTabAsync">
+                    ↗
+                </button>
+            }
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="px-3 py-2 text-[0.6875rem] text-red-500 border-b border-red-200 dark:border-red-900">
+                @_error
+            </div>
+        }
+
+        @if (_previewUrl is not null)
+        {
+            <iframe @key="_frameKey" src="@_previewUrl"
+                    class="flex-1 min-h-0 w-full border-0 bg-white"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    title="@L["chat.panel_tab_preview"]"></iframe>
+        }
+        else
+        {
+            <div class="flex flex-1 items-center justify-center px-6 text-center text-xs text-gray-400">
+                @L["ide.preview_hint"]
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool? _enabled;
+    private string? _portInput;
+    private string? _previewUrl;
+    private string? _error;
+    private int _frameKey;
+
+    /// <inheritdoc/>
+    protected override async Task OnInitializedAsync() =>
+        _enabled = await Api.GetPreviewEnabledAsync();
+
+    private Task OnPortKeyDown(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? OpenAsync() : Task.CompletedTask;
+
+    /// <summary>Probe no proxy → decide iframe vs. mensagem de erro.</summary>
+    private async Task OpenAsync()
+    {
+        if (!int.TryParse(_portInput, out var port) || port is < 1024 or > 65535)
+        {
+            _error = L["ide.preview_invalid"];
+            _previewUrl = null;
+            return;
+        }
+
+        _error = null;
+        var url = $"/preview/{port}/";
+        var status = await Api.ProbePreviewAsync(port);
+        if (status is null or System.Net.HttpStatusCode.BadGateway
+            or System.Net.HttpStatusCode.GatewayTimeout)
+        {
+            _error = L.T("ide.preview_error", ("port", port.ToString()));
+            _previewUrl = null;
+            return;
+        }
+
+        _previewUrl = url;
+        _frameKey++; // recria o iframe em toda abertura
+    }
+
+    private void Reload() => _frameKey++; // @key novo → iframe re-renderiza
+
+    private async Task OpenInNewTabAsync()
+    {
+        if (_previewUrl is not null)
+        {
+            await JS.InvokeVoidAsync("open", _previewUrl, "_blank");
+        }
+    }
+}

@@ -47,6 +47,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Snapshot <c>changes</c>: arquivos alterados pela run (aba Changes do painel).</summary>
         public sealed record Changes(RunChangesEvent Snapshot) : ChatStreamEvent;
 
+        /// <summary>Checkpoint do workdir criado pela run (S6 — botão Revert).</summary>
+        public sealed record Checkpoint(RunCheckpointEvent Snapshot) : ChatStreamEvent;
+
         /// <summary>Fase da run (generating|running_tool|awaiting_approval).</summary>
         public sealed record Phase(RunPhaseEvent Status) : ChatStreamEvent;
 
@@ -55,6 +58,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
 
         /// <summary>Pergunta estruturada do ask_user aguardando resposta (RF-005).</summary>
         public sealed record QuestionAsked(RunQuestionAskedEvent Asked) : ChatStreamEvent;
+
+        /// <summary>Evento <c>mode</c>: modo do agente do chat mudou mid-run.</summary>
+        public sealed record Mode(RunModeEvent Info) : ChatStreamEvent;
 
         /// <summary>
         /// Snapshot da lista de tarefas da run (evento <c>tasks</c> —
@@ -106,12 +112,14 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         IReadOnlyList<string>? fileIds = null,
         IReadOnlyList<string>? toolIds = null,
         bool? webSearch = null,
+        IReadOnlyList<string>? mentionPaths = null,
         CancellationToken ct = default)
     {
         using var httpRequest = auth.CreateRequest(
             HttpMethod.Post, $"/api/v1/chats/{chatId}/messages");
         httpRequest.Content = JsonContent.Create(new EnqueueChatRunRequest(
-            content, model, fileIds, toolIds, WebSearch: webSearch));
+            content, model, fileIds, toolIds, WebSearch: webSearch,
+            MentionPaths: mentionPaths));
 
         using var response = await http.SendAsync(httpRequest, ct);
         await EnsureSuccessAsync(response, "enviar mensagem", ct);
@@ -361,6 +369,15 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                     continue;
                 }
 
+                // Gateways podem emitir `data:` com JSON não-objeto (string
+                // solta, número, bool — keepalive/erro de provider). Indexar
+                // JsonValue por nome lança InvalidOperationException ("requires
+                // an element of type 'Object'") e derrubava o stream inteiro.
+                if (node is JsonValue)
+                {
+                    continue;
+                }
+
                 switch (evt)
                 {
                     case "tool_call":
@@ -402,6 +419,11 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["kind"]?.GetValue<string>() ?? "http",
                                 node["argsPreview"]?.GetValue<string>()));
                         break;
+                    case "mode":
+                        produced = new ChatStreamEvent.Mode(
+                            new RunModeEvent(
+                                node["mode"]?.GetValue<string>() ?? "build"));
+                        break;
                     case "tasks":
                     {
                         var arr = node as JsonArray ?? node["tasks"] as JsonArray;
@@ -425,6 +447,18 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 c?["diff"]?.GetValue<string>()))
                             .ToList();
                         produced = new ChatStreamEvent.Changes(new RunChangesEvent(items));
+                        break;
+                    }
+                    case "checkpoint":
+                    {
+                        var files = (node["files"] as JsonArray ?? [])
+                            .Select(f => f?.GetValue<string>() ?? string.Empty)
+                            .Where(f => f.Length > 0)
+                            .ToList();
+                        produced = new ChatStreamEvent.Checkpoint(new RunCheckpointEvent(
+                            node["hash"]?.GetValue<string>() ?? string.Empty,
+                            files,
+                            node["turn"]?.GetValue<int>() ?? 0));
                         break;
                     }
                     case "status":
@@ -463,8 +497,10 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                         break;
                 }
             }
-            catch (JsonException)
+            catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException)
             {
+                // Evento individual malformado/divergente não deve derrubar o
+                // stream — a próxima linha `data:` segue o consumo.
                 continue;
             }
 

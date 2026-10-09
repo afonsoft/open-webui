@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Open WebUI (.NET 10 / Blazor WASM) — Runtime",
+    "output": "runtime-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "chat-path",
+        "label": "Caminho do chat",
+        "focus": [
+          "wasm",
+          "api",
+          "infra",
+          "providers",
+          "tools"
+        ],
+        "note": "SSE do composer até o provider; tool calls executam server-side."
+      },
+      {
+        "id": "realtime",
+        "label": "Realtime e automações",
+        "focus": [
+          "wasm",
+          "signalr",
+          "sched",
+          "db"
+        ],
+        "note": "SignalR /ws para channels e terminal PTY; scheduler dispara automations."
+      },
+      {
+        "id": "deploy-data",
+        "label": "Deploy e dados",
+        "focus": [
+          "users",
+          "proxy",
+          "api",
+          "db"
+        ],
+        "note": "Um único container; SQLite + uploads no volume /app/data."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "Usuário",
+      "sublabel": "Navegador",
+      "pos": [
+        40,
+        250
+      ],
+      "size": [
+        120,
+        60
+      ]
+    },
+    {
+      "id": "proxy",
+      "type": "cloud",
+      "label": "Reverse proxy",
+      "sublabel": "nginx / Cloudflare · TLS",
+      "pos": [
+        225,
+        250
+      ],
+      "size": [
+        140,
+        64
+      ],
+      "tag": "X-Forwarded-*"
+    },
+    {
+      "id": "wasm",
+      "type": "frontend",
+      "label": "Blazor WASM Client",
+      "sublabel": "OpenWebUI.Client",
+      "pos": [
+        40,
+        400
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "boot.js + framework-assets"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "OpenWebUI.Api",
+      "sublabel": "ASP.NET Core 10 · Minimal APIs",
+      "pos": [
+        435,
+        250
+      ],
+      "size": [
+        160,
+        68
+      ],
+      "tag": "JWT + sk-*"
+    },
+    {
+      "id": "signalr",
+      "type": "backend",
+      "label": "SignalR Hub /ws",
+      "sublabel": "channels + terminal PTY",
+      "pos": [
+        435,
+        400
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "infra",
+      "type": "backend",
+      "label": "Infrastructure",
+      "sublabel": "Providers · RAG · Media · Config",
+      "pos": [
+        665,
+        250
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "sched",
+      "type": "backend",
+      "label": "AutomationScheduler",
+      "sublabel": "BackgroundService · 15s",
+      "pos": [
+        665,
+        400
+      ],
+      "size": [
+        160,
+        60
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite + EF Core",
+      "sublabel": "openwebui.db + uploads/",
+      "pos": [
+        885,
+        400
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "fora do wwwroot"
+    },
+    {
+      "id": "providers",
+      "type": "external",
+      "label": "LLM Providers",
+      "sublabel": "Ollama / OpenAI-compat",
+      "pos": [
+        885,
+        140
+      ],
+      "size": [
+        150,
+        60
+      ],
+      "tag": "chat + embeddings + mídia"
+    },
+    {
+      "id": "tools",
+      "type": "external",
+      "label": "Tool URLs / MCP / n8n",
+      "sublabel": "executadas server-side",
+      "pos": [
+        885,
+        250
+      ],
+      "size": [
+        160,
+        60
+      ],
+      "tag": "URL nunca sai do servidor"
+    },
+    {
+      "id": "idp",
+      "type": "security",
+      "label": "Identidade",
+      "sublabel": "OAuth/OIDC · SAML · SCIM · LDAP",
+      "pos": [
+        435,
+        110
+      ],
+      "size": [
+        150,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Navegador (cliente)",
+      "wraps": [
+        "wasm"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Container openwebui (servidor — segredos nunca saem)",
+      "wraps": [
+        "api",
+        "signalr",
+        "infra",
+        "sched",
+        "db"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Chaves de provider / tool URLs (server-held)",
+      "wraps": [
+        "infra"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "u-proxy",
+      "from": "users",
+      "to": "proxy",
+      "label": "HTTPS + WSS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "proxy-api",
+      "from": "proxy",
+      "to": "api",
+      "label": "forward",
+      "variant": "emphasis"
+    },
+    {
+      "id": "wasm-api",
+      "from": "wasm",
+      "to": "api",
+      "label": "REST + SSE",
+      "variant": "emphasis"
+    },
+    {
+      "id": "wasm-ws",
+      "from": "wasm",
+      "to": "signalr",
+      "label": "WSS /ws",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        330,
+        447
+      ]
+    },
+    {
+      "id": "api-infra",
+      "from": "api",
+      "to": "infra",
+      "variant": "emphasis"
+    },
+    {
+      "id": "infra-prov",
+      "from": "infra",
+      "to": "providers",
+      "label": "/chat/completions · embed · media",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "infra-tools",
+      "from": "infra",
+      "to": "tools",
+      "label": "tool calls",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelDy": 46
+    },
+    {
+      "id": "api-idp",
+      "from": "api",
+      "to": "idp",
+      "label": "OIDC/SAML",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        525,
+        190
+      ]
+    },
+    {
+      "id": "infra-db",
+      "from": "infra",
+      "to": "db",
+      "label": "EF Core",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "sched-infra",
+      "from": "sched",
+      "to": "infra",
+      "label": "dispara runs",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Cliente",
+      "items": [
+        "Blazor WASM boot manual (boot.js, autostart=false)",
+        "Mirror /framework-assets/{stem}/{ext} p/ .dat/.wasm atrás de proxy",
+        "xterm.js e Pyodide lazy — fora do caminho de boot",
+        "i18n: 8 locales, troca sem reload"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Servidor",
+      "items": [
+        "~30 grupos de Minimal APIs + SignalR /ws",
+        "Tool loop server-side (máx. 5 rodadas) — URLs de tools nunca voltam ao cliente",
+        "SQLite + EF Core Migrations; baseline de bases legadas",
+        "AutomationScheduler a cada 15s"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Segurança e gates",
+      "items": [
+        "JWT Bearer + chaves sk-*; OAuth/OIDC, SAML, SCIM, LDAP",
+        "Segredos de provider no ConfigEntry (mascarados na API)",
+        "CI: coverage gate + ratchet, drift guards, axe-core, CodeQL/Trivy/Snyk"
+      ]
+    }
+  ]
+}

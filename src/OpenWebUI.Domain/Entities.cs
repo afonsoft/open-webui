@@ -143,6 +143,15 @@ public class Chat
     /// </summary>
     public string ApprovalPreset { get; set; } = "approve-mutations";
 
+    /// <summary>
+    /// Modo do agente da conversa (SPEC-20261009-agent-modes-plan-build
+    /// RF-001): <c>build</c> (default — toolset completo, gate pelo preset)
+    /// ou <c>plan</c> (somente leitura — tools de escrita/execução não são
+    /// anunciadas e calls delas devolvem erro estruturado; o agente encerra
+    /// pelo <c>plan_exit</c>, que promove a build após aprovação do dono).
+    /// </summary>
+    public string Mode { get; set; } = "build";
+
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 
@@ -292,8 +301,8 @@ public class ChatJob
     /// <summary>Identificador único (GUID curto — aparece no transcript).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
 
-    /// <summary>Chat ao qual o job pertence.</summary>
-    public string ChatId { get; set; } = string.Empty;
+    /// <summary>Chat ao qual o job pertence — null para jobs fora de chat (ex.: test-run do IDE).</summary>
+    public string? ChatId { get; set; }
 
     /// <summary>Dono (mesmo do chat — isolamento de leitura/kill).</summary>
     public string UserId { get; set; } = string.Empty;
@@ -1114,6 +1123,36 @@ public class NotificationWebhook
     public bool Enabled { get; set; } = true;
 
     /// <summary>Criação (unix s).</summary>
+    public long CreatedAt { get; set; }
+}
+
+/// <summary>Notificação persistida do feed in-app (sino) — mesma construção
+/// de título/corpo/link do Web Push, mas navegável sem depender de push
+/// (SPEC-20261009-notification-feed D3).</summary>
+public class Notification
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da notificação (isolamento por usuário).</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Tipo/origem do evento (ex.: run.completed, run.failed).</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Título curto exibido na lista.</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Corpo/trecho da notificação (opcional).</summary>
+    public string? Body { get; set; }
+
+    /// <summary>Deep-link in-app aberto ao clicar (ex.: /c/{chatId}).</summary>
+    public string? Link { get; set; }
+
+    /// <summary>Leitura (epoch seconds); null = não lida.</summary>
+    public long? ReadAt { get; set; }
+
+    /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }
 }
 

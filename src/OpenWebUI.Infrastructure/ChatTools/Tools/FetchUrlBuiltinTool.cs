@@ -120,10 +120,7 @@ public sealed partial class FetchUrlBuiltinTool(IHttpClientFactory httpFactory) 
             {
                 return Encoding.GetEncoding(charset.Trim('"'));
             }
-            catch
-            {
-                // Charset desconhecido → UTF-8.
-            }
+            catch (ArgumentException) { /* charset desconhecido → UTF-8 */ }
         }
 
         return Encoding.UTF8;

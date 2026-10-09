@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// system_inject e regex_redact no inlet, params cap, outlet na saída SSE
 /// e validação do MetaJson no salvamento.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ModelFiltersTests
 {
@@ -29,7 +29,7 @@ public class ModelFiltersTests
     public async Task OneTimeSetUp()
     {
         var mockBase = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-filters-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-filters-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", mockBase);
         _factory = new WebApplicationFactory<Program>();
@@ -51,7 +51,7 @@ public class ModelFiltersTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -138,7 +138,7 @@ public class ModelFiltersTests
 
     private async Task<string> CompleteAsync(string model, string userText)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 model, [new ChatCompletionMessage("user", userText)])),
@@ -195,7 +195,7 @@ public class ModelFiltersTests
         await CreateModelAsync(
             """{"filters":[{"type":"max_tokens_cap","config":{"max_tokens":64}}]}""",
             "filtro-cap");
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 "filtro-cap", [new ChatCompletionMessage("user", "oi")],

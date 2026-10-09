@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `devin/1791385000-theme-layout` |
 | Ticket | `GAP-theme-layout` |
-| Status | `Draft` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -73,3 +73,17 @@ Decisão do dono: "deixar sempre com o tema claro e com opções de tema; focar 
 - [ ] Chat no claro tem o layout "workbench" (chips, densidade, mono nas tools).
 - [ ] Dark mode continua correto em todas as telas tocadas.
 - [ ] i18n das novas strings nos 8 locales.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-T1 Default light | delivered | `index.html:19` — `localStorage 'webui.theme' || 'light'`; `prefers-color-scheme` só quando `system` (`:21-24`); nenhuma chave escrita é sobrescrita |
+| RF-T2 Toggle no header | delivered (equivalente) | controle segmentado Claro/Escuro/Sistema no rodapé da **Sidebar** (`Sidebar.razor:255`, sempre visível em todas as telas) + `select` no `SettingsModal.razor:37` — ambos refletem `ThemeService.Current` e persistem na hora. Desvio documentado: não está no header do chat; alternativa aceita por ser chrome-level (mais amplo que o header) |
+| RF-T3 Refresh do chat | delivered | chips compactos (preset/status/tools), tool cards com fonte mono nos args, composer agrupado, painel lateral com tabs; screenshots e2e light+dark em `.ci/a11y/screenshots.js` (`chat-light`, `chat-dark`, etc.) |
+| RF-T4 Contraste claro | delivered | axe-core `wcag2aa` (inclui `color-contrast`) roda no CI `.github/workflows/a11y-audit.yml` mobile+desktop; tokens `dark:` revisados no E13 |
+
+**Residuais:** nenhum — RF-T2 aceito via alternativa documentada; ausência de `latencyMs` no teste MCP (SPEC-mcp-ux RF-002) não é deste SPEC.
+

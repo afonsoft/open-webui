@@ -104,7 +104,7 @@ public static class PassthroughEndpoints
         byte[]? body = null;
         if (http.Request.ContentLength is > 0 || http.Request.Headers.ContainsKey("Transfer-Encoding"))
         {
-            var buffer = new MemoryStream();
+            using var buffer = new MemoryStream();
             await http.Request.Body.CopyToAsync(buffer, http.RequestAborted);
             body = buffer.ToArray();
         }
@@ -132,12 +132,10 @@ public static class PassthroughEndpoints
             using (response)
             {
                 context.Response.StatusCode = (int)response.StatusCode;
-                foreach (var header in response.Headers.Concat(response.Content.Headers))
+                foreach (var header in response.Headers.Concat(response.Content.Headers)
+                             .Where(h => !HopByHop.Contains(h.Key)))
                 {
-                    if (!HopByHop.Contains(header.Key))
-                    {
-                        context.Response.Headers[header.Key] = header.Value.ToArray();
-                    }
+                    context.Response.Headers[header.Key] = header.Value.ToArray();
                 }
 
                 context.Response.Headers.Remove("transfer-encoding");

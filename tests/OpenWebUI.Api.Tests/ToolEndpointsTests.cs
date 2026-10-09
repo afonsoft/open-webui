@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes das tools (function calling via HTTP): CRUD, validação de spec,
 /// seleção por chat e o loop de tool calling no endpoint de completions.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ToolEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -30,7 +30,7 @@ public class ToolEndpointsTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-tools-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-tools-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OPENAI_API_BASE_URL", _mockBaseUrl);
         _factory = new WebApplicationFactory<Program>();
@@ -52,7 +52,7 @@ public class ToolEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -99,7 +99,8 @@ public class ToolEndpointsTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             var (status, json) = Route(ctx.Request.Url!.AbsolutePath, body);
             var bytes = Encoding.UTF8.GetBytes(json);
             ctx.Response.StatusCode = status;
@@ -231,7 +232,7 @@ public class ToolEndpointsTests
         UseToken(user.Token);
         var tool = await CreateToolAsync();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 "gpt-mock",

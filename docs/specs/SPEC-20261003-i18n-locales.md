@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-i18n-locales` |
 | Ticket | Issue #88 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -61,3 +61,13 @@ Sem mudança de contrato — `error_code` aditivo; `GET /i18n/{locale}.json` já
 - PR: https://github.com/afonsoft/open-webui/pull/98
 - Issue: https://github.com/afonsoft/open-webui/issues/88
 - Epic: https://github.com/afonsoft/open-webui/issues/79
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Pacotes de locale | delivered | `Client/Services/LocalizationService.cs:55,79,147` — fallback ativo→en-US→pt-BR→chave; `JsonException` capturada (locale inválido não quebra boot); 8 locales com 707 chaves cada (guard `tools/check-i18n-parity.py`) |
+| RF-002 error_code backend | delivered | `{detail, error_code}` em 22 pontos de `Api/Endpoints/` (ex.: `AuthEndpoints.cs`); cliente mapeia `errors.{code}` em `Client/Services/AuthService.cs` |
+

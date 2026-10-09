@@ -16,6 +16,7 @@ using OpenWebUI.Infrastructure.Services;
 using OpenWebUI.Infrastructure.Services.Image;
 using OpenWebUI.Infrastructure.Services.Video;
 using OpenWebUI.Infrastructure.Terminal;
+using OpenWebUI.Infrastructure.Lsp;
 using OpenWebUI.Application.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -90,23 +91,55 @@ builder.Services.AddScoped<IBuiltinChatTool, FileGrepBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, FileGlobBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, FileWriteBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, FileEditBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, ApplyPatchBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, TodoWriteBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, DelegateTaskBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, BrowserScreenshotBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nListWorkflowsBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nTriggerBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, SkillBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, GenerateVideoBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, AskUserBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, PlanExitBuiltinTool>();
+// LSP (SPEC-20261009-lsp-diagnostics): singleton dono dos processos
+// filhos + tools read-only builtin:lsp_*.
+builder.Services.AddSingleton<LspService>();
+builder.Services.AddScoped<IBuiltinChatTool, LspDiagnosticsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspSymbolsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspWorkspaceSymbolsBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspDefinitionBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspReferencesBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, LspHoverBuiltinTool>();
 builder.Services.AddSingleton<VideoEngineFactory>();
 builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
 builder.Services.AddSingleton<WorkspaceGitService>();
+builder.Services.AddScoped<WorkspaceRepoService>();
+builder.Services.AddSingleton<WorktreeService>();
+builder.Services.AddScoped<FormatHookService>();
+builder.Services.AddSingleton<CheckpointService>();
+builder.Services.AddSingleton<SkillDiscoveryService>();
+builder.Services.AddScoped<GitHubService>();
+builder.Services.AddHttpClient(GitHubService.HttpClientName,
+    client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<N8nService>();
 builder.Services.AddHttpClient(N8nService.HttpClientName,
     client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddScoped<BuiltinToolRegistry>();
 builder.Services.AddSingleton<ChatJobService>();
 builder.Services.AddHttpClient(nameof(FetchUrlBuiltinTool));
+
+// Proxy do port preview (SPEC-20261009-port-preview): sem redirects,
+// sem cookie jar compartilhado entre usuários, sem descompressão
+// (o cliente recebe o payload exato do upstream).
+builder.Services.AddHttpClient(PreviewEndpoints.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        AutomaticDecompression = System.Net.DecompressionMethods.None,
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+    });
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
@@ -330,6 +363,14 @@ app.MapAutomationHookEndpoints();
 app.MapN8nEndpoints();
 app.MapVideoEndpoints();
 app.MapConfigEndpoints();
+app.MapGitHubEndpoints();
+app.MapWorkspaceFileEndpoints();
+app.MapCheckpointEndpoints();
+app.MapWorkspaceTestRunEndpoints();
+app.MapRepoSkillEndpoints();
+app.MapIdeEndpoints();
+app.MapPreviewEndpoints();
+app.MapLspEndpoints();
 app.MapAudioEndpoints();
 app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();

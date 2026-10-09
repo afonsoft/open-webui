@@ -47,6 +47,7 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                // Connection falhou — tenta a próxima base URL.
             }
         }
 
@@ -81,6 +82,7 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                // Connection falhou — tenta a próxima base URL.
             }
         }
 
@@ -138,6 +140,7 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                // Connection falhou — tenta a próxima base URL.
             }
         }
 
@@ -175,6 +178,7 @@ public class EmbeddingService(IHttpClientFactory httpClientFactory, ConfigServic
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                // Connection falhou — tenta a próxima base URL.
             }
         }
 

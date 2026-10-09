@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice arena-leaderboard: batalha A/B, voto, ELO e grants de modelo.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ArenaTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -24,7 +24,7 @@ public class ArenaTests
     public async Task OneTimeSetUp()
     {
         var mockBase = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-arena-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-arena-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", mockBase);
         _factory = new WebApplicationFactory<Program>();
@@ -48,7 +48,7 @@ public class ArenaTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -166,7 +166,7 @@ public class ArenaTests
     public async Task ArenaCompletion_DuasRespostasAnonimas() // RF-001
     {
         UseToken(_user.Token);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(new ChatCompletionRequest(
                 $"arena:{_arenaModelId}",

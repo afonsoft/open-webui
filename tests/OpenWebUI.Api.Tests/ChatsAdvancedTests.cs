@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes de chats avançados (SPEC chats-advanced): versionamento de
 /// mensagens em edição/regeneração e listagem administrativa de chats.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ChatsAdvancedTests
 {
@@ -24,7 +24,7 @@ public class ChatsAdvancedTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-chatsadv-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-chatsadv-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -56,7 +56,7 @@ public class ChatsAdvancedTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

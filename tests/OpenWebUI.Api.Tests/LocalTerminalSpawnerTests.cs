@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// proxy reutiliza o pipeline. Nos testes o comando é um http.server
 /// neutro — a mesma mecânica do Jupyter real (Jupyter:LocalCommand).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class LocalTerminalSpawnerTests
 {
@@ -28,8 +28,8 @@ public class LocalTerminalSpawnerTests
 
     private static bool HasPython() =>
         Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator)
-            .Any(dir => File.Exists(Path.Combine(dir, "python3"))
-                     || File.Exists(Path.Combine(dir, "python3.exe")));
+            .Any(dir => File.Exists(Path.Join(dir, "python3"))
+                     || File.Exists(Path.Join(dir, "python3.exe")));
 
     private static LocalTerminalSpawner NewSpawner(string command) =>
         new(new ConfigurationBuilder()
@@ -88,7 +88,7 @@ public class LocalTerminalSpawnerTests
 }
 
 /// <summary>End-to-end: config type "local" sem URL dispara o spawn no proxy.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class TerminalLocalEndpointsTests
 {
@@ -103,7 +103,7 @@ public class TerminalLocalEndpointsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-termlocal-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-termlocal-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("Jupyter__LocalCommand", SpawnCommand);
         Environment.SetEnvironmentVariable("Jupyter__SpawnTimeoutSeconds", "10");
@@ -126,7 +126,7 @@ public class TerminalLocalEndpointsTests
         Environment.SetEnvironmentVariable("Jupyter__SpawnTimeoutSeconds", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -6,14 +6,22 @@
 <div class="group w-full flex gap-3 @(Message.Role == "user" ? "justify-end" : "")">
     @if (Message.Role != "user")
     {
-        <div class="shrink-0 mt-0.5">
-            <img src="@(Streaming ? "thinking.gif" : "favicon.png")"
+        <div class="shrink-0 mt-0.5 relative">
+            <img src="favicon.png"
                  class="size-7 rounded-full border border-gray-100 dark:border-gray-850" alt="" />
+            @if (Streaming)
+            {
+                <span class="absolute inset-0 rounded-full border-2 border-blue-400 dark:border-blue-500 animate-ping" aria-hidden="true"></span>
+            }
         </div>
     }
 
     <div class="flex flex-col min-w-0 @(Message.Role == "user" ? "items-end max-w-[85%]" : "flex-1")">
         <div class="text-[0.8125rem] font-medium text-gray-500 dark:text-gray-400 mb-0.5 @(Message.Role == "user" ? "text-right" : "")">
+            @if (Message.Role == "assistant" && Streaming)
+            {
+                <span class="thinking-brain mr-1 align-middle" aria-hidden="true">🧠</span>
+            }
             @(Message.Role == "assistant" ? Message.Model ?? L["chat.assistant"] : L["chat.you"])
         </div>
 
@@ -25,7 +33,7 @@
                 @if (string.IsNullOrEmpty(Message.Content) && Streaming)
                 {
                     <span class="inline-flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500">
-                        @L["chat.thinking"]<span class="typing">▌</span>
+                        <span class="thinking-brain" aria-hidden="true">🧠</span>@L["chat.thinking"]<span class="thinking-dots" aria-hidden="true"></span>
                     </span>
                 }
                 else
@@ -45,7 +53,7 @@
 
         @if (ShowActions && !Streaming)
         {
-            <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
+            <div class="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity text-gray-400 dark:text-gray-500">
                 @if (Message.Versions is { Count: > 0 } versions)
                 {
                     var total = versions.Count + 1;

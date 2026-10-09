@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// exa, kagi e perplexity, todos apontados para um HttpListener mockado via
 /// os campos de base URL da config, mais validação de engine/rerank_engine.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class RetrievalEnginesTests
 {
@@ -29,7 +29,7 @@ public class RetrievalEnginesTests
     public async Task OneTimeSetUp()
     {
         _mockBaseUrl = StartMock();
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-engines-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-engines-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", _mockBaseUrl);
         _factory = new WebApplicationFactory<Program>();
@@ -49,7 +49,7 @@ public class RetrievalEnginesTests
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

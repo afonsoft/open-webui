@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 
@@ -83,10 +84,9 @@ public abstract class MediaEngineBase(IHttpClientFactory httpClientFactory)
             var node = JsonNode.Parse(string.IsNullOrWhiteSpace(config.EngineParams) ? "{}" : config.EngineParams);
             return node?[key]?.GetValue<string>();
         }
-        catch
-        {
-            return null;
-        }
+        catch (JsonException) { return null; }
+        catch (InvalidOperationException) { return null; }
+        catch (FormatException) { return null; }
     }
 
     /// <summary>Converte "WxH" em (width, height); fallback para o valor informado.</summary>

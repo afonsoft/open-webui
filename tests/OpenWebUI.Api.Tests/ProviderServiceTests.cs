@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Caching.Memory;
+using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -12,11 +14,12 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Cobertura de branches do ProviderService: múltiplas URLs, dedup, erros do provider, timeout, roteamento e payloads de borda.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ProviderServiceTests
 {
     private string _dbPath = null!;
     private AppDbContext _db = null!;
+    private MemoryCache _cache = null!;
     private ConfigService _config = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
@@ -44,11 +47,12 @@ public class ProviderServiceTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-provider-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-provider-{Guid.NewGuid():N}.db");
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
-        _config = new ConfigService(_db, new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        _config = new ConfigService(_db, _cache);
         _mockUrl = StartMock();
     }
 
@@ -65,18 +69,21 @@ public class ProviderServiceTests
     {
         _mockCts.Cancel();
         _mock.Stop();
+        _cache.Dispose();
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
     private ProviderService NewService() =>
         new(new FakeHttpClientFactory(_clientTimeout), _config,
             NullLogger<ProviderService>.Instance,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            // Cache novo por serviço: o cache de modelos (TTL 60s) é chaveado
+            // pelo fingerprint das conexões — compartilhar entre testes faz um
+            // teste ler a resposta em cache de outro.
+            new MemoryCache(new MemoryCacheOptions()));
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>
@@ -157,9 +164,16 @@ public class ProviderServiceTests
         try
         {
             var path = ctx.Request.Url!.AbsolutePath;
-            var body = ctx.Request.HasEntityBody
-                ? await new StreamReader(ctx.Request.InputStream).ReadToEndAsync(ct)
-                : string.Empty;
+            string body;
+            if (ctx.Request.HasEntityBody)
+            {
+                using var reader = new StreamReader(ctx.Request.InputStream);
+                body = await reader.ReadToEndAsync(ct);
+            }
+            else
+            {
+                body = string.Empty;
+            }
             _requests.Enqueue(new RecordedRequest(
                 path, ctx.Request.Headers["Authorization"], body));
 
@@ -176,10 +190,9 @@ public class ProviderServiceTests
             await ctx.Response.OutputStream.WriteAsync(bytes, ct);
             ctx.Response.Close();
         }
-        catch (Exception)
-        {
-            // Cliente desconectou (timeout) ou o mock encerrou: ignora.
-        }
+        catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+        catch (IOException) { /* cliente desconectou — ignora */ }
+        catch (ObjectDisposedException) { /* listener parou */ }
     }
 
     [Test, Order(1)]

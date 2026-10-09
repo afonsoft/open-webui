@@ -94,7 +94,7 @@ public sealed class LocalTerminalSpawner : IDisposable
     {
         var port = FreePort();
         var token = string.IsNullOrEmpty(server.Key) ? Guid.NewGuid().ToString("N") : server.Key;
-        var workDir = Path.Combine(Path.GetTempPath(), "openwebui-terminals", server.Id);
+        var workDir = Path.Join(Path.GetTempPath(), "openwebui-terminals", server.Id);
         Directory.CreateDirectory(workDir);
 
         var command = CommandTemplate
@@ -159,9 +159,11 @@ public sealed class LocalTerminalSpawner : IDisposable
             }
             catch (HttpRequestException)
             {
+                // Probe falhou — segue para o próximo candidato.
             }
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
+                // Probe falhou — segue para o próximo candidato.
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -196,6 +198,7 @@ public sealed class LocalTerminalSpawner : IDisposable
         }
         catch (InvalidOperationException)
         {
+            // Processo/PTY já morto — best-effort no teardown.
         }
         process.Dispose();
     }

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenWebUI.Domain;
 
 namespace OpenWebUI.Infrastructure.Terminal;
 
@@ -141,8 +142,8 @@ public sealed class TerminalSessionManager : IAsyncDisposable
                 $"Limite de {MaxSessionsPerUser} sessões de terminal por usuário atingido.");
         }
 
-        var workspace = Path.Combine(
-            _env.ContentRootPath, "data", "workspaces", userId);
+        var workspace = Path.Join(
+            DataPaths.Root(_env.ContentRootPath), "workspaces", userId);
         Directory.CreateDirectory(workspace);
 
         var session = (_sessionFactory

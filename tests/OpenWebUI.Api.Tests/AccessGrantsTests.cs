@@ -10,7 +10,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes do modelo de access grants (read/write por usuário, grupo ou "*")
 /// em knowledge, notas, modelos, canais e calendários reais.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AccessGrantsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -22,7 +22,7 @@ public class AccessGrantsTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-grants-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-grants-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -43,7 +43,7 @@ public class AccessGrantsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

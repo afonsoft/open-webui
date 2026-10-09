@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261003-utils-community` |
 | Ticket | Issue #89 |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -65,3 +65,14 @@ Upstream `utils`: `/gravatar` (avatar por email), `/litellm/config`, `/code/form
 - Epic: https://github.com/afonsoft/open-webui/issues/79
 
 Nota: o upstream usa **SHA256** (não MD5) para o hash do gravatar — seguido o upstream.
+
+## Reconciliation
+
+_Reconciliado em 2026-10-08 (SPEC-20261008-spec-status-reconciliation, Issue #203)._
+
+| RF | Veredito | Evidência |
+| --- | --- | --- |
+| RF-001 Gravatar | delivered | `Api/Endpoints/UtilsEndpoints.cs:30-43` — hash **SHA256** do email normalizado (upstream usa SHA256, não MD5 — divergência já documentada neste SPEC); retorna URL sem chamada externa |
+| RF-002 Code format | delivered | `UtilsEndpoints.cs:47` — whitelist de linguagens; `json` tem formatador interno; executor ausente → 501 |
+| RF-003 Comunidade | delivered | `Client/wwwroot/js/app.js:64` `shareCommunity` — só dispara por ação explícita do usuário e abre em nova aba |
+

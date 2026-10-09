@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 
@@ -54,10 +55,10 @@ public static class ChatProcessRunner
         {
             process.Start();
         }
-        catch (Exception ex)
-        {
-            return new ProcessOutcome(-1, $"Falha ao iniciar processo: {ex.Message}", false, false);
-        }
+        catch (Win32Exception ex) { return new ProcessOutcome(-1, $"Falha ao iniciar processo: {ex.Message}", false, false); }
+        catch (ObjectDisposedException ex) { return new ProcessOutcome(-1, $"Falha ao iniciar processo: {ex.Message}", false, false); }
+        catch (InvalidOperationException ex) { return new ProcessOutcome(-1, $"Falha ao iniciar processo: {ex.Message}", false, false); }
+        catch (PlatformNotSupportedException ex) { return new ProcessOutcome(-1, $"Falha ao iniciar processo: {ex.Message}", false, false); }
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
         var stderrTask = process.StandardError.ReadToEndAsync(ct);
@@ -87,10 +88,9 @@ public static class ChatProcessRunner
             {
                 process.Kill(entireProcessTree: true);
             }
-            catch
-            {
-                // Processo já morreu entre o check e o kill — ignorar.
-            }
+            catch (InvalidOperationException) { /* Já morreu. */ }
+            catch (Win32Exception) { /* Já morreu. */ }
+            catch (NotSupportedException) { /* Já morreu. */ }
         }
 
         try
@@ -98,10 +98,8 @@ public static class ChatProcessRunner
             stdout.Append(await stdoutTask);
             stderr.Append(await stderrTask);
         }
-        catch
-        {
-            // Leituras canceladas junto com o processo — usar o que sobrou.
-        }
+        catch (OperationCanceledException) { /* leituras canceladas — usar o que sobrou */ }
+        catch (IOException) { /* pipe fechado — usar o que sobrou */ }
 
         var combined = stdout.ToString();
         if (stderr.Length > 0)

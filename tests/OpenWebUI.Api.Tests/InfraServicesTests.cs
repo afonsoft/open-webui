@@ -13,7 +13,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos serviços de infraestrutura: providers SSE (Ollama/OpenAI), embeddings+RAG, schedule, JWT, OAuth e tools.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class InfraServicesTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -29,7 +29,7 @@ public class InfraServicesTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-infra-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-infra-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -57,7 +57,7 @@ public class InfraServicesTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -107,7 +107,8 @@ public class InfraServicesTests
                 return;
             }
 
-            var body = await new StreamReader(ctx.Request.InputStream).ReadToEndAsync();
+            using var reader = new StreamReader(ctx.Request.InputStream);
+            var body = await reader.ReadToEndAsync();
             var (status, contentType, payload) = Route(ctx.Request.Url!.AbsolutePath, body);
             var bytes = Encoding.UTF8.GetBytes(payload);
             ctx.Response.StatusCode = status;
@@ -186,7 +187,7 @@ public class InfraServicesTests
 
     private async Task<string> PostChatCompletionsAsync(ChatCompletionRequest request)
     {
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/completions")
         {
             Content = JsonContent.Create(request),
         };

@@ -5,12 +5,13 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject LocalizationService L
+@inject DialogService Dialogs
 @using System.Text.Json.Nodes
 
 <PageTitle>@L["page.admin"] — Open WebUI</PageTitle>
 
 <div class="page">
-    <h1 class="page-title">@L["admin.title"]</h1>
+    <h1 class="page-title" tabindex="-1">@L["admin.title"]</h1>
     @if (!IsAdmin)
     {
         <div class="chat-error">@L["admin.restricted"]</div>
@@ -66,7 +67,7 @@
                 </div>
                 <div class="card-row">
                     <div class="card-main w-full flex flex-row flex-wrap gap-2 items-center">
-                        <input class="input flex-1 min-w-40" placeholder="@L["admin.search_users"]"
+                        <input aria-label="@L["admin.search_users"]" class="input flex-1 min-w-40" placeholder="@L["admin.search_users"]"
                                @bind="_userQuery" @bind:event="oninput"
                                @onchange="() => ReloadUsersAsync(1)" />
                         <select class="input w-auto flex-none" aria-label="@L["admin.filter_role"]" @bind="_userFilter" @bind:after="() => ReloadUsersAsync(1)">
@@ -111,7 +112,7 @@
                                 {
                                     <button class="msg-action" title="@L["admin.perms"]" aria-label="@L["admin.perms"]"
                                             @onclick="() => TogglePermEditorAsync(user)">🛡</button>
-                                    <button class="msg-action danger" @onclick="() => DeleteUserAsync(user)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteUserAsync(user)">🗑</button>
                                 }
                             </div>
                         </div>
@@ -161,7 +162,7 @@
             {
                 <div class="card-row">
                     <div class="card-main w-full">
-                        <input class="input w-full" placeholder="@L["admin.search_chats"]"
+                        <input aria-label="@L["admin.search_chats"]" class="input w-full" placeholder="@L["admin.search_chats"]"
                                @bind="_chatQuery" @bind:event="oninput"
                                @onchange="() => ReloadAdminChatsAsync(1)" />
                     </div>
@@ -181,7 +182,7 @@
                                 <div class="card-meta">
                                     @chat.UserName &lt;@chat.UserEmail&gt; ·
                                     @L.T("admin.chats_messages", ("count", chat.MessageCount.ToString())) ·
-                                    @DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime.ToString("dd/MM/yyyy HH:mm")
+                                    @L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(chat.UpdatedAt).LocalDateTime)
                                 </div>
                             </div>
                             <div class="card-actions">
@@ -327,7 +328,7 @@
                                 <span class="truncate">@entry.ModelId</span>
                                 <span>@entry.Rating.ToString("F0")</span>
                                 <span>@entry.Battles</span>
-                                <span>@(entry.Wins % 1 == 0 ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
+                                <span>@(double.IsInteger(entry.Wins) ? entry.Wins.ToString("F0") : entry.Wins.ToString("F1"))</span>
                             </div>
                         </div>
                     }
@@ -343,7 +344,7 @@
             else
             {
                 <div class="flex gap-1 mb-3 overflow-x-auto whitespace-nowrap scrollbar-hidden">
-                    @foreach (var sub in new[] { "general", "providers", "models", "features", "audio", "retrieval", "mcp", "integrations" })
+                    @foreach (var sub in new[] { "general", "providers", "models", "features", "audio", "retrieval", "mcp", "media", "integrations" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -365,16 +366,16 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.webui_name"]</label>
-                                <input class="input" @bind="_webUiName" />
-                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1">@L["admin.default_role"]</label>
-                                <select class="input w-40" @bind="_defaultRole">
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-27">@L["admin.webui_name"]</label>
+                                <input class="input" @bind="_webUiName" id="fld-27" />
+                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1" for="fld-28">@L["admin.default_role"]</label>
+                                <select class="input w-40" @bind="_defaultRole" id="fld-28">
                                     <option value="pending">pending</option>
                                     <option value="user">user</option>
                                     <option value="admin">admin</option>
                                 </select>
-                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1">@L["admin.jwt_expires"]</label>
-                                <input class="input w-40" @bind="_jwtExpiresIn" placeholder="7d" />
+                                <label class="text-sm text-gray-600 dark:text-gray-300 mt-1" for="fld-29">@L["admin.jwt_expires"]</label>
+                                <input class="input w-40" @bind="_jwtExpiresIn" placeholder="7d" id="fld-29" />
                             </div>
                         </div>
                         <div class="card-row">
@@ -404,12 +405,12 @@
                             var idx = i;
                             <div class="card-row">
                                 <div class="flex flex-col sm:flex-row gap-2 w-full">
-                                    <input class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
-                                    <input class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" />
+                                    <input aria-label="@L["admin.prov_name"]" class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
+                                    <input aria-label="URL" class="input flex-1" @bind="row.Url" placeholder="http://localhost:11434" />
                                     <div class="flex gap-2 items-center">
                                         <button class="button-sm" disabled="@_provTesting"
                                                 @onclick='() => TestConnectionAsync("ollama", idx)'>@L["admin.prov_test"]</button>
-                                        <button class="msg-action danger" @onclick="() => _provOllamaRows.Remove(row)">🗑</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => _provOllamaRows.Remove(row)">🗑</button>
                                     </div>
                                 </div>
                             </div>
@@ -440,14 +441,14 @@
                             var idx = i;
                             <div class="card-row">
                                 <div class="flex flex-col sm:flex-row gap-2 w-full">
-                                    <input class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
-                                    <input class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" />
-                                    <input class="input sm:w-48" type="password" @bind="row.Key"
+                                    <input aria-label="@L["admin.prov_name"]" class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
+                                    <input aria-label="URL" class="input flex-1" @bind="row.Url" placeholder="https://api.openai.com/v1" />
+                                    <input aria-label="@L["settings.api_key"]" class="input sm:w-48" type="password" @bind="row.Key"
                                            placeholder="@(row.KeyConfigured ? L["admin.prov_key_set"] : "sk-…")" />
                                     <div class="flex gap-2 items-center">
                                         <button class="button-sm" disabled="@_provTesting"
                                                 @onclick='() => TestConnectionAsync("openai", idx)'>@L["admin.prov_test"]</button>
-                                        <button class="msg-action danger" @onclick="() => _provOpenAiRows.Remove(row)">🗑</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => _provOpenAiRows.Remove(row)">🗑</button>
                                     </div>
                                 </div>
                             </div>
@@ -493,7 +494,7 @@
                                         }
                                     </div>
                                     <div class="card-actions">
-                                        <button class="msg-action danger" @onclick="() => DeleteOllamaModelAsync(model)">🗑</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteOllamaModelAsync(model)">🗑</button>
                                     </div>
                                 </div>
                             }
@@ -504,7 +505,7 @@
                         }
                         <div class="card-row">
                             <div class="flex gap-2 w-full items-center">
-                                <input class="input flex-1" @bind="_provPullName" placeholder="llama3.2" />
+                                <input aria-label="@L["settings.pull_model_placeholder"]" class="input flex-1" @bind="_provPullName" placeholder="llama3.2" />
                                 <button class="button-sm" disabled="@(_provPulling || string.IsNullOrWhiteSpace(_provPullName))"
                                         @onclick="PullOllamaModelAsync">
                                     @(_provPulling ? L["admin.prov_pulling"] : L["admin.prov_pull"])
@@ -522,9 +523,10 @@
                     <div class="card-list">
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.default_models"]</label>
+                                <div class="text-sm text-gray-600 dark:text-gray-300">@L["admin.default_models"]</div>
                                 <div class="relative">
                                     <button type="button" class="input text-left flex items-center justify-between gap-2"
+                                            aria-expanded="@_showDefaultModelsMenu" aria-haspopup="listbox"
                                             @onclick="() => _showDefaultModelsMenu = !_showDefaultModelsMenu">
                                         <span class="truncate text-gray-800 dark:text-gray-200">
                                             @(_defaultModels.Count == 0
@@ -537,7 +539,7 @@
                                     @if (_showDefaultModelsMenu)
                                     {
                                         <div class="absolute left-0 top-11 z-40 w-full max-h-72 overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 shadow-lg p-2">
-                                            <input class="input mb-1" placeholder="@L["models.select"]"
+                                            <input aria-label="@L["models.select"]" class="input mb-1" placeholder="@L["models.select"]"
                                                    @bind="_defaultModelsQuery" @bind:event="oninput" />
                                             @foreach (var modelId in DefaultModelOptions)
                                             {
@@ -566,11 +568,11 @@
                         {
                             <div class="card-row">
                                 <div class="card-main w-full flex flex-row gap-2">
-                                    <input class="input w-40" @bind="suggestion.Title" placeholder="@L["admin.suggestion_title"]" />
-                                    <input class="input flex-1" @bind="suggestion.Content" placeholder="@L["admin.suggestion_content"]" />
+                                    <input aria-label="@L["admin.suggestion_title"]" class="input w-40" @bind="suggestion.Title" placeholder="@L["admin.suggestion_title"]" />
+                                    <input aria-label="@L["admin.suggestion_content"]" class="input flex-1" @bind="suggestion.Content" placeholder="@L["admin.suggestion_content"]" />
                                 </div>
                                 <div class="card-actions">
-                                    <button class="msg-action danger" @onclick="() => _suggestions.Remove(suggestion)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => _suggestions.Remove(suggestion)">🗑</button>
                                 </div>
                             </div>
                         }
@@ -592,14 +594,14 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main w-full flex flex-row flex-wrap gap-2 items-center">
-                                <select class="input w-28" @bind="_bannerType">
+                                <select aria-label="@L["admin.banner_type"]" class="input w-28" @bind="_bannerType">
                                     <option value="info">info</option>
                                     <option value="warning">warning</option>
                                     <option value="error">error</option>
                                     <option value="success">success</option>
                                 </select>
-                                <input class="input w-48" @bind="_bannerTitle" placeholder="@L["admin.banner_title"]" />
-                                <input class="input flex-1" @bind="_bannerContent" placeholder="@L["admin.banner_content"]" />
+                                <input aria-label="@L["admin.banner_title"]" class="input w-48" @bind="_bannerTitle" placeholder="@L["admin.banner_title"]" />
+                                <input aria-label="@L["admin.banner_content"]" class="input flex-1" @bind="_bannerContent" placeholder="@L["admin.banner_content"]" />
                                 <button class="auth-submit" @onclick="SaveBannerAsync">
                                     @(_editingBannerId is null ? L["common.new"] : L["common.save"])
                                 </button>
@@ -613,8 +615,8 @@
                                     <div class="card-sub">@banner.Content</div>
                                 </div>
                                 <div class="card-actions">
-                                    <button class="msg-action" @onclick="() => EditBanner(banner)">✎</button>
-                                    <button class="msg-action danger" @onclick="() => DeleteBannerAsync(banner)">🗑</button>
+                                    <button class="msg-action" aria-label="@L["common.edit"]" @onclick="() => EditBanner(banner)">✎</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteBannerAsync(banner)">🗑</button>
                                 </div>
                             </div>
                         }
@@ -625,8 +627,8 @@
                     <div class="card-list">
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.stt_engine"]</label>
-                                <select class="input w-52" @bind="_sttEngine" @bind:after="OnSttEngineChangedAsync">
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-30">@L["admin.stt_engine"]</label>
+                                <select class="input w-52" @bind="_sttEngine" @bind:after="OnSttEngineChangedAsync" id="fld-30">
                                     <option value="none">none</option>
                                     <option value="web-speech">web-speech</option>
                                     <option value="openai">openai</option>
@@ -636,20 +638,20 @@
                                 </select>
                                 @if (_sttEngine is "openai" or "deepgram" or "whisper")
                                 {
-                                    <input class="input" @bind="_sttBaseUrl" placeholder="@(_sttEngine == "whisper" ? "http://localhost:8000/v1 (WHISPER_URL)" : "https://api.openai.com/v1")" />
-                                    <input class="input" type="password" @bind="_sttKey" placeholder="API key" />
-                                    <input class="input" @bind="_sttModel" placeholder="whisper-1" />
+                                    <input aria-label="@L["settings.audio_stt_base_url"]" class="input" @bind="_sttBaseUrl" placeholder="@(_sttEngine == "whisper" ? "http://localhost:8000/v1 (WHISPER_URL)" : "https://api.openai.com/v1")" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_sttKey" placeholder="API key" />
+                                    <input aria-label="@L["settings.audio_stt_model"]" class="input" @bind="_sttModel" placeholder="whisper-1" />
                                 }
                                 else if (_sttEngine == "provider")
                                 {
-                                    <select class="input" @bind="_sttProvider" @bind:after="LoadSttProviderModelsAsync">
+                                    <select aria-label="@L["settings.audio_provider"]" class="input" @bind="_sttProvider" @bind:after="LoadSttProviderModelsAsync">
                                         <option value="">@L["admin.select_provider"]</option>
                                         @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
                                         {
                                             <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
                                         }
                                     </select>
-                                    <select class="input" @bind="_sttModel">
+                                    <select aria-label="@L["settings.audio_stt_model"]" class="input" @bind="_sttModel">
                                         <option value="auto">auto</option>
                                         @foreach (var m in _sttProviderModels.Concat(
                                                 string.IsNullOrWhiteSpace(_sttModel) || _sttModel == "auto" ? [] : [_sttModel])
@@ -663,8 +665,8 @@
                         </div>
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.tts_engine"]</label>
-                                <select class="input w-52" @bind="_ttsEngine" @bind:after="OnTtsEngineChangedAsync">
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-31">@L["admin.tts_engine"]</label>
+                                <select class="input w-52" @bind="_ttsEngine" @bind:after="OnTtsEngineChangedAsync" id="fld-31">
                                     <option value="none">none</option>
                                     <option value="openai">openai</option>
                                     <option value="elevenlabs">elevenlabs</option>
@@ -674,14 +676,14 @@
                                 </select>
                                 @if (_ttsEngine == "provider")
                                 {
-                                    <select class="input" @bind="_ttsProvider" @bind:after="LoadTtsProviderModelsAsync">
+                                    <select aria-label="@L["settings.audio_provider"]" class="input" @bind="_ttsProvider" @bind:after="LoadTtsProviderModelsAsync">
                                         <option value="">@L["admin.select_provider"]</option>
                                         @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
                                         {
                                             <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
                                         }
                                     </select>
-                                    <select class="input" @bind="_ttsModel">
+                                    <select aria-label="@L["settings.audio_tts_model"]" class="input" @bind="_ttsModel">
                                         <option value="auto">auto</option>
                                         @foreach (var m in _ttsProviderModels.Concat(
                                                 string.IsNullOrWhiteSpace(_ttsModel) || _ttsModel == "auto" ? [] : [_ttsModel])
@@ -690,28 +692,28 @@
                                             <option value="@m">@m</option>
                                         }
                                     </select>
-                                    <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                    <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="alloy" />
                                 }
                                 else if (_ttsEngine is "openai" or "transformers")
                                 {
-                                    <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
-                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
-                                    <input class="input" @bind="_ttsModel" placeholder="tts-1" />
-                                    <input class="input" @bind="_ttsVoice" placeholder="alloy" />
+                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input aria-label="@L["settings.audio_tts_model"]" class="input" @bind="_ttsModel" placeholder="tts-1" />
+                                    <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="alloy" />
                                 }
                                 else if (_ttsEngine == "elevenlabs")
                                 {
-                                    <input class="input" @bind="_ttsBaseUrl" placeholder="https://api.elevenlabs.io (opcional)" />
-                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
-                                    <input class="input" @bind="_ttsModel" placeholder="eleven_multilingual_v2" />
-                                    <input class="input" @bind="_ttsVoice" placeholder="voice_id" />
+                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.elevenlabs_url_ph"]" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input aria-label="@L["settings.audio_tts_model"]" class="input" @bind="_ttsModel" placeholder="eleven_multilingual_v2" />
+                                    <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="voice_id" />
                                 }
                                 else if (_ttsEngine == "azure")
                                 {
-                                    <input class="input" @bind="_azureRegion" placeholder="region (ex.: brazilsouth)" />
-                                    <input class="input" @bind="_ttsBaseUrl" placeholder="base URL (opcional, sobrepõe a região)" />
-                                    <input class="input" type="password" @bind="_ttsKey" placeholder="API key" />
-                                    <input class="input" @bind="_ttsVoice" placeholder="pt-BR-FranciscaNeural" />
+                                    <input aria-label="@L["admin.azure_region"]" class="input" @bind="_azureRegion" placeholder="@L["admin.azure_region_ph"]" />
+                                    <input aria-label="@L["settings.audio_tts_base_url"]" class="input" @bind="_ttsBaseUrl" placeholder="@L["admin.tts_base_url_ph"]" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_ttsKey" placeholder="API key" />
+                                    <input aria-label="@L["settings.audio_tts_voice"]" class="input" @bind="_ttsVoice" placeholder="pt-BR-FranciscaNeural" />
                                 }
                             </div>
                         </div>
@@ -729,8 +731,8 @@
                     <div class="card-list">
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">@L["admin.search_engine"]</label>
-                                <select class="input w-52" @bind="_retEngine">
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-32">@L["admin.search_engine"]</label>
+                                <select class="input w-52" @bind="_retEngine" id="fld-32">
                                     <option value="none">none</option>
                                     <option value="searxng">searxng</option>
                                     <option value="duckduckgo">duckduckgo</option>
@@ -744,65 +746,65 @@
                                 </select>
                                 @if (_retEngine == "searxng")
                                 {
-                                    <input class="input" @bind="_retSearxng" placeholder="http://searxng:8080" />
+                                    <input aria-label="@L["common.base_url"]" class="input" @bind="_retSearxng" placeholder="http://searxng:8080" />
                                 }
                                 @if (_retEngine == "tavily")
                                 {
-                                    <input class="input" type="password" @bind="_retTavily" placeholder="tavily api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retTavily" placeholder="tavily api key" />
                                 }
                                 @if (_retEngine == "brave")
                                 {
-                                    <input class="input" type="password" @bind="_retBrave" placeholder="brave api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retBrave" placeholder="brave api key" />
                                 }
                                 @if (_retEngine == "google_pse")
                                 {
-                                    <input class="input" type="password" @bind="_retGooglePseKey" placeholder="google pse api key" />
-                                    <input class="input" @bind="_retGooglePseCx" placeholder="engine id (cx)" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retGooglePseKey" placeholder="google pse api key" />
+                                    <input aria-label="@L["admin.engine_id"]" class="input" @bind="_retGooglePseCx" placeholder="engine id (cx)" />
                                 }
                                 @if (_retEngine == "jina")
                                 {
-                                    <input class="input" type="password" @bind="_retJinaKey" placeholder="jina api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retJinaKey" placeholder="jina api key" />
                                 }
                                 @if (_retEngine == "exa")
                                 {
-                                    <input class="input" type="password" @bind="_retExaKey" placeholder="exa api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retExaKey" placeholder="exa api key" />
                                 }
                                 @if (_retEngine == "kagi")
                                 {
-                                    <input class="input" type="password" @bind="_retKagiKey" placeholder="kagi api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retKagiKey" placeholder="kagi api key" />
                                 }
                                 @if (_retEngine == "perplexity")
                                 {
-                                    <input class="input" type="password" @bind="_retPplxKey" placeholder="perplexity api key" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retPplxKey" placeholder="perplexity api key" />
                                 }
                             </div>
                         </div>
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">top-k</label>
-                                <input class="input w-28" type="number" @bind="_retTopK" />
-                                <label class="text-sm text-gray-600 dark:text-gray-300">chunk size / overlap</label>
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-33">top-k</label>
+                                <input class="input w-28" type="number" @bind="_retTopK" id="fld-33" />
+                                <div class="text-sm text-gray-600 dark:text-gray-300">chunk size / overlap</div>
                                 <div class="flex gap-2">
-                                    <input class="input w-28" type="number" @bind="_retChunkSize" />
-                                    <input class="input w-28" type="number" @bind="_retOverlap" />
+                                    <input class="input w-28" type="number" @bind="_retChunkSize" aria-label="chunk size" />
+                                    <input class="input w-28" type="number" @bind="_retOverlap" aria-label="overlap" />
                                 </div>
                                 <label class="check"><input type="checkbox" @bind="_retHybrid" /> hybrid (bm25+vector)</label>
                                 @if (_retHybrid)
                                 {
-                                    <label class="text-sm text-gray-600 dark:text-gray-300">hybrid weight (0..1)</label>
-                                    <input class="input w-28" type="number" step="0.1" min="0" max="1" @bind="_retWeight" />
+                                    <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-35">hybrid weight (0..1)</label>
+                                    <input class="input w-28" type="number" step="0.1" min="0" max="1" @bind="_retWeight" id="fld-35" />
                                 }
                                 <label class="check"><input type="checkbox" @bind="_retRerank" /> rerank</label>
                                 @if (_retRerank)
                                 {
-                                    <select class="input w-52" @bind="_retRerankEngine">
+                                    <select aria-label="@L["admin.rerank_engine"]" class="input w-52" @bind="_retRerankEngine">
                                         <option value="local">local</option>
                                         <option value="external">external</option>
                                     </select>
                                     @if (_retRerankEngine == "external")
                                     {
-                                        <input class="input" @bind="_retRerankUrl" placeholder="http://reranker:8080/rerank" />
-                                        <input class="input" type="password" @bind="_retRerankKey" placeholder="api key (opcional)" />
+                                        <input aria-label="@L["common.base_url"]" class="input" @bind="_retRerankUrl" placeholder="http://reranker:8080/rerank" />
+                                        <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_retRerankKey" placeholder="@L["admin.rerank_key_ph"]" />
                                     }
                                 }
                             </div>
@@ -876,7 +878,7 @@
                                                 aria-label="@L["common.edit"]">✎</button>
                                         <button class="msg-action" @onclick="() => ToggleMcpServerAsync(server)"
                                                 aria-label="@L["common.toggle"]">@(server.Enabled ? "⏻" : "◌")</button>
-                                        <button class="msg-action danger" @onclick="() => DeleteMcpServerAsync(server)">🗑</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteMcpServerAsync(server)">🗑</button>
                                     </div>
                                 </div>
                                 @if (_mcpTestResults.TryGetValue(server.Id, out var testResult))
@@ -913,23 +915,23 @@
                         }
                         <div class="card-row">
                             <div class="card-main w-full flex flex-col gap-2">
-                                <label class="text-sm text-gray-600 dark:text-gray-300">
+                                <label class="text-sm text-gray-600 dark:text-gray-300" for="fld-36">
                                     @(_editingMcpId is null ? L["admin.mcp_add"] : L["admin.mcp_edit"])</label>
-                                <input class="input" @bind="_mcpName" placeholder="@L["admin.mcp_name"]" />
-                                <select class="input w-52" @bind="_mcpTransport">
+                                <input class="input" @bind="_mcpName" placeholder="@L["admin.mcp_name"]" id="fld-36" />
+                                <select aria-label="@L["admin.mcp_transport"]" class="input w-52" @bind="_mcpTransport">
                                     <option value="http">http (streamable)</option>
                                     <option value="stdio">stdio (subprocess)</option>
                                 </select>
                                 @if (_mcpTransport == "http")
                                 {
-                                    <input class="input" @bind="_mcpUrl" placeholder="http://mcp-server:8000/mcp" />
-                                    <input class="input" @bind="_mcpHeaders" placeholder="@L["admin.mcp_headers_hint"]" />
+                                    <input aria-label="@L["common.base_url"]" class="input" @bind="_mcpUrl" placeholder="http://mcp-server:8000/mcp" />
+                                    <input aria-label="@L["admin.mcp_headers"]" class="input" @bind="_mcpHeaders" placeholder="@L["admin.mcp_headers_hint"]" />
                                 }
                                 else
                                 {
-                                    <input class="input" @bind="_mcpCommand" placeholder="npx" />
-                                    <input class="input" @bind="_mcpArgs" placeholder="-y mcp-server-everything" />
-                                    <input class="input" @bind="_mcpEnv" placeholder="@L["admin.mcp_env_hint"]" />
+                                    <input aria-label="@L["admin.mcp_command"]" class="input" @bind="_mcpCommand" placeholder="npx" />
+                                    <input aria-label="@L["admin.mcp_args"]" class="input" @bind="_mcpArgs" placeholder="-y mcp-server-everything" />
+                                    <input aria-label="@L["admin.mcp_env"]" class="input" @bind="_mcpEnv" placeholder="@L["admin.mcp_env_hint"]" />
                                 }
                             </div>
                         </div>
@@ -944,6 +946,150 @@
                                 {
                                     <button class="msg-action" @onclick="ResetMcpForm">@L["common.cancel"]</button>
                                 }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (_configTab == "media")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["settings.images_section"]</div>
+                                <div class="card-sub">@L["admin.images_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <label class="check">
+                                    <input type="checkbox" @bind="_imagesEnabled" /> @L["admin.video_enabled"]
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="text-xs text-gray-500" for="fld-37">@L["settings.audio_provider"]</label>
+                                <select class="input" value="@_imagesProvider"
+                                        @onchange="OnImagesProviderChangedAsync" id="fld-37">
+                                    <option value="">@L["admin.provider_custom"]</option>
+                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
+                                    {
+                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
+                                    }
+                                </select>
+                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
+                                {
+                                    <div class="field-note">
+                                        @L["admin.provider_register_hint"]
+                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
+                                    </div>
+                                }
+                                @if (string.IsNullOrWhiteSpace(_imagesProvider))
+                                {
+                                    <select aria-label="@L["admin.engine"]" class="input" @bind="_imagesEngine">
+                                        @foreach (var engine in _imageEngines)
+                                        {
+                                            <option value="@engine">@engine</option>
+                                        }
+                                    </select>
+                                    <input aria-label="@L["common.base_url"]" class="input" @bind="_imagesBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_imagesApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                }
+                                @if (_imagesProviderModels.Count > 0)
+                                {
+                                    <select aria-label="@L["common.model"]" class="input" @bind="_imagesModel">
+                                        @foreach (var m in _imagesProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_imagesModel) ? [] : [_imagesModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input aria-label="@L["common.model"]" class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
+                                }
+                                <div class="flex gap-2">
+                                    <input aria-label="@L["common.size"]" class="input w-32" @bind="_imagesSize" placeholder="1024x1024" />
+                                    <input aria-label="@L["workspace.params_json"]" class="input flex-1" @bind="_imagesEngineParams" placeholder="{}" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_imagesMessage is not null)
+                            {
+                                <div class="field-note">@_imagesMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveImagesConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="TestImagesConfigAsync">@L["admin.prov_test"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.video_title"]</div>
+                                <div class="card-sub">@L["admin.video_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <label class="check">
+                                    <input type="checkbox" @bind="_videoEnabled" /> @L["admin.video_enabled"]
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <label class="text-xs text-gray-500" for="fld-38">@L["settings.audio_provider"]</label>
+                                <select class="input" value="@_videoProvider"
+                                        @onchange="OnVideoProviderChangedAsync" id="fld-38">
+                                    <option value="">@L["admin.provider_custom"]</option>
+                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
+                                    {
+                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
+                                    }
+                                </select>
+                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
+                                {
+                                    <div class="field-note">
+                                        @L["admin.provider_register_hint"]
+                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
+                                    </div>
+                                }
+                                @if (string.IsNullOrWhiteSpace(_videoProvider))
+                                {
+                                    <select aria-label="@L["admin.engine"]" class="input" @bind="_videoEngine">
+                                        @foreach (var engine in _videoEngines)
+                                        {
+                                            <option value="@engine">@engine</option>
+                                        }
+                                    </select>
+                                    <input aria-label="@L["common.base_url"]" class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
+                                    <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_videoApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                }
+                                @if (_videoProviderModels.Count > 0)
+                                {
+                                    <select aria-label="@L["common.model"]" class="input" @bind="_videoModel">
+                                        @foreach (var m in _videoProviderModels.Concat(
+                                                string.IsNullOrWhiteSpace(_videoModel) ? [] : [_videoModel])
+                                            .Distinct())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input aria-label="@L["common.model"]" class="input flex-1" @bind="_videoModel" placeholder="sora-2" />
+                                }
+                                <input aria-label="@L["common.size"]" class="input w-32" @bind="_videoSize" placeholder="1280x720" />
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_videoMessage is not null)
+                            {
+                                <div class="field-note">@_videoMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveVideoConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="TestVideoConfigAsync">@L["admin.prov_test"]</button>
                             </div>
                         </div>
                     </div>
@@ -965,8 +1111,8 @@
                         </div>
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <input class="input" @bind="_n8nBaseUrl" placeholder="https://n8n.example.com" />
-                                <input class="input" type="password" @bind="_n8nApiKey"
+                                <input aria-label="@L["common.base_url"]" class="input" @bind="_n8nBaseUrl" placeholder="https://n8n.example.com" />
+                                <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_n8nApiKey"
                                        placeholder="@(_n8nHasKey ? L["admin.prov_key_set"] : "n8n API key")" />
                             </div>
                         </div>
@@ -1019,9 +1165,9 @@
                                     }
                                 </div>
                                 <div class="card-actions">
-                                    <button class="msg-action" title="@L["common.copy"]"
+                                    <button class="msg-action" title="@L["common.copy"]" aria-label="@L["common.copy"]"
                                             @onclick="() => CopyTextAsync(Nav.BaseUri.TrimEnd('/') + hook.Url)">⧉</button>
-                                    <button class="msg-action danger" @onclick="() => DeleteHookAsync(hook)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteHookAsync(hook)">🗑</button>
                                 </div>
                             </div>
                         }
@@ -1031,150 +1177,59 @@
                         }
                         <div class="card-row">
                             <div class="flex gap-2 w-full items-center">
-                                <input class="input flex-1" @bind="_hookName" placeholder="@L["admin.hooks_name_ph"]" />
+                                <input aria-label="@L["admin.hooks_name_ph"]" class="input flex-1" @bind="_hookName" placeholder="@L["admin.hooks_name_ph"]" />
                                 <button class="button-sm" disabled="@string.IsNullOrWhiteSpace(_hookName)"
                                         @onclick="CreateHookAsync">+ @L["common.add"]</button>
                             </div>
                         </div>
                         <div class="card-row">
                             <div class="card-main">
-                                <div class="card-title">@L["settings.images_section"]</div>
-                                <div class="card-sub">@L["admin.images_sub"]</div>
+                                <div class="card-title">GitHub</div>
+                                <div class="card-sub">@L["admin.github_sub"]</div>
                             </div>
                             <div class="card-actions">
-                                <label class="check">
-                                    <input type="checkbox" @bind="_imagesEnabled" /> @L["admin.video_enabled"]
-                                </label>
+                                @if (_ghConfigured)
+                                {
+                                    <span class="role-badge">@L["admin.n8n_connected"]</span>
+                                }
                             </div>
                         </div>
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <label class="text-xs text-gray-500">@L["settings.audio_provider"]</label>
-                                <select class="input" value="@_imagesProvider"
-                                        @onchange="OnImagesProviderChangedAsync">
-                                    <option value="">@L["admin.provider_custom"]</option>
-                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
-                                    {
-                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
-                                    }
-                                </select>
-                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
+                                <input aria-label="@L["settings.github_token"]" class="input" type="password"
+                                       autocomplete="off" spellcheck="false" @bind="_ghToken"
+                                       placeholder="@L["settings.github_token_ph"]" />
+                                <div class="field-note">@L["settings.github_token_hint"]</div>
+                                @if (_ghConfigured)
                                 {
-                                    <div class="field-note">
-                                        @L["admin.provider_register_hint"]
-                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
-                                    </div>
+                                    <div class="field-note">@L.T("settings.github_connected", ("login", _ghLogin ?? ""))</div>
                                 }
-                                @if (string.IsNullOrWhiteSpace(_imagesProvider))
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_ghMessage is not null)
+                            {
+                                <div class="field-note">@_ghMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" disabled="@(_ghSaving || string.IsNullOrWhiteSpace(_ghToken))"
+                                        @onclick="SaveGitHubTokenAsync">@L["common.save"]</button>
+                                @if (_ghConfigured)
                                 {
-                                    <select class="input" @bind="_imagesEngine">
-                                        @foreach (var engine in _imageEngines)
-                                        {
-                                            <option value="@engine">@engine</option>
-                                        }
-                                    </select>
-                                    <input class="input" @bind="_imagesBaseUrl" placeholder="https://api.openai.com/v1" />
-                                    <input class="input" type="password" @bind="_imagesApiKey" placeholder="@L["admin.prov_key_set"]" />
+                                    <button class="button-sm" @onclick="RemoveGitHubTokenAsync">@L["settings.github_remove"]</button>
                                 }
-                                @if (_imagesProviderModels.Count > 0)
-                                {
-                                    <select class="input" @bind="_imagesModel">
-                                        @foreach (var m in _imagesProviderModels.Concat(
-                                                string.IsNullOrWhiteSpace(_imagesModel) ? [] : [_imagesModel])
-                                            .Distinct())
-                                        {
-                                            <option value="@m">@m</option>
-                                        }
-                                    </select>
-                                }
-                                else
-                                {
-                                    <input class="input" @bind="_imagesModel" placeholder="gpt-image-1" />
-                                }
-                                <div class="flex gap-2">
-                                    <input class="input w-32" @bind="_imagesSize" placeholder="1024x1024" />
-                                    <input class="input flex-1" @bind="_imagesEngineParams" placeholder="{}" />
+                            </div>
+                        </div>
+                        @if (_ghConfigured)
+                        {
+                            <div class="card-row">
+                                <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                    <div class="card-title">@L["chat.repo_title"]</div>
+                                    <div class="field-note">@L["settings.github_repos_hint"]</div>
+                                    <RepoBindingPanel />
                                 </div>
                             </div>
-                        </div>
-                        <div class="card-row">
-                            @if (_imagesMessage is not null)
-                            {
-                                <div class="field-note">@_imagesMessage</div>
-                            }
-                            <div class="flex gap-2">
-                                <button class="auth-submit" @onclick="SaveImagesConfigAsync">@L["common.save"]</button>
-                                <button class="button-sm" @onclick="TestImagesConfigAsync">@L["admin.prov_test"]</button>
-                            </div>
-                        </div>
-                        <div class="card-row">
-                            <div class="card-main">
-                                <div class="card-title">@L["admin.video_title"]</div>
-                                <div class="card-sub">@L["admin.video_sub"]</div>
-                            </div>
-                            <div class="card-actions">
-                                <label class="check">
-                                    <input type="checkbox" @bind="_videoEnabled" /> @L["admin.video_enabled"]
-                                </label>
-                            </div>
-                        </div>
-                        <div class="card-row">
-                            <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <label class="text-xs text-gray-500">@L["settings.audio_provider"]</label>
-                                <select class="input" value="@_videoProvider"
-                                        @onchange="OnVideoProviderChangedAsync">
-                                    <option value="">@L["admin.provider_custom"]</option>
-                                    @for (var i = 0; i < (_connections?.OpenAiBaseUrls.Count ?? 0); i++)
-                                    {
-                                        <option value="@_connections!.OpenAiBaseUrls[i]">@ConnectionLabel(i)</option>
-                                    }
-                                </select>
-                                @if ((_connections?.OpenAiBaseUrls.Count ?? 0) == 0)
-                                {
-                                    <div class="field-note">
-                                        @L["admin.provider_register_hint"]
-                                        <button class="msg-action" @onclick='() => _configTab = "providers"'>@L["admin.provider_register"]</button>
-                                    </div>
-                                }
-                                @if (string.IsNullOrWhiteSpace(_videoProvider))
-                                {
-                                    <select class="input" @bind="_videoEngine">
-                                        @foreach (var engine in _videoEngines)
-                                        {
-                                            <option value="@engine">@engine</option>
-                                        }
-                                    </select>
-                                    <input class="input" @bind="_videoBaseUrl" placeholder="https://api.openai.com/v1" />
-                                    <input class="input" type="password" @bind="_videoApiKey" placeholder="@L["admin.prov_key_set"]" />
-                                }
-                                @if (_videoProviderModels.Count > 0)
-                                {
-                                    <select class="input" @bind="_videoModel">
-                                        @foreach (var m in _videoProviderModels.Concat(
-                                                string.IsNullOrWhiteSpace(_videoModel) ? [] : [_videoModel])
-                                            .Distinct())
-                                        {
-                                            <option value="@m">@m</option>
-                                        }
-                                    </select>
-                                }
-                                else
-                                {
-                                    <input class="input flex-1" @bind="_videoModel" placeholder="sora-2" />
-                                }
-                                <input class="input w-32" @bind="_videoSize" placeholder="1280x720" />
-                            </div>
-                        </div>
-                        <div class="card-row">
-                            @if (_videoMessage is not null)
-                            {
-                                <div class="field-note">@_videoMessage</div>
-                            }
-                            <div class="flex gap-2">
-                                <button class="auth-submit" @onclick="SaveVideoConfigAsync">@L["common.save"]</button>
-                                <button class="button-sm" @onclick="TestVideoConfigAsync">@L["admin.prov_test"]</button>
-                            </div>
-                        </div>
+                        }
                         <div class="card-row">
                             <div class="card-main">
                                 <div class="card-title">browser_screenshot</div>
@@ -1224,28 +1279,28 @@
                                     <div class="card-sub">@server.Url (@server.AuthType)</div>
                                 </div>
                                 <div class="card-actions">
-                                    <button class="msg-action danger" @onclick="() => DeleteTerminalAsync(server)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteTerminalAsync(server)">🗑</button>
                                 </div>
                             </div>
                         }
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <input class="input" @bind="_termName" placeholder="@L["admin.terminal_name"]" />
+                                <input aria-label="@L["admin.terminal_name"]" class="input" @bind="_termName" placeholder="@L["admin.terminal_name"]" />
                                 @if (_termType is not "local")
                                 {
-                                    <input class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
+                                    <input aria-label="@L["common.url"]" class="input" @bind="_termUrl" placeholder="http://jupyter:8888" />
                                 }
                                 else
                                 {
                                     <small class="text-gray-500">@L["admin.terminal_local_hint"]</small>
                                 }
                                 <div class="flex gap-2">
-                                    <select class="input" @bind="_termAuth">
+                                    <select aria-label="@L["admin.terminal_auth"]" class="input" @bind="_termAuth">
                                         <option value="none">none</option>
                                         <option value="token">token</option>
                                         <option value="password">password</option>
                                     </select>
-                                    <select class="input" @bind="_termType">
+                                    <select aria-label="@L["admin.terminal_type"]" class="input" @bind="_termType">
                                         <option value="jupyter">jupyter</option>
                                         <option value="pty">pty</option>
                                         <option value="local">local (spawn)</option>
@@ -1253,7 +1308,7 @@
                                 </div>
                                 @if (_termAuth is not "none" && _termType is not "local")
                                 {
-                                    <input class="input" type="password" @bind="_termKey" placeholder="@L["admin.terminal_key"]" />
+                                    <input aria-label="@L["admin.terminal_key"]" class="input" type="password" @bind="_termKey" placeholder="@L["admin.terminal_key"]" />
                                 }
                                 <button class="auth-submit" @onclick="SaveTerminalAsync">@L["admin.terminal_add"]</button>
                             </div>
@@ -1269,12 +1324,12 @@
                                     <input type="checkbox" @bind="_samlEnabled" />
                                     <span>@L["admin.sso_enabled"]</span>
                                 </label>
-                                <input class="input" @bind="_samlSsoUrl" placeholder="IdP SSO URL" />
-                                <input class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
-                                <textarea class="input" rows="3" @bind="_samlCert"
+                                <input aria-label="@L["admin.saml_sso_url"]" class="input" @bind="_samlSsoUrl" placeholder="IdP SSO URL" />
+                                <input aria-label="@L["admin.saml_entity_id"]" class="input" @bind="_samlEntityId" placeholder="IdP Entity ID" />
+                                <textarea aria-label="@L["admin.saml_cert"]" class="input" rows="3" @bind="_samlCert"
                                     placeholder="@(_samlHasCert ? "********" : "IdP X.509 PEM")"></textarea>
-                                <input class="input" @bind="_samlSpEntity" placeholder="SP Entity ID (opcional)" />
-                                <input class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
+                                <input aria-label="@L["admin.saml_sp_entity"]" class="input" @bind="_samlSpEntity" placeholder="@L["admin.sp_entity_ph"]" />
+                                <input aria-label="@L["admin.sso_role_attr"]" class="input" @bind="_samlRoleAttr" placeholder="@L["admin.sso_role_attr"]" />
                                 <button class="auth-submit" @onclick="SaveSamlAsync">@L["common.save"]</button>
                             </div>
                         </div>
@@ -1289,7 +1344,7 @@
                                     <input type="checkbox" @bind="_scimEnabled" />
                                     <span>@L["admin.sso_enabled"]</span>
                                 </label>
-                                <input class="input" type="password" @bind="_scimToken"
+                                <input aria-label="@L["admin.scim_token"]" class="input" type="password" @bind="_scimToken"
                                     placeholder="@(_scimHasToken ? "********" : L["admin.scim_token"])" />
                                 <button class="auth-submit" @onclick="SaveScimAsync">@L["common.save"]</button>
                             </div>
@@ -1310,21 +1365,21 @@
                                     <button class="msg-action" @onclick="() => ToggleFunctionAsync(fn)">
                                         @(fn.Active ? "⏻" : "▶")
                                     </button>
-                                    <button class="msg-action danger" @onclick="() => DeleteFunctionAsync(fn)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteFunctionAsync(fn)">🗑</button>
                                 </div>
                             </div>
                         }
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <input class="input" @bind="_fnName" placeholder="@L["admin.function_name"]" />
-                                <select class="input" @bind="_fnType">
+                                <input aria-label="@L["admin.function_name"]" class="input" @bind="_fnName" placeholder="@L["admin.function_name"]" />
+                                <select aria-label="@L["admin.function_type"]" class="input" @bind="_fnType">
                                     <option value="filter">filter</option>
                                     <option value="pipe">pipe</option>
                                     <option value="action">action</option>
                                 </select>
-                                <textarea class="input" rows="2" @bind="_fnManifest"
+                                <textarea aria-label="@L["admin.function_manifest"]" class="input" rows="2" @bind="_fnManifest"
                                     placeholder="@L["admin.function_manifest"]"></textarea>
-                                <textarea class="input" rows="2" @bind="_fnValves"
+                                <textarea aria-label="@L["admin.function_valves"]" class="input" rows="2" @bind="_fnValves"
                                     placeholder="@L["admin.function_valves"]"></textarea>
                                 <button class="auth-submit" @onclick="SaveFunctionAsync">@L["admin.function_add"]</button>
                             </div>
@@ -1342,15 +1397,15 @@
                                     <div class="card-sub">@pipe.Url @(pipe.HasKey ? "· 🔑" : "")</div>
                                 </div>
                                 <div class="card-actions">
-                                    <button class="msg-action danger" @onclick="() => DeletePipelineServerAsync(pipe)">🗑</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeletePipelineServerAsync(pipe)">🗑</button>
                                 </div>
                             </div>
                         }
                         <div class="card-row">
                             <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <input class="input" @bind="_pipeName" placeholder="@L["admin.pipeline_name"]" />
-                                <input class="input" @bind="_pipeUrl" placeholder="http://pipelines:9099" />
-                                <input class="input" type="password" @bind="_pipeKey" placeholder="@L["admin.pipeline_key"]" />
+                                <input aria-label="@L["admin.pipeline_name"]" class="input" @bind="_pipeName" placeholder="@L["admin.pipeline_name"]" />
+                                <input aria-label="@L["common.url"]" class="input" @bind="_pipeUrl" placeholder="http://pipelines:9099" />
+                                <input aria-label="@L["admin.pipeline_key"]" class="input" type="password" @bind="_pipeKey" placeholder="@L["admin.pipeline_key"]" />
                                 <button class="auth-submit" @onclick="SavePipelineServerAsync">@L["admin.pipeline_add"]</button>
                             </div>
                         </div>
@@ -1409,7 +1464,7 @@
                                 <button class="msg-action" @onclick="() => ToggleSharingAsync(group)">
                                     @(group.Permissions.Sharing?.PublicChats == false ? L["admin.allow_share"] : L["admin.block_share"])
                                 </button>
-                                <button class="msg-action danger" @onclick="() => DeleteGroupAsync(group)">🗑</button>
+                                <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteGroupAsync(group)">🗑</button>
                             </div>
                         </div>
                     }
@@ -1490,7 +1545,7 @@
     private int _fbPage;
     private string _configTab = "general";
     private List<McpServerResponse> _mcpServers = [];
-    private Dictionary<string, List<McpToolResponse>> _mcpTools = new();
+    private readonly Dictionary<string, List<McpToolResponse>> _mcpTools = new();
     private readonly HashSet<string> _mcpExpanded = [];
     private readonly HashSet<string> _mcpBusy = [];
     private readonly Dictionary<string, (bool Ok, string Message)> _mcpTestResults = new();
@@ -1523,7 +1578,7 @@
     }
     private List<ProvConnectionRow> _provOllamaRows = [];
     private List<ProvConnectionRow> _provOpenAiRows = [];
-    private Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
+    private readonly Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
     private bool _provTesting;
     private string? _provMessage;
     private List<OllamaModelInfo>? _provOllamaInstalled;
@@ -1531,7 +1586,8 @@
     private bool _provPulling;
     private string? _provPullMessage;
 
-    // Integrations (n8n, webhooks, vídeo, browser)
+    // Integrations (n8n, webhooks, github, browser); vídeo/imagens ficam
+    // na aba "media".
     private bool _n8nConfigured;
     private bool _n8nHasKey;
     private string _n8nBaseUrl = string.Empty;
@@ -1551,7 +1607,7 @@
     private string _videoProvider = string.Empty;
     private List<string> _videoProviderModels = [];
 
-    // Geração de imagens (admin — mesma seção de integrações).
+    // Geração de imagens/vídeo (admin — aba "media").
     private bool _imagesEnabled;
     private string _imagesEngine = "openai";
     private List<string> _imageEngines = [];
@@ -1565,6 +1621,13 @@
     private List<string> _imagesProviderModels = [];
     private bool _browserEnabled;
     private string? _browserPath;
+    // GitHub (PAT por usuário + repo vinculado ao workspace —
+    // reutiliza os endpoints /api/v1/github e /api/v1/workspace/repo).
+    private bool _ghConfigured;
+    private bool _ghSaving;
+    private string? _ghLogin;
+    private string _ghToken = string.Empty;
+    private string? _ghMessage;
     private List<PromptSuggestion> _suggestions = [];
     private List<BannerResponse> _banners = [];
     private string _bannerType = "info";
@@ -1810,7 +1873,7 @@
             _provConnModels[(type, index)] = result?.Data.Select(m => m.Id).ToList() ?? [];
             _provMessage = result is null || result.Data.Count == 0
                 ? L["admin.prov_test_empty"]
-                : string.Format(L["admin.prov_test_ok"], result.Data.Count);
+                : L.T("admin.prov_test_ok", ("count", result.Data.Count.ToString()));
         }
         finally
         {
@@ -1852,7 +1915,7 @@
             var name = _provPullName.Trim();
             var ok = await Api.PullOllamaModelAsync(name);
             _provPullMessage = ok
-                ? string.Format(L["admin.prov_pull_ok"], name)
+                ? L.T("admin.prov_pull_ok", ("name", name))
                 : L["settings.save_failed"];
             if (ok)
             {
@@ -1922,6 +1985,36 @@
             _browserEnabled = browser.Enabled;
             _browserPath = browser.BrowserPath;
         }
+        var gh = await Api.GetGitHubConfigAsync();
+        _ghConfigured = gh?.Configured == true;
+        _ghLogin = gh?.Login;
+    }
+
+    /// <summary>Valida e salva o PAT do GitHub (server-side, nunca retornado).</summary>
+    private async Task SaveGitHubTokenAsync()
+    {
+        _ghSaving = true;
+        _ghMessage = null;
+        var result = await Api.SetGitHubTokenAsync(_ghToken.Trim());
+        _ghSaving = false;
+        if (result?.Configured != true)
+        {
+            _ghMessage = L["settings.github_save_error"];
+            return;
+        }
+        _ghConfigured = true;
+        _ghLogin = result.Login;
+        _ghToken = string.Empty;
+        _ghMessage = L.T("settings.github_connected", ("login", _ghLogin ?? ""));
+    }
+
+    private async Task RemoveGitHubTokenAsync()
+    {
+        _ghMessage = await Api.ClearGitHubTokenAsync()
+            ? L["settings.github_removed"]
+            : L["settings.github_save_error"];
+        _ghConfigured = false;
+        _ghLogin = null;
     }
 
     private async Task SaveN8nConfigAsync()
@@ -2064,8 +2157,8 @@
     private async Task CopyTextAsync(string text) =>
         await JS.InvokeVoidAsync("openwebui.copyText", text);
 
-    private static string FormatTs(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy HH:mm");
+    private string FormatTs(long unixSeconds) =>
+        L.FormatDateTime(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 
     private static string FormatBytes(long? bytes) => bytes switch
     {
@@ -2496,15 +2589,15 @@
 
     private async Task AddUserAsync()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.name"] + ":", "");
-        var email = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.email"] + ":", "");
-        var password = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.password"] + ":", "");
+        var name = await Dialogs.PromptAsync( L["common.name"] + ":", "");
+        var email = await Dialogs.PromptAsync( L["common.email"] + ":", "");
+        var password = await Dialogs.PromptAsync( L["common.password"] + ":", "");
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             return;
         }
 
-        var role = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_role"], "user");
+        var role = await Dialogs.PromptAsync( L["admin.prompt_role"], "user");
         var created = await Api.AddUserAsync(new AddUserRequest(
             name ?? email, email, password,
             role is "admin" or "user" ? role : "user"));
@@ -2551,8 +2644,8 @@
 
     private async Task DeleteUserAsync(AdminUserResponse user)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm",
-            L.T("admin.confirm_delete_user", ("email", user.Email)))
+        if (await Dialogs.ConfirmAsync(
+            L.T("admin.confirm_delete_user", ("email", user.Email)), danger: true)
             && await Api.DeleteUserAsync(user.Id))
         {
             _users?.Remove(user);
@@ -2561,13 +2654,13 @@
 
     private async Task AddGroupAsync()
     {
-        var name = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_group_name"], "");
+        var name = await Dialogs.PromptAsync( L["admin.prompt_group_name"], "");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
-        var description = await JS.InvokeAsync<string?>("openwebui.prompt", L["common.description"] + ":", "");
+        var description = await Dialogs.PromptAsync( L["common.description"] + ":", "");
         var created = await Api.CreateGroupAsync(
             new CreateGroupRequest(name, description, null));
         if (created is not null)
@@ -2578,7 +2671,7 @@
 
     private async Task AddMemberAsync(GroupResponse group)
     {
-        var email = await JS.InvokeAsync<string?>("openwebui.prompt", L["admin.prompt_member_email"], "");
+        var email = await Dialogs.PromptAsync( L["admin.prompt_member_email"], "");
         if (string.IsNullOrWhiteSpace(email))
         {
             return;
@@ -2588,7 +2681,7 @@
             u => u.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
         if (target is null)
         {
-            await JS.InvokeAsync<bool>("openwebui.confirm", L["admin.user_not_found"]);
+            await Dialogs.ConfirmAsync( L["admin.user_not_found"]);
             return;
         }
 
@@ -2657,7 +2750,7 @@
 
     private async Task EditDomainsAsync(GroupResponse group)
     {
-        var text = await JS.InvokeAsync<string?>("openwebui.prompt",
+        var text = await Dialogs.PromptAsync(
             L["admin.prompt_group_domains"], string.Join(", ", group.AllowedDomains));
         if (text is null) return;
         var domains = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -2686,14 +2779,14 @@
 
     private async Task DeleteGroupAsync(GroupResponse group)
     {
-        if (await JS.InvokeAsync<bool>("openwebui.confirm",
-            L.T("admin.confirm_delete_group", ("name", group.Name)))
+        if (await Dialogs.ConfirmAsync(
+            L.T("admin.confirm_delete_group", ("name", group.Name)), danger: true)
             && await Api.DeleteGroupAsync(group.Id))
         {
             _groups?.Remove(group);
         }
     }
 
-    private static string FormatDate(long unixSeconds) =>
-        DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToString("dd/MM/yyyy");
+    private string FormatDate(long unixSeconds) =>
+        L.FormatDate(DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime);
 }

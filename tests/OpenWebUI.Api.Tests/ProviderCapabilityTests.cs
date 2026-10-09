@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Caching.Memory;
+using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -16,12 +18,13 @@ namespace OpenWebUI.Api.Tests;
 /// classifica /models por modalidade+heurística, probeia os endpoints
 /// e grava audio/images/video/embedding somente em chaves ausentes.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ProviderCapabilityTests
 {
     private string _dbPath = null!;
     private AppDbContext _db = null!;
     private ConfigService _config = null!;
+    private MemoryCache _cache = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
     private string _mockUrl = null!;
@@ -36,13 +39,15 @@ public class ProviderCapabilityTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-cap-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-cap-{Guid.NewGuid():N}.db");
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
+        // Cache no campo: um `using var` aqui morreria no fim do setup e o
+        // ConfigService ficaria preso a um MemoryCache descartado.
+        _cache = new MemoryCache(new MemoryCacheOptions());
         _config = new ConfigService(_db,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            _cache);
         _mockUrl = StartMock();
     }
 
@@ -53,10 +58,12 @@ public class ProviderCapabilityTests
         while (_paths.TryTake(out _)) { }
 
         await _db.ConfigEntries.ExecuteDeleteAsync();
+        // ExecuteDelete bypassa o ConfigService — sem limpar, o cache de 10s
+        // devolveria configs já apagadas do teste anterior.
+        _cache.Clear();
         _db.ChangeTracker.Clear(); // delete em massa não desanexa entidades
         _config = new ConfigService(_db,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
+            _cache);
     }
 
     [OneTimeTearDown]
@@ -64,10 +71,11 @@ public class ProviderCapabilityTests
     {
         _mockCts.Cancel();
         _mock.Stop();
+        _cache.Dispose();
         _db.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -112,7 +120,9 @@ public class ProviderCapabilityTests
             {
                 ctx = await _mock.GetContextAsync().WaitAsync(ct);
             }
-            catch (Exception) { return; }
+            catch (HttpListenerException) { return; }
+            catch (ObjectDisposedException) { return; }
+            catch (OperationCanceledException) { return; }
 
             _ = Task.Run(() =>
             {
@@ -128,10 +138,9 @@ public class ProviderCapabilityTests
                     ctx.Response.OutputStream.Write(bytes);
                     ctx.Response.Close();
                 }
-                catch (Exception)
-                {
-                    // Cliente desconectou — ignora.
-                }
+                catch (HttpListenerException) { /* cliente desconectou — ignora */ }
+                catch (IOException) { /* cliente desconectou — ignora */ }
+                catch (ObjectDisposedException) { /* listener parou */ }
             }, ct);
         }
     }

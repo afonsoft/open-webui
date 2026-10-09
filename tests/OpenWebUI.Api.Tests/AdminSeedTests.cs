@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes do seed de usuário admin via variáveis ADMIN_* (primeiro boot).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AdminSeedTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -17,7 +17,7 @@ public class AdminSeedTests
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"openwebui-adminseed-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-adminseed-{Guid.NewGuid():N}.db");
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={_dbPath}");
         Environment.SetEnvironmentVariable("ADMIN_NAME", "Seed Admin");
         Environment.SetEnvironmentVariable("ADMIN_EMAIL", "seed-admin@adminseed.local");
@@ -36,7 +36,7 @@ public class AdminSeedTests
         Environment.SetEnvironmentVariable("ADMIN_PASSWORD", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

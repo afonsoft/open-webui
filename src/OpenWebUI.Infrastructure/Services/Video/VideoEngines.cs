@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Application.Interfaces;
@@ -49,8 +50,8 @@ public sealed class OpenAiVideoEngine(IHttpClientFactory httpClientFactory)
                         $"{Base(config)}/videos/{id}/content", config, ct);
                     return [new VideoResult(bytes, "mp4")];
                 case "failed":
-                    var error = job?["error"]?["message"]?.GetValue<string>()
-                        ?? job?["error"]?.ToJsonString() ?? "desconhecido";
+                    var error = job!["error"]?["message"]?.GetValue<string>()
+                        ?? job["error"]?.ToJsonString() ?? "desconhecido";
                     throw new InvalidOperationException(
                         $"Geração de vídeo falhou no provider: {error}");
                 default:
@@ -69,10 +70,10 @@ public sealed class OpenAiVideoEngine(IHttpClientFactory httpClientFactory)
             await GetJsonAsync(config, $"{Base(config)}/models", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }
 
@@ -142,7 +143,7 @@ public sealed class ComfyUiVideoEngine(IHttpClientFactory httpClientFactory)
                 {
                     foreach (var file in node.Value?[key]?.AsArray() ?? [])
                     {
-                        var filename = file?["filename"]?.GetValue<string>();
+                        var filename = file!["filename"]?.GetValue<string>();
                         if (filename is null)
                         {
                             continue;
@@ -152,8 +153,8 @@ public sealed class ComfyUiVideoEngine(IHttpClientFactory httpClientFactory)
                         {
                             continue;
                         }
-                        var subfolder = file?["subfolder"]?.GetValue<string>() ?? "";
-                        var type = file?["type"]?.GetValue<string>() ?? "output";
+                        var subfolder = file!["subfolder"]?.GetValue<string>() ?? "";
+                        var type = file!["type"]?.GetValue<string>() ?? "output";
                         var viewUrl = $"{Base(config)}/view?filename={Uri.EscapeDataString(filename)}" +
                             $"&subfolder={Uri.EscapeDataString(subfolder)}&type={Uri.EscapeDataString(type)}";
                         videos.Add(new VideoResult(await GetBytesAsync(viewUrl, config, ct), ext));
@@ -174,10 +175,10 @@ public sealed class ComfyUiVideoEngine(IHttpClientFactory httpClientFactory)
             await GetJsonAsync(config, $"{Base(config)}/system_stats", ct);
             return (true, "ok");
         }
-        catch (Exception ex)
-        {
-            return (false, ex.Message);
-        }
+        catch (HttpRequestException ex) { return (false, ex.Message); }
+        catch (JsonException ex) { return (false, ex.Message); }
+        catch (InvalidOperationException ex) { return (false, ex.Message); }
+        catch (TaskCanceledException ex) { return (false, ex.Message); }
     }
 }
 
