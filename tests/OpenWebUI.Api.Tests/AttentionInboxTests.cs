@@ -200,11 +200,11 @@ public class AttentionInboxTests
         var chatB = await CriarChatAsync("Pendente do B");
         var runB = Guid.NewGuid().ToString("N");
         RegistrarPendente(runB, chatB.Id, "builtin:shell_exec");
-        var normal = await CriarChatAsync("Normal do B");
+        await CriarChatAsync("Normal do B");
 
         // A não vê nada do B — nem no filtro, nem na contagem, nem na flag.
         UseToken(authA.Token);
-        var chatA = await CriarChatAsync("Normal do A");
+        await CriarChatAsync("Normal do A");
         var filtrado = await ListarAsync("?attention=1");
         Assert.That(filtrado.Select(c => c.Id), Is.Not.Contains(chatB.Id),
             "pendência de outro usuário não vaza");

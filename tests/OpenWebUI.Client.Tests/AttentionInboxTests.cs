@@ -43,7 +43,7 @@ public sealed class AttentionInboxTests
         id,
         title,
         pinned = false,
-        folderId = (string?)null,
+        folderId = default(string),
         tags = Array.Empty<string>(),
         createdAt = 1L,
         updatedAt = 1L,
@@ -86,7 +86,7 @@ public sealed class AttentionInboxTests
         };
     }
 
-    private static async Task<(BunitContext Ctx, FakeHandler Handler, AttentionInboxState Attention)>
+    private static async Task<(BunitContext Ctx, FakeHandler Handler, AttentionInboxState Attention, HttpClient Http)>
         SetupAsync(int count)
     {
         var ctx = new BunitContext();
@@ -107,15 +107,16 @@ public sealed class AttentionInboxTests
             ctx.JSInterop.JSRuntime, new BrowserStorage(ctx.JSInterop.JSRuntime)));
         ctx.Services.AddSingleton(new ChatListState());
         ctx.Services.AddSingleton(attention);
-        return (ctx, handler, attention);
+        return (ctx, handler, attention, http);
     }
 
     [Test]
     public async Task Badge_CountPositivo_RenderizaContagem()
     {
-        var (ctx, _, _) = await SetupAsync(count: 2);
-        await using var _ = ctx.Services.GetRequiredService<AttentionInboxState>()
-            .ConfigureAwait(false);
+        var (ctx, _, _, http) = await SetupAsync(count: 2);
+        await using var _ctx = ctx;
+        await using var _ = ctx.Services.GetRequiredService<AttentionInboxState>();
+        using var _http = http;
         using var cut = ctx.Render<Sidebar>();
 
         cut.WaitForAssertion(() =>
@@ -130,8 +131,10 @@ public sealed class AttentionInboxTests
     [Test]
     public async Task Badge_CountZero_Escondido()
     {
-        var (ctx, _, _) = await SetupAsync(count: 0);
+        var (ctx, _, _, http) = await SetupAsync(count: 0);
+        await using var _ctx = ctx;
         await using var _ = ctx.Services.GetRequiredService<AttentionInboxState>();
+        using var _http = http;
         using var cut = ctx.Render<Sidebar>();
 
         await Task.Delay(300);
@@ -142,8 +145,10 @@ public sealed class AttentionInboxTests
     [Test]
     public async Task Badge_Clique_AtivaFiltroAguardando()
     {
-        var (ctx, _, attention) = await SetupAsync(count: 1);
+        var (ctx, _, attention, http) = await SetupAsync(count: 1);
+        await using var _ctx = ctx;
         await using var _ = attention;
+        using var _http = http;
         using var cut = ctx.Render<Sidebar>();
 
         cut.WaitForAssertion(() => Assert.That(
