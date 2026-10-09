@@ -81,7 +81,7 @@ public sealed class CheckpointService(
     /// <summary>Janela para <c>gc --prune</c>; ≤0 dias poda tudo agora.</summary>
     private string PruneWindow => MaxAgeDays <= 0 ? "now" : $"{MaxAgeDays}.days";
 
-    private string DataRoot => Path.Join(env.ContentRootPath, "data", "checkpoints");
+    private string DataRoot => Path.Join(AppData.Root(env), "checkpoints");
 
     /// <summary>Lock por workdir (padrão opencode <c>locks: Map&lt;string, Semaphore&gt;</c>).</summary>
     public SemaphoreSlim LockFor(string workdir) =>

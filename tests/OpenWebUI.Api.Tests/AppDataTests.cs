@@ -1,0 +1,145 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
+
+namespace OpenWebUI.Api.Tests;
+
+/// <summary>
+/// Regressão do data root em container (500 em POST /api/v1/workspace/repo/open):
+/// o app resolvia dados sob <c>{ContentRootPath}/data</c> — inacessível quando
+/// /app é root-owned no container — enquanto o volume persistente vive em
+/// <c>/data</c>. <c>WEBUI_DATA_DIR</c> sobrepõe a raiz; o Dockerfile define
+/// <c>WEBUI_DATA_DIR=/data</c>.
+/// </summary>
+[NonParallelizable] // muta WEBUI_DATA_DIR (variável de processo)
+[TestFixture]
+public class AppDataTests
+{
+    private string _root = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _root = Path.Join(Path.GetTempPath(), $"owui-appdata-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_root);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+        try { Directory.Delete(_root, recursive: true); }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort */ }
+    }
+
+    [Test]
+    public void Root_SemEnv_UsaContentRootData()
+    {
+        Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+        Assert.That(
+            AppData.Root(new StubEnv(_root)),
+            Is.EqualTo(Path.Join(_root, "data")));
+    }
+
+    [Test]
+    public void Root_ComEnv_SobrepoeContentRoot()
+    {
+        var dataDir = Path.Join(Path.GetTempPath(), $"owui-appdata-vol-{Guid.NewGuid():N}");
+        try
+        {
+            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", dataDir);
+            Assert.That(AppData.Root(new StubEnv(_root)), Is.EqualTo(dataDir));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+        }
+    }
+
+    [Test]
+    public async Task Repo_Open_ComEnv_ClonaDentroDoDataDir()
+    {
+        // Cenário Docker: ContentRootPath (/app) não é gravável; o volume
+        // persistente é apontado por WEBUI_DATA_DIR e o clone deve pousar lá.
+        var dataDir = Path.Join(Path.GetTempPath(), $"owui-appdata-ws-{Guid.NewGuid():N}");
+        var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
+        await DatabaseMigrator.MigrateAsync(db);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var repos = new WorkspaceRepoService(
+            new ConfigService(db, cache), new StubEnv(_root));
+        var origin = CriarOrigem("main");
+        try
+        {
+            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", dataDir);
+            var (binding, error) = await repos.OpenAsync(
+                "u1", "a/b", "main", origin, null, default);
+            Assert.Multiple(() =>
+            {
+                Assert.That(error, Is.Null);
+                Assert.That(binding, Is.Not.Null);
+                Assert.That(binding!.Dir, Does.StartWith("repos/"));
+                Assert.That(Directory.Exists(Path.Join(
+                    dataDir, "workspaces", "u1", binding.Dir, ".git")), Is.True);
+                Assert.That(Directory.Exists(Path.Join(_root, "data")), Is.False);
+            });
+        }
+        catch (Win32Exception) { Assert.Ignore("git indisponível neste ambiente."); }
+        catch (InvalidOperationException) { Assert.Ignore("git indisponível neste ambiente."); }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+            db.Dispose();
+            try { Directory.Delete(dataDir, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(origin, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>Cria um repo local (remote <c>file://</c>) com 1 commit.</summary>
+    private static string CriarOrigem(string branch)
+    {
+        var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(origin);
+        Git(origin, "init", "-b", branch);
+        File.WriteAllText(Path.Join(origin, "readme.md"), "oi\n");
+        Git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
+        Git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base");
+        return origin;
+    }
+
+    private static string? Git(string? workdir, params string[] args)
+    {
+        var psi = new ProcessStartInfo("git")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        if (workdir is not null)
+        {
+            psi.WorkingDirectory = workdir;
+        }
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(psi);
+        process!.WaitForExit(15000);
+        return process.ExitCode == 0 ? process.StandardOutput.ReadToEnd().Trim() : null;
+    }
+
+    private sealed class StubEnv(string contentRoot) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Test";
+        public string ApplicationName { get; set; } = "tests";
+        public string ContentRootPath { get; set; } = contentRoot;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+}

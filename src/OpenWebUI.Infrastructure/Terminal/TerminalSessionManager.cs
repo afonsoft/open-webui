@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Infrastructure.Terminal;
 
@@ -142,7 +143,7 @@ public sealed class TerminalSessionManager : IAsyncDisposable
         }
 
         var workspace = Path.Join(
-            _env.ContentRootPath, "data", "workspaces", userId);
+            AppData.Root(_env), "workspaces", userId);
         Directory.CreateDirectory(workspace);
 
         var session = (_sessionFactory

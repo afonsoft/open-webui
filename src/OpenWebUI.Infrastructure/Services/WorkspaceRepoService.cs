@@ -22,7 +22,7 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
 
     /// <summary>Raiz do workspace do usuário (jail das tools).</summary>
     public string WorkspaceRoot(string userId) =>
-        Path.Join(env.ContentRootPath, "data", "workspaces", userId);
+        Path.Join(AppData.Root(env), "workspaces", userId);
 
     /// <summary>Binding atual (null quando não há repo vinculado).</summary>
     public Task<WorkspaceRepoBinding?> GetBindingAsync(string userId, CancellationToken ct) =>

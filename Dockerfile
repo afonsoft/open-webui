@@ -61,6 +61,7 @@ COPY --from=build /app/publish ./
 
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    WEBUI_DATA_DIR=/data \
     ConnectionStrings__Default="Data Source=/data/openwebui.db"
 
 EXPOSE 8080

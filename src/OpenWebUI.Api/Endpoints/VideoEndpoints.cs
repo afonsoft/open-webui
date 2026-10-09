@@ -116,7 +116,7 @@ public static class VideoEndpoints
             return Results.StatusCode(StatusCodes.Status501NotImplemented);
         }
 
-        var uploadDir = Path.Join(env.ContentRootPath, "data", "uploads", user.Id);
+        var uploadDir = Path.Join(AppData.Root(env), "uploads", user.Id);
         try
         {
             var files = await videos.GenerateAsync(

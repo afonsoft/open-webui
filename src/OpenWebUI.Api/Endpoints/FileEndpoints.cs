@@ -54,7 +54,7 @@ public static class FileEndpoints
         }
 
         var id = Guid.NewGuid().ToString();
-        var uploadDir = Path.Join(env.ContentRootPath, "data", "uploads", user.Id);
+        var uploadDir = Path.Join(AppData.Root(env), "uploads", user.Id);
         Directory.CreateDirectory(uploadDir);
 
         var safeName = Path.GetFileName(file.FileName);
