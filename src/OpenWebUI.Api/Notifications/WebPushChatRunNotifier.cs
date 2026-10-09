@@ -48,10 +48,13 @@ public sealed class WebPushChatRunNotifier(
             });
             await db.SaveChangesAsync(CancellationToken.None);
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
-            db.ChangeTracker.Clear();
-            logger.LogWarning(ex, "Falha ao gravar notificação in-app da run {RunId}.", run.RunId);
+            OnFeedPersistFailed(run.RunId, ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            OnFeedPersistFailed(run.RunId, ex);
         }
 
         // Com aba aberta o hub já entrega run.completed — push só quando o
@@ -103,6 +106,15 @@ public sealed class WebPushChatRunNotifier(
         }
 
         await db.SaveChangesAsync(CancellationToken.None);
+    }
+
+    /// <summary>Falha do feed nunca derruba o push nem a run: limpa o
+    /// tracker para não envenenar os SaveChanges seguintes no mesmo contexto.
+    /// Exceções fora de EF propagam para o catch do dispatcher.</summary>
+    private void OnFeedPersistFailed(string runId, Exception ex)
+    {
+        db.ChangeTracker.Clear();
+        logger.LogWarning(ex, "Falha ao gravar notificação in-app da run {RunId}.", runId);
     }
 
     private static string? Snippet(string? content)

@@ -148,12 +148,9 @@
     private async Task OpenAsync(NotificationItemResponse item)
     {
         _open = false;
-        if (item.ReadAt is null)
+        if (item.ReadAt is null && await Api.MarkNotificationReadAsync(item.Id))
         {
-            if (await Api.MarkNotificationReadAsync(item.Id))
-            {
-                _unread = Math.Max(0, _unread - 1);
-            }
+            _unread = Math.Max(0, _unread - 1);
         }
 
         if (!string.IsNullOrWhiteSpace(item.Link))

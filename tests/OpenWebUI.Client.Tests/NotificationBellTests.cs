@@ -57,8 +57,20 @@ public sealed class NotificationBellTests
             createdAt = 1700000000L,
         };
 
-    private static (Bunit.BunitContext Ctx, FakeHandler Handler) Setup(
-        Func<HttpRequestMessage, HttpResponseMessage> route)
+    private sealed class Fixture : IDisposable
+    {
+        public required Bunit.BunitContext Ctx { get; init; }
+        public required FakeHandler Handler { get; init; }
+        public required HttpClient Http { get; init; }
+
+        public void Dispose()
+        {
+            Ctx.Dispose();
+            Http.Dispose();
+        }
+    }
+
+    private static Fixture Setup(Func<HttpRequestMessage, HttpResponseMessage> route)
     {
         var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -69,7 +81,7 @@ public sealed class NotificationBellTests
             new BrowserStorage(ctx.JSInterop.JSRuntime), l10n);
         ctx.Services.AddSingleton(new ApiService(http, auth));
         ctx.Services.AddSingleton(l10n);
-        return (ctx, handler);
+        return new Fixture { Ctx = ctx, Handler = handler, Http = http };
     }
 
     private static Func<HttpRequestMessage, HttpResponseMessage> Feed(object page) =>
@@ -80,8 +92,8 @@ public sealed class NotificationBellTests
     [Test]
     public void Badge_MostraContagemNaoLidas()
     {
-        var (ctx, _) = Setup(Feed(Page(3, Item("1", "a"), Item("2", "b"), Item("3", "c"))));
-        using var cut = ctx.Render<NotificationBell>();
+        using var fx = Setup(Feed(Page(3, Item("1", "a"), Item("2", "b"), Item("3", "c"))));
+        using var cut = fx.Ctx.Render<NotificationBell>();
         cut.WaitForAssertion(() =>
         {
             var badge = cut.Find("[aria-label*='notifications.unread_aria']");
@@ -92,8 +104,8 @@ public sealed class NotificationBellTests
     [Test]
     public void Badge_Zero_NaoRenderiza()
     {
-        var (ctx, _) = Setup(Feed(Page(0)));
-        using var cut = ctx.Render<NotificationBell>();
+        using var fx = Setup(Feed(Page(0)));
+        using var cut = fx.Ctx.Render<NotificationBell>();
         cut.WaitForAssertion(() =>
             Assert.That(cut.FindAll("[aria-label*='notifications.unread_aria']"), Is.Empty));
     }
@@ -101,9 +113,9 @@ public sealed class NotificationBellTests
     [Test]
     public void Dropdown_AbreComItens()
     {
-        var (ctx, _) = Setup(Feed(Page(2,
+        using var fx = Setup(Feed(Page(2,
             Item("1", "run ok"), Item("2", "run 2", read: true))));
-        using var cut = ctx.Render<NotificationBell>();
+        using var cut = fx.Ctx.Render<NotificationBell>();
         cut.Find("button").Click();
         cut.WaitForAssertion(() =>
         {
@@ -117,26 +129,26 @@ public sealed class NotificationBellTests
     [Test]
     public void Item_Clique_MarcaLidoENavega()
     {
-        var (ctx, handler) = Setup(Feed(Page(1, Item("n1", "alvo"))));
-        using var cut = ctx.Render<NotificationBell>();
+        using var fx = Setup(Feed(Page(1, Item("n1", "alvo"))));
+        using var cut = fx.Ctx.Render<NotificationBell>();
         cut.Find("button").Click();
         cut.WaitForAssertion(() => Assert.That(cut.FindAll("[role=menuitem]"), Has.Count.EqualTo(1)));
 
         cut.Find("[role=menuitem]").Click();
         cut.WaitForAssertion(() =>
-            Assert.That(handler.Calls.Any(c =>
+            Assert.That(fx.Handler.Calls.Any(c =>
                 c.Method == "POST" && c.Path == "/api/v1/notifications/n1/read"), Is.True,
                 "esperava POST /{id}/read"));
 
-        var nav = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var nav = fx.Ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
         Assert.That(nav.Uri, Does.EndWith("/c/abc"));
     }
 
     [Test]
     public void MarkAll_ZeraBadge()
     {
-        var (ctx, handler) = Setup(Feed(Page(2, Item("1", "a"), Item("2", "b"))));
-        using var cut = ctx.Render<NotificationBell>();
+        using var fx = Setup(Feed(Page(2, Item("1", "a"), Item("2", "b"))));
+        using var cut = fx.Ctx.Render<NotificationBell>();
         cut.Find("button").Click();
         cut.WaitForAssertion(() =>
             Assert.That(cut.FindAll("button")
@@ -147,7 +159,7 @@ public sealed class NotificationBellTests
             .Click();
         cut.WaitForAssertion(() =>
         {
-            Assert.That(handler.Calls.Any(c =>
+            Assert.That(fx.Handler.Calls.Any(c =>
                 c.Method == "POST" && c.Path == "/api/v1/notifications/read-all"), Is.True);
             Assert.That(cut.FindAll("[aria-label*='notifications.unread_aria']"), Is.Empty,
                 "badge some após read-all");
