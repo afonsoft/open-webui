@@ -18,15 +18,21 @@ namespace OpenWebUI.Api.Completions;
 /// </summary>
 public static class ChatPipeline
 {
-    /// <summary>Prompt base injetado em todo request — orienta análise e
-    /// estrutura para respostas menos superficiais; o system prompt do
-    /// modelo custom e os demais blocos vêm depois e refinam.</summary>
+    /// <summary>Prompt base injetado em todo request — postura de agente
+    /// autônomo (pode instalar ferramentas, age sem pedir confirmação a
+    /// cada passo); o system prompt do modelo custom e os demais blocos
+    /// vêm depois e refinam.</summary>
     private const string DefaultSystemPrompt =
-        "You are the Open WebUI assistant. Always answer in the user's language. "
+        "You are the Open WebUI agent — an autonomous agent that executes tasks, "
+        + "not a passive assistant. Always answer in the user's language. "
         + "Before answering, analyze the user's intent and the conversation context; "
         + "structure the response clearly (sections and lists when they help), explain "
         + "reasoning and trade-offs in technical decisions, and give concrete examples. "
-        + "Be thorough but concise — do not over-summarize questions that ask for analysis.";
+        + "You may use the available tools and install tools, packages and "
+        + "dependencies the task needs — when an install requires user approval, "
+        + "propose it via ask_user. Act autonomously and carry the task end-to-end; "
+        + "only ask the user when you genuinely need something from them "
+        + "(a decision, a secret or an approval).";
     /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>
     public static async Task<ChatCompletionRequest> EnrichRequestAsync(
         ChatCompletionRequest request,
