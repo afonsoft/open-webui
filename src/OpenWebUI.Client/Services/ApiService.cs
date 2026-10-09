@@ -13,15 +13,29 @@ public class ApiService(HttpClient http, AuthService auth)
     // ---------------- Chats ----------------
 
     /// <summary>Lista os chats do usuário, opcionalmente filtrados por texto.</summary>
-    public async Task<List<ChatSummaryResponse>> GetChatsAsync(string? query = null, bool includeFolders = false)
+    /// <param name="attention">Quando true, só chats aguardando ação do usuário (D2).</param>
+    public async Task<List<ChatSummaryResponse>> GetChatsAsync(
+        string? query = null, bool includeFolders = false, bool attention = false)
     {
         var uri = "/api/v1/chats/?includeFolders=" + (includeFolders ? "true" : "false");
         if (!string.IsNullOrWhiteSpace(query))
         {
             uri += $"&query={Uri.EscapeDataString(query)}";
         }
+        if (attention)
+        {
+            uri += "&attention=1";
+        }
 
         return await SendAsync<List<ChatSummaryResponse>>(HttpMethod.Get, uri) ?? [];
+    }
+
+    /// <summary>Contagem de chats aguardando ação do usuário (D2) — poll leve do badge.</summary>
+    public async Task<int> GetAttentionCountAsync()
+    {
+        var result = await SendAsync<AttentionCountResponse>(
+            HttpMethod.Get, "/api/v1/chats/attention/count");
+        return result?.Count ?? 0;
     }
 
     /// <summary>Lista chats arquivados.</summary>
@@ -160,7 +174,8 @@ public class ApiService(HttpClient http, AuthService auth)
                         chat.TryGetProperty("folderId", out var f) ? f.GetString() : null,
                         [],
                         chat.GetProperty("createdAt").GetInt64(),
-                        chat.GetProperty("updatedAt").GetInt64()));
+                        chat.GetProperty("updatedAt").GetInt64(),
+                        chat.TryGetProperty("awaiting", out var a) && a.GetBoolean()));
                 }
             }
 
