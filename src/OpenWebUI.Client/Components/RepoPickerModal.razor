@@ -34,18 +34,30 @@
     [Parameter] public EventCallback<WorkspaceRepoResponse?> Bound { get; set; }
 
     private bool _wasActive;
+    private bool _focusPending;
     private ElementReference _dialog;
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnParametersSet()
     {
+        // _dialog só é bound depois do primeiro render com Active=true —
+        // focar aqui (OnParametersSet*) quebrava o modal ao abrir.
         if (Active && !_wasActive)
         {
             _wasActive = true;
-            await _dialog.FocusAsync();
+            _focusPending = true;
         }
         else if (!Active)
         {
             _wasActive = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPending && Active)
+        {
+            _focusPending = false;
+            await _dialog.FocusAsync();
         }
     }
 
