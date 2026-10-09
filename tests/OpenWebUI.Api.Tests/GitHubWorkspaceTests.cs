@@ -266,8 +266,22 @@ public class GitHubWorkspaceTests
             new User { Id = "u2", Name = "U", Email = "u2@x" },
             _db, _config, rag: null!, webSearch: null!, _repos, default);
         Assert.That(
-            effective.Messages.Where(m => m.Role == "system"),
-            Has.None.Contains("Repositório vinculado"));
+            effective.Messages.Any(m => m.Role == "system" && m.Content.Contains("Repositório vinculado")),
+            Is.False);
+    }
+
+    [Test]
+    public async Task Enrich_SemModeloCustom_InjetaPromptBaseDeQualidade()
+    {
+        var request = new ChatCompletionRequest(
+            "fake:1", [new ChatCompletionMessage("user", "oi")]);
+        var effective = await ChatPipeline.EnrichRequestAsync(
+            request,
+            new User { Id = "u3", Name = "U3", Email = "u3@x" },
+            _db, _config, rag: null!, webSearch: null!, _repos, default);
+        var system = effective.Messages.FirstOrDefault(m => m.Role == "system");
+        Assert.That(system?.Content, Does.Contain("Open WebUI assistant")
+            .And.Contain("user's language"));
     }
 
     // ---------------- GitHubService: caminhos de erro ----------------

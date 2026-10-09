@@ -18,6 +18,15 @@ namespace OpenWebUI.Api.Completions;
 /// </summary>
 public static class ChatPipeline
 {
+    /// <summary>Prompt base injetado em todo request — orienta análise e
+    /// estrutura para respostas menos superficiais; o system prompt do
+    /// modelo custom e os demais blocos vêm depois e refinam.</summary>
+    private const string DefaultSystemPrompt =
+        "You are the Open WebUI assistant. Always answer in the user's language. "
+        + "Before answering, analyze the user's intent and the conversation context; "
+        + "structure the response clearly (sections and lists when they help), explain "
+        + "reasoning and trade-offs in technical decisions, and give concrete examples. "
+        + "Be thorough but concise — do not over-summarize questions that ask for analysis.";
     /// <summary>Aplica modelo personalizado, contexto de arquivos e memórias à requisição.</summary>
     public static async Task<ChatCompletionRequest> EnrichRequestAsync(
         ChatCompletionRequest request,
@@ -34,6 +43,10 @@ public static class ChatPipeline
         var messages = request.Messages.ToList();
         var parameters = request.Params?.ToDictionary(kv => kv.Key, kv => kv.Value);
         var systemParts = new List<string>();
+
+        // 0. Prompt base do assistente: injetado sempre, antes do system
+        // prompt do modelo custom e demais blocos de contexto.
+        systemParts.Add(DefaultSystemPrompt);
 
         // 1. Modelo personalizado do workspace → redireciona para o modelo base e aplica config.
         var customModel = await db.ModelEntries.AsNoTracking()

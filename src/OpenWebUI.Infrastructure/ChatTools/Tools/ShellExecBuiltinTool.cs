@@ -55,8 +55,17 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
         var assessment = CommandRiskClassifier.Classify(command, context.WorkspacePath);
         if (!assessment.Allowed)
         {
+            var refuseText = $"Comando negado: {assessment.Reason}";
+            // Binário fora da allowlist: pode ser só uma ferramenta não
+            // instalada/mapeada — orienta o agente a sugerir a instalação
+            // e pedir aprovação via ask_user em vez de desistir.
+            if (assessment.Reason?.Contains("Binário desconhecido") == true)
+            {
+                refuseText += MissingCommandHint;
+            }
+
             return new BuiltinToolResult(
-                $"Comando negado: {assessment.Reason}",
+                refuseText,
                 new { risk = assessment.Level.ToString(), reason = assessment.Reason },
                 Refused: true,
                 RefuseReason: assessment.Reason);
@@ -98,6 +107,14 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
             text += "\n[saída truncada em 16KB]";
         }
 
+        // Ferramenta ausente (exit 127 / "command not found" / "not
+        // recognized"): orienta o agente a sugerir a instalação e pedir
+        // aprovação via ask_user em vez de só reportar a falha.
+        if (LooksLikeMissingCommand(outcome))
+        {
+            text += MissingCommandHint;
+        }
+
         return new BuiltinToolResult(text, new
         {
             exitCode = outcome.ExitCode,
@@ -105,5 +122,30 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
             truncated = outcome.Truncated,
             risk = assessment.Level.ToString(),
         });
+    }
+
+    // Ferramenta ausente: orienta o agente a sugerir a instalação e
+    // pedir aprovação via ask_user em vez de só reportar a falha.
+    private const string MissingCommandHint =
+        "\n\nO comando falhou porque uma ferramenta provavelmente não está "
+        + "instalada ou não é permitida. Sugira o comando de instalação ao "
+        + "usuário e pergunte (ask_user) se ele aprova instalar antes de "
+        + "tentar de novo.";
+
+    /// <summary>Detecta "comando não encontrado" nos shells comuns (bash/sh 127,
+    /// cmd/pwsh "not recognized", "não encontrado").</summary>
+    private static bool LooksLikeMissingCommand(ProcessOutcome outcome)
+    {
+        if (outcome.ExitCode is 127 or 9009)
+        {
+            return true;
+        }
+
+        var output = outcome.Output;
+        return output.Contains("command not found", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("not recognized", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("não encontrado", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            && output.Contains("No such file", StringComparison.OrdinalIgnoreCase);
     }
 }

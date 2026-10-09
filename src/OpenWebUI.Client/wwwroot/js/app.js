@@ -53,6 +53,32 @@ window.openwebui = {
 			element.click();
 		}
 	},
+	// Divisor arrastável do painel de workspace: arrasta p/ esquerda
+	// alarga o painel (clamp 240–720px), largura persiste em localStorage.
+	panelResize: function (handle, panel) {
+		if (!handle || !panel || handle._openwebuiRs) return;
+		handle._openwebuiRs = true;
+		const saved = parseInt(localStorage.getItem('openwebui.panelWidth') || '', 10);
+		if (saved >= 240 && saved <= 720) panel.style.width = saved + 'px';
+		handle.addEventListener('pointerdown', function (e) {
+			e.preventDefault();
+			const startX = e.clientX;
+			const startW = panel.getBoundingClientRect().width;
+			function move(ev) {
+				const w = Math.min(720, Math.max(240, startW + (startX - ev.clientX)));
+				panel.style.width = w + 'px';
+			}
+			function up() {
+				document.removeEventListener('pointermove', move);
+				document.removeEventListener('pointerup', up);
+				localStorage.setItem(
+					'openwebui.panelWidth',
+					String(Math.round(panel.getBoundingClientRect().width)));
+			}
+			document.addEventListener('pointermove', move);
+			document.addEventListener('pointerup', up);
+		});
+	},
 	autoResize: function (element) {
 		if (element) {
 			element.style.height = 'auto';

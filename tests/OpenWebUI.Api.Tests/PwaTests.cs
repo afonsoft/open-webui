@@ -81,9 +81,9 @@ public class PwaTests
             Assert.That(sw, Does.Contain("networkFirst"));
             Assert.That(sw, Does.Contain("/framework-assets/"));
             Assert.That(sw, Does.Contain("/_framework/blazor.webassembly.js"));
-            // cache.put consome o body — o put do alias '/' precisa do próprio
-            // clone ou lança "Response body is already used" (E2E pós-#268).
-            Assert.That(sw, Does.Contain("cache.put('/', response.clone())"));
+            // cache.put consome o body e clone() falha depois que o browser
+            // leu — cada put precisa de um clone criado síncrono (E2E pós-#269).
+            Assert.That(sw, Does.Contain("cache.put('/', shellCopy)"));
         });
     }
 }
