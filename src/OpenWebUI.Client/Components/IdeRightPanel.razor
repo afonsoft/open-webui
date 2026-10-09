@@ -98,6 +98,11 @@
                 </div>
                 break;
 
+            case "pulls":
+                @* PRs abertos do repo vinculado + rollup de checks (D1). *@
+                <WorkspacePullsPanel />
+                break;
+
             case "tests":
                 <IdeTestsPanel />
                 break;
@@ -164,10 +169,10 @@
 
     private IEnumerable<string> Tabs => (_terminalEnabled, _previewEnabled) switch
     {
-        (true, true) => ["chat", "changes", "tests", "terminal", "jobs", "preview"],
-        (true, false) => ["chat", "changes", "tests", "terminal", "jobs"],
-        (false, true) => ["chat", "changes", "tests", "jobs", "preview"],
-        _ => ["chat", "changes", "tests", "jobs"],
+        (true, true) => ["chat", "changes", "pulls", "tests", "terminal", "jobs", "preview"],
+        (true, false) => ["chat", "changes", "pulls", "tests", "terminal", "jobs"],
+        (false, true) => ["chat", "changes", "pulls", "tests", "jobs", "preview"],
+        _ => ["chat", "changes", "pulls", "tests", "jobs"],
     };
 
     /// <inheritdoc/>
@@ -208,6 +213,7 @@
     {
         "chat" => L["ide.tab_chat"],
         "changes" => L["chat.panel_tab_changes"],
+        "pulls" => L["chat.panel_tab_pulls"],
         "terminal" => L["chat.panel_tab_terminal"],
         "jobs" => L["chat.panel_tab_jobs"],
         "tests" => L["chat.panel_tab_tests"],

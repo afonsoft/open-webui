@@ -1024,6 +1024,10 @@ public class ApiService(HttpClient http, AuthService auth)
     public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
         SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
 
+    /// <summary>PRs abertos do repo vinculado (SPEC-20261009-pr-ci-panel); null em 404/erro.</summary>
+    public Task<WorkspacePullsResponse?> GetWorkspacePullsAsync() =>
+        SendAsync<WorkspacePullsResponse>(HttpMethod.Get, "/api/v1/workspace/repo/pulls");
+
     // ---------------- Checkpoints do workdir (S6) ----------------
 
     /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>

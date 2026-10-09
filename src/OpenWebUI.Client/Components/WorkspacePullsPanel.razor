@@ -1,0 +1,205 @@
+@inject ApiService Api
+@inject LocalizationService L
+@implements IDisposable
+
+@* Painel "Pull Requests" (SPEC-20261009-pr-ci-panel, D1): PRs abertos do
+   repo vinculado com chip do rollup de checks. Compartilhado entre a aba
+   Pulls do ChatWorkspacePanel e do IdeRightPanel; polling ~60s enquanto
+   a aba está aberta + refresh manual. *@
+
+<div class="flex h-full flex-col gap-2 overflow-y-auto p-2 text-xs" aria-live="polite">
+    <div class="flex items-center justify-between gap-2">
+        <span class="text-[0.6875rem] font-medium text-gray-500 dark:text-gray-400">
+            @L["chat.panel_tab_pulls"]
+        </span>
+        <button class="flex items-center gap-1 rounded-lg px-2 py-1 text-[0.6875rem] text-gray-500 transition cursor-pointer hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 disabled:opacity-50"
+                title="@L["chat.pulls_refresh"]" aria-label="@L["chat.pulls_refresh"]"
+                disabled="@_loading" @onclick="RefreshAsync">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                 class="size-3.5 @(_loading ? "animate-spin" : "")" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            @L["chat.pulls_refresh"]
+        </button>
+    </div>
+
+    @if (_loading && _pulls is null)
+    {
+        <div class="flex items-center gap-2 px-1 py-4 text-[0.6875rem] text-gray-400 dark:text-gray-500" role="status">
+            <span class="inline-block size-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" aria-hidden="true"></span>
+            @L["chat.pulls_loading"]
+        </div>
+    }
+    else if (_noRepo)
+    {
+        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_no_repo"]</div>
+    }
+    else if (_pulls is { NeedsToken: true })
+    {
+        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_needs_token"]</div>
+    }
+    else if (_pulls is null || !_pulls.Github)
+    {
+        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_unavailable"]</div>
+    }
+    else if (_pulls.Pulls.Count == 0)
+    {
+        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_empty"]</div>
+    }
+    else
+    {
+        <ul class="flex flex-col gap-1" role="list">
+            @foreach (var pr in _pulls.Pulls)
+            {
+                <li class="rounded-lg border border-gray-100 dark:border-gray-800 px-2 py-1.5">
+                    <div class="flex items-center gap-1.5">
+                        <a href="@pr.Url" target="_blank" rel="noopener noreferrer"
+                           class="min-w-0 flex-1 truncate font-medium text-[0.6875rem] text-gray-800 hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400"
+                           title="@pr.Title" aria-label="@L["chat.pulls_open_external"]: #@pr.Number">
+                            <span class="text-gray-400 dark:text-gray-500">#@pr.Number</span> @pr.Title
+                        </a>
+                        <span class="pull-checks flex-none rounded px-1.5 py-0.5 font-mono text-[0.625rem] font-medium @ChecksChipCss(pr.Checks)"
+                              title="@ChecksLabel(pr.Checks)" aria-label="@ChecksLabel(pr.Checks)">@ChecksChipText(pr.Checks)</span>
+                    </div>
+                    <div class="mt-0.5 flex items-center gap-2 text-[0.625rem] text-gray-400 dark:text-gray-500">
+                        @if (pr.Draft)
+                        {
+                            <span class="rounded bg-gray-100 dark:bg-gray-800 px-1 uppercase">@L["chat.pulls_draft"]</span>
+                        }
+                        @if (pr.HeadRef is { Length: > 0 } headRef)
+                        {
+                            <span class="min-w-0 truncate font-mono" title="@headRef">@headRef</span>
+                        }
+                        @if (pr.Author is { Length: > 0 } author)
+                        {
+                            <span class="truncate">@("@" + author)</span>
+                        }
+                        <span class="ml-auto flex-none" title="@pr.UpdatedAt">@FormatAge(pr.UpdatedAt)</span>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private WorkspacePullsResponse? _pulls;
+    private bool _noRepo;
+    private bool _loading;
+    private readonly CancellationTokenSource _pollCts = new();
+
+    /// <inheritdoc/>
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollLoopAsync();
+    }
+
+    /// <summary>Polling ~60s enquanto o painel está montado.</summary>
+    private async Task PollLoopAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_pollCts.Token))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { /* painel fechado */ }
+        catch (ObjectDisposedException) { /* painel fechado */ }
+    }
+
+    /// <summary>Recarrega binding + lista (refresh manual e polling).</summary>
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var binding = await Api.GetWorkspaceRepoAsync();
+            if (binding?.Repo is null)
+            {
+                _noRepo = true;
+                _pulls = null;
+                return;
+            }
+            _noRepo = false;
+            _pulls = await Api.GetWorkspacePullsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task RefreshAsync() => LoadAsync();
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _pollCts.Cancel();
+        _pollCts.Dispose();
+    }
+
+    /// <summary>Idade curta do updatedAt (agora / Nmin / Nh / Nd).</summary>
+    private string FormatAge(string? updatedAt)
+    {
+        if (!DateTimeOffset.TryParse(updatedAt, out var at))
+        {
+            return string.Empty;
+        }
+        var age = DateTimeOffset.UtcNow - at;
+        if (age < TimeSpan.FromMinutes(1))
+        {
+            return L["chat.pulls_now"];
+        }
+        if (age < TimeSpan.FromHours(1))
+        {
+            return L.T("chat.pulls_min", ("n", ((int)age.TotalMinutes).ToString()));
+        }
+        if (age < TimeSpan.FromDays(1))
+        {
+            return L.T("chat.pulls_h", ("n", ((int)age.TotalHours).ToString()));
+        }
+        return L.T("chat.pulls_d", ("n", ((int)age.TotalDays).ToString()));
+    }
+
+    private string ChecksLabel(WorkspacePrChecksResponse checks)
+    {
+        if (checks.Total == 0)
+        {
+            return L["chat.pulls_no_checks"];
+        }
+        var parts = new List<string>();
+        if (checks.Passing > 0)
+        {
+            parts.Add(L.T("chat.pulls_checks_success", ("n", checks.Passing.ToString())));
+        }
+        if (checks.Failing > 0)
+        {
+            parts.Add(L.T("chat.pulls_checks_failure", ("n", checks.Failing.ToString())));
+        }
+        if (checks.Pending > 0)
+        {
+            parts.Add(L.T("chat.pulls_checks_pending", ("n", checks.Pending.ToString())));
+        }
+        return string.Join(", ", parts);
+    }
+
+    private static string ChecksChipCss(WorkspacePrChecksResponse checks) => checks.State switch
+    {
+        "success" => "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+        "failure" => "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+        _ when checks.Total == 0 => "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+        _ => "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+    };
+
+    private static string ChecksChipText(WorkspacePrChecksResponse checks) => checks.State switch
+    {
+        "success" => $"✓{checks.Passing}",
+        "failure" => $"✗{checks.Failing}",
+        _ when checks.Total == 0 => "—",
+        _ => $"…{checks.Pending}",
+    };
+}

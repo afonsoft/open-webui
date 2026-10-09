@@ -62,3 +62,32 @@ public sealed record MergeWorktreeRequest(string? RunId);
 public sealed record MergeWorktreeResponse(
     bool Merged, IReadOnlyList<string> Applied, IReadOnlyList<string> Conflicts,
     string? Error = null);
+
+/// <summary>Rollup dos checks de CI de um pull request (SPEC-20261009-pr-ci-panel).</summary>
+/// <param name="Total">Total de checks (status contexts + check runs).</param>
+/// <param name="Passing">Checks verdes (success/neutral/skipped).</param>
+/// <param name="Failing">Checks falhos (failure/error/timed_out/cancelled/action_required).</param>
+/// <param name="Pending">Checks em andamento (pending/queued/in_progress/stale).</param>
+/// <param name="State">Estado agregado: <c>success</c> | <c>failure</c> | <c>pending</c>.</param>
+public sealed record WorkspacePrChecksResponse(
+    int Total, int Passing, int Failing, int Pending, string State);
+
+/// <summary>Pull request aberto do repositório vinculado.</summary>
+/// <param name="Number">Número do PR.</param>
+/// <param name="Title">Título.</param>
+/// <param name="Author">Login do autor.</param>
+/// <param name="HeadRef">Branch de origem.</param>
+/// <param name="UpdatedAt">Última atualização (ISO 8601).</param>
+/// <param name="Url">URL web do PR.</param>
+/// <param name="Draft">Se é rascunho.</param>
+/// <param name="Checks">Rollup de CI do head.</param>
+public sealed record WorkspacePullResponse(
+    int Number, string Title, string? Author, string? HeadRef,
+    string? UpdatedAt, string Url, bool Draft, WorkspacePrChecksResponse Checks);
+
+/// <summary>Resposta de <c>GET /api/v1/workspace/repo/pulls</c>.</summary>
+/// <param name="Github">false quando o GitHub está inacessível/sem auth.</param>
+/// <param name="NeedsToken">true quando falta (ou expirou) o PAT do usuário.</param>
+/// <param name="Pulls">PRs abertos do repo vinculado.</param>
+public sealed record WorkspacePullsResponse(
+    bool Github, bool NeedsToken, IReadOnlyList<WorkspacePullResponse> Pulls);

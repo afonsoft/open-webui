@@ -267,6 +267,11 @@
                 </div>
                 break;
 
+            case "pulls":
+                @* PRs abertos do repo vinculado + rollup de checks (D1). *@
+                <WorkspacePullsPanel />
+                break;
+
             case "tests":
                 @* Runner de testes do repo vinculado (SPEC-20261009-ide-mentions-tests RF-004). *@
                 <IdeTestsPanel />
@@ -488,8 +493,8 @@
     }
 
     private IEnumerable<string> Tabs => IsAdmin
-        ? ["tasks", "changes", "tests", "jobs", "terminal", "mcps", "info"]
-        : ["tasks", "changes", "tests", "jobs", "terminal", "info"];
+        ? ["tasks", "changes", "pulls", "tests", "jobs", "terminal", "mcps", "info"]
+        : ["tasks", "changes", "pulls", "tests", "jobs", "terminal", "info"];
 
     /// <summary>Salta à aba Tests quando um run é iniciado (botão Run tests).</summary>
     protected override void OnInitialized() => TestRun.Changed += OnTestRunChanged;
