@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Api.Hubs;
 using OpenWebUI.Application.Interfaces;
+using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 
 namespace OpenWebUI.Api.Notifications;
@@ -23,6 +24,36 @@ public sealed class WebPushChatRunNotifier(
     /// <inheritdoc />
     public async Task RunCompletedAsync(ChatRunFinished run, CancellationToken cancellationToken)
     {
+        var title = await db.Chats.AsNoTracking()
+            .Where(c => c.Id == run.ChatId)
+            .Select(c => c.Title)
+            .FirstOrDefaultAsync(cancellationToken);
+        var link = $"/c/{Uri.EscapeDataString(run.ChatId)}";
+        var snippet = Snippet(run.PartialContent);
+
+        // D3 (SPEC-20261009-notification-feed): o evento que dispara push
+        // também vira linha do feed in-app — gravado antes dos early-returns
+        // porque o feed não depende de aba fechada nem de subscription.
+        // Best-effort: falha aqui não pode derrubar o push nem a run.
+        try
+        {
+            db.Notifications.Add(new Notification
+            {
+                UserId = run.UserId,
+                Kind = $"run.{run.Status}",
+                Title = title ?? "Chat",
+                Body = snippet ?? Snippet(run.Error),
+                Link = link,
+                CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            });
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            db.ChangeTracker.Clear();
+            logger.LogWarning(ex, "Falha ao gravar notificação in-app da run {RunId}.", run.RunId);
+        }
+
         // Com aba aberta o hub já entrega run.completed — push só quando o
         // usuário está desconectado (aba fechada/background).
         if (ChatHub.ConnectedUserIds().Contains(run.UserId, StringComparer.Ordinal))
@@ -38,19 +69,14 @@ public sealed class WebPushChatRunNotifier(
             return;
         }
 
-        var title = await db.Chats.AsNoTracking()
-            .Where(c => c.Id == run.ChatId)
-            .Select(c => c.Title)
-            .FirstOrDefaultAsync(cancellationToken);
-
         var payload = JsonSerializer.Serialize(new
         {
             runId = run.RunId,
             chatId = run.ChatId,
             title,
             status = run.Status,
-            snippet = Snippet(run.PartialContent),
-            url = $"/c/{Uri.EscapeDataString(run.ChatId)}",
+            snippet,
+            url = link,
         });
 
         foreach (var sub in subs)

@@ -107,6 +107,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Webhooks de notificação (por usuário ou globais).</summary>
     public DbSet<NotificationWebhook> NotificationWebhooks => Set<NotificationWebhook>();
 
+    /// <summary>Feed in-app de notificações por usuário (D3).</summary>
+    public DbSet<Notification> Notifications => Set<Notification>();
+
     /// <summary>Skills do workspace.</summary>
     public DbSet<Skill> Skills => Set<Skill>();
 
@@ -185,6 +188,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(s => s.Id);
             entity.HasIndex(s => s.UserId);
             entity.HasIndex(s => s.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(n => n.Id);
+            // Lista por usuário em ordem cronológica inversa (feed paginado).
+            entity.HasIndex(n => new { n.UserId, n.CreatedAt });
         });
 
         modelBuilder.Entity<Folder>(entity =>

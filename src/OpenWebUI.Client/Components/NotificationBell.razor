@@ -1,0 +1,202 @@
+@inject ApiService Api
+@inject NavigationManager Nav
+@inject LocalizationService L
+@implements IDisposable
+
+@* D3 (SPEC-20261009-notification-feed): sino com badge de não-lidas e
+   dropdown do feed in-app. Clicar num item marca lido e navega pro link;
+   poll de 30s mantém o badge atualizado (sem SignalR na v1). *@
+<div class="relative">
+    <button class="relative flex size-[1.875rem] justify-center items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition cursor-pointer text-gray-600 dark:text-gray-400"
+            title="@L["notifications.title"]" aria-label="@L["notifications.title"]"
+            aria-haspopup="menu" aria-expanded="@_open"
+            @ref="_trigger" @onclick="ToggleAsync">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 self-center" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75v-.7V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
+        @if (_unread > 0)
+        {
+            <span class="absolute -top-0.5 -right-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.5625rem] font-semibold leading-none text-white"
+                  aria-label="@L.T("notifications.unread_aria", ("count", _unread.ToString()))">
+                @BadgeText
+            </span>
+        }
+    </button>
+
+    @if (_open)
+    {
+        <div class="fixed inset-0 z-40" @onclick="Close"></div>
+        <div class="absolute @MenuClass top-full mt-1 z-50 w-80 max-w-[calc(100vw-1rem)] max-h-96 overflow-y-auto scrollbar-hidden rounded-2xl bg-white dark:bg-gray-850 border border-gray-100 dark:border-gray-800 shadow-lg py-1"
+             role="menu" aria-label="@L["notifications.title"]" @onkeydown="OnMenuKeyDown">
+            <div class="flex items-center justify-between px-3 pt-2 pb-1">
+                <span class="text-[0.8125rem] font-medium text-gray-700 dark:text-gray-200">@L["notifications.title"]</span>
+                @if (_items.Any(i => i.ReadAt is null))
+                {
+                    <button class="text-[0.6875rem] text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                            @onclick="MarkAllAsync">
+                        @L["notifications.mark_all"]
+                    </button>
+                }
+            </div>
+
+            @if (_items.Count == 0)
+            {
+                <div class="px-3 py-6 text-center text-xs text-gray-400 dark:text-gray-500">@L["notifications.empty"]</div>
+            }
+            else
+            {
+                @foreach (var item in _items)
+                {
+                    <button class="w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-900 cursor-pointer"
+                            role="menuitem" @onclick="() => OpenAsync(item)">
+                        <span class="mt-0.5 flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
+                            @if (item.Kind == "run.failed")
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 text-red-500"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75h.007v.008H12v-.008Z" /></svg>
+                            }
+                            else if (item.Kind == "run.completed")
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                            }
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3.5 text-gray-400 dark:text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75v-.7V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
+                            }
+                        </span>
+                        <span class="flex-1 min-w-0">
+                            <span class="flex items-center gap-1.5">
+                                @if (item.ReadAt is null)
+                                {
+                                    <span class="size-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden="true"></span>
+                                }
+                                <span class="truncate text-[0.8125rem] text-gray-700 dark:text-gray-200 @(item.ReadAt is null ? "font-medium" : null)">@item.Title</span>
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(item.Body))
+                            {
+                                <span class="block truncate text-xs text-gray-400 dark:text-gray-500">@item.Body</span>
+                            }
+                            <span class="block text-[0.625rem] text-gray-400 dark:text-gray-500">@TimeAgo(item.CreatedAt)</span>
+                        </span>
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Classe de ancoragem horizontal do dropdown (default: borda direita,
+    /// para o sino próximo à margem direita; usar <c>left-0</c> no rail recolhido).</summary>
+    [Parameter] public string MenuClass { get; set; } = "right-0";
+
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+
+    private bool _open;
+    private int _unread;
+    private List<NotificationItemResponse> _items = [];
+    private ElementReference _trigger;
+    private CancellationTokenSource? _pollCts;
+
+    private string BadgeText => _unread > 99 ? "99+" : _unread.ToString();
+
+    /// <summary>Carrega a primeira página e inicia o poll de 30s.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _pollCts = new CancellationTokenSource();
+        _ = PollAsync(_pollCts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(PollInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Dispose encerra o loop.
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            await RefreshAsync();
+        }
+    }
+
+    private void Close() => _open = false;
+
+    private async Task RefreshAsync()
+    {
+        var page = await Api.GetNotificationsAsync(pageSize: 20);
+        if (page is null)
+        {
+            return;
+        }
+
+        _items = page.Items;
+        _unread = page.Unread;
+    }
+
+    private async Task OpenAsync(NotificationItemResponse item)
+    {
+        _open = false;
+        if (item.ReadAt is null)
+        {
+            if (await Api.MarkNotificationReadAsync(item.Id))
+            {
+                _unread = Math.Max(0, _unread - 1);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Link))
+        {
+            Nav.NavigateTo(item.Link);
+        }
+    }
+
+    private async Task MarkAllAsync()
+    {
+        if (await Api.MarkAllNotificationsReadAsync())
+        {
+            _unread = 0;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _items = _items.Select(i => i with { ReadAt = i.ReadAt ?? now }).ToList();
+        }
+    }
+
+    private async Task OnMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _open = false;
+            await _trigger.FocusAsync();
+        }
+    }
+
+    private string TimeAgo(long createdAt)
+    {
+        var delta = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - createdAt;
+        return delta switch
+        {
+            < 60 => L["notifications.time_now"],
+            < 3600 => L.T("notifications.time_min", ("count", (delta / 60).ToString())),
+            < 86400 => L.T("notifications.time_hours", ("count", (delta / 3600).ToString())),
+            _ => L.T("notifications.time_days", ("count", (delta / 86400).ToString())),
+        };
+    }
+
+    /// <summary>Cancela o poll.</summary>
+    public void Dispose()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+    }
+}
