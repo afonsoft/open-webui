@@ -116,6 +116,18 @@ builder.Services.AddScoped<BuiltinToolRegistry>();
 builder.Services.AddSingleton<ChatJobService>();
 builder.Services.AddHttpClient(nameof(FetchUrlBuiltinTool));
 
+// Proxy do port preview (SPEC-20261009-port-preview): sem redirects,
+// sem cookie jar compartilhado entre usuários, sem descompressão
+// (o cliente recebe o payload exato do upstream).
+builder.Services.AddHttpClient(PreviewEndpoints.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        AutomaticDecompression = System.Net.DecompressionMethods.None,
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+    });
+
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
@@ -344,6 +356,7 @@ app.MapCheckpointEndpoints();
 app.MapWorkspaceTestRunEndpoints();
 app.MapRepoSkillEndpoints();
 app.MapIdeEndpoints();
+app.MapPreviewEndpoints();
 app.MapAudioEndpoints();
 app.MapRetrievalEndpoints();
 app.MapCalendarEndpoints();

@@ -1042,6 +1042,13 @@ public class ApiService(HttpClient http, AuthService auth)
         return node?["enabled"]?.GetValue<bool>() != false;
     }
 
+    /// <summary>Lê a feature flag do port preview (on por default — E16 D4).</summary>
+    public async Task<bool> GetPreviewEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/preview/config");
+        return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
     /// <summary>Resultado do PUT de arquivo da IDE (etag novo ou o atual em conflito).</summary>
     public sealed record IdeSaveResult(bool Ok, string? ETag, string? ConflictETag);
 
