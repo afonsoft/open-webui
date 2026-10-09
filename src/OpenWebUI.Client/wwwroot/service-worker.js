@@ -71,11 +71,13 @@ function networkFirst(request) {
   return fetch(request)
     .then((response) => {
       if (response.ok) {
-        const copy = response.clone();
         caches.open(CACHE_SHELL).then((cache) => {
-          cache.put(request, copy);
+          // Cada cache.put consome o body do Response — um clone só pode ser
+          // usado uma vez ("Response body is already used"), então cada put
+          // clona de novo (o response original ainda não foi lido aqui).
+          cache.put(request, response.clone());
           // Fallback offline da navegação: sempre aponta para o shell atual.
-          if (request.mode === 'navigate') cache.put('/', copy);
+          if (request.mode === 'navigate') cache.put('/', response.clone());
         });
       }
       return response;
