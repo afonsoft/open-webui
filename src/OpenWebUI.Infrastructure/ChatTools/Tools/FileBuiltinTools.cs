@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using OpenWebUI.Infrastructure.Services;
+
 namespace OpenWebUI.Infrastructure.ChatTools.Tools;
 
 /// <summary>
@@ -420,9 +422,11 @@ public sealed class FileGlobBuiltinTool : IBuiltinChatTool
 /// <summary>
 /// <c>builtin:file_write</c> — cria ou sobrescreve um arquivo do
 /// workspace; retorna o diff unificado da mudança. Mutável → gate de
-/// aprovação.
+/// aprovação. Depois da escrita roda o format hook
+/// (<see cref="FormatHookService"/>) — falha vira warning no result.
 /// </summary>
-public sealed class FileWriteBuiltinTool : IBuiltinChatTool
+/// <param name="formatHook">Format hook pós-escrita (RF-004).</param>
+public sealed class FileWriteBuiltinTool(FormatHookService? formatHook = null) : IBuiltinChatTool
 {
     /// <inheritdoc />
     public string Name => "file_write";
@@ -490,6 +494,14 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
             text += "\n" + Truncate(diff.Text, 8192);
         }
 
+        // Format hook (RF-004): falha → warning, nunca erro da tool.
+        var formatWarning = formatHook is null ? null : await formatHook.RunForUserAsync(
+            context.UserId, context.WorkspacePath, [rel], ct);
+        if (formatWarning is not null)
+        {
+            text += $"\n[format] {formatWarning}";
+        }
+
         return new BuiltinToolResult(text, new
         {
             path = rel,
@@ -497,6 +509,7 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
             added = diff.Added,
             removed = diff.Removed,
             diff = Truncate(diff.Text, 8192),
+            formatWarning,
         });
     }
 
@@ -508,9 +521,11 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
 /// <c>builtin:file_edit</c> — substituição exata de texto num arquivo do
 /// workspace (estilo opencode/Claude edit): <c>old_string</c> deve casar
 /// exatamente uma vez (ou <c>replace_all</c>). Retorna o diff unificado.
-/// Mutável → gate de aprovação.
+/// Mutável → gate de aprovação. Depois da edição roda o format hook
+/// (<see cref="FormatHookService"/>) — falha vira warning no result.
 /// </summary>
-public sealed class FileEditBuiltinTool : IBuiltinChatTool
+/// <param name="formatHook">Format hook pós-escrita (RF-004).</param>
+public sealed class FileEditBuiltinTool(FormatHookService? formatHook = null) : IBuiltinChatTool
 {
     /// <inheritdoc />
     public string Name => "file_edit";
@@ -591,6 +606,14 @@ public sealed class FileEditBuiltinTool : IBuiltinChatTool
             text += "\n" + FileWriteBuiltinTool.Truncate(diff.Text, 8192);
         }
 
+        // Format hook (RF-004): falha → warning, nunca erro da tool.
+        var formatWarning = formatHook is null ? null : await formatHook.RunForUserAsync(
+            context.UserId, context.WorkspacePath, [rel], ct);
+        if (formatWarning is not null)
+        {
+            text += $"\n[format] {formatWarning}";
+        }
+
         return new BuiltinToolResult(text, new
         {
             path = rel,
@@ -598,6 +621,7 @@ public sealed class FileEditBuiltinTool : IBuiltinChatTool
             removed = diff.Removed,
             occurrences,
             diff = FileWriteBuiltinTool.Truncate(diff.Text, 8192),
+            formatWarning,
         });
     }
 
