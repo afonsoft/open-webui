@@ -418,6 +418,16 @@ public static class ChatEndpoints
             chat.ApprovalPreset = request.ApprovalPreset;
             changed = true;
         }
+        if (request.Mode is not null)
+        {
+            // SPEC-20261009-agent-modes-plan-build RF-001: build | plan.
+            if (request.Mode is not ("build" or "plan"))
+            {
+                return Results.BadRequest(new { detail = "mode inválido." });
+            }
+            chat.Mode = request.Mode;
+            changed = true;
+        }
         if (request.Title is { } rawTitle && !string.IsNullOrWhiteSpace(rawTitle))
         {
             chat.Title = rawTitle.Trim();
@@ -898,7 +908,8 @@ public static class ChatEndpoints
         JsonSerializer.Deserialize<List<string>>(chat.ToolIdsJson, JsonOptions) ?? [],
         chat.CreatedAt,
         chat.UpdatedAt,
-        chat.ApprovalPreset);
+        chat.ApprovalPreset,
+        chat.Mode);
 
     /// <summary>Filtro por tags.</summary>
     public sealed record TagQueryRequest(IReadOnlyList<string> Tags);

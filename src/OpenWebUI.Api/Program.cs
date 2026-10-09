@@ -97,6 +97,7 @@ builder.Services.AddScoped<IBuiltinChatTool, N8nListWorkflowsBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nTriggerBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, GenerateVideoBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, AskUserBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, PlanExitBuiltinTool>();
 builder.Services.AddSingleton<VideoEngineFactory>();
 builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
