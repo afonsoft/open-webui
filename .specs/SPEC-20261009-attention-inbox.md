@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-attention-inbox` |
 | Ticket | `GAP-devin-D2-attention-inbox` |
-| Status | `Draft` |
+| Status | `Approved` |
 | Priority | `medium` |
 | Depends on | — |
 
