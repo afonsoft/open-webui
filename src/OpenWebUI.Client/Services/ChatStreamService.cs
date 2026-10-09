@@ -47,6 +47,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Snapshot <c>changes</c>: arquivos alterados pela run (aba Changes do painel).</summary>
         public sealed record Changes(RunChangesEvent Snapshot) : ChatStreamEvent;
 
+        /// <summary>Checkpoint do workdir criado pela run (S6 — botão Revert).</summary>
+        public sealed record Checkpoint(RunCheckpointEvent Snapshot) : ChatStreamEvent;
+
         /// <summary>Fase da run (generating|running_tool|awaiting_approval).</summary>
         public sealed record Phase(RunPhaseEvent Status) : ChatStreamEvent;
 
@@ -433,6 +436,18 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 c?["diff"]?.GetValue<string>()))
                             .ToList();
                         produced = new ChatStreamEvent.Changes(new RunChangesEvent(items));
+                        break;
+                    }
+                    case "checkpoint":
+                    {
+                        var files = (node["files"] as JsonArray ?? [])
+                            .Select(f => f?.GetValue<string>() ?? string.Empty)
+                            .Where(f => f.Length > 0)
+                            .ToList();
+                        produced = new ChatStreamEvent.Checkpoint(new RunCheckpointEvent(
+                            node["hash"]?.GetValue<string>() ?? string.Empty,
+                            files,
+                            node["turn"]?.GetValue<int>() ?? 0));
                         break;
                     }
                     case "status":

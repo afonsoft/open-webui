@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-checkpoints` |
 | Ticket | `GAP-impl-checkpoints` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | `SPEC-20261009-workspace-file-api` (S1) — precisa de repo git vinculado |
 
@@ -67,10 +67,10 @@ Snapshots não interferem no histórico git do usuário (`git log`/`git status` 
 
 ## 5. Acceptance Criteria
 
-- [ ] Run que edita 3 arquivos → 3+ checkpoints revertíveis individualmente.
-- [ ] Revert com arquivo modificado depois → conflito reportado, não sobrescrito.
-- [ ] `git log`/`git status` do workdir não mostram commits/entradas de checkpoint.
-- [ ] Sem repo git → fallback manifesto funciona.
+- [x] Run que edita 3 arquivos → 3+ checkpoints revertíveis individualmente.
+- [x] Revert com arquivo modificado depois → conflito reportado, não sobrescrito.
+- [x] `git log`/`git status` do workdir não mostram commits/entradas de checkpoint.
+- [x] Sem repo git → fallback manifesto funciona.
 
 ## 6. Tests
 

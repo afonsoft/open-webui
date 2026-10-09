@@ -611,6 +611,8 @@
                             Model="@_model" RunId="@_activeRunId" Git="_git"
                             IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
                             RequestedTab="@_requestedPanelTab"
+                            Checkpoints="_runCheckpoints"
+                            OnReverted="OnCheckpointRevertedAsync"
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
     </aside>
@@ -623,6 +625,8 @@
                                 Model="@_model" RunId="@_activeRunId" Git="_git"
                                 IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
                                 RequestedTab="@_requestedPanelTab"
+                                Checkpoints="_runCheckpoints"
+                                OnReverted="OnCheckpointRevertedAsync"
                                 OnClose="() => _showPanel = false"
                                 OnKillJob="KillJobAsync" />
         </aside>
@@ -695,6 +699,9 @@
 
     /// <summary>Arquivos alterados pela run (evento <c>changes</c>, RF-015 — aba Changes).</summary>
     private List<RunChangeItem> _runChanges = [];
+
+    /// <summary>Checkpoints do workdir emitidos pela run (S6 — aba Changes).</summary>
+    private List<WorkspaceCheckpointItem> _runCheckpoints = [];
 
     /// <summary>Painel de workspace lateral (abas Tasks/Changes/Jobs/MCPs/Info).</summary>
     private bool _showPanel;
@@ -948,6 +955,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _runChanges = [];
+        _runCheckpoints = [];
         _git = null;
         _pendingApproval = null;
         _pendingQuestion = null;
@@ -1660,6 +1668,7 @@
         _liveToolCalls.Clear();
         _runTasks = [];
         _runChanges = [];
+        _runCheckpoints = [];
 
         // Resume loop (SPEC-20261007-chat-tool-streaming): se o stream cair
         // no meio da run (proxy derrubando SSE ocioso, troca de rede, aba
@@ -1801,6 +1810,11 @@
                     _runChanges = changes.Snapshot.Changes.ToList();
                     // file_* escreveu no workdir — a git bar/aba Changes atualiza.
                     await RefreshGitAsync();
+                    break;
+                case ChatStreamService.ChatStreamEvent.Checkpoint checkpoint:
+                    _runCheckpoints.Add(new WorkspaceCheckpointItem(
+                        checkpoint.Snapshot.Hash, checkpoint.Snapshot.Turn,
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
                     break;
                 case ChatStreamService.ChatStreamEvent.Phase phase:
                     switch (phase.Status.Phase)
@@ -2131,6 +2145,9 @@
         await RefreshGitAsync();
         StateHasChanged();
     }
+
+    /// <summary>Pós-revert de checkpoint (S6): recarrega o git bar/aba Changes.</summary>
+    private async Task OnCheckpointRevertedAsync() => await RefreshGitAsync();
 
     private async Task RefreshGitAsync()
     {

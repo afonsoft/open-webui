@@ -66,3 +66,23 @@ public sealed record RepoCommandItemResponse(
 public sealed record RepoCommandDetailResponse(
     string Name, string Description, string? Agent, string? Model,
     bool Subtask, string Source, string Path, string Content);
+
+/// <summary>Item da listagem de checkpoints do workdir (S6 checkpoints-revert).</summary>
+/// <param name="Hash">Identificador do checkpoint (commit na ref oculta ou id de manifesto).</param>
+/// <param name="Turn">Turno da run que gerou o snapshot (0 = pré-run).</param>
+/// <param name="CreatedAt">Criação (epoch seconds).</param>
+public sealed record WorkspaceCheckpointItem(
+    string Hash, int Turn, long CreatedAt);
+
+/// <summary>Detalhe de um checkpoint: arquivos cobertos + diff de preview.</summary>
+/// <param name="Files">Arquivos que divergem do workdir atual (conjunto do revert).</param>
+/// <param name="Diff">Unified diff truncado (null no backend de manifesto).</param>
+public sealed record WorkspaceCheckpointDetailResponse(
+    string Hash, IReadOnlyList<string> Files, string? Diff);
+
+/// <summary>Requisição de revert — <paramref name="Force"/> ignora a guarda de drift.</summary>
+public sealed record WorkspaceCheckpointRevertRequest(bool? Force);
+
+/// <summary>Resultado do revert: restaurados + conflitos (drift fora da trilha).</summary>
+public sealed record WorkspaceCheckpointRevertResponse(
+    IReadOnlyList<string> Reverted, IReadOnlyList<string> Conflicts);

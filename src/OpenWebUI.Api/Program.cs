@@ -104,6 +104,7 @@ builder.Services.AddScoped<VideoGenerationService>();
 builder.Services.AddSingleton<BrowserScreenshotService>();
 builder.Services.AddSingleton<WorkspaceGitService>();
 builder.Services.AddScoped<WorkspaceRepoService>();
+builder.Services.AddSingleton<CheckpointService>();
 builder.Services.AddSingleton<SkillDiscoveryService>();
 builder.Services.AddScoped<GitHubService>();
 builder.Services.AddHttpClient(GitHubService.HttpClientName,
@@ -339,6 +340,7 @@ app.MapVideoEndpoints();
 app.MapConfigEndpoints();
 app.MapGitHubEndpoints();
 app.MapWorkspaceFileEndpoints();
+app.MapCheckpointEndpoints();
 app.MapRepoSkillEndpoints();
 app.MapIdeEndpoints();
 app.MapAudioEndpoints();

@@ -41,6 +41,10 @@
                 break;
 
             case "changes":
+                @* Checkpoints do workdir (S6): Revert por snapshot. *@
+                <div class="p-2 pb-0">
+                    <CheckpointList Checkpoints="Checkpoints" OnReverted="OnChanged" />
+                </div>
                 @if (Git is null)
                 {
                     <div class="px-2 py-6 text-center text-xs text-gray-400">…</div>
@@ -128,6 +132,9 @@
 
     /// <summary>Arquivo ativo no editor (para "discutir este arquivo").</summary>
     [Parameter] public string? ActiveFile { get; set; }
+
+    /// <summary>Checkpoints do workdir (S6 — aba Changes com Revert).</summary>
+    [Parameter] public IReadOnlyList<WorkspaceCheckpointItem> Checkpoints { get; set; } = [];
 
     /// <summary>Callback pós-kill — página recarrega jobs.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }

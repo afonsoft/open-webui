@@ -31,6 +31,7 @@ public sealed class ChatRunExecutor(
     ChatRunBroadcaster broadcaster,
     ChatRunApprovals approvals,
     ChatRunPauses pauses,
+    CheckpointService checkpoints,
     IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
@@ -131,6 +132,13 @@ public sealed class ChatRunExecutor(
             if (tools is { Count: > 0 })
             {
                 var builtinContext = await BuildToolContextAsync(run, user, ct);
+
+                // Checkpoints do workdir (SPEC-20261009-checkpoints-revert):
+                // turn 0 = estado pré-run; cada tool mutável depois — o
+                // evento `checkpoint` alimenta o Revert da aba Changes.
+                var checkpointTurn = 0;
+                await PublishCheckpointAsync(
+                    run, builtinContext.WorkspacePath, checkpointTurn, ct);
                 // plan_exit entra no catálogo sintético da run (RF-003): só
                 // é anunciado em modo plan; em build fica invisível — o gate
                 // o conhece para interceptar a call se ela escapar.
@@ -171,8 +179,19 @@ public sealed class ChatRunExecutor(
                             .Select(tool => JsonSerializer.Deserialize<JsonElement>(tool.SpecJson))
                             .ToList();
                     },
-                    OnResultAsync: (call, output, result, denied, t)
-                        => PublishToolResultAsync(run, call, output, result, denied),
+                    OnResultAsync: async (call, output, result, denied, t) =>
+                    {
+                        await PublishToolResultAsync(run, call, output, result, denied);
+                        if (!denied && ToolExecutor.FindTool(tools, call.Name) is { } tool
+                            && (ToolCallRiskClassifier.IsFileMutation(
+                                    tool, call.ArgumentsJson, builtinContext.WorkspacePath)
+                                || IsApplyPatch(call.Name)))
+                        {
+                            checkpointTurn++;
+                            await PublishCheckpointAsync(
+                                run, builtinContext.WorkspacePath, checkpointTurn, t);
+                        }
+                    },
                     // Texto do modelo sai delta a delta — sem isso a resposta
                     // inteira só aparecia num blob no fim da run.
                     OnDeltaAsync: async (piece, t) =>
@@ -283,6 +302,26 @@ public sealed class ChatRunExecutor(
         // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
         await repos.ResolveWorkdirAsync(user.Id, ct),
         Path.Join(env.ContentRootPath, "data", "uploads", user.Id));
+
+    /// <summary>apply_patch pode chegar como builtin por nome legado — cobre o nome cru.</summary>
+    private static bool IsApplyPatch(string name) =>
+        name.EndsWith("apply_patch", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tira um snapshot do workdir e publica o evento <c>checkpoint</c>
+    /// (E16 S6). Falhas são engolidas pelo serviço — nunca derrubam a run.
+    /// </summary>
+    private async Task PublishCheckpointAsync(
+        ChatRun run, string workdir, int turn, CancellationToken ct)
+    {
+        var info = await checkpoints.SnapshotAsync(workdir, run.Id, turn, ct);
+        if (info is null)
+        {
+            return;
+        }
+        broadcaster.Publish(run.Id,
+            $"event: checkpoint\ndata: {JsonSerializer.Serialize(new RunCheckpointEvent(info.Hash, info.Files, turn), JsonOptions)}");
+    }
 
     /// <summary>Publica o evento <c>tool_result</c> (ok=false em erro/negação).</summary>
     private Task PublishToolResultAsync(
