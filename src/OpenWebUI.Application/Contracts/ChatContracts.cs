@@ -31,6 +31,7 @@ public sealed record ChatMessageModel(
 /// <param name="Tags">Tags associadas.</param>
 /// <param name="CreatedAt">Criação (epoch seconds).</param>
 /// <param name="UpdatedAt">Última atualização (epoch seconds).</param>
+/// <param name="Awaiting">Run mais recente bloqueada em aprovação/pergunta do dono.</param>
 public sealed record ChatSummaryResponse(
     string Id,
     string Title,
@@ -38,7 +39,12 @@ public sealed record ChatSummaryResponse(
     string? FolderId,
     IReadOnlyList<string> Tags,
     long CreatedAt,
-    long UpdatedAt);
+    long UpdatedAt,
+    bool Awaiting = false);
+
+/// <summary>Contagem de chats aguardando ação do usuário (D2 attention-inbox).</summary>
+/// <param name="Count">Chats do usuário com aprovação/pergunta pendente.</param>
+public sealed record AttentionCountResponse(int Count);
 
 /// <summary>Chat completo com histórico linear de mensagens.</summary>
 /// <param name="Id">Identificador do chat.</param>

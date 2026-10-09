@@ -8,6 +8,7 @@
 @inject IJSRuntime JS
 @inject RealtimeService Realtime
 @inject BrowserStorage Storage
+@inject AttentionInboxState Attention
 @implements IDisposable
 
 <div class="flex h-full w-full min-w-0">
@@ -2008,9 +2009,11 @@
                     break;
                 case ChatStreamService.ChatStreamEvent.ApprovalAsked asked:
                     _pendingApproval = asked.Asked;
+                    _ = Attention.RefreshAsync();
                     break;
                 case ChatStreamService.ChatStreamEvent.QuestionAsked question:
                     _pendingQuestion = question.Asked;
+                    _ = Attention.RefreshAsync();
                     break;
                 case ChatStreamService.ChatStreamEvent.Mode modeEvt:
                     // plan_exit aprovado promoveu o chat a build mid-run.
@@ -2034,6 +2037,7 @@
         }
         await ChatStream.DecideApprovalAsync(
             _loadedChatId, _activeRunId, callId, decision, remember, message);
+        _ = Attention.RefreshAsync();
     }
 
     /// <summary>
@@ -2051,6 +2055,7 @@
         await ChatStream.DecideApprovalAsync(
             _loadedChatId, _activeRunId, callId,
             answer is null ? "deny" : "approve", false, answer);
+        _ = Attention.RefreshAsync();
     }
 
     /// <summary>
