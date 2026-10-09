@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Domain;
 
 namespace OpenWebUI.Infrastructure.Services;
 
@@ -20,9 +21,10 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
 
     private static string BindingKey(string userId) => $"u:{userId}:workspace.repo";
 
-    /// <summary>Raiz do workspace do usuário (jail das tools).</summary>
+    /// <summary>Raiz do workspace do usuário (jail das tools). Respeita
+    /// <see cref="DataPaths.Root"/> (env <c>DATA_ROOT</c> — no Docker, /data).</summary>
     public string WorkspaceRoot(string userId) =>
-        Path.Join(env.ContentRootPath, "data", "workspaces", userId);
+        Path.Join(DataPaths.Root(env.ContentRootPath), "workspaces", userId);
 
     /// <summary>Binding atual (null quando não há repo vinculado).</summary>
     public Task<WorkspaceRepoBinding?> GetBindingAsync(string userId, CancellationToken ct) =>
@@ -211,7 +213,9 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
         if (token is not null)
         {
             psi.ArgumentList.Add("-c");
-            psi.ArgumentList.Add($"http.https://github.com/.extraheader=AUTHORIZATION: bearer {token}");
+            psi.ArgumentList.Add(
+                "http.https://github.com/.extraheader=AUTHORIZATION: basic "
+                + Convert.ToBase64String(Encoding.ASCII.GetBytes($"x-access-token:{token}")));
         }
         foreach (var arg in args)
         {

@@ -48,20 +48,22 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 
-# curl para o HEALTHCHECK; a imagem base já traz o usuário non-root `app` (uid 1654).
+# curl para o HEALTHCHECK; git para o workspace IDE (clone/checkout do repo
+# vinculado, checkpoints e worktrees). A base já traz o usuário `app` (uid 1654).
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl git \
  && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /data \
- && chown app:app /data
+ && mkdir -p /data/workspaces \
+ && chown -R app:app /data
 
 WORKDIR /app
 COPY --from=build /app/publish ./
 
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
-    ConnectionStrings__Default="Data Source=/data/openwebui.db"
+    ConnectionStrings__Default="Data Source=/data/openwebui.db" \
+    DATA_ROOT=/data
 
 EXPOSE 8080
 VOLUME ["/data"]
