@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-port-preview` |
 | Ticket | `GAP-devin-D4-port-preview` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` (alto valor, maior risco) |
 | Depends on | `SPEC-20261009-web-ide-surface` (S2) |
 

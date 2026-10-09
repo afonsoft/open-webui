@@ -107,6 +107,11 @@
                 <IdeTestsPanel />
                 break;
 
+            case "preview":
+                @* Preview de porta do host (E16 D4 — proxy /preview/{port}). *@
+                <IdePreviewPanel />
+                break;
+
             case "terminal":
                 <TerminalView />
                 break;
@@ -158,17 +163,23 @@
     private ElementReference _tabList;
     private string _tab = "chat";
     private bool _terminalEnabled;
+    private bool _previewEnabled;
     private string? _gitDiffSource;
     private Dictionary<string, string>? _gitDiffByFile;
 
-    private IEnumerable<string> Tabs => _terminalEnabled
-        ? ["chat", "changes", "pulls", "tests", "terminal", "jobs"]
-        : ["chat", "changes", "pulls", "tests", "jobs"];
+    private IEnumerable<string> Tabs => (_terminalEnabled, _previewEnabled) switch
+    {
+        (true, true) => ["chat", "changes", "pulls", "tests", "terminal", "jobs", "preview"],
+        (true, false) => ["chat", "changes", "pulls", "tests", "terminal", "jobs"],
+        (false, true) => ["chat", "changes", "pulls", "tests", "jobs", "preview"],
+        _ => ["chat", "changes", "pulls", "tests", "jobs"],
+    };
 
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
         _terminalEnabled = await Api.GetTerminalEnabledAsync();
+        _previewEnabled = await Api.GetPreviewEnabledAsync();
     }
 
     /// <summary>Ao iniciar um run (botão do header ou da aba Changes) salta à aba Tests.</summary>
@@ -206,6 +217,7 @@
         "terminal" => L["chat.panel_tab_terminal"],
         "jobs" => L["chat.panel_tab_jobs"],
         "tests" => L["chat.panel_tab_tests"],
+        "preview" => L["chat.panel_tab_preview"],
         _ => tab,
     };
 
