@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using OpenWebUI.Application.Contracts;
@@ -1074,6 +1075,23 @@ public class ApiService(HttpClient http, AuthService auth)
     {
         var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/preview/config");
         return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Probe autenticado em <c>/preview/{port}/</c>: devolve o status
+    /// HTTP (qualquer resposta prova que algo escuta na porta) ou null se o
+    /// próprio proxy/host falhou na conexão.</summary>
+    public async Task<HttpStatusCode?> ProbePreviewAsync(int port)
+    {
+        try
+        {
+            using var request = auth.CreateRequest(HttpMethod.Get, $"/preview/{port}/");
+            using var response = await http.SendAsync(request);
+            return response.StatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
     }
 
     // --------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ---------

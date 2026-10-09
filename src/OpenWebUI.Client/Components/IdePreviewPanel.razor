@@ -1,12 +1,11 @@
 @inject ApiService Api
 @inject LocalizationService L
-@inject HttpClient Http
 @inject IJSRuntime JS
 
 @* Aba Preview do /ide (SPEC-20261009-port-preview, E16 D4): porta do dev
-   server → probe GET /preview/{port}/ → iframe sandboxed apontando pro
-   proxy do host da API. 502/504 = app fora do ar; qualquer outra resposta
-   já prova que algo escuta na porta e o iframe pode abrir. *@
+   server → probe autenticado GET /preview/{port}/ → iframe sandboxed pro
+   proxy do host da API. 502/504/sem-resposta = app fora do ar; qualquer
+   outro status prova que algo escuta na porta e o iframe pode abrir. *@
 
 @if (_enabled is null)
 {
@@ -92,18 +91,9 @@ else
 
         _error = null;
         var url = $"/preview/{port}/";
-        try
-        {
-            using var probe = await Http.GetAsync(url);
-            if (probe.StatusCode is System.Net.HttpStatusCode.BadGateway
-                or System.Net.HttpStatusCode.GatewayTimeout)
-            {
-                _error = L.T("ide.preview_error", ("port", port.ToString()));
-                _previewUrl = null;
-                return;
-            }
-        }
-        catch (HttpRequestException)
+        var status = await Api.ProbePreviewAsync(port);
+        if (status is null or System.Net.HttpStatusCode.BadGateway
+            or System.Net.HttpStatusCode.GatewayTimeout)
         {
             _error = L.T("ide.preview_error", ("port", port.ToString()));
             _previewUrl = null;

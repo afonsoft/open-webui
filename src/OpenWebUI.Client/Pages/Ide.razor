@@ -20,7 +20,7 @@ else if (!_enabled)
         <p class="text-sm text-gray-500">@L["ide.disabled"]</p>
     </div>
 }
-else if (_repo is null)
+else if (_repo?.Repo is null)
 {
     <div class="flex h-full flex-col items-center justify-center gap-3 p-6">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">@L["ide.title"]</h2>
@@ -55,7 +55,7 @@ else
         </header>
 
         <div class="relative flex flex-1 min-h-0">
-            <aside class="@(_explorerOpen ? "" : "hidden ")lg:block w-56 shrink-0 border-r border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
+            <aside class="lg:block @(_explorerOpen ? "" : "max-lg:hidden") w-56 shrink-0 border-r border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
                 <IdeExplorer @ref="_explorer" Branch="@_git?.Branch"
                              DirtyCount="@(_git?.Files.Count ?? 0)"
                              OnOpenFile="OnOpenFileAsync" OnChanged="RefreshSideAsync" />
@@ -65,7 +65,7 @@ else
                 <IdeEditor @ref="_editor" Dark="_dark" OnSaved="RefreshSideAsync" />
             </main>
 
-            <aside class="@(_panelOpen ? "" : "hidden ")lg:block w-72 shrink-0 border-l border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
+            <aside class="lg:block @(_panelOpen ? "" : "max-lg:hidden") w-72 shrink-0 border-l border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
                 <IdeRightPanel Git="_git" Jobs="_jobs" Checkpoints="_checkpoints"
                                ActiveFile="@_activePath" OnChanged="RefreshSideAsync" />
             </aside>
