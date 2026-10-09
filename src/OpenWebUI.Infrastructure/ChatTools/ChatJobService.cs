@@ -40,7 +40,7 @@ public sealed class ChatJobService(IServiceScopeFactory scopeFactory, ILogger<Ch
 
         var job = new ChatJob
         {
-            ChatId = context.ChatId ?? string.Empty,
+            ChatId = context.ChatId,
             UserId = context.UserId,
             RunId = context.RunId,
             Command = command,

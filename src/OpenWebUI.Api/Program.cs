@@ -340,7 +340,12 @@ app.MapVideoEndpoints();
 app.MapConfigEndpoints();
 app.MapGitHubEndpoints();
 app.MapWorkspaceFileEndpoints();
+<<<<<<< HEAD
 app.MapCheckpointEndpoints();
+||||||| b643e96
+=======
+app.MapWorkspaceTestRunEndpoints();
+>>>>>>> origin/main
 app.MapRepoSkillEndpoints();
 app.MapIdeEndpoints();
 app.MapAudioEndpoints();

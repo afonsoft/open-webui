@@ -1048,6 +1048,43 @@ public class ApiService(HttpClient http, AuthService auth)
     /// <summary>Resultado da leitura de arquivo da IDE: status http + body quando 200.</summary>
     public sealed record IdeFileResult(int Status, WorkspaceFileReadResponse? Body);
 
+    // --------- Test runs do workspace (SPEC-20261009-ide-mentions-tests) ---------
+
+    /// <summary>Resultado cru do POST de test-run (422 carrega detail/suggested).</summary>
+    public sealed record IdeTestRunStartResult(
+        int Status, TestRunStartResponse? Body, string? Detail, string? Suggested);
+
+    /// <summary>
+    /// Inicia um test run do repo vinculado (RF-003). <paramref name="confirmed"/>
+    /// confirma comandos WorkspaceWrite depois do cartão de aprovação.
+    /// </summary>
+    public async Task<IdeTestRunStartResult> StartTestRunAsync(bool confirmed = false)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Post, "/api/v1/workspace/repo/test-run");
+        request.Content = JsonContent.Create(new TestRunStartRequest(confirmed), options: JsonOptions);
+        using var response = await http.SendAsync(request);
+        var node = await response.Content.ReadFromJsonAsync<JsonObject>(JsonOptions);
+        if (!response.IsSuccessStatusCode || node is null)
+        {
+            return new IdeTestRunStartResult(
+                (int)response.StatusCode, null,
+                node?["detail"]?.GetValue<string>(),
+                node?["suggested"]?.GetValue<string>());
+        }
+        var body = System.Text.Json.JsonSerializer.Deserialize<TestRunStartResponse>(node.ToJsonString(), JsonOptions);
+        return new IdeTestRunStartResult((int)response.StatusCode, body, null, null);
+    }
+
+    /// <summary>Estado + resumo + cauda do log de um test run; null em falha/404.</summary>
+    public Task<TestRunStatusResponse?> GetTestRunAsync(string jobId) =>
+        SendAsync<TestRunStatusResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/test-run/{jobId}");
+
+    /// <summary>Define/limpa o TestCommand customizado do binding (override do manifesto).</summary>
+    public Task<bool> SetTestCommandAsync(string? command) =>
+        SendStatusAsync(HttpMethod.Put, "/api/v1/workspace/repo/test-command",
+            new TestCommandRequest(command));
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)

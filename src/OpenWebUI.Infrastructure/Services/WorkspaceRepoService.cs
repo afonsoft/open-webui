@@ -94,7 +94,9 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
             return (null, error);
         }
 
-        var binding = new WorkspaceRepoBinding(slug, branch, dir);
+        // TestCommand customizado sobrevive a re-open/branch switch (RF-003).
+        var previous = await GetBindingAsync(userId, ct);
+        var binding = new WorkspaceRepoBinding(slug, branch, dir, previous?.TestCommand);
         await config.SetAsync(BindingKey(userId), binding, ct);
         // Bind/branch novo → cache de skills/commands do workdir expira na hora.
         SkillDiscoveryService.Invalidate(absDir);
@@ -104,6 +106,21 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
     /// <summary>Desvincula o repositório (o checkout permanece no disco).</summary>
     public async Task UnbindAsync(string userId, CancellationToken ct) =>
         await config.SetAsync<WorkspaceRepoBinding?>(BindingKey(userId), null, ct);
+
+    /// <summary>
+    /// Define ou limpa o comando de teste customizado do binding
+    /// (override da detecção por manifesto — SPEC-20261009-ide-mentions-tests RF-003).
+    /// </summary>
+    public async Task SetTestCommandAsync(string userId, string? testCommand, CancellationToken ct)
+    {
+        var binding = await GetBindingAsync(userId, ct);
+        if (binding is null)
+        {
+            return;
+        }
+        await config.SetAsync(BindingKey(userId),
+            binding with { TestCommand = string.IsNullOrWhiteSpace(testCommand) ? null : testCommand.Trim() }, ct);
+    }
 
     private static async Task<string?> CloneAsync(
         string absDir, string url, string branch, string? token, CancellationToken ct)

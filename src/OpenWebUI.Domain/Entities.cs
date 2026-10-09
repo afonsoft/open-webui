@@ -301,8 +301,8 @@ public class ChatJob
     /// <summary>Identificador único (GUID curto — aparece no transcript).</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..12];
 
-    /// <summary>Chat ao qual o job pertence.</summary>
-    public string ChatId { get; set; } = string.Empty;
+    /// <summary>Chat ao qual o job pertence — null para jobs fora de chat (ex.: test-run do IDE).</summary>
+    public string? ChatId { get; set; }
 
     /// <summary>Dono (mesmo do chat — isolamento de leitura/kill).</summary>
     public string UserId { get; set; } = string.Empty;

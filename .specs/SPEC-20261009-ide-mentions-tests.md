@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-mentions-tests` |
 | Ticket | `GAP-impl-at-mentions` + `GAP-impl-test-runner` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | `SPEC-20261009-workspace-file-api` (S1), `SPEC-20261009-web-ide-surface` (S2) |
 

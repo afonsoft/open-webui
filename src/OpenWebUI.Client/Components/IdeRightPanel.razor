@@ -3,6 +3,8 @@
 @inject NavigationManager Nav
 @inject BrowserStorage Storage
 @inject IJSRuntime JS
+@inject IdeTestRunService TestRun
+@implements IDisposable
 
 @* Painel direito da /ide (S2 RF-003/RF-004/RF-005): abas Chat | Changes |
    Terminal | Jobs. Terminal some quando a flag estiver off. *@
@@ -89,6 +91,15 @@
                         <div class="px-2 py-1.5 text-[0.625rem] text-amber-600 dark:text-amber-400">@L["ide.diff_truncated"]</div>
                     }
                 }
+                @* Botão Run tests da aba Changes (SPEC-20261009-ide-mentions-tests RF-004). *@
+                <div class="border-t border-gray-100 dark:border-gray-800 p-2">
+                    <button class="auth-submit !w-auto px-3 py-1.5 text-[0.6875rem]"
+                            @onclick="RunTestsAsync">@L["ide.run_tests"]</button>
+                </div>
+                break;
+
+            case "tests":
+                <IdeTestsPanel />
                 break;
 
             case "terminal":
@@ -146,14 +157,32 @@
     private Dictionary<string, string>? _gitDiffByFile;
 
     private IEnumerable<string> Tabs => _terminalEnabled
-        ? ["chat", "changes", "terminal", "jobs"]
-        : ["chat", "changes", "jobs"];
+        ? ["chat", "changes", "tests", "terminal", "jobs"]
+        : ["chat", "changes", "tests", "jobs"];
 
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
         _terminalEnabled = await Api.GetTerminalEnabledAsync();
     }
+
+    /// <summary>Ao iniciar um run (botão do header ou da aba Changes) salta à aba Tests.</summary>
+    protected override void OnInitialized() => TestRun.Changed += OnTestRunChanged;
+
+    /// <inheritdoc/>
+    public void Dispose() => TestRun.Changed -= OnTestRunChanged;
+
+    private void OnTestRunChanged()
+    {
+        if (TestRun.AttentionWanted)
+        {
+            _tab = "tests";
+            TestRun.AttentionWanted = false;
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private Task RunTestsAsync() => TestRun.StartAsync();
 
     /// <summary>Roving tabindex nas abas do painel (SPEC a11y).</summary>
     private async Task OnTabKeyDown(KeyboardEventArgs e)
@@ -170,6 +199,7 @@
         "changes" => L["chat.panel_tab_changes"],
         "terminal" => L["chat.panel_tab_terminal"],
         "jobs" => L["chat.panel_tab_jobs"],
+        "tests" => L["chat.panel_tab_tests"],
         _ => tab,
     };
 
