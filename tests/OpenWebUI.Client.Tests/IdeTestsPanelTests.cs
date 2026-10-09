@@ -33,26 +33,26 @@ public sealed class IdeTestsPanelTests
             Encoding.UTF8, "application/json"),
     };
 
-    private static (Bunit.BunitContext Ctx, IdeTestRunService Service) Setup(
+    private static Bunit.BunitContext Setup(
         Func<HttpRequestMessage, HttpResponseMessage> route)
     {
         var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         var http = new HttpClient(new FakeHandler(route)) { BaseAddress = new Uri("http://localhost/") };
+        ctx.Services.AddSingleton(http);
         var l10n = new LocalizationService(http, ctx.JSInterop.JSRuntime);
         var auth = new AuthService(http, new BrowserStorage(ctx.JSInterop.JSRuntime), l10n);
-        var service = new IdeTestRunService(new ApiService(http, auth));
         ctx.Services.AddSingleton(l10n);
-        ctx.Services.AddSingleton(service);
-        return (ctx, service);
+        ctx.Services.AddSingleton(new IdeTestRunService(new ApiService(http, auth)));
+        return ctx;
     }
 
     [Test]
     public void Panel_ComandoGated_MostraCartaoComComandoVisivel()
     {
-        var (ctx, _) = Setup(_ => Json(new
+        using var ctx = Setup(_ => Json(new
         {
-            jobId = (string?)null,
+            jobId = default(string),
             command = "npm test",
             requiresApproval = true,
             reason = "comando mutante confinado ao workspace",
@@ -71,9 +71,9 @@ public sealed class IdeTestsPanelTests
     [Test]
     public void Panel_RunCompleto_MostraBadgeContagensELog()
     {
-        var (ctx, _) = Setup(req =>
+        using var ctx = Setup(req =>
             req.Method == HttpMethod.Post
-                ? Json(new { jobId = "job-1", command = "dotnet test", requiresApproval = false, reason = (string?)null })
+                ? Json(new { jobId = "job-1", command = "dotnet test", requiresApproval = false, reason = default(string) })
                 : Json(new
                 {
                     state = "completed",
@@ -81,7 +81,7 @@ public sealed class IdeTestsPanelTests
                     tail = "Passed! - Failed: 0, Passed: 12, Skipped: 1",
                     command = "dotnet test",
                     exitCode = 0,
-                    error = (string?)null,
+                    error = default(string),
                 }));
 
         var cut = ctx.Render<IdeTestsPanel>();
@@ -98,16 +98,16 @@ public sealed class IdeTestsPanelTests
     [Test]
     public void Panel_RunFalhou_MostraBadgeDeFalha()
     {
-        var (ctx, _) = Setup(req =>
+        using var ctx = Setup(req =>
             req.Method == HttpMethod.Post
-                ? Json(new { jobId = "job-2", command = "dotnet test", requiresApproval = false, reason = (string?)null })
+                ? Json(new { jobId = "job-2", command = "dotnet test", requiresApproval = false, reason = default(string) })
                 : Json(new
                 {
                     state = "failed",
-                    summary = new { passed = (int?)null, failed = (int?)null, skipped = (int?)null, durationMs = 100L },
+                    summary = new { passed = default(int?), failed = default(int?), skipped = default(int?), durationMs = 100L },
                     tail = "spawn failed",
                     command = "dotnet test",
-                    exitCode = (int?)null,
+                    exitCode = default(int?),
                     error = "Falha ao iniciar",
                 }));
 

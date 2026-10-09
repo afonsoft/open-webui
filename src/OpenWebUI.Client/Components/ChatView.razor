@@ -1220,20 +1220,15 @@
         {
             await Task.Delay(250, ct);
             var tree = await EnsureMentionTreeAsync();
-            if (tree is null)
-            {
-                _mentionItems = [];
-            }
-            else
-            {
-                _mentionItems = tree
+            _mentionItems = tree is null
+                ? []
+                : tree
                     .Where(e => e.Path.Contains(query, StringComparison.OrdinalIgnoreCase)
                                 || e.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(e => e.Type == "dir")
                     .ThenBy(e => e.Path, StringComparer.OrdinalIgnoreCase)
                     .Take(20)
                     .ToList();
-            }
             await InvokeAsync(StateHasChanged);
         }
         catch (OperationCanceledException)

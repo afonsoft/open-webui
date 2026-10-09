@@ -20,14 +20,9 @@ public sealed class ChatMentionTests
     private sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> route)
         : HttpMessageHandler
     {
-        public List<string> Calls { get; } = [];
-
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken ct)
-        {
-            Calls.Add(request.RequestUri?.PathAndQuery ?? "");
-            return Task.FromResult(route(request));
-        }
+            HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(route(request));
     }
 
     private static HttpResponseMessage Json(object body) => new(HttpStatusCode.OK)
@@ -43,12 +38,12 @@ public sealed class ChatMentionTests
         path = "",
         entries = new object[]
         {
-            new { name = "src", path = "src", type = "dir", size = (long?)null, collapsed = false },
+            new { name = "src", path = "src", type = "dir", size = default(long?), collapsed = false },
             new { name = "README.md", path = "README.md", type = "file", size = 10L, collapsed = false },
             new { name = "render.cs", path = "src/render.cs", type = "file", size = 10L, collapsed = false },
             new { name = "zzz.txt", path = "zzz.txt", type = "file", size = 1L, collapsed = false },
         },
-        nextCursor = (string?)null,
+        nextCursor = default(string),
         truncated = false,
     };
 
@@ -67,12 +62,12 @@ public sealed class ChatMentionTests
         return Json(new { });
     }
 
-    private static (Bunit.BunitContext Ctx, FakeHandler Handler) Setup()
+    private static Bunit.BunitContext Setup()
     {
         var ctx = new Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        var handler = new FakeHandler(Route);
-        var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        var http = new HttpClient(new FakeHandler(Route)) { BaseAddress = new Uri("http://localhost/") };
+        ctx.Services.AddSingleton(http);
         var l10n = new LocalizationService(http, ctx.JSInterop.JSRuntime);
         var storage = new BrowserStorage(ctx.JSInterop.JSRuntime);
         var auth = new AuthService(http, storage, l10n);
@@ -87,13 +82,13 @@ public sealed class ChatMentionTests
         ctx.Services.AddSingleton(new RealtimeService());
         ctx.Services.AddSingleton(new DialogService());
         ctx.Services.AddSingleton(new IdeTestRunService(api));
-        return (ctx, handler);
+        return ctx;
     }
 
     [Test]
     public void Mention_AtQuery_MostraDropdownDirsPrimeiro()
     {
-        var (ctx, _) = Setup();
+        using var ctx = Setup();
         var cut = ctx.Render<ChatView>();
         var textarea = cut.Find("textarea");
 
@@ -108,7 +103,7 @@ public sealed class ChatMentionTests
     [Test]
     public void Mention_Selecao_InsereChipELimpaToken()
     {
-        var (ctx, _) = Setup();
+        using var ctx = Setup();
         var cut = ctx.Render<ChatView>();
         var textarea = cut.Find("textarea");
 
@@ -120,7 +115,7 @@ public sealed class ChatMentionTests
         Assert.Multiple(() =>
         {
             Assert.That(chip.TextContent, Does.Contain("README.md"));
-            Assert.That((string?)textarea.GetAttribute("value") ?? "",
+            Assert.That(textarea.GetAttribute("value") ?? "",
                 Does.Not.Contain("@read"), "token @query deve sair do input");
         });
     }
@@ -128,7 +123,7 @@ public sealed class ChatMentionTests
     [Test]
     public void Mention_BackspaceInputVazio_RemoveChipInteiro()
     {
-        var (ctx, _) = Setup();
+        using var ctx = Setup();
         var cut = ctx.Render<ChatView>();
         var textarea = cut.Find("textarea");
 
@@ -145,7 +140,7 @@ public sealed class ChatMentionTests
     [Test]
     public void Mention_Esc_FechaDropdown()
     {
-        var (ctx, _) = Setup();
+        using var ctx = Setup();
         var cut = ctx.Render<ChatView>();
         var textarea = cut.Find("textarea");
 

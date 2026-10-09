@@ -65,7 +65,7 @@ public static class WorkspaceTestRunEndpoints
             return Results.Json(new
             {
                 detail = $"Comando de teste negado pela política de risco: {assessment.Reason}",
-                suggested = (string?)null,
+                suggested = default(string),
             }, statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
