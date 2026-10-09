@@ -784,6 +784,7 @@
   "ide.conflict_overwrite": "Écraser quand même",
   "ide.conflict_copyas": "Enregistrer une copie sous…",
   "ide.binary_readonly": "Fichier binaire — lecture seule.",
+  "ide.problems": "Problèmes",
   "ide.too_big_readonly": "Fichier trop volumineux — lecture seule.",
   "ide.chat_hint": "Discutez du fichier ouvert ou démarrez un chat sur ce dépôt.",
   "ide.discuss_file": "Discuter de {{path}}",

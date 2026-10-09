@@ -422,7 +422,7 @@ public sealed class FileGlobBuiltinTool : IBuiltinChatTool
 /// workspace; retorna o diff unificado da mudança. Mutável → gate de
 /// aprovação.
 /// </summary>
-public sealed class FileWriteBuiltinTool : IBuiltinChatTool
+public sealed class FileWriteBuiltinTool(Lsp.LspService? lsp = null) : IBuiltinChatTool
 {
     /// <inheritdoc />
     public string Name => "file_write";
@@ -478,6 +478,11 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
         var oldText = existed ? await File.ReadAllTextAsync(full, ct) : null;
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         await File.WriteAllTextAsync(full, content, ct);
+        // LSP didChange — best-effort (SPEC S8): o servidor vê conteúdo real.
+        if (lsp is not null)
+        {
+            await lsp.NotifyFileWrittenAsync(context.WorkspacePath, full, ct);
+        }
 
         var rel = WorkspaceFiles.RelativeOf(context.WorkspacePath, full);
         var diff = UnifiedDiff.Compute(rel, oldText, content);
@@ -510,7 +515,7 @@ public sealed class FileWriteBuiltinTool : IBuiltinChatTool
 /// exatamente uma vez (ou <c>replace_all</c>). Retorna o diff unificado.
 /// Mutável → gate de aprovação.
 /// </summary>
-public sealed class FileEditBuiltinTool : IBuiltinChatTool
+public sealed class FileEditBuiltinTool(Lsp.LspService? lsp = null) : IBuiltinChatTool
 {
     /// <inheritdoc />
     public string Name => "file_edit";
@@ -582,6 +587,11 @@ public sealed class FileEditBuiltinTool : IBuiltinChatTool
             ? oldText.Replace(oldString, newString, StringComparison.Ordinal)
             : ReplaceFirst(oldText, oldString, newString);
         await File.WriteAllTextAsync(full, newText, ct);
+        // LSP didChange — best-effort (SPEC S8).
+        if (lsp is not null)
+        {
+            await lsp.NotifyFileWrittenAsync(context.WorkspacePath, full, ct);
+        }
 
         var rel = WorkspaceFiles.RelativeOf(context.WorkspacePath, full);
         var diff = UnifiedDiff.Compute(rel, oldText, newText);

@@ -1042,6 +1042,31 @@ public class ApiService(HttpClient http, AuthService auth)
         return node?["enabled"]?.GetValue<bool>() != false;
     }
 
+    // --------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ---------
+
+    /// <summary>Status LSP do arquivo (linguagem/estado do servidor); null em erro.</summary>
+    public Task<LspStatusResponse?> GetLspStatusAsync(string? path) =>
+        SendAsync<LspStatusResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/status?path={Uri.EscapeDataString(path ?? "")}");
+
+    /// <summary>Sync do documento: kind open|change|close (didOpen/didChange/didClose).</summary>
+    public Task<bool> PostLspDocAsync(string path, string kind, string? text) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/lsp/doc",
+            new LspDocSyncRequest(path, kind, text));
+
+    /// <summary>Diagnostics do arquivo (ou workdir sem path); null em erro.</summary>
+    public Task<LspDiagnosticsResponse?> GetLspDiagnosticsAsync(string? path) =>
+        SendAsync<LspDiagnosticsResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/diagnostics?path={Uri.EscapeDataString(path ?? "")}");
+
+    /// <summary>Hover na posição (1-based); null quando servidor não responde.</summary>
+    public async Task<string?> GetLspHoverAsync(string path, int line, int col)
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get,
+            $"/api/v1/workspace/lsp/hover?path={Uri.EscapeDataString(path)}&line={line}&col={col}");
+        return node?["hover"]?.GetValue<string>();
+    }
+
     /// <summary>Resultado do PUT de arquivo da IDE (etag novo ou o atual em conflito).</summary>
     public sealed record IdeSaveResult(bool Ok, string? ETag, string? ConflictETag);
 
