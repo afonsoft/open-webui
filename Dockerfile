@@ -48,10 +48,12 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
 
-# curl para o HEALTHCHECK; a imagem base já traz o usuário non-root `app` (uid 1654).
+# curl para o HEALTHCHECK; git para o workspace (clone/branch/worktree/checkpoint
+# via WorkspaceRepoService/WorktreeService/CheckpointService). A imagem base já
+# traz o usuário non-root `app` (uid 1654).
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl git \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /data \
  && chown app:app /data
