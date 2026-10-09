@@ -22,6 +22,10 @@
                         </div>
                     </div>
                     <div class="lg:mr-1 flex flex-none items-center gap-2 self-center">
+                        @if (_streaming || _agentMode == "plan")
+                        {
+                            <AgentModeBadge Mode="@_agentMode" />
+                        }
                         @if (_streaming && !string.IsNullOrEmpty(_statusLabel))
                         {
                             <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 dark:text-gray-400"
@@ -547,6 +551,8 @@
                     </div>
 
                     <div class="self-end flex items-center gap-1 mr-1">
+                        <AgentModeToggle Mode="@_agentMode" Disabled="@_loading"
+                                         OnToggle="ToggleAgentModeAsync" />
                         @if (_streaming)
                         {
                             if (_paused)
@@ -692,6 +698,8 @@
     private RunQuestionAskedEvent? _pendingQuestion;
     private bool _paused;
     private string _approvalPreset = "approve-mutations";
+    // SPEC-20261009-agent-modes-plan-build: build (default) | plan.
+    private string _agentMode = "build";
     private bool _showModeMenu;
     private ElementReference _toolsTrigger;
     private ElementReference _toolsMenu;
@@ -947,6 +955,7 @@
             _toolIds = DefaultToolIds();
             // Modo de permissão volta ao padrão do composer (última escolha).
             _approvalPreset = await StoredPresetAsync();
+            _agentMode = await StoredAgentModeAsync();
             await LoadComposerStateAsync(null);
             return;
         }
@@ -969,6 +978,7 @@
                 ? chat.ToolIds.ToHashSet()
                 : DefaultToolIds();
             _approvalPreset = chat.ApprovalPreset;
+            _agentMode = chat.Mode is "plan" ? "plan" : "build";
             _messages.Clear();
             _messages.AddRange(chat.Messages);
             await LoadComposerStateAsync(chat.Id);
@@ -1271,9 +1281,9 @@
             ChatList.NotifyChanged();
             // Modo escolhido antes do primeiro envio: aplica no chat criado
             // (o gate relê o preset por call — vale já na primeira tool).
-            if (_approvalPreset != "approve-mutations")
+            if (_approvalPreset != "approve-mutations" || _agentMode != "build")
             {
-                _ = Api.PatchChatAsync(created.Id, _approvalPreset);
+                _ = Api.PatchChatAsync(created.Id, _approvalPreset, mode: _agentMode);
             }
         }
 
@@ -1788,6 +1798,10 @@
                 case ChatStreamService.ChatStreamEvent.QuestionAsked question:
                     _pendingQuestion = question.Asked;
                     break;
+                case ChatStreamService.ChatStreamEvent.Mode modeEvt:
+                    // plan_exit aprovado promoveu o chat a build mid-run.
+                    _agentMode = modeEvt.Info.Mode is "plan" ? "plan" : "build";
+                    break;
             }
         return false;
     }
@@ -1849,6 +1863,52 @@
         if (updated is not null)
         {
             _approvalPreset = updated.ApprovalPreset;
+        }
+    }
+
+    /// <summary>
+    /// Alterna o modo do agente plan↔build (SPEC-20261009 RF-004): persiste
+    /// como padrão do composer (localStorage) e aplica no chat carregado
+    /// via PATCH — o executor relê o modo por call.
+    /// </summary>
+    private async Task ToggleAgentModeAsync() =>
+        await SetAgentModeAsync(_agentMode == "plan" ? "build" : "plan");
+
+    /// <summary>Aplica o modo do agente (composer + chat carregado).</summary>
+    private async Task SetAgentModeAsync(string mode)
+    {
+        _agentMode = mode;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "webui.chat.agentmode", mode);
+        }
+        catch (JSException)
+        {
+            // localStorage indisponível — o modo vale só nesta tela.
+        }
+        if (_loadedChatId is null)
+        {
+            return;
+        }
+        var updated = await Api.PatchChatAsync(_loadedChatId, mode: mode);
+        if (updated is not null)
+        {
+            _agentMode = updated.Mode is "plan" ? "plan" : "build";
+        }
+    }
+
+    /// <summary>Modo padrão do composer (localStorage) para chats novos.</summary>
+    private async Task<string> StoredAgentModeAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>(
+                "localStorage.getItem", "webui.chat.agentmode");
+            return stored is "plan" ? "plan" : "build";
+        }
+        catch (JSException)
+        {
+            return "build";
         }
     }
 

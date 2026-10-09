@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using OpenWebUI.Infrastructure.ChatTools;
 
 namespace OpenWebUI.Api.Runs;
 
@@ -9,7 +10,10 @@ namespace OpenWebUI.Api.Runs;
 /// (<see cref="ResolveAsync"/>), o timeout expirar (deny) ou a run ser
 /// interrompida (<see cref="Cancel"/>). <c>remember</c> vale só para a
 /// conversa e só em memória — um restart devolve a run a interrupted de
-/// qualquer forma.
+/// qualquer forma. Desde a SPEC-20261009-agent-modes-plan-build RF-005 a
+/// allowlist guarda por (chatId, toolName) o padrão de argumentos
+/// aprovado (<see cref="PermissionRuleset.ArgPattern"/>), não só a tool
+/// — "aprova sempre" cobre a mesma classe de ação, não qualquer call.
 /// </summary>
 public sealed class ChatRunApprovals
 {
@@ -22,17 +26,27 @@ public sealed class ChatRunApprovals
     private sealed record Pending(
         string ChatId,
         string ToolName,
+        string ArgPattern,
         TaskCompletionSource<ApprovalResult> Completion);
 
     private readonly ConcurrentDictionary<string, Pending> _pending = new();
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, bool>> _remembered =
+    // chatId → toolName → padrões de args aprovados "sempre nesta sessão".
+    private readonly ConcurrentDictionary<
+        string, ConcurrentDictionary<string, ConcurrentDictionary<string, bool>>> _remembered =
         new(StringComparer.Ordinal);
 
     private static string Key(string runId, string callId) => $"{runId}:{callId}";
 
-    /// <summary>Se o dono já aprovou <paramref name="toolName"/> com remember neste chat.</summary>
-    public bool IsRemembered(string chatId, string toolName) =>
-        _remembered.TryGetValue(chatId, out var tools) && tools.ContainsKey(toolName);
+    /// <summary>
+    /// Se o dono já aprovou <paramref name="toolName"/> com remember neste
+    /// chat cobrindo <paramref name="signature"/> — qualquer padrão
+    /// guardado que casa por glob; sem assinatura, basta a tool lembrada.
+    /// </summary>
+    public bool IsRemembered(string chatId, string toolName, string signature = "*") =>
+        _remembered.TryGetValue(chatId, out var tools)
+        && tools.TryGetValue(toolName, out var patterns)
+        && (patterns.ContainsKey("*")
+            || patterns.Keys.Any(p => WorkspaceFiles.GlobToRegex(p).IsMatch(signature)));
 
     /// <summary>Se há uma aprovação pendente nesta run/call.</summary>
     public bool IsPending(string runId, string callId) =>
@@ -43,12 +57,17 @@ public sealed class ChatRunApprovals
     /// (decisão — com a mensagem de instrução opcional —, timeout ou
     /// cancelamento da run).
     /// </summary>
+    /// <param name="argPattern">
+    /// Padrão de argumentos lembrado quando o dono aprova com remember
+    /// (SPEC RF-005) — <c>*</c> cobre a tool inteira.
+    /// </param>
     public async Task<ApprovalResult> WaitAsync(
         string runId, string chatId, string callId, string toolName,
-        CancellationToken ct)
+        CancellationToken ct, string argPattern = "*")
     {
-        var pending = new Pending(chatId, toolName, new TaskCompletionSource<ApprovalResult>(
-            TaskCreationOptions.RunContinuationsAsynchronously));
+        var pending = new Pending(chatId, toolName, argPattern,
+            new TaskCompletionSource<ApprovalResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously));
         if (!_pending.TryAdd(Key(runId, callId), pending))
         {
             return new ApprovalResult(false, null);
@@ -90,8 +109,11 @@ public sealed class ChatRunApprovals
 
         if (remember && approved)
         {
-            _remembered.GetOrAdd(chatId, _ => new ConcurrentDictionary<string, bool>())
-                [pending.ToolName] = true;
+            _remembered.GetOrAdd(chatId, _ => new ConcurrentDictionary<
+                    string, ConcurrentDictionary<string, bool>>(StringComparer.Ordinal))
+                .GetOrAdd(pending.ToolName, _ => new ConcurrentDictionary<string, bool>(
+                    StringComparer.Ordinal))
+                [pending.ArgPattern] = true;
         }
 
         return pending.Completion.TrySetResult(new ApprovalResult(approved, message));

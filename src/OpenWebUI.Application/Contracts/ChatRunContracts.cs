@@ -101,6 +101,14 @@ public sealed record RunTaskItem(string Id, string Content, string Status);
 public sealed record RunTasksEvent(IReadOnlyList<RunTaskItem> Tasks);
 
 /// <summary>
+/// Evento SSE <c>mode</c> (SPEC-20261009-agent-modes-plan-build RF-003):
+/// emitido quando o modo do agente do chat muda mid-run — o
+/// <c>plan_exit</c> aprovado promove <c>plan</c> → <c>build</c> e o chip
+/// do cliente atualiza sem esperar o reload pós-run.
+/// </summary>
+public sealed record RunModeEvent(string Mode);
+
+/// <summary>
 /// Arquivo alterado por file_write/file_edit numa run (SPEC-20261007-
 /// chat-agent-parity RF-015): <paramref name="Diff"/> é o unificado da
 /// última alteração naquele path.
@@ -164,7 +172,8 @@ public sealed record ToolGateDecision(
 /// <c>always-allow</c> | <c>auto</c> (RF-004). Null não altera.
 /// </param>
 /// <param name="Title">Novo título do chat. Null não altera; vazio é ignorado.</param>
-public sealed record ChatPatchRequest(string? ApprovalPreset, string? Title = null);
+public sealed record ChatPatchRequest(
+    string? ApprovalPreset, string? Title = null, string? Mode = null);
 
 /// <summary>Arquivo alterado num workdir git (numstat + status M/A).</summary>
 public sealed record WorkspaceGitFileResponse(

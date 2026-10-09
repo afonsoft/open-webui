@@ -65,7 +65,8 @@ public sealed record ChatResponse(
     IReadOnlyList<string> ToolIds,
     long CreatedAt,
     long UpdatedAt,
-    string ApprovalPreset = "approve-mutations");
+    string ApprovalPreset = "approve-mutations",
+    string Mode = "build");
 
 /// <summary>Requisição para criar ou atualizar um chat.</summary>
 /// <param name="Title">Título do chat.</param>

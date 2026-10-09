@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-agent-modes` |
 | Ticket | `GAP-impl-agent-modes` (+ absorve `GAP-arch-permission-rulesets`) |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | — (recomendado após S1 para o `plan_exit` escrever no workdir) |
 
