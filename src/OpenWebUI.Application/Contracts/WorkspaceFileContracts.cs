@@ -107,3 +107,6 @@ public sealed record LspDiagnosticItem(
 /// <summary>Diagnostics do arquivo/workdir + flags de cap.</summary>
 public sealed record LspDiagnosticsResponse(
     List<LspDiagnosticItem> Diagnostics, bool Truncated, int Total);
+
+/// <summary>Resposta de hover do editor (null quando sem servidor/conteúdo).</summary>
+public sealed record LspHoverResponse(string? Hover);

@@ -247,9 +247,8 @@ public sealed class LspService : IAsyncDisposable
         var filterUri = absolutePath is null ? null : LspClient.UriForPath(absolutePath);
         var list = new List<LspDiagnostic>();
         var root = Path.GetFullPath(workdir);
-        foreach (var kv in _clients)
+        foreach (var client in _clients.Values)
         {
-            var client = kv.Value;
             if (!string.Equals(client.Workdir, root, StringComparison.Ordinal))
             {
                 continue;
@@ -302,7 +301,11 @@ public sealed class LspService : IAsyncDisposable
         foreach (var client in _clients.Values)
         {
             try { await client.DisposeAsync(); }
-            catch (Exception ex) { _logger.LogDebug(ex, "LSP dispose falhou"); }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException
+                or OperationCanceledException or ObjectDisposedException)
+            {
+                _logger.LogDebug(ex, "LSP dispose falhou");
+            }
         }
         _clients.Clear();
         _byWorkdir.Clear();

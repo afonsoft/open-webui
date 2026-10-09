@@ -124,7 +124,7 @@ public class LspLanguageMapTests
     [Test]
     public void Uri_normaliza_espacos_e_unicode()
     {
-        var dir = Path.Combine(TestContext.CurrentContext.WorkDirectory,
+        var dir = Path.Join(TestContext.CurrentContext.WorkDirectory,
             "dir com espaço", "arquivo_ção.cs");
         var uri = LspClient.UriForPath(dir);
         Assert.That(uri, Does.StartWith("file://"));
@@ -193,10 +193,10 @@ public class LspClientTests
     [SetUp]
     public void SetUp()
     {
-        _workdir = Path.Combine(TestContext.CurrentContext.WorkDirectory,
+        _workdir = Path.Join(TestContext.CurrentContext.WorkDirectory,
             "lsp-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_workdir);
-        _fake = Path.Combine(_workdir, "fake-lsp.py");
+        _fake = Path.Join(_workdir, "fake-lsp.py");
         File.WriteAllText(_fake, FakeServer);
         _options = new LspOptions
         {
@@ -214,7 +214,11 @@ public class LspClientTests
     [TearDown]
     public void TearDown()
     {
-        try { Directory.Delete(_workdir, true); } catch { /* best-effort */ }
+        try { Directory.Delete(_workdir, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TestContext.Progress.WriteLine($"cleanup best-effort: {ex.Message}");
+        }
     }
 
     private LspClient Client(string serverKey = "fake") =>
@@ -229,7 +233,7 @@ public class LspClientTests
         Assert.That(client.State, Is.EqualTo(LspServerState.Running));
 
         // didOpen → servidor publica diagnostics do URI.
-        var file = Path.Combine(_workdir, "a.py");
+        var file = Path.Join(_workdir, "a.py");
         await File.WriteAllTextAsync(file, "print(1)\n");
         await client.DidOpenAsync(file, "print(1)\n", CancellationToken.None);
         var got = await client.AwaitDiagnosticsAsync(
@@ -382,7 +386,7 @@ public class LspServiceTests
     [SetUp]
     public void SetUp()
     {
-        _workdir = Path.Combine(TestContext.CurrentContext.WorkDirectory,
+        _workdir = Path.Join(TestContext.CurrentContext.WorkDirectory,
             "lspsvc-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_workdir);
     }
@@ -390,7 +394,11 @@ public class LspServiceTests
     [TearDown]
     public void TearDown()
     {
-        try { Directory.Delete(_workdir, true); } catch { /* best-effort */ }
+        try { Directory.Delete(_workdir, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TestContext.Progress.WriteLine($"cleanup best-effort: {ex.Message}");
+        }
     }
 
     private LspService Service(LspOptions? options = null) =>
@@ -400,7 +408,7 @@ public class LspServiceTests
     public async Task Linguagem_sem_binario_degrada_sem_quebrar()
     {
         await using var lsp = Service();
-        var file = Path.Combine(_workdir, "a.py");
+        var file = Path.Join(_workdir, "a.py");
         await File.WriteAllTextAsync(file, "x=1\n");
         // pylsp não está instalado na VM → unavailable, exceção tipada.
         Assert.That(
@@ -440,7 +448,10 @@ public class LspServiceTests
         foreach (var k in new[] { "a", "b" })
         {
             try { await lsp.GetClientAsync(_workdir, new LspLanguage(k, k), CancellationToken.None); }
-            catch (LspUnavailableException) { }
+            catch (LspUnavailableException ex)
+            {
+                TestContext.Progress.WriteLine($"slot ocupado por server indisponível: {ex.Message}");
+            }
         }
         Assert.That(
             async () => await lsp.GetClientAsync(_workdir,
