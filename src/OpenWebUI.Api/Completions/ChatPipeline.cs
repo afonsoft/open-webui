@@ -27,7 +27,8 @@ public static class ChatPipeline
         RagService rag,
         WebSearchService webSearch,
         WorkspaceRepoService repos,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? agentMode = null)
     {
         var model = request.Model;
         var messages = request.Messages.ToList();
@@ -180,6 +181,23 @@ public static class ChatPipeline
             }
         }
 
+        // 3.6. Modo plan do agente (SPEC-20261009-agent-modes-plan-build
+        // RF-002/RF-004): instrução de somente-leitura + encerramento via
+        // plan_exit — o spec de tools anunciado já reflete o ruleset, mas
+        // o prompt reforça o contrato para modelos teimosos.
+        if (OpenWebUI.Infrastructure.ChatTools.PermissionRuleset.Normalize(agentMode)
+            == OpenWebUI.Infrastructure.ChatTools.PermissionRuleset.PlanMode)
+        {
+            systemParts.Add(
+                "Modo PLAN ativo: você está em modo de planejamento somente-leitura. "
+                + "NÃO crie, modifique ou apague arquivos, NÃO execute comandos que "
+                + "alterem o sistema e NÃO chame tools de escrita — apenas leia, "
+                + "pesquise e analise. Quando o plano estiver pronto, apresente-o "
+                + "em markdown e chame a tool builtin_plan_exit passando o plano "
+                + "completo no argumento `plan`; o usuário decide se executa "
+                + "(modo build).");
+        }
+
         // 4. Mescla partes de sistema numa única mensagem inicial.
         if (systemParts.Count > 0)
         {
@@ -281,7 +299,14 @@ public static class ChatPipeline
         Func<ProviderToolCall, CancellationToken, Task>? OnCallAsync = null,
         Func<ProviderToolCall, CancellationToken, Task<ToolGateDecision>>? GateAsync = null,
         Func<ProviderToolCall, string, JsonElement?, bool, CancellationToken, Task>? OnResultAsync = null,
-        Func<string, CancellationToken, Task>? OnDeltaAsync = null);
+        Func<string, CancellationToken, Task>? OnDeltaAsync = null,
+        /// <summary>
+        /// Spec de tools anunciado por rodada (SPEC-20261009-agent-modes-
+        /// plan-build): o executor refiltra pelo modo a cada round — o
+        /// plan_exit aprovado promove a build já na próxima rodada. Null
+        /// anuncia <c>request.Tools</c> como está.
+        /// </summary>
+        Func<CancellationToken, Task<IReadOnlyList<JsonElement>?>>? AnnounceToolsAsync = null);
 
     /// <summary>
     /// Loop de tool calling: chama o modelo com tools até resposta final
@@ -378,6 +403,12 @@ public static class ChatPipeline
         ToolLoopCallbacks? callbacks,
         CancellationToken ct)
     {
+        // Refiltra o spec anunciado por rodada (modo plan/build pode
+        // mudar mid-run); Tools=null explícito (round final) respeitado.
+        if (request.Tools is not null && callbacks?.AnnounceToolsAsync is { } announce)
+        {
+            request = request with { Tools = await announce(ct) };
+        }
         var step = await providers.CompleteWithToolsStreamingAsync(
             request, callbacks?.OnDeltaAsync, ct);
         if (step is not null)

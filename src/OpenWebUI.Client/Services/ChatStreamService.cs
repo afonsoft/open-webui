@@ -56,6 +56,9 @@ public class ChatStreamService(HttpClient http, AuthService auth)
         /// <summary>Pergunta estruturada do ask_user aguardando resposta (RF-005).</summary>
         public sealed record QuestionAsked(RunQuestionAskedEvent Asked) : ChatStreamEvent;
 
+        /// <summary>Evento <c>mode</c>: modo do agente do chat mudou mid-run.</summary>
+        public sealed record Mode(RunModeEvent Info) : ChatStreamEvent;
+
         /// <summary>
         /// Snapshot da lista de tarefas da run (evento <c>tasks</c> —
         /// SPEC-20261007-chat-agent-parity RF-010, emitido por todo_write).
@@ -401,6 +404,11 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                                 node["toolName"]?.GetValue<string>() ?? "tool",
                                 node["kind"]?.GetValue<string>() ?? "http",
                                 node["argsPreview"]?.GetValue<string>()));
+                        break;
+                    case "mode":
+                        produced = new ChatStreamEvent.Mode(
+                            new RunModeEvent(
+                                node["mode"]?.GetValue<string>() ?? "build"));
                         break;
                     case "tasks":
                     {
