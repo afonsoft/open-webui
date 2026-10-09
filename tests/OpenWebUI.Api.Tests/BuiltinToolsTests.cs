@@ -282,6 +282,20 @@ public class BuiltinToolsTests
     }
 
     [Test]
+    public async Task ShellExec_ComandoInexistenteSugereInstalarTool()
+    {
+        var tool = new ShellExecBuiltinTool(NewJobService());
+        var r = await tool.ExecuteAsync(
+            Args("{\"command\":\"tool-inexistente-xyz --versao\"}"), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(r.Refused, Is.True);
+            Assert.That(r.Text, Does.Contain("Binário desconhecido")
+                .And.Contain("ask_user").And.Contain("instalação"));
+        });
+    }
+
+    [Test]
     public async Task ShellExec_ForegroundExecutaERetornaStatus()
     {
         var tool = new ShellExecBuiltinTool(NewJobService());

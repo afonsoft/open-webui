@@ -635,7 +635,10 @@
 @if (_showPanel)
 {
     @* Painel de workspace (RF-015): coluna ≥lg, drawer no mobile. *@
-    <aside class="hidden lg:flex w-80 xl:w-96 flex-none">
+    <aside class="hidden lg:flex w-80 xl:w-96 flex-none relative" @ref="_panelEl">
+        <div class="absolute inset-y-0 -left-1 w-2 z-10 cursor-col-resize rounded transition-colors hover:bg-blue-500/20 active:bg-blue-500/30"
+             role="separator" aria-orientation="vertical" aria-label="@L["chat.panel_resize"]"
+             title="@L["chat.panel_resize"]" tabindex="0" @ref="_panelResizer"></div>
         <ChatWorkspacePanel Tasks="_runTasks" Changes="_runChanges" Jobs="_jobs"
                             Mcps="_mcps" PhaseLabel="@_statusLabel" Preset="@_approvalPreset"
                             Model="@_model" RunId="@_activeRunId" Git="_git"
@@ -758,6 +761,8 @@
     private ElementReference _modeTrigger;
     private ElementReference _modeMenu;
     private ElementReference _drawerEl;
+    private ElementReference _panelEl;
+    private ElementReference _panelResizer;
     private bool _focusToolsMenu;
     private bool _focusModeMenu;
     private bool _drawerTrapped;
@@ -869,6 +874,11 @@
         {
             _focusModeMenu = false;
             await JS.InvokeVoidAsync("openwebui.focusFirst", _modeMenu);
+        }
+        if (_showPanel)
+        {
+            // Divisor arrastável da coluna (idempotente via flag no elemento).
+            await JS.InvokeVoidAsync("openwebui.panelResize", _panelResizer, _panelEl);
         }
         if (_showPanel && !_drawerTrapped)
         {
@@ -1198,6 +1208,10 @@
     /// </summary>
     private async Task OnComposerInputAsync()
     {
+        // Sugestões de slash atualizam APÓS o bind — no @onkeydown o _input
+        // ainda não recebeu o char digitado (a lista ficava 1 tecla atrasada
+        // e '/' sozinho não abria nada).
+        UpdatePromptSuggestions();
         QueueMentionLookup();
         await SaveDraftAsync();
     }

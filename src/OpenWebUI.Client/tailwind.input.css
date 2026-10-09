@@ -148,6 +148,41 @@
 		}
 	}
 
+	/* Indicador "Pensando": brain pulsante + reticências que crescem
+	   (. → .. → ...) por steps — sem JS, sem reflow (sombras/emoji). */
+	.thinking-brain {
+		display: inline-block;
+		font-size: 1rem;
+		animation: thinking-brain-pulse 1.6s ease-in-out infinite;
+	}
+
+	@keyframes thinking-brain-pulse {
+		0%, 100% {
+			transform: scale(1);
+			opacity: 0.85;
+		}
+
+		50% {
+			transform: scale(1.18);
+			opacity: 1;
+		}
+	}
+
+	.thinking-dots::after {
+		display: inline-block;
+		content: "...";
+		width: 0;
+		overflow: hidden;
+		vertical-align: bottom;
+		animation: thinking-dots-steps 1.5s steps(4, end) infinite;
+	}
+
+	@keyframes thinking-dots-steps {
+		to {
+			width: 1.25em;
+		}
+	}
+
 	/* prefers-reduced-motion: neutraliza animações/transições/blink no app
 	   inteiro. O estado funcional continua visível (spinner estático, dot
 	   parado) — só o movimento some. */
