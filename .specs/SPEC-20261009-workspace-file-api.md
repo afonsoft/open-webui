@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-workspace-file-api` |
 | Ticket | `GAP-impl-workspace-file-api` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `high` — desbloqueia S2 (IDE surface) e S3 (skills do repo) |
 | Depends on | — |
 
