@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
 
@@ -13,26 +14,26 @@ namespace OpenWebUI.Api.Tests;
 /// Regressão do data root em container (500 em POST /api/v1/workspace/repo/open):
 /// o app resolvia dados sob <c>{ContentRootPath}/data</c> — inacessível quando
 /// /app é root-owned no container — enquanto o volume persistente vive em
-/// <c>/data</c>. <c>WEBUI_DATA_DIR</c> sobrepõe a raiz; o Dockerfile define
-/// <c>WEBUI_DATA_DIR=/data</c>.
+/// <c>/data</c>. <c>DATA_ROOT</c> sobrepõe a raiz; o Dockerfile define
+/// <c>DATA_ROOT=/data</c> (PR #264).
 /// </summary>
-[NonParallelizable] // muta WEBUI_DATA_DIR (variável de processo)
+[NonParallelizable] // muta DATA_ROOT (variável de processo)
 [TestFixture]
-public class AppDataTests
+public class DataPathsTests
 {
     private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Join(Path.GetTempPath(), $"owui-appdata-{Guid.NewGuid():N}");
+        _root = Path.Join(Path.GetTempPath(), $"owui-datapaths-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
     }
 
     [TearDown]
     public void TearDown()
     {
-        Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("DATA_ROOT", null);
         try { Directory.Delete(_root, recursive: true); }
         catch (IOException) { /* best effort */ }
         catch (UnauthorizedAccessException) { /* best effort */ }
@@ -41,24 +42,22 @@ public class AppDataTests
     [Test]
     public void Root_SemEnv_UsaContentRootData()
     {
-        Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
-        Assert.That(
-            AppData.Root(new StubEnv(_root)),
-            Is.EqualTo(Path.Join(_root, "data")));
+        Environment.SetEnvironmentVariable("DATA_ROOT", null);
+        Assert.That(DataPaths.Root(_root), Is.EqualTo(Path.Join(_root, "data")));
     }
 
     [Test]
     public void Root_ComEnv_SobrepoeContentRoot()
     {
-        var dataDir = Path.Join(Path.GetTempPath(), $"owui-appdata-vol-{Guid.NewGuid():N}");
+        var dataDir = Path.Join(Path.GetTempPath(), $"owui-datapaths-vol-{Guid.NewGuid():N}");
         try
         {
-            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", dataDir);
-            Assert.That(AppData.Root(new StubEnv(_root)), Is.EqualTo(dataDir));
+            Environment.SetEnvironmentVariable("DATA_ROOT", dataDir);
+            Assert.That(DataPaths.Root(_root), Is.EqualTo(dataDir));
         }
         finally
         {
-            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+            Environment.SetEnvironmentVariable("DATA_ROOT", null);
         }
     }
 
@@ -66,8 +65,8 @@ public class AppDataTests
     public async Task Repo_Open_ComEnv_ClonaDentroDoDataDir()
     {
         // Cenário Docker: ContentRootPath (/app) não é gravável; o volume
-        // persistente é apontado por WEBUI_DATA_DIR e o clone deve pousar lá.
-        var dataDir = Path.Join(Path.GetTempPath(), $"owui-appdata-ws-{Guid.NewGuid():N}");
+        // persistente é apontado por DATA_ROOT e o clone deve pousar lá.
+        var dataDir = Path.Join(Path.GetTempPath(), $"owui-datapaths-ws-{Guid.NewGuid():N}");
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         await DatabaseMigrator.MigrateAsync(db);
@@ -77,7 +76,7 @@ public class AppDataTests
         var origin = CriarOrigem("main");
         try
         {
-            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", dataDir);
+            Environment.SetEnvironmentVariable("DATA_ROOT", dataDir);
             var (binding, error) = await repos.OpenAsync(
                 "u1", "a/b", "main", origin, null, default);
             Assert.Multiple(() =>
@@ -94,7 +93,7 @@ public class AppDataTests
         catch (InvalidOperationException) { Assert.Ignore("git indisponível neste ambiente."); }
         finally
         {
-            Environment.SetEnvironmentVariable("WEBUI_DATA_DIR", null);
+            Environment.SetEnvironmentVariable("DATA_ROOT", null);
             db.Dispose();
             try { Directory.Delete(dataDir, recursive: true); } catch (IOException) { }
             try { Directory.Delete(origin, recursive: true); } catch (IOException) { }

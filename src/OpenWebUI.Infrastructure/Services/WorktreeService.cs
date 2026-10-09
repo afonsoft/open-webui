@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -53,7 +54,7 @@ public sealed class WorktreeService(
 
     /// <summary>Raiz dos worktrees do usuário.</summary>
     public string WorktreesRoot(string userId) =>
-        Path.Join(AppData.Root(env), "worktrees", Sanitize(userId));
+        Path.Join(DataPaths.Root(env.ContentRootPath), "worktrees", Sanitize(userId));
 
     /// <summary>Caminho determinístico do worktree da run.</summary>
     public string PathFor(string userId, string runId) =>
@@ -183,7 +184,7 @@ public sealed class WorktreeService(
     {
         try
         {
-            var root = Path.Join(AppData.Root(env), "worktrees");
+            var root = Path.Join(DataPaths.Root(env.ContentRootPath), "worktrees");
             if (!Directory.Exists(root))
             {
                 return;

@@ -315,7 +315,7 @@ public sealed class ChatRunExecutor(
             run.ChatId,
             run.Id,
             isolated ?? workdir,
-            Path.Join(AppData.Root(env), "uploads", user.Id));
+            Path.Join(DataPaths.Root(env.ContentRootPath), "uploads", user.Id));
     }
 
     /// <summary>apply_patch pode chegar como builtin por nome legado — cobre o nome cru.</summary>
@@ -489,7 +489,7 @@ public sealed class ChatRunExecutor(
                 // tiers, mas mutações de arquivo caem na pergunta —
                 // "executa sem aprovação, com restrição em alterações".
                 var workspace = Path.Join(
-                    AppData.Root(env), "workspaces", run.UserId);
+                    DataPaths.Root(env.ContentRootPath), "workspaces", run.UserId);
                 var risk = ToolCallRiskClassifier.Classify(
                     tool, call.ArgumentsJson, workspace);
                 var fileMutation = risk == ToolCallRisk.Medium
