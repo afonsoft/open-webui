@@ -1074,7 +1074,6 @@ public class ApiService(HttpClient http, AuthService auth)
         return node?["hover"]?.GetValue<string>();
     }
 
->>>>>>> origin/main
     /// <summary>Resultado do PUT de arquivo da IDE (etag novo ou o atual em conflito).</summary>
     public sealed record IdeSaveResult(bool Ok, string? ETag, string? ConflictETag);
 
