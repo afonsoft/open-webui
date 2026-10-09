@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="pensando">
+  <g transform="translate(12 12)">
+    <g>
+      <animateTransform attributeName="transform" type="scale"
+        values="1;1.18;1" keyTimes="0;0.5;1" dur="1.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.85;1;0.85" keyTimes="0;0.5;1"
+        dur="1.6s" repeatCount="indefinite"/>
+      <text x="0" y="6" text-anchor="middle" font-size="16">🧠</text>
+    </g>
+  </g>
+</svg>

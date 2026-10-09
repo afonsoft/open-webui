@@ -9,8 +9,14 @@ public enum CommandRiskLevel
     /// <summary>Escreve, mas confinado ao workspace do usuário.</summary>
     WorkspaceWrite = 1,
 
-    /// <summary>Elevação, rede, fuga de sandbox ou não auditável — negado.</summary>
+    /// <summary>Elevação, rede ou fora do workspace — executa, mas sempre
+    /// exige aprovação (risco HIGH no preset "auto").</summary>
     Dangerous = 2,
+
+    /// <summary>Destruição do sistema ou comando não executável — negado.
+    /// Único nível que ainda recusa: o agente tem permissão total, mas não
+    /// pode apagar a raiz nem quebrar a máquina que o hospeda.</summary>
+    Forbidden = 3,
 }
 
 /// <summary>Veredito do classifier sobre um comando.</summary>
@@ -20,8 +26,9 @@ public enum CommandRiskLevel
 public sealed record CommandRiskAssessment(
     CommandRiskLevel Level, string Reason, bool EscapesSandbox = false)
 {
-    /// <summary>Atalho: pode executar (a tool decide aprovação, não aqui).</summary>
-    public bool Allowed => Level != CommandRiskLevel.Dangerous;
+    /// <summary>Atalho: pode executar (a tool decide aprovação, não aqui).
+    /// Só <see cref="CommandRiskLevel.Forbidden"/> recusa.</summary>
+    public bool Allowed => Level != CommandRiskLevel.Forbidden;
 }
 
 /// <summary>
@@ -34,14 +41,21 @@ public sealed record CommandRiskAssessment(
 /// </summary>
 public static class CommandRiskClassifier
 {
-    // Sempre perigosos independente dos argumentos — elevação, rede,
-    // intérpretes arbitrários, dumps de ambiente, ferramentas destrutivas.
+    // Sempre negados — destroem o sistema de arquivos ou desligam a
+    // máquina que hospeda o app (permissão total não cobre autodestruição).
+    private static readonly HashSet<string> ForbiddenBinaries = new(StringComparer.Ordinal)
+    {
+        "dd", "mkfs", "fdisk", "mount", "umount",
+        "shutdown", "reboot", "halt", "poweroff"
+    };
+
+    // Risco alto (exige aprovação no preset "auto") mas EXECUTA —
+    // elevação, rede, intérpretes arbitrários, dumps de ambiente.
     private static readonly HashSet<string> DangerousBinaries = new(StringComparer.Ordinal)
     {
         "sudo", "su", "doas", "chmod", "chown", "chgrp",
         "curl", "wget", "nc", "ncat", "netcat", "ssh", "scp", "sftp", "ftp", "telnet",
-        "dd", "mkfs", "fdisk", "mount", "umount",
-        "shutdown", "reboot", "halt", "poweroff", "kill", "killall", "pkill",
+        "kill", "killall", "pkill",
         "env", "printenv", "eval", "exec", "crontab",
         "systemctl", "service", "iptables", "useradd", "userdel", "usermod", "passwd",
         "apt", "apt-get", "yum", "dnf", "brew", "snap",
@@ -74,10 +88,11 @@ public static class CommandRiskClassifier
     {
         if (string.IsNullOrWhiteSpace(command))
         {
-            return new(CommandRiskLevel.Dangerous, "Comando vazio — fail-closed.");
+            return new(CommandRiskLevel.Forbidden, "Comando vazio — fail-closed.");
         }
 
-        // Substituição de comando / backticks não são auditáveis.
+        // Substituição de comando / backticks não são auditáveis — risco
+        // alto, mas executa (permissão total do agente).
         if (command.Contains("$(", StringComparison.Ordinal) || command.Contains('`'))
         {
             return new(CommandRiskLevel.Dangerous, "Substituição de comando detectada — não auditável.");
@@ -87,7 +102,7 @@ public static class CommandRiskClassifier
         var segments = SplitSegments(command);
         if (segments.Count == 0)
         {
-            return new(CommandRiskLevel.Dangerous, "Comando não parseável — fail-closed.");
+            return new(CommandRiskLevel.Forbidden, "Comando não parseável — fail-closed.");
         }
 
         return segments
@@ -100,7 +115,7 @@ public static class CommandRiskClassifier
     {
         if (tokens.Count == 0)
         {
-            return new(CommandRiskLevel.Dangerous, "Segmento vazio — fail-closed.");
+            return new(CommandRiskLevel.Forbidden, "Segmento vazio — fail-closed.");
         }
 
         var index = 0;
@@ -111,7 +126,7 @@ public static class CommandRiskClassifier
 
         if (index >= tokens.Count)
         {
-            return new(CommandRiskLevel.Dangerous, "Sem binário após atribuições — fail-closed.");
+            return new(CommandRiskLevel.Forbidden, "Sem binário após atribuições — fail-closed.");
         }
 
         var binary = Path.GetFileName(tokens[index]);
@@ -123,13 +138,15 @@ public static class CommandRiskClassifier
             "dotnet" => ClassifyDotnet(args, workspacePath),
             "npm" or "yarn" or "pnpm" => ClassifyNpm(args, workspacePath),
             "rm" => ClassifyRm(args, workspacePath),
+            _ when ForbiddenBinaries.Contains(binary) =>
+                new(CommandRiskLevel.Forbidden, $"'{binary}' destrói ou desliga o sistema — negado."),
             _ when DangerousBinaries.Contains(binary) =>
                 new(CommandRiskLevel.Dangerous, $"'{binary}' requer elevação, rede ou execução arbitrária."),
             _ when binary is "sed" or "awk" && args.Any(a => a.StartsWith("-i"))
                 => CheckPaths(args, workspacePath, CommandRiskLevel.WorkspaceWrite),
             _ when SafeBinaries.Contains(binary) => CheckPaths(args, workspacePath, CommandRiskLevel.Safe),
             _ when WriteBinaries.Contains(binary) => CheckPaths(args, workspacePath, CommandRiskLevel.WorkspaceWrite),
-            _ => new(CommandRiskLevel.Dangerous, $"Binário desconhecido '{binary}' — fail-closed.")
+            _ => new(CommandRiskLevel.Dangerous, $"Binário desconhecido '{binary}' — executa sob permissão total.")
         };
     }
 
@@ -227,14 +244,22 @@ public static class CommandRiskClassifier
         var targets = args.Where(a => !a.StartsWith('-')).ToList();
         if (targets.Count == 0)
         {
-            return new(CommandRiskLevel.Dangerous, "rm sem alvo — fail-closed.");
+            return new(CommandRiskLevel.Forbidden, "rm sem alvo — fail-closed.");
+        }
+
+        // Deletar a raiz (ou montes dela) segue negado — o resto do
+        // filesystem é alcançável com permissão total.
+        if (targets.Any(t => Path.GetFullPath(t, workspacePath) == "/"))
+        {
+            return new(CommandRiskLevel.Forbidden,
+                "Deleção da raiz do sistema — negado.");
         }
 
         var outside = targets.FirstOrDefault(target => !TryResolveInsideWorkspace(target, workspacePath));
         if (outside is not null)
         {
             return new(CommandRiskLevel.Dangerous,
-                $"Alvo '{outside}' fora ou irresolúvel no workspace — deleção negada.",
+                $"Alvo '{outside}' fora ou irresolúvel no workspace — executa sob permissão total.",
                 EscapesSandbox: true);
         }
 

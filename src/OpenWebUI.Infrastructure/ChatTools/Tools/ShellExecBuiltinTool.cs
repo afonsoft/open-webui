@@ -27,7 +27,8 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
         {
           "type": "object",
           "properties": {
-            "command": { "type": "string", "description": "Command to run in the workspace." },
+            "command": { "type": "string", "description": "Command to run in the workspace. Any command may run, incl. sudo/apt/curl — dangerous ones require user approval." },
+            "sudo_password": { "type": "string", "description": "Sudo password when the user provided one via ask_user. Primed with 'sudo -S -v' so subsequent sudo calls in the same command reuse it." },
             "timeout_seconds": { "type": "integer", "description": "Timeout (max 300).", "default": 60 },
             "background": {
               "type": "boolean",
@@ -95,8 +96,22 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
         }
 
         Directory.CreateDirectory(context.WorkspacePath);
+
+        // sudo: se o usuário forneceu a senha (via ask_user), alimenta
+        // 'sudo -S -v' por stdin — o timestamp cacheado cobre os demais
+        // sudo do mesmo sh -c.
+        string? stdin = null;
+        var sudoPassword = args.TryGetProperty("sudo_password", out var p)
+            ? p.GetString()
+            : null;
+        if (!string.IsNullOrEmpty(sudoPassword) && command.Contains("sudo", StringComparison.Ordinal))
+        {
+            command = "sudo -S -p '' -v; " + command;
+            stdin = sudoPassword + "\n";
+        }
+
         var outcome = await ChatProcessRunner.RunAsync(
-            command, context.WorkspacePath, timeout, ct: ct);
+            command, context.WorkspacePath, timeout, stdin: stdin, ct: ct);
 
         var status = outcome.TimedOut
             ? $"timeout após {(int)timeout.TotalSeconds}s"
@@ -114,6 +129,10 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
         {
             text += MissingCommandHint;
         }
+        else if (NeedsSudoPassword(outcome))
+        {
+            text += SudoPasswordHint;
+        }
 
         return new BuiltinToolResult(text, new
         {
@@ -126,6 +145,23 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
 
     // Ferramenta ausente: orienta o agente a sugerir a instalação e
     // pedir aprovação via ask_user em vez de só reportar a falha.
+    // sudo sem senha: orienta a perguntar a senha via ask_user e
+    // reexecutar passando sudo_password.
+    private const string SudoPasswordHint =
+        "\n\nsudo pediu senha. Pergunte a senha ao usuário via ask_user e "
+        + "reexecute o mesmo comando passando sudo_password.";
+
+    /// <summary>Detecta prompts de senha do sudo no output.</summary>
+    private static bool NeedsSudoPassword(ProcessOutcome outcome)
+    {
+        var output = outcome.Output;
+        return output.Contains("a password is required", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("no password present", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("a terminal is required to read the password", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("password for", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("digite a senha", StringComparison.OrdinalIgnoreCase);
+    }
+
     private const string MissingCommandHint =
         "\n\nO comando falhou porque uma ferramenta provavelmente não está "
         + "instalada ou não é permitida. Sugira o comando de instalação ao "

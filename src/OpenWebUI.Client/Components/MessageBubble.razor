@@ -20,7 +20,7 @@
         <div class="text-[0.8125rem] font-medium text-gray-500 dark:text-gray-400 mb-0.5 @(Message.Role == "user" ? "text-right" : "")">
             @if (Message.Role == "assistant" && Streaming)
             {
-                <span class="thinking-brain mr-1 align-middle" aria-hidden="true">🧠</span>
+                <img src="img/thinking-brain.svg" class="size-4 mr-1 inline-block align-middle" alt="" aria-hidden="true" />
             }
             @(Message.Role == "assistant" ? Message.Model ?? L["chat.assistant"] : L["chat.you"])
         </div>
@@ -33,7 +33,7 @@
                 @if (string.IsNullOrEmpty(Message.Content) && Streaming)
                 {
                     <span class="inline-flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500">
-                        <span class="thinking-brain" aria-hidden="true">🧠</span>@L["chat.thinking"]<span class="thinking-dots" aria-hidden="true"></span>
+                        <img src="img/thinking-brain.svg" class="size-4 inline-block" alt="" aria-hidden="true" />@L["chat.thinking"]<span class="thinking-dots" aria-hidden="true"></span>
                     </span>
                 }
                 else
