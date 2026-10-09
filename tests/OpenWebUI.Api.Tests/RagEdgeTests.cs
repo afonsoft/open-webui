@@ -10,7 +10,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Branches de erro e borda do RagService (chunking, search e retrieval) e do DatabaseMigrator.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RagEdgeTests
 {
     private string _dbPath = null!;
@@ -35,7 +35,7 @@ public class RagEdgeTests
         _mc3.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

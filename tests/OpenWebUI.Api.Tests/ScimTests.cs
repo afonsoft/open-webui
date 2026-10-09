@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// grupos via /scim/v2 com bearer token dedicado, CRUD completo, filtro
 /// userName eq e desativação via active=false.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ScimTests
 {
@@ -58,7 +58,7 @@ public class ScimTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

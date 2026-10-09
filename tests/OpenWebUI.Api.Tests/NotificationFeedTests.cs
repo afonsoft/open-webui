@@ -15,7 +15,7 @@ namespace OpenWebUI.Api.Tests;
 /// lista paginada com filtro de não-lidas, mark read/read-all, isolamento
 /// por usuário e persistência da linha junto do push ao fim da run.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public sealed class NotificationFeedTests
 {

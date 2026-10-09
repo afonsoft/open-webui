@@ -48,7 +48,7 @@ public class ChatJobEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

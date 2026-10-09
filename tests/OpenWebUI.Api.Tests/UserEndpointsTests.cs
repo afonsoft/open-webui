@@ -8,7 +8,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos endpoints administrativos e de preferências de usuários.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class UserEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -40,7 +40,7 @@ public class UserEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

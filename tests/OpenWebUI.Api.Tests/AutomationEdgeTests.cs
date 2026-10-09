@@ -8,7 +8,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Cobertura de branches de borda/erro dos endpoints de automações.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AutomationEdgeTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -48,7 +48,7 @@ public class AutomationEdgeTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

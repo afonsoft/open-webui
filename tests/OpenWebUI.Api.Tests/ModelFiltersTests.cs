@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// system_inject e regex_redact no inlet, params cap, outlet na saída SSE
 /// e validação do MetaJson no salvamento.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class ModelFiltersTests
 {
@@ -51,7 +51,7 @@ public class ModelFiltersTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

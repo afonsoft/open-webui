@@ -20,7 +20,7 @@ namespace OpenWebUI.Api.Tests;
 /// symlink, paginação da tree, etag/If-Match, binary-guard, 404 sem
 /// binding e trilha de auditoria nas escritas.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class WorkspaceFileEndpointsTests
 {
     private string _apiDir = null!;
@@ -33,6 +33,7 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task Endpoints_SemAuth_401()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
         foreach (var uri in new[]
@@ -404,6 +405,7 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task Git_SemAuth_401_E_SemBinding_404()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var anon = factory.CreateClient();
         var unauth = await anon.GetAsync("/api/v1/workspace/repo/git");
@@ -431,6 +433,7 @@ public class WorkspaceFileEndpointsTests
     [Test]
     public async Task IdeConfig_SemAuth_401_E_DefaultOn()
     {
+        using var dbScope = TestInfra.UseDb();
         using var factory = new WebApplicationFactory<Program>();
         using var anon = factory.CreateClient();
         var unauth = await anon.GetAsync("/api/v1/ide/config");

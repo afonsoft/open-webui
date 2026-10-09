@@ -15,7 +15,7 @@ namespace OpenWebUI.Api.Tests;
 /// registrada direto no gate <see cref="ChatRunApprovals"/> — mesmo
 /// mecanismo que a run usa ao pausar numa tool.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AttentionInboxTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -55,7 +55,7 @@ public class AttentionInboxTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

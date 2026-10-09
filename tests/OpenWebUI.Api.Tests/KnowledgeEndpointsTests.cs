@@ -14,7 +14,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice rag-knowledge: coleções, chunks e retrieval.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class KnowledgeEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -45,7 +45,7 @@ public class KnowledgeEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

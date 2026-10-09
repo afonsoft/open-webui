@@ -15,7 +15,7 @@ namespace OpenWebUI.Api.Tests;
 /// Cobre os catches tipados introduzidos pelo slice E15-s2 (boundary catches
 /// estreitados de <c>catch (Exception)</c> para tipos concretos).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class CatchNarrowingTests
 {
     private sealed class ThrowingHandler(Exception ex) : HttpMessageHandler

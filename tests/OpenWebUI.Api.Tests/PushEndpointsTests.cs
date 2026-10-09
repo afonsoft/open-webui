@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// (SPEC-20261007-chat-notifications RF-004): chave VAPID, upsert por
 /// endpoint e delete escopado ao dono.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public sealed class PushEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;

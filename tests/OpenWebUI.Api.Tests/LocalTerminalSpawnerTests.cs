@@ -14,7 +14,7 @@ namespace OpenWebUI.Api.Tests;
 /// proxy reutiliza o pipeline. Nos testes o comando é um http.server
 /// neutro — a mesma mecânica do Jupyter real (Jupyter:LocalCommand).
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class LocalTerminalSpawnerTests
 {
@@ -88,7 +88,7 @@ public class LocalTerminalSpawnerTests
 }
 
 /// <summary>End-to-end: config type "local" sem URL dispara o spawn no proxy.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class TerminalLocalEndpointsTests
 {
@@ -126,7 +126,7 @@ public class TerminalLocalEndpointsTests
         Environment.SetEnvironmentVariable("Jupyter__SpawnTimeoutSeconds", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -11,7 +11,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da slice auth-sso-rbac: grupos, permissões e vínculo OAuth.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class GroupAndSsoTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -47,7 +47,7 @@ public class GroupAndSsoTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

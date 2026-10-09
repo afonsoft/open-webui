@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes da slice terminals-jupyter: CRUD admin de terminal servers,
 /// proxy HTTP com sanitização de path e túnel WebSocket bidirecional.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class TerminalEndpointsTests
 {
@@ -56,7 +56,7 @@ public class TerminalEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
@@ -127,7 +127,9 @@ public class TerminalEndpointsTests
     private static async Task<(WebApplication App, int Port)> StartWsEchoAsync()
     {
         var port = new Random().Next(40000, 60000);
-        await using var app = WebApplication.Create();
+        // Sem `await using`: o app é devolvido ao fixture, que o dispõe no
+        // OneTimeTearDown — descartá-lo aqui mataria o listener no `return`.
+        var app = WebApplication.Create();
         app.Urls.Add($"http://localhost:{port}");
         app.UseWebSockets();
         app.Map("/{**p}", async http =>

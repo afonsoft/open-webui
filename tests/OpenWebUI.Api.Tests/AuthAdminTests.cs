@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de integração dos endpoints de autenticação administrativa e perfil.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AuthAdminTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -43,7 +43,7 @@ public class AuthAdminTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
