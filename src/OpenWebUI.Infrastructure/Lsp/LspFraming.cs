@@ -79,9 +79,8 @@ public static class LspFraming
     {
         var text = Encoding.ASCII.GetString(headerBytes as byte[] ?? headerBytes.ToArray());
         var length = -1;
-        foreach (var line in text.Split('\n'))
+        foreach (var trimmed in text.Split('\n').Select(l => l.TrimEnd('\r')))
         {
-            var trimmed = line.TrimEnd('\r');
             if (trimmed.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)
                 && int.TryParse(trimmed["Content-Length:".Length..].Trim(), out var n))
             {

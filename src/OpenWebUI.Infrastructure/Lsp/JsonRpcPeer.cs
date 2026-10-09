@@ -210,7 +210,8 @@ public sealed class JsonRpcPeer : IAsyncDisposable
                 {
                     Notification?.Invoke(method, @params);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException
+                    or ArgumentException or NotSupportedException)
                 {
                     _logger?.LogWarning(ex, "LSP: handler de notificação {Method} falhou", method);
                 }
@@ -264,7 +265,11 @@ public sealed class JsonRpcPeer : IAsyncDisposable
         if (_reader is not null)
         {
             try { await _reader.WaitAsync(TimeSpan.FromSeconds(2)); }
-            catch (Exception) { /* reader preso em stream zumbi — ignora */ }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException
+                or OperationCanceledException or ObjectDisposedException)
+            {
+                /* reader preso em stream zumbi — ignora */
+            }
         }
         _writeLock.Dispose();
         _stop.Dispose();

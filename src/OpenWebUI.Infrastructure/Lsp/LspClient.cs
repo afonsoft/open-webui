@@ -94,11 +94,7 @@ public sealed class LspClient : IAsyncDisposable
         {
             return;
         }
-        if (State == LspServerState.Unavailable)
-        {
-            throw new LspUnavailableException(_initError
-                ?? $"Servidor LSP '{Language.ServerKey}' indisponível.");
-        }
+        ThrowIfUnavailable();
 
         await _lifecycleLock.WaitAsync(ct);
         try
@@ -107,11 +103,7 @@ public sealed class LspClient : IAsyncDisposable
             {
                 return;
             }
-            if (State == LspServerState.Unavailable)
-            {
-                throw new LspUnavailableException(_initError
-                    ?? $"Servidor LSP '{Language.ServerKey}' indisponível.");
-            }
+            ThrowIfUnavailable();
 
             if (State == LspServerState.Crashed)
             {
@@ -249,6 +241,15 @@ public sealed class LspClient : IAsyncDisposable
         if (State == LspServerState.Running)
         {
             State = LspServerState.Crashed;
+        }
+    }
+
+    private void ThrowIfUnavailable()
+    {
+        if (State == LspServerState.Unavailable)
+        {
+            throw new LspUnavailableException(_initError
+                ?? $"Servidor LSP '{Language.ServerKey}' indisponível.");
         }
     }
 

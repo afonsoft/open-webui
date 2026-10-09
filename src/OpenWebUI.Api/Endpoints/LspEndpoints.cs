@@ -43,12 +43,8 @@ public static class LspEndpoints
             var language = lsp.LanguageFor(path);
             if (language is null)
             {
-                return Task.FromResult(Results.Ok(new
-                {
-                    enabled = lsp.Enabled,
-                    language = (string?)null,
-                    state = "unmapped",
-                }));
+                return Task.FromResult(Results.Ok(
+                    new LspStatusResponse(lsp.Enabled, null, "unmapped", null)));
             }
             return Task.FromResult(Results.Ok(new
             {
@@ -190,7 +186,7 @@ public static class LspEndpoints
             var language = lsp.LanguageFor(full);
             if (language is null)
             {
-                return Results.Ok(new { hover = (string?)null });
+                return Results.Ok(new LspHoverResponse(null));
             }
             try
             {
@@ -204,12 +200,12 @@ public static class LspEndpoints
                         character = Math.Max(0, (col ?? 1) - 1),
                     },
                 }, ct);
-                return Results.Ok(new { hover = LspResponse.HoverText(result) });
+                return Results.Ok(new LspHoverResponse(LspResponse.HoverText(result)));
             }
             catch (Exception ex) when (ex is LspUnavailableException or LspRequestException
                 or IOException or TimeoutException)
             {
-                return Results.Ok(new { hover = (string?)null });
+                return Results.Ok(new LspHoverResponse(null));
             }
         });
 

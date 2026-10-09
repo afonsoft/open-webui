@@ -349,7 +349,11 @@
             }
             await RefreshLspDiagnosticsAsync(tab.Path);
         }
-        catch { /* LSP é best-effort — nunca quebra o editor */ }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
+            or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            /* LSP é best-effort — nunca quebra o editor */
+        }
     }
 
     /// <summary>Pull diagnostics do arquivo e joga nas squiggles/Problems.</summary>
@@ -376,7 +380,11 @@
             return null;
         }
         try { return await Api.GetLspHoverAsync(t.Path, line, col); }
-        catch { return null; }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
+            or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Clique no Problems → abre o arquivo e navega à posição.</summary>
@@ -409,7 +417,11 @@
                 });
             }
             catch (OperationCanceledException) { /* digitação seguinte cancelou */ }
-            catch { /* LSP best-effort */ }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
+                or System.Text.Json.JsonException)
+            {
+                /* LSP best-effort */
+            }
         }, ct);
     }
 
