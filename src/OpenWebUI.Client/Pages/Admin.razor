@@ -344,7 +344,7 @@
             else
             {
                 <div class="flex gap-1 mb-3 overflow-x-auto whitespace-nowrap scrollbar-hidden">
-                    @foreach (var sub in new[] { "general", "providers", "models", "features", "audio", "retrieval", "mcp", "integrations" })
+                    @foreach (var sub in new[] { "general", "providers", "models", "features", "audio", "retrieval", "mcp", "media", "integrations" })
                     {
                         <button class="text-sm px-3 py-1.5 rounded-full shrink-0 @(_configTab == sub ? "bg-gray-200 dark:bg-gray-800" : "text-gray-500")"
                                 @onclick="() => _configTab = sub">@L[$"admin.config_{sub}"]</button>
@@ -950,94 +950,9 @@
                         </div>
                     </div>
                 }
-                else if (_configTab == "integrations")
+                else if (_configTab == "media")
                 {
                     <div class="card-list">
-                        <div class="card-row">
-                            <div class="card-main">
-                                <div class="card-title">n8n</div>
-                                <div class="card-sub">@L["admin.n8n_sub"]</div>
-                            </div>
-                            <div class="card-actions">
-                                @if (_n8nConfigured)
-                                {
-                                    <span class="role-badge">@L["admin.n8n_connected"]</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="card-row">
-                            <div class="flex flex-col gap-2 w-full text-sm py-1">
-                                <input aria-label="@L["common.base_url"]" class="input" @bind="_n8nBaseUrl" placeholder="https://n8n.example.com" />
-                                <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_n8nApiKey"
-                                       placeholder="@(_n8nHasKey ? L["admin.prov_key_set"] : "n8n API key")" />
-                            </div>
-                        </div>
-                        <div class="card-row">
-                            @if (_n8nMessage is not null)
-                            {
-                                <div class="field-note">@_n8nMessage</div>
-                            }
-                            <div class="flex gap-2">
-                                <button class="auth-submit" @onclick="SaveN8nConfigAsync">@L["common.save"]</button>
-                                <button class="button-sm" @onclick="LoadN8nWorkflowsAsync">@L["admin.n8n_list_workflows"]</button>
-                            </div>
-                        </div>
-                        @if (_n8nWorkflows is not null)
-                        {
-                            @foreach (var wf in _n8nWorkflows)
-                            {
-                                <div class="card-row">
-                                    <div class="card-main">
-                                        <div class="card-title text-sm font-normal">@wf.Name</div>
-                                        <div class="card-sub">@wf.Id</div>
-                                    </div>
-                                    <div class="card-actions">
-                                        <span class="role-badge">@(wf.Active ? "active" : "inactive")</span>
-                                    </div>
-                                </div>
-                            }
-                            @if (_n8nWorkflows.Count == 0)
-                            {
-                                <div class="card-row"><div class="sidebar-empty">@L["admin.n8n_no_workflows"]</div></div>
-                            }
-                        }
-                        <div class="card-row">
-                            <div class="card-main">
-                                <div class="card-title">@L["admin.hooks_title"]</div>
-                                <div class="card-sub">@L["admin.hooks_sub"]</div>
-                            </div>
-                        </div>
-                        @foreach (var hook in _hooks)
-                        {
-                            <div class="card-row">
-                                <div class="card-main">
-                                    <div class="card-title text-sm font-normal">@hook.Name</div>
-                                    <div class="card-sub font-mono text-[0.7rem] break-all">
-                                        @Nav.BaseUri.TrimEnd('/')@hook.Url
-                                    </div>
-                                    @if (hook.LastFiredAt is { } fired)
-                                    {
-                                        <div class="card-sub">@L["admin.hooks_last_fired"]: @FormatTs(fired)</div>
-                                    }
-                                </div>
-                                <div class="card-actions">
-                                    <button class="msg-action" title="@L["common.copy"]" aria-label="@L["common.copy"]"
-                                            @onclick="() => CopyTextAsync(Nav.BaseUri.TrimEnd('/') + hook.Url)">⧉</button>
-                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteHookAsync(hook)">🗑</button>
-                                </div>
-                            </div>
-                        }
-                        @if (_hooks.Count == 0)
-                        {
-                            <div class="card-row"><div class="sidebar-empty">@L["admin.hooks_empty"]</div></div>
-                        }
-                        <div class="card-row">
-                            <div class="flex gap-2 w-full items-center">
-                                <input aria-label="@L["admin.hooks_name_ph"]" class="input flex-1" @bind="_hookName" placeholder="@L["admin.hooks_name_ph"]" />
-                                <button class="button-sm" disabled="@string.IsNullOrWhiteSpace(_hookName)"
-                                        @onclick="CreateHookAsync">+ @L["common.add"]</button>
-                            </div>
-                        </div>
                         <div class="card-row">
                             <div class="card-main">
                                 <div class="card-title">@L["settings.images_section"]</div>
@@ -1177,6 +1092,144 @@
                                 <button class="button-sm" @onclick="TestVideoConfigAsync">@L["admin.prov_test"]</button>
                             </div>
                         </div>
+                    </div>
+                }
+                else if (_configTab == "integrations")
+                {
+                    <div class="card-list">
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">n8n</div>
+                                <div class="card-sub">@L["admin.n8n_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                @if (_n8nConfigured)
+                                {
+                                    <span class="role-badge">@L["admin.n8n_connected"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input aria-label="@L["common.base_url"]" class="input" @bind="_n8nBaseUrl" placeholder="https://n8n.example.com" />
+                                <input aria-label="@L["settings.api_key"]" class="input" type="password" @bind="_n8nApiKey"
+                                       placeholder="@(_n8nHasKey ? L["admin.prov_key_set"] : "n8n API key")" />
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_n8nMessage is not null)
+                            {
+                                <div class="field-note">@_n8nMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" @onclick="SaveN8nConfigAsync">@L["common.save"]</button>
+                                <button class="button-sm" @onclick="LoadN8nWorkflowsAsync">@L["admin.n8n_list_workflows"]</button>
+                            </div>
+                        </div>
+                        @if (_n8nWorkflows is not null)
+                        {
+                            @foreach (var wf in _n8nWorkflows)
+                            {
+                                <div class="card-row">
+                                    <div class="card-main">
+                                        <div class="card-title text-sm font-normal">@wf.Name</div>
+                                        <div class="card-sub">@wf.Id</div>
+                                    </div>
+                                    <div class="card-actions">
+                                        <span class="role-badge">@(wf.Active ? "active" : "inactive")</span>
+                                    </div>
+                                </div>
+                            }
+                            @if (_n8nWorkflows.Count == 0)
+                            {
+                                <div class="card-row"><div class="sidebar-empty">@L["admin.n8n_no_workflows"]</div></div>
+                            }
+                        }
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["admin.hooks_title"]</div>
+                                <div class="card-sub">@L["admin.hooks_sub"]</div>
+                            </div>
+                        </div>
+                        @foreach (var hook in _hooks)
+                        {
+                            <div class="card-row">
+                                <div class="card-main">
+                                    <div class="card-title text-sm font-normal">@hook.Name</div>
+                                    <div class="card-sub font-mono text-[0.7rem] break-all">
+                                        @Nav.BaseUri.TrimEnd('/')@hook.Url
+                                    </div>
+                                    @if (hook.LastFiredAt is { } fired)
+                                    {
+                                        <div class="card-sub">@L["admin.hooks_last_fired"]: @FormatTs(fired)</div>
+                                    }
+                                </div>
+                                <div class="card-actions">
+                                    <button class="msg-action" title="@L["common.copy"]" aria-label="@L["common.copy"]"
+                                            @onclick="() => CopyTextAsync(Nav.BaseUri.TrimEnd('/') + hook.Url)">⧉</button>
+                                    <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => DeleteHookAsync(hook)">🗑</button>
+                                </div>
+                            </div>
+                        }
+                        @if (_hooks.Count == 0)
+                        {
+                            <div class="card-row"><div class="sidebar-empty">@L["admin.hooks_empty"]</div></div>
+                        }
+                        <div class="card-row">
+                            <div class="flex gap-2 w-full items-center">
+                                <input aria-label="@L["admin.hooks_name_ph"]" class="input flex-1" @bind="_hookName" placeholder="@L["admin.hooks_name_ph"]" />
+                                <button class="button-sm" disabled="@string.IsNullOrWhiteSpace(_hookName)"
+                                        @onclick="CreateHookAsync">+ @L["common.add"]</button>
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">GitHub</div>
+                                <div class="card-sub">@L["admin.github_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                @if (_ghConfigured)
+                                {
+                                    <span class="role-badge">@L["admin.n8n_connected"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                <input aria-label="@L["settings.github_token"]" class="input" type="password"
+                                       autocomplete="off" spellcheck="false" @bind="_ghToken"
+                                       placeholder="@L["settings.github_token_ph"]" />
+                                <div class="field-note">@L["settings.github_token_hint"]</div>
+                                @if (_ghConfigured)
+                                {
+                                    <div class="field-note">@L.T("settings.github_connected", ("login", _ghLogin ?? ""))</div>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-row">
+                            @if (_ghMessage is not null)
+                            {
+                                <div class="field-note">@_ghMessage</div>
+                            }
+                            <div class="flex gap-2">
+                                <button class="auth-submit" disabled="@(_ghSaving || string.IsNullOrWhiteSpace(_ghToken))"
+                                        @onclick="SaveGitHubTokenAsync">@L["common.save"]</button>
+                                @if (_ghConfigured)
+                                {
+                                    <button class="button-sm" @onclick="RemoveGitHubTokenAsync">@L["settings.github_remove"]</button>
+                                }
+                            </div>
+                        </div>
+                        @if (_ghConfigured)
+                        {
+                            <div class="card-row">
+                                <div class="flex flex-col gap-2 w-full text-sm py-1">
+                                    <div class="card-title">@L["chat.repo_title"]</div>
+                                    <div class="field-note">@L["settings.github_repos_hint"]</div>
+                                    <RepoBindingPanel />
+                                </div>
+                            </div>
+                        }
                         <div class="card-row">
                             <div class="card-main">
                                 <div class="card-title">browser_screenshot</div>
@@ -1533,7 +1586,8 @@
     private bool _provPulling;
     private string? _provPullMessage;
 
-    // Integrations (n8n, webhooks, vídeo, browser)
+    // Integrations (n8n, webhooks, github, browser); vídeo/imagens ficam
+    // na aba "media".
     private bool _n8nConfigured;
     private bool _n8nHasKey;
     private string _n8nBaseUrl = string.Empty;
@@ -1553,7 +1607,7 @@
     private string _videoProvider = string.Empty;
     private List<string> _videoProviderModels = [];
 
-    // Geração de imagens (admin — mesma seção de integrações).
+    // Geração de imagens/vídeo (admin — aba "media").
     private bool _imagesEnabled;
     private string _imagesEngine = "openai";
     private List<string> _imageEngines = [];
@@ -1567,6 +1621,13 @@
     private List<string> _imagesProviderModels = [];
     private bool _browserEnabled;
     private string? _browserPath;
+    // GitHub (PAT por usuário + repo vinculado ao workspace —
+    // reutiliza os endpoints /api/v1/github e /api/v1/workspace/repo).
+    private bool _ghConfigured;
+    private bool _ghSaving;
+    private string? _ghLogin;
+    private string _ghToken = string.Empty;
+    private string? _ghMessage;
     private List<PromptSuggestion> _suggestions = [];
     private List<BannerResponse> _banners = [];
     private string _bannerType = "info";
@@ -1924,6 +1985,36 @@
             _browserEnabled = browser.Enabled;
             _browserPath = browser.BrowserPath;
         }
+        var gh = await Api.GetGitHubConfigAsync();
+        _ghConfigured = gh?.Configured == true;
+        _ghLogin = gh?.Login;
+    }
+
+    /// <summary>Valida e salva o PAT do GitHub (server-side, nunca retornado).</summary>
+    private async Task SaveGitHubTokenAsync()
+    {
+        _ghSaving = true;
+        _ghMessage = null;
+        var result = await Api.SetGitHubTokenAsync(_ghToken.Trim());
+        _ghSaving = false;
+        if (result?.Configured != true)
+        {
+            _ghMessage = L["settings.github_save_error"];
+            return;
+        }
+        _ghConfigured = true;
+        _ghLogin = result.Login;
+        _ghToken = string.Empty;
+        _ghMessage = L.T("settings.github_connected", ("login", _ghLogin ?? ""));
+    }
+
+    private async Task RemoveGitHubTokenAsync()
+    {
+        _ghMessage = await Api.ClearGitHubTokenAsync()
+            ? L["settings.github_removed"]
+            : L["settings.github_save_error"];
+        _ghConfigured = false;
+        _ghLogin = null;
     }
 
     private async Task SaveN8nConfigAsync()
