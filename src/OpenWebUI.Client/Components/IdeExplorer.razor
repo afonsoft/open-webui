@@ -1,0 +1,154 @@
+@inject ApiService Api
+@inject LocalizationService L
+@inject DialogService Dialog
+
+@* File explorer da /ide (S2 RF-001): tree lazy via GET /tree, menu de contexto
+   com New file/folder, Rename, Delete (confirm). Branch + dirty badge no topo. *@
+
+<div class="flex h-full min-h-0 flex-col">
+    <div class="flex items-center gap-2 px-2 py-1.5 border-b border-gray-200 dark:border-gray-800">
+        <span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-gray-600 dark:text-gray-400"
+              title="@Branch">
+            <span aria-hidden="true">⑂</span> @(Branch ?? "—")
+            @if (DirtyCount > 0)
+            {
+                <span class="ms-1 text-amber-600 dark:text-amber-400">●@DirtyCount</span>
+            }
+        </span>
+        <button class="msg-action" title="@L["ide.new_file"]" aria-label="@L["ide.new_file"]"
+                @onclick="() => PromptAsync(FileAction.NewFile, null)">📄+</button>
+        <button class="msg-action" title="@L["ide.new_folder"]" aria-label="@L["ide.new_folder"]"
+                @onclick="() => PromptAsync(FileAction.NewFolder, null)">📁+</button>
+        <button class="msg-action" title="@L["common.refresh"]" aria-label="@L["common.refresh"]"
+                @onclick="RefreshAsync">⟳</button>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-auto py-1" role="tree" aria-label="@L["ide.explorer"]">
+        <CascadingValue Value="this">
+            @foreach (var node in _roots)
+            {
+                <IdeTreeNode Node="node" Depth="0"
+                             OnOpenFile="OnOpenFile"
+                         OnAction="@(t => PromptAsync(t.Item1, t.Item2))" />
+            }
+        </CascadingValue>
+        @if (_roots.Count == 0)
+        {
+            <div class="px-3 py-2 text-xs text-gray-400">@L["ide.empty_tree"]</div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Branch corrente do workdir (badge do topo).</summary>
+    [Parameter] public string? Branch { get; set; }
+
+    /// <summary>Arquivos alterados (numstat) — badge de dirty do topo.</summary>
+    [Parameter] public int DirtyCount { get; set; }
+
+    /// <summary>Callback quando um arquivo é clicado (path relativo).</summary>
+    [Parameter] public EventCallback<string> OnOpenFile { get; set; }
+
+    /// <summary>Callback pós-ação (rename/delete/create) — pai recarrega git/tree.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private List<IdeTreeEntry> _roots = [];
+
+    /// <summary>Nó de tree com filhos carregados sob demanda.</summary>
+    public sealed class IdeTreeEntry
+    {
+        public required string Name { get; init; }
+        public required string Path { get; init; }
+        public required string Type { get; init; }
+        public bool Collapsed { get; init; }
+        public bool Expanded { get; set; }
+        public bool Loading { get; set; }
+        public List<IdeTreeEntry>? Children { get; set; }
+    }
+
+    /// <summary>Ação do menu de contexto.</summary>
+    public enum FileAction { NewFile, NewFolder, Rename, Delete }
+
+    /// <inheritdoc/>
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    /// <summary>Recarrega a raiz (raiz+2 níveis — lazy nos filhos expandidos).</summary>
+    public async Task RefreshAsync()
+    {
+        var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3);
+        _roots = tree?.Entries.Select(ToEntry).ToList() ?? [];
+    }
+
+    private static IdeTreeEntry ToEntry(WorkspaceFileEntryResponse e) => new()
+    {
+        Name = e.Name, Path = e.Path, Type = e.Type, Collapsed = e.Collapsed,
+    };
+
+    /// <summary>Expande/colapsa um dir; lazy-load na primeira expansão.</summary>
+    internal async Task ToggleAsync(IdeTreeEntry node)
+    {
+        node.Expanded = !node.Expanded;
+        if (node.Expanded && node.Children is null && !node.Loading)
+        {
+            node.Loading = true;
+            var tree = await Api.GetWorkspaceTreeAsync(path: node.Path, depth: 1);
+            node.Children = tree?.Entries.Select(ToEntry).ToList() ?? [];
+            node.Loading = false;
+        }
+    }
+
+    /// <summary>Ações do menu: prompt simples via DialogService, chama a file API.</summary>
+    private async Task PromptAsync(FileAction action, IdeTreeEntry? node)
+    {
+        var name = node?.Path ?? "";
+        switch (action)
+        {
+            case FileAction.NewFile:
+            case FileAction.NewFolder:
+                {
+                    var title = action == FileAction.NewFile
+                        ? L["ide.new_file"] : L["ide.new_folder"];
+                    var path = await Dialog.PromptAsync(
+                        $"{title} — {L["ide.path_hint"]}",
+                        name is "" ? "" : name + "/");
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        return;
+                    }
+                    if (action == FileAction.NewFolder)
+                    {
+                        await Api.WorkspaceMkdirAsync(path);
+                    }
+                    else
+                    {
+                        await Api.PutWorkspaceFileAsync(path, "");
+                    }
+                    break;
+                }
+            case FileAction.Rename:
+                {
+                    var to = await Dialog.PromptAsync(
+                        $"{L["ide.rename"]} — {L["ide.path_hint"]}", name);
+                    if (string.IsNullOrWhiteSpace(to) || to == name)
+                    {
+                        return;
+                    }
+                    await Api.WorkspaceRenameAsync(name, to);
+                    break;
+                }
+            case FileAction.Delete:
+                {
+                    var ok = await Dialog.ConfirmAsync(
+                        L.T("ide.confirm_delete", ("path", name)));
+                    if (!ok)
+                    {
+                        return;
+                    }
+                    await Api.WorkspaceDeleteAsync(name);
+                    break;
+                }
+        }
+        await RefreshAsync();
+        await OnChanged.InvokeAsync();
+    }
+}

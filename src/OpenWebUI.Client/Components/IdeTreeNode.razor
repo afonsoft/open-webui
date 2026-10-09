@@ -1,0 +1,100 @@
+@inject LocalizationService L
+
+@* Nó recursivo da tree do explorer (SPEC-20261009-web-ide-surface RF-001):
+   ícone por extensão, lazy-load, menu de contexto por botões inline. *@
+
+<div>
+    <div class="group flex items-center gap-1.5 px-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer select-none"
+         style="padding-left: @(0.5 + Depth * 0.85)rem"
+         role="treeitem" aria-expanded="@(Node.Type == "dir" ? Node.Expanded.ToString().ToLowerInvariant() : null)"
+         @onclick="ClickAsync">
+        @if (Node.Type == "dir")
+        {
+            <span class="text-gray-400 text-[0.625rem] w-3 shrink-0" aria-hidden="true">
+                @(Node.Loading ? "…" : Node.Expanded ? "▾" : "▸")
+            </span>
+            <span aria-hidden="true">@IconFor(Node)</span>
+        }
+        else
+        {
+            <span class="w-3 shrink-0" aria-hidden="true"></span>
+            <span aria-hidden="true">@IconFor(Node)</span>
+        }
+        <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">@Node.Name</span>
+        <span class="hidden group-hover:flex items-center gap-0.5 shrink-0">
+            <button class="msg-action !p-0.5" title="@L["ide.rename"]" aria-label="@L["ide.rename"]"
+                    @onclick:stopPropagation @onclick="() => OnAction.InvokeAsync((IdeExplorer.FileAction.Rename, Node))">✎</button>
+            <button class="msg-action !p-0.5 hover:text-red-500" title="@L["ide.delete"]" aria-label="@L["ide.delete"]"
+                    @onclick:stopPropagation @onclick="() => OnAction.InvokeAsync((IdeExplorer.FileAction.Delete, Node))">✕</button>
+        </span>
+    </div>
+    @if (Node.Type == "dir" && Node.Expanded && Node.Children is not null)
+    {
+        <div role="group">
+            @foreach (var child in Node.Children)
+            {
+                <IdeTreeNode Node="child" Depth="Depth + 1"
+                             OnOpenFile="OnOpenFile" OnAction="OnAction" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Nó (preenchido por <see cref="IdeExplorer.RefreshAsync"/>).</summary>
+    [Parameter, EditorRequired] public IdeExplorer.IdeTreeEntry Node { get; set; } = default!;
+
+    /// <summary>Nível de indentação.</summary>
+    [Parameter] public int Depth { get; set; }
+
+    /// <summary>Explorer (parente) — resolve expand/lazy.</summary>
+    [CascadingParameter] public IdeExplorer? Explorer { get; set; }
+
+    /// <summary>Arquivo clicado.</summary>
+    [Parameter] public EventCallback<string> OnOpenFile { get; set; }
+
+    /// <summary>Ação de contexto (rename/delete) — sobe pro explorer executar.</summary>
+    [Parameter] public EventCallback<(IdeExplorer.FileAction, IdeExplorer.IdeTreeEntry)> OnAction { get; set; }
+
+    private async Task ClickAsync()
+    {
+        if (Node.Type == "dir")
+        {
+            if (Node.Collapsed)
+            {
+                return; // .git/bin/obj/node_modules — não expande
+            }
+            if (Explorer is not null)
+            {
+                await Explorer.ToggleAsync(Node);
+            }
+        }
+        else
+        {
+            await OnOpenFile.InvokeAsync(Node.Path);
+        }
+    }
+
+    private static string IconFor(IdeExplorer.IdeTreeEntry n)
+    {
+        if (n.Type == "dir")
+        {
+            return "📁";
+        }
+        var ext = n.Name.Contains('.') ? n.Name[(n.Name.LastIndexOf('.') + 1)..].ToLowerInvariant() : "";
+        return ext switch
+        {
+            "cs" or "razor" => "🔷",
+            "js" or "ts" or "tsx" or "jsx" => "🟨",
+            "json" => "🧾",
+            "md" => "📝",
+            "css" or "scss" => "🎨",
+            "html" => "🌐",
+            "png" or "jpg" or "jpeg" or "svg" or "gif" or "webp" => "🖼️",
+            "py" => "🐍",
+            "yml" or "yaml" => "⚙️",
+            "lock" => "🔒",
+            _ => "📄",
+        };
+    }
+}

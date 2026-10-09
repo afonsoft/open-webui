@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-{YYYYMMDD}-web-ide-surface` |
 | Ticket | `GAP-impl-ide-surface` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `high` |
 | Depends on | `SPEC-20261009-workspace-file-api` (S1) |
 

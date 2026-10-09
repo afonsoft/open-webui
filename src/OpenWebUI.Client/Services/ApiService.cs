@@ -892,6 +892,107 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<bool> UnbindWorkspaceRepoAsync() =>
         await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
 
+    // ---------------- Workspace file API + IDE (SPEC-20261009-web-ide-surface) ----------------
+
+    /// <summary>Tree lazy do workdir; null em erro/404 (sem repo vinculado).</summary>
+    public Task<WorkspaceFileTreeResponse?> GetWorkspaceTreeAsync(
+        string? path = null, int? depth = null, string? cursor = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path ?? "")
+            + (depth is null ? "" : $"&depth={depth}")
+            + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
+        return SendAsync<WorkspaceFileTreeResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/tree{q}");
+    }
+
+    /// <summary>Lê um arquivo do workdir (fatia de linhas); null em 404/binário/grande.</summary>
+    public Task<WorkspaceFileReadResponse?> GetWorkspaceFileAsync(
+        string path, int? startLine = null, int? maxLines = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path)
+            + (startLine is null ? "" : $"&startLine={startLine}")
+            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+        return SendAsync<WorkspaceFileReadResponse>(HttpMethod.Get,
+            $"/api/v1/workspace/repo/file{q}");
+    }
+
+    /// <summary>Leitura com status — a IDE distingue 404, binário(415) e grande(413).</summary>
+    public async Task<IdeFileResult> GetWorkspaceFileStatusAsync(
+        string path, int? startLine = null, int? maxLines = null)
+    {
+        var q = "?path=" + Uri.EscapeDataString(path)
+            + (startLine is null ? "" : $"&startLine={startLine}")
+            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+        using var request = auth.CreateRequest(HttpMethod.Get,
+            $"/api/v1/workspace/repo/file{q}");
+        using var response = await http.SendAsync(request);
+        var code = (int)response.StatusCode;
+        if (code == 200)
+        {
+            var body = await response.Content.ReadFromJsonAsync<WorkspaceFileReadResponse>(JsonOptions);
+            return new IdeFileResult(200, body);
+        }
+        return new IdeFileResult(code, null);
+    }
+
+    /// <summary>Grava arquivo com If-Match opcional; 409 devolve o etag atual para o dialog.</summary>
+    public async Task<IdeSaveResult> PutWorkspaceFileAsync(
+        string path, string content, string? ifMatch = null)
+    {
+        using var request = auth.CreateRequest(HttpMethod.Put, "/api/v1/workspace/repo/file");
+        request.Content = JsonContent.Create(
+            new WorkspaceFileWriteRequest(path, content), options: JsonOptions);
+        if (!string.IsNullOrEmpty(ifMatch))
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+
+        using var response = await http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadFromJsonAsync<WorkspaceFileWriteResponse>(JsonOptions);
+            return new IdeSaveResult(true, body?.ETag, null);
+        }
+        if ((int)response.StatusCode == 409)
+        {
+            var node = await response.Content.ReadFromJsonAsync<JsonObject>(JsonOptions);
+            return new IdeSaveResult(false, null, node?["etag"]?.GetValue<string>());
+        }
+        return new IdeSaveResult(false, null, null);
+    }
+
+    /// <summary>Cria diretório (recursivo) no workdir.</summary>
+    public Task<bool> WorkspaceMkdirAsync(string path) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/mkdir",
+            new WorkspaceFileMkdirRequest(path));
+
+    /// <summary>Renomeia/move dentro do workdir; false em 404/409.</summary>
+    public Task<bool> WorkspaceRenameAsync(string from, string to) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/rename",
+            new WorkspaceFileRenameRequest(from, to));
+
+    /// <summary>Remove arquivo ou diretório (recursivo) do workdir.</summary>
+    public Task<bool> WorkspaceDeleteAsync(string path) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/delete",
+            new WorkspaceFileDeleteRequest(path));
+
+    /// <summary>Snapshot git do workdir (aba Changes do /ide); null em falha/404.</summary>
+    public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
+        SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
+
+    /// <summary>Lê a feature flag da superfície /ide (on por default).</summary>
+    public async Task<bool> GetIdeEnabledAsync()
+    {
+        var node = await SendAsync<JsonObject>(HttpMethod.Get, "/api/v1/ide/config");
+        return node?["enabled"]?.GetValue<bool>() != false;
+    }
+
+    /// <summary>Resultado do PUT de arquivo da IDE (etag novo ou o atual em conflito).</summary>
+    public sealed record IdeSaveResult(bool Ok, string? ETag, string? ConflictETag);
+
+    /// <summary>Resultado da leitura de arquivo da IDE: status http + body quando 200.</summary>
+    public sealed record IdeFileResult(int Status, WorkspaceFileReadResponse? Body);
+
     // ---------------- Internos ----------------
 
     private async Task<bool> SendStatusAsync(HttpMethod method, string uri, object? body = null)

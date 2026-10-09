@@ -25,6 +25,16 @@
         <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")" role="tab" aria-selected="@(Section == "skills")">@L["workspace.skills"]</a>
     </div>
 
+    <div class="card-row mb-3">
+        <div class="card-main">
+            <div class="card-title">@L["ide.title"]</div>
+            <div class="card-sub">@L["ide.entry_desc"]</div>
+        </div>
+        <div class="card-actions">
+            <a class="msg-action" href="/ide">@L["ide.open"]</a>
+        </div>
+    </div>
+
     @if (Section == "models")
     {
         <div class="card-list">

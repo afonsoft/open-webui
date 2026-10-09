@@ -117,7 +117,7 @@
                                     {
                                         @if (GitFileDiff(file.Path) is { Length: > 0 } fileDiff)
                                         {
-                                            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in DiffLines(fileDiff)){<span class="@line.Css">@line.Text
+                                            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in GitDiffRender.Lines(fileDiff)){<span class="@line.Css">@line.Text
 </span>}</pre>
                                         }
                                         else
@@ -163,7 +163,7 @@
                                 {
                                     @if (change.Diff is { Length: > 0 })
                                     {
-                                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in DiffLines(change.Diff)){<span class="@line.Css">@line.Text
+                                        <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-all border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 px-2 py-1.5 text-[0.625rem] font-mono leading-4">@foreach (var line in GitDiffRender.Lines(change.Diff)){<span class="@line.Css">@line.Text
 </span>}</pre>
                                     }
                                     else
@@ -369,41 +369,9 @@
         if (!string.Equals(_gitDiffSource, Git.Diff, StringComparison.Ordinal))
         {
             _gitDiffSource = Git.Diff;
-            _gitDiffByFile = SplitGitDiff(Git.Diff);
+            _gitDiffByFile = GitDiffRender.SplitDiff(Git.Diff);
         }
         return _gitDiffByFile!.GetValueOrDefault(path);
-    }
-
-    /// <summary>Quebra o unified diff em seções por arquivo (chave = path do lado b).</summary>
-    private static Dictionary<string, string> SplitGitDiff(string diff)
-    {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        string? current = null;
-        var sb = new System.Text.StringBuilder();
-        void Flush()
-        {
-            if (current is not null)
-            {
-                map[current] = sb.ToString();
-            }
-            sb.Clear();
-        }
-
-        foreach (var line in diff.Split('\n'))
-        {
-            if (line.StartsWith("diff --git ", StringComparison.Ordinal))
-            {
-                Flush();
-                var bIdx = line.LastIndexOf(" b/", StringComparison.Ordinal);
-                current = bIdx >= 0 ? line[(bIdx + 3)..].Trim() : null;
-            }
-            if (current is not null)
-            {
-                sb.AppendLine(line);
-            }
-        }
-        Flush();
-        return map;
     }
 
     private IEnumerable<string> Tabs => IsAdmin
@@ -425,16 +393,4 @@
 
     private static string FormatTime(long unixMs) =>
         DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime().ToString("HH:mm:ss");
-
-    private static IEnumerable<(string Text, string Css)> DiffLines(string diff)
-    {
-        foreach (var line in diff.Split('\n'))
-        {
-            var css = line.StartsWith('+') ? "text-green-600 dark:text-green-400"
-                : line.StartsWith('-') ? "text-red-500 dark:text-red-400"
-                : line.StartsWith("@@") ? "text-blue-600 dark:text-blue-400"
-                : "text-gray-500 dark:text-gray-400";
-            yield return (line, css);
-        }
-    }
 }
