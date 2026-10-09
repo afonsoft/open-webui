@@ -167,6 +167,17 @@ public static class ChatPipeline
                 $"(branch '{repoBinding.Branch}'). As tools de arquivo e shell " +
                 "operam dentro do checkout desse repositório — a raiz do " +
                 "workspace é a raiz do repo.");
+
+            // SPEC-20261009-repo-skills-slash-commands RF-005: instruções do
+            // projeto (AGENTS.md → CLAUDE.md → .cursor/rules/*.md → README.md,
+            // cap 32KB) entram como bloco marcado no system prompt.
+            var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var instructions = SkillDiscoveryService.LoadProjectInstructions(workdir);
+            if (!string.IsNullOrWhiteSpace(instructions))
+            {
+                systemParts.Add(
+                    "<project_instructions>\n" + instructions + "\n</project_instructions>");
+            }
         }
 
         // 4. Mescla partes de sistema numa única mensagem inicial.

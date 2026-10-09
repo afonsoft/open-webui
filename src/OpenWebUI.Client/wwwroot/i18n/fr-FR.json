@@ -766,5 +766,8 @@
   "ide.not_a_repo": "Le dossier lié n'est pas un dépôt git.",
   "ide.clean_tree": "Arbre de travail propre.",
   "ide.diff_truncated": "Diff tronqué — trop volumineux.",
-  "ide.tab_chat": "Chat"
+  "ide.tab_chat": "Chat",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

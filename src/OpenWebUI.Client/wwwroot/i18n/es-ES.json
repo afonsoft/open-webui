@@ -766,5 +766,8 @@
   "ide.not_a_repo": "La carpeta vinculada no es un repositorio git.",
   "ide.clean_tree": "Árbol de trabajo limpio.",
   "ide.diff_truncated": "Diff truncado — demasiado grande.",
-  "ide.tab_chat": "Chat"
+  "ide.tab_chat": "Chat",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

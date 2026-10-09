@@ -766,5 +766,8 @@
   "ide.not_a_repo": " git 。",
   "ide.clean_tree": "。",
   "ide.diff_truncated": "——。",
-  "ide.tab_chat": ""
+  "ide.tab_chat": "",
+  "chat.src_prompt": "prompt",
+  "chat.src_skill": "skill",
+  "chat.src_command": "cmd"
 }

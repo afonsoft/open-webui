@@ -96,6 +96,8 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
 
         var binding = new WorkspaceRepoBinding(slug, branch, dir);
         await config.SetAsync(BindingKey(userId), binding, ct);
+        // Bind/branch novo → cache de skills/commands do workdir expira na hora.
+        SkillDiscoveryService.Invalidate(absDir);
         return (binding, null);
     }
 

@@ -344,11 +344,15 @@
                 <div class="px-2 relative">
                     @if (_promptSuggestions.Count > 0)
                     {
-                        <div class="mb-1 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 overflow-hidden">
+                        <div class="mb-1 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800/50 overflow-hidden" role="listbox">
                             @foreach (var p in _promptSuggestions)
                             {
-                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer"
-                                        @onclick="() => SelectPrompt(p)">/@p.Command @p.Title</button>
+                                <button class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 cursor-pointer flex items-center gap-2"
+                                        role="option"
+                                        @onclick="() => SelectPrompt(p)">
+                                    <span class="text-[10px] uppercase tracking-wide px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">@L[$"chat.src_{p.Source}"]</span>
+                                    <span class="truncate">/@p.Command @p.Title</span>
+                                </button>
                             }
                         </div>
                     }
@@ -631,7 +635,9 @@
     private readonly List<FileResponse> _attachedFiles = [];
     private List<PromptResponse> _prompts = [];
     private List<PromptSuggestion> _suggestions = [];
-    private List<PromptResponse> _promptSuggestions = [];
+    private List<SlashItem> _promptSuggestions = [];
+    private List<RepoSkillItemResponse> _repoSkills = [];
+    private List<RepoCommandItemResponse> _repoCommands = [];
     private List<string> _followUps = [];
     private ArenaCompletionResult? _arena;
     private ArenaFeedbackResponse? _arenaFeedback;
@@ -756,6 +762,11 @@
             _toolIds = DefaultToolIds();
         }
         _repo = repoTask.Result;
+        if (_repo?.Repo is not null)
+        {
+            _repoSkills = await Api.GetRepoSkillsAsync();
+            _repoCommands = await Api.GetRepoCommandsAsync();
+        }
         var features = configTask.Result?.Features;
         _webSearchAvailable = features?.EnableWebSearch ?? false;
         _imageGenEnabled = features?.EnableImageGeneration ?? false;
@@ -1045,10 +1056,33 @@
         _input = suggestion.Content;
     }
 
-    private void SelectPrompt(PromptResponse prompt)
+    private async Task SelectPrompt(SlashItem item)
     {
-        _input = prompt.Content;
         _promptSuggestions = [];
+        if (item.Source == "prompt")
+        {
+            var prompt = _prompts.FirstOrDefault(
+                p => p.Command.Equals(item.Command, StringComparison.OrdinalIgnoreCase));
+            if (prompt is not null)
+            {
+                _input = prompt.Content;
+            }
+
+            return;
+        }
+
+        // skill → corpo markdown no input; command → template com $N interpolado.
+        var args = RepoSlashCommands.ArgsAfter(_input);
+        if (item.Source == "skill")
+        {
+            var detail = await Api.GetRepoSkillAsync(item.Command);
+            _input = detail?.Content ?? _input;
+        }
+        else
+        {
+            var detail = await Api.GetRepoCommandAsync(item.Command);
+            _input = detail is null ? _input : RepoSlashCommands.Interpolate(detail.Content, args);
+        }
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
@@ -1179,12 +1213,13 @@
 
     private void UpdatePromptSuggestions()
     {
-        _promptSuggestions = _input.StartsWith('/')
-            ? _prompts
-                .Where(p => p.Command.StartsWith(_input[1..], StringComparison.OrdinalIgnoreCase))
-                .Take(5)
-                .ToList()
-            : [];
+        // RF-003: '/' mescla prompts do usuário + skills/commands do repo.
+        var prefix = _input.StartsWith('/')
+            ? _input[1..].Split(' ', 2)[0]
+            : null;
+        _promptSuggestions = prefix is null
+            ? []
+            : RepoSlashCommands.Merge(_prompts, _repoSkills, _repoCommands, prefix);
     }
 
     private async Task TriggerFilePicker()
@@ -2022,6 +2057,16 @@
     private async Task OnRepoBoundAsync(WorkspaceRepoResponse? binding)
     {
         _repo = binding?.Repo is null ? null : binding;
+        if (_repo?.Repo is not null)
+        {
+            _repoSkills = await Api.GetRepoSkillsAsync();
+            _repoCommands = await Api.GetRepoCommandsAsync();
+        }
+        else
+        {
+            _repoSkills = [];
+            _repoCommands = [];
+        }
         _git = null;
         await RefreshGitAsync();
         StateHasChanged();
