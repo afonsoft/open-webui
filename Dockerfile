@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 # Open WebUI (.NET) — multi-stage build, padrão afonsoft/KnowledgeRAG.
 # Stage 1: .NET SDK 10 → publish self-contained para linux-x64/arm64.
-# Stage 2: runtime-deps (Debian slim), usuário non-root, volume /data, healthcheck.
+# Stage 2: runtime-deps (Debian slim) + git e curl, usuário non-root `app`
+# (uid 1654), volume /data com DATA_ROOT=/data — uploads, workspaces do IDE,
+# checkpoints e worktrees persistem no volume (o content root /app pertence
+# a root e não é gravável pelo processo); healthcheck em /health.
 #
 # NOTA: linux-musl-x64/Alpine não é possível — o cliente Blazor WASM hospedado
 # restaura Microsoft.NETCore.App.Runtime.Mono.<rid>, que não é publicado para
@@ -60,6 +63,9 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /app/publish ./
 
+# DATA_ROOT alimenta DataPaths.Root: tudo que o app grava em runtime
+# (uploads, workspaces, checkpoints, worktrees) pousa no volume — sem
+# isso o app tentaria criar /app/data e tomaria 500 (EACCES, /app é root).
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     ConnectionStrings__Default="Data Source=/data/openwebui.db" \
