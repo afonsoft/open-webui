@@ -58,6 +58,60 @@ public static class WorkspaceFiles
         return full;
     }
 
+    /// <summary>
+    /// <see cref="ResolveInside"/> + resolução de symlinks (SPEC-20261009-workspace-file-api):
+    /// se o nó final ou qualquer ancestral dentro do workspace for um link, o
+    /// alvo real precisa permanecer dentro do jail — senão um link criado por
+    /// <c>shell_exec</c> viraria um canal de fuga da API de arquivos.
+    /// </summary>
+    public static string? ResolveInsideFinal(string workspace, string? relative, out string error)
+    {
+        var full = ResolveInside(workspace, relative, out error);
+        if (full is null)
+        {
+            return null;
+        }
+
+        FileSystemInfo? node = Directory.Exists(full) ? new DirectoryInfo(full)
+            : File.Exists(full) ? new FileInfo(full)
+            : null;
+        if (node?.LinkTarget is not null)
+        {
+            var target = node.ResolveLinkTarget(returnFinalTarget: true);
+            if (target is null || !CommandRiskClassifier.PathInside(workspace, target.FullName))
+            {
+                error = $"Caminho '{relative}' aponta para fora do workspace — negado.";
+                return null;
+            }
+            full = target.FullName;
+        }
+
+        var root = Path.GetFullPath(workspace)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var ancestor = Directory.Exists(full)
+            ? new DirectoryInfo(full)
+            : new DirectoryInfo(Path.GetDirectoryName(full)!);
+        while (ancestor is not null
+               && ancestor.FullName.Length > root.Length
+               && ancestor.FullName.StartsWith(root, cmp))
+        {
+            if (ancestor.LinkTarget is not null)
+            {
+                var target = ancestor.ResolveLinkTarget(returnFinalTarget: true);
+                if (target is null || !CommandRiskClassifier.PathInside(workspace, target.FullName))
+                {
+                    error = $"Caminho '{relative}' aponta para fora do workspace — negado.";
+                    return null;
+                }
+            }
+            ancestor = ancestor.Parent;
+        }
+
+        error = string.Empty;
+        return full;
+    }
+
     /// <summary>True quando o conteúdo parece binário (NUL nos primeiros 8KB).</summary>
     public static bool LooksBinary(string path)
     {
