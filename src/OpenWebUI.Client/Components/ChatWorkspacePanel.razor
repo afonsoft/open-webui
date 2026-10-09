@@ -75,6 +75,8 @@
                 break;
 
             case "changes":
+                @* Checkpoints da run (S6): Revert por snapshot. *@
+                <CheckpointList Checkpoints="Checkpoints" OnReverted="OnReverted" />
                 @if (Git is { Git: true } git)
                 {
                     @* Workspace é repo git: branch + numstat + diff real (RF-018). *@
@@ -336,6 +338,12 @@
 
     /// <summary>Snapshot git do workspace (aba Changes em modo repo — RF-018).</summary>
     [Parameter] public WorkspaceGitResponse? Git { get; set; }
+
+    /// <summary>Checkpoints do workdir emitidos pela run (S6 — aba Changes).</summary>
+    [Parameter] public IReadOnlyList<WorkspaceCheckpointItem> Checkpoints { get; set; } = [];
+
+    /// <summary>Disparado após um revert bem-sucedido (pai recarrega o git).</summary>
+    [Parameter] public EventCallback OnReverted { get; set; }
 
     /// <summary>Aba a abrir quando o valor muda (chip git do header → "changes").</summary>
     [Parameter] public string? RequestedTab { get; set; }
