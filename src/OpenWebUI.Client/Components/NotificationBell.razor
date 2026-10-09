@@ -183,10 +183,12 @@
         var delta = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - createdAt;
         return delta switch
         {
-            < 60 => L["notifications.time_now"],
-            < 3600 => L.T("notifications.time_min", ("count", (delta / 60).ToString())),
-            < 86400 => L.T("notifications.time_hours", ("count", (delta / 3600).ToString())),
-            _ => L.T("notifications.time_days", ("count", (delta / 86400).ToString())),
+            // Braços com `>=` (e não `<` na coluna inicial): o parser do Razor
+            // interpreta `<` no início de linha dentro de @code como tag HTML.
+            >= 86400 => L.T("notifications.time_days", ("count", (delta / 86400).ToString())),
+            >= 3600 => L.T("notifications.time_hours", ("count", (delta / 3600).ToString())),
+            >= 60 => L.T("notifications.time_min", ("count", (delta / 60).ToString())),
+            _ => L["notifications.time_now"],
         };
     }
 
