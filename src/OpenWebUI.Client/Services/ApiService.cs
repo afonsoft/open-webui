@@ -1116,6 +1116,22 @@ public class ApiService(HttpClient http, AuthService auth)
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
 
+    // ---------------- Feed de notificações (D3) ----------------
+
+    /// <summary>Página do feed in-app; <paramref name="unreadOnly"/> filtra só não-lidas.</summary>
+    public async Task<NotificationPageResponse?> GetNotificationsAsync(
+        int page = 1, bool unreadOnly = false, int pageSize = 20) =>
+        await SendAsync<NotificationPageResponse>(HttpMethod.Get,
+            $"/api/v1/notifications?page={page}&pageSize={pageSize}&unread={(unreadOnly ? "true" : "false")}");
+
+    /// <summary>Marca uma notificação como lida.</summary>
+    public async Task<bool> MarkNotificationReadAsync(string id) =>
+        await SendStatusAsync(HttpMethod.Post, $"/api/v1/notifications/{id}/read");
+
+    /// <summary>Marca todas as notificações do usuário como lidas.</summary>
+    public async Task<bool> MarkAllNotificationsReadAsync() =>
+        await SendStatusAsync(HttpMethod.Post, "/api/v1/notifications/read-all");
+
     // ---------------- Analytics (admin) ----------------
 
     /// <summary>Dashboard de analytics agregado (admin, apenas contagens).</summary>
