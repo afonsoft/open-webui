@@ -19,7 +19,7 @@ namespace OpenWebUI.Api.Tests;
 /// config/args, motores OpenAI-compatible e ComfyUI contra handler fake,
 /// factory e endpoints admin de <c>/api/v1/videos/config</c>.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class VideoTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -52,7 +52,7 @@ public class VideoTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
         if (Directory.Exists(_uploadDir))
         {

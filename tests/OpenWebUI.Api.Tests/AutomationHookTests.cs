@@ -18,7 +18,7 @@ namespace OpenWebUI.Api.Tests;
 /// enfileira uma run no chat vinculado, config admin do n8n e o
 /// <see cref="N8nService"/> contra um handler fake.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AutomationHookTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -49,7 +49,7 @@ public class AutomationHookTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

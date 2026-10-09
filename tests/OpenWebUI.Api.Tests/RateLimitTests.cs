@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// lockout após falhas consecutivas, janela por usuário em completions
 /// e config administrativa restrita a admin.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class RateLimitTests
 {
@@ -44,7 +44,7 @@ public class RateLimitTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

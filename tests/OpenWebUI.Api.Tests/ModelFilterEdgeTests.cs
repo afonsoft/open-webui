@@ -4,7 +4,7 @@ using OpenWebUI.Infrastructure.Services;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes de borda do parse/validação/SSE dos model filters.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ModelFilterEdgeTests
 {
     [Test]

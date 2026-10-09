@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// produzem rankings diferentes em corpus controlado, e o rerank
 /// reordena por cobertura de termos.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RagHybridTests
 {
     private string _dbPath = null!;
@@ -35,7 +35,7 @@ public class RagHybridTests
         _mc2.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -7,7 +7,7 @@ namespace OpenWebUI.Api.Tests;
 /// Teste de hosting do slice voice: o helper JS de áudio (STT/TTS via Web
 /// Speech API) precisa ser servido com o restante do app Blazor.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class VoiceAssetTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -30,7 +30,7 @@ public class VoiceAssetTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

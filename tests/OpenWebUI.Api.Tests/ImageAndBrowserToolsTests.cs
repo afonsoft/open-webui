@@ -206,13 +206,15 @@ public class ImageAndBrowserToolsTests
     [Test]
     public async Task Browser_SemBinario_ScreenshotFalhou()
     {
-        // Porta 9 (discard) fechada: se houver browser no ambiente a página
-        // falha; se não houver, ResolvePath lança — ambos viram
-        // "Screenshot falhou" via InvalidOperationException.
+        // BrowserTools:Path apontado para um executável que existe mas sai
+        // com código != 0 sem produzir imagem: resolve como "binário" e o
+        // launch "falha" → "Screenshot falhou" de forma determinística, com
+        // ou sem Chrome na máquina.
         var tool = BrowserTool(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["BrowserTools:Enabled"] = "true",
+                ["BrowserTools:Path"] = "/bin/false",
             }).Build());
         var r = await tool.ExecuteAsync(
             Args("{\"url\":\"http://127.0.0.1:9/\",\"width\":800,\"height\":600}"),

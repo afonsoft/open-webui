@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// override por usuário vencendo o grupo, endpoint admin de permissões
 /// e membership automático por domínio de e-mail no signup.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class PermissionsGranularTests
 {
@@ -45,7 +45,7 @@ public class PermissionsGranularTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

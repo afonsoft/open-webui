@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes dos webhooks de notificação: CRUD por usuário/global, validação de URL,
 /// disparo de teste com assinatura HMAC e best-effort.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class NotificationEndpointsTests
 {
@@ -54,7 +54,7 @@ public class NotificationEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes da geração de imagens: config admin (chave mascarada), feature flag,
 /// geração persistindo arquivo e autorização dos endpoints /api/v1/images.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ImageEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -51,7 +51,7 @@ public class ImageEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

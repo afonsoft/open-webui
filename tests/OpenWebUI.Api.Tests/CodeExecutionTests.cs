@@ -6,7 +6,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes da feature flag de execução de código exposta em /api/config.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class CodeExecutionTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -29,7 +29,7 @@ public class CodeExecutionTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -7,7 +7,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Testes do seed de usuário admin via variáveis ADMIN_* (primeiro boot).</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class AdminSeedTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -36,7 +36,7 @@ public class AdminSeedTests
         Environment.SetEnvironmentVariable("ADMIN_PASSWORD", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

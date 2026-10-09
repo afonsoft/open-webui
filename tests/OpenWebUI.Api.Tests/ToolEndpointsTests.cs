@@ -11,7 +11,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes das tools (function calling via HTTP): CRUD, validação de spec,
 /// seleção por chat e o loop de tool calling no endpoint de completions.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ToolEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -52,7 +52,7 @@ public class ToolEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

@@ -9,7 +9,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Api.Tests;
 
 /// <summary>Cobertura dos handlers de ChatEndpoints: import/export, clone, mensagens, tags, arquivo, share e pastas.</summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ChatEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -41,7 +41,7 @@ public class ChatEndpointsTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

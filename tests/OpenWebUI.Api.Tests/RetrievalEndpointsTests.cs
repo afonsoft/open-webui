@@ -13,7 +13,7 @@ namespace OpenWebUI.Api.Tests;
 /// engine mockada (SearXNG), config admin com chave mascarada e reset.
 /// O mock HTTP serve o endpoint /api/embed do Ollama e o /search do SearXNG.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class RetrievalEndpointsTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -50,7 +50,7 @@ public class RetrievalEndpointsTests
         Environment.SetEnvironmentVariable("OLLAMA_BASE_URL", null);
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

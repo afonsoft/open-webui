@@ -15,7 +15,7 @@ namespace OpenWebUI.Api.Tests;
 /// preset, endpoint de decisão e persistência das mensagens do loop.
 /// O mock local (HttpListener) faz de Ollama + endpoint da tool HTTP.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 public class ToolStreamingTests
 {
     private WebApplicationFactory<Program> _factory = null!;
@@ -61,7 +61,7 @@ public class ToolStreamingTests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 

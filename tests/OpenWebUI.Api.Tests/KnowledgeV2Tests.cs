@@ -12,7 +12,7 @@ namespace OpenWebUI.Api.Tests;
 /// Testes da slice knowledge-v2: anexar file_id existente, reindexar
 /// coleção com o provider atual e exclusão em lote respeitando dono.
 /// </summary>
-[TestFixture]
+[TestFixture, IsolateEnvironment]
 [NonParallelizable]
 public class KnowledgeV2Tests
 {
@@ -60,7 +60,7 @@ public class KnowledgeV2Tests
         _factory.Dispose();
         if (File.Exists(_dbPath))
         {
-            File.Delete(_dbPath);
+            TestInfra.DeleteDb(_dbPath);
         }
     }
 
