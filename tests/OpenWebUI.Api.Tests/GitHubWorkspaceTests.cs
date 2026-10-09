@@ -280,8 +280,8 @@ public class GitHubWorkspaceTests
             new User { Id = "u3", Name = "U3", Email = "u3@x" },
             _db, _config, rag: null!, webSearch: null!, _repos, default);
         var system = effective.Messages.FirstOrDefault(m => m.Role == "system");
-        Assert.That(system?.Content, Does.Contain("Open WebUI assistant")
-            .And.Contain("user's language"));
+        Assert.That(system?.Content, Does.Contain("Open WebUI agent")
+            .And.Contain("autonomous").And.Contain("user's language"));
     }
 
     // ---------------- GitHubService: caminhos de erro ----------------
