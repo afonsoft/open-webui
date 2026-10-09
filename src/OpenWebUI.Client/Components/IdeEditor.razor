@@ -177,9 +177,13 @@
                 _active = _tabs.LastOrDefault();
                 await PushActiveToJsAsync();
             }
+            StateHasChanged();
             return;
         }
         await PushActiveToJsAsync();
+        // OpenFileAsync é chamada de fora via @ref — Blazor não re-renderiza
+        // o componente nesse caminho (evento foi do explorer, params inalterados).
+        StateHasChanged();
     }
 
     private async Task ActivateAsync(IdeTab tab)
