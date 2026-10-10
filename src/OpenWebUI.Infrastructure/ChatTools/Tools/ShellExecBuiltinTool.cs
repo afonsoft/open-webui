@@ -56,63 +56,94 @@ public sealed class ShellExecBuiltinTool(ChatJobService jobs) : IBuiltinChatTool
         var assessment = CommandRiskClassifier.Classify(command, context.WorkspacePath);
         if (!assessment.Allowed)
         {
-            var refuseText = $"Comando negado: {assessment.Reason}";
-            // Binário fora da allowlist: pode ser só uma ferramenta não
-            // instalada/mapeada — orienta o agente a sugerir a instalação
-            // e pedir aprovação via ask_user em vez de desistir.
-            if (assessment.Reason?.Contains("Binário desconhecido") == true)
-            {
-                refuseText += MissingCommandHint;
-            }
-
-            return new BuiltinToolResult(
-                refuseText,
-                new { risk = assessment.Level.ToString(), reason = assessment.Reason },
-                Refused: true,
-                RefuseReason: assessment.Reason);
+            return RefusedResult(assessment);
         }
 
         var background = args.TryGetProperty("background", out var b)
             && b.ValueKind is JsonValueKind.True;
         if (background)
         {
-            var job = await jobs.StartAsync(command, context, ct);
-            var jobText = job.Status == ChatJobStatus.Running
-                ? $"Job iniciado em background: {job.Id} (pid {job.Pid}). "
-                  + "Consulte com job_output e mate com job_kill."
-                : $"Job falhou ao iniciar: {job.Error}";
-            return new BuiltinToolResult(jobText, new
-            {
-                jobId = job.Id,
-                status = job.Status,
-                pid = job.Pid,
-            });
+            return await RunInBackgroundAsync(command, context, ct);
         }
 
+        var timeout = ResolveTimeout(args);
+
+        Directory.CreateDirectory(context.WorkspacePath);
+
+        var (prepared, stdin) = PrepareSudo(command, args);
+        var outcome = await ChatProcessRunner.RunAsync(
+            prepared, context.WorkspacePath, timeout, stdin: stdin, ct: ct);
+
+        return BuildResult(outcome, timeout, assessment);
+    }
+
+    /// <summary>Negação do classifier com hint de instalação quando o binário é desconhecido.</summary>
+    private static BuiltinToolResult RefusedResult(CommandRiskAssessment assessment)
+    {
+        var refuseText = $"Comando negado: {assessment.Reason}";
+        // Binário fora da allowlist: pode ser só uma ferramenta não
+        // instalada/mapeada — orienta o agente a sugerir a instalação
+        // e pedir aprovação via ask_user em vez de desistir.
+        if (assessment.Reason?.Contains("Binário desconhecido") == true)
+        {
+            refuseText += MissingCommandHint;
+        }
+
+        return new BuiltinToolResult(
+            refuseText,
+            new { risk = assessment.Level.ToString(), reason = assessment.Reason },
+            Refused: true,
+            RefuseReason: assessment.Reason);
+    }
+
+    /// <summary>Execução detached como job durável (poll job_output, kill job_kill).</summary>
+    private async Task<BuiltinToolResult> RunInBackgroundAsync(
+        string command, BuiltinToolContext context, CancellationToken ct)
+    {
+        var job = await jobs.StartAsync(command, context, ct);
+        var jobText = job.Status == ChatJobStatus.Running
+            ? $"Job iniciado em background: {job.Id} (pid {job.Pid}). "
+              + "Consulte com job_output e mate com job_kill."
+            : $"Job falhou ao iniciar: {job.Error}";
+        return new BuiltinToolResult(jobText, new
+        {
+            jobId = job.Id,
+            status = job.Status,
+            pid = job.Pid,
+        });
+    }
+
+    /// <summary><c>timeout_seconds</c> clampeado a [1, 300]s; default 60s.</summary>
+    private static TimeSpan ResolveTimeout(JsonElement args)
+    {
         var timeout = DefaultTimeout;
         if (args.TryGetProperty("timeout_seconds", out var t) && t.TryGetInt32(out var secs))
         {
             timeout = TimeSpan.FromSeconds(Math.Clamp(secs, 1, (int)MaxTimeout.TotalSeconds));
         }
+        return timeout;
+    }
 
-        Directory.CreateDirectory(context.WorkspacePath);
-
-        // sudo: se o usuário forneceu a senha (via ask_user), alimenta
-        // 'sudo -S -v' por stdin — o timestamp cacheado cobre os demais
-        // sudo do mesmo sh -c.
-        string? stdin = null;
+    /// <summary>
+    /// sudo: se o usuário forneceu a senha (via ask_user), prefixa
+    /// <c>sudo -S -v</c> e alimenta a senha por stdin — o timestamp cacheado
+    /// cobre os demais sudo do mesmo sh -c.
+    /// </summary>
+    private static (string Command, string? Stdin) PrepareSudo(string command, JsonElement args)
+    {
         var sudoPassword = args.TryGetProperty("sudo_password", out var p)
             ? p.GetString()
             : null;
-        if (!string.IsNullOrEmpty(sudoPassword) && command.Contains("sudo", StringComparison.Ordinal))
-        {
-            command = "sudo -S -p '' -v; " + command;
-            stdin = sudoPassword + "\n";
-        }
+        return !string.IsNullOrEmpty(sudoPassword)
+            && command.Contains("sudo", StringComparison.Ordinal)
+                ? ("sudo -S -p '' -v; " + command, sudoPassword + "\n")
+                : (command, null);
+    }
 
-        var outcome = await ChatProcessRunner.RunAsync(
-            command, context.WorkspacePath, timeout, stdin: stdin, ct: ct);
-
+    /// <summary>Texto + payload do resultado; hints de sudo/comando ausente no texto.</summary>
+    private static BuiltinToolResult BuildResult(
+        ProcessOutcome outcome, TimeSpan timeout, CommandRiskAssessment assessment)
+    {
         var status = outcome.TimedOut
             ? $"timeout após {(int)timeout.TotalSeconds}s"
             : $"exit {outcome.ExitCode}";

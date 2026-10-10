@@ -110,7 +110,44 @@ public static class PreviewEndpoints
             });
         }
 
-        // Path bruto preserva o percent-encoding do upstream alvo.
+        var upstream = BuildUpstreamUri(http, port);
+        using var request = BuildUpstreamRequest(http, upstream);
+
+        var client = httpFactory.CreateClient(HttpClientName);
+        HttpResponseMessage response;
+        try
+        {
+            // Timeout de 30s cobre connect+headers; depois disso o corpo
+            // streama livre (SSE de dev servers fica aberto por design).
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                ct, http.RequestAborted);
+            timeout.CancelAfter(UpstreamTimeout);
+            response = await client.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested
+            && !http.RequestAborted.IsCancellationRequested)
+        {
+            return PreviewError(
+                HttpStatusCode.GatewayTimeout, port,
+                "O app não respondeu em 30s.");
+        }
+        catch (HttpRequestException)
+        {
+            return PreviewError(
+                HttpStatusCode.BadGateway, port,
+                "Nada escutando nesta porta do host — o dev server está no ar?");
+        }
+
+        return new ProxiedResult(response, port);
+    }
+
+    /// <summary>
+    /// URI alvo <c>http://127.0.0.1:{port}{subPath}{query}</c> — o path bruto
+    /// preserva o percent-encoding do upstream alvo.
+    /// </summary>
+    private static Uri BuildUpstreamUri(HttpContext http, int port)
+    {
         var prefix = $"/preview/{port}";
         var subPath = http.Request.Path.Value is { } raw && raw.StartsWith(prefix, StringComparison.Ordinal)
             ? raw[prefix.Length..]
@@ -120,10 +157,17 @@ public static class PreviewEndpoints
             subPath = "/";
         }
 
-        var upstream = new Uri(
+        return new Uri(
             $"http://127.0.0.1:{port}{subPath}{http.Request.QueryString.Value}");
+    }
 
-        using var request = new HttpRequestMessage(
+    /// <summary>
+    /// Request outbound: mesmo método, headers essenciais (sem hop-by-hop,
+    /// <c>Host</c> nem <c>Authorization</c>) e body por streaming.
+    /// </summary>
+    private static HttpRequestMessage BuildUpstreamRequest(HttpContext http, Uri upstream)
+    {
+        var request = new HttpRequestMessage(
             new HttpMethod(http.Request.Method), upstream);
         foreach (var header in http.Request.Headers)
         {
@@ -155,33 +199,7 @@ public static class PreviewEndpoints
             }
         }
 
-        var client = httpFactory.CreateClient(HttpClientName);
-        HttpResponseMessage response;
-        try
-        {
-            // Timeout de 30s cobre connect+headers; depois disso o corpo
-            // streama livre (SSE de dev servers fica aberto por design).
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-                ct, http.RequestAborted);
-            timeout.CancelAfter(UpstreamTimeout);
-            response = await client.SendAsync(
-                request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested
-            && !http.RequestAborted.IsCancellationRequested)
-        {
-            return PreviewError(
-                HttpStatusCode.GatewayTimeout, port,
-                "O app não respondeu em 30s.");
-        }
-        catch (HttpRequestException)
-        {
-            return PreviewError(
-                HttpStatusCode.BadGateway, port,
-                "Nada escutando nesta porta do host — o dev server está no ar?");
-        }
-
-        return new ProxiedResult(response, port);
+        return request;
     }
 
     /// <summary>
