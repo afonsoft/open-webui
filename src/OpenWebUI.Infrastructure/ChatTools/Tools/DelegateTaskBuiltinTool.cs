@@ -131,21 +131,10 @@ public sealed class DelegateTaskBuiltinTool(
 
         // SPEC-20261010-delegate-persona: persona = slug (Name ou Id) de uma
         // Skill ativa do usuário — o conteúdo vira system prompt do filho.
-        Skill? personaSkill = null;
-        if (ReadString(args, "persona", 200) is { Length: > 0 } persona)
+        var (personaSkill, personaError) = await ResolvePersonaAsync(db, context, args, ct);
+        if (personaError is not null)
         {
-            personaSkill = await db.Skills.AsNoTracking()
-                .FirstOrDefaultAsync(s => s.UserId == context.UserId && s.IsActive
-                    && (s.Name == persona || s.Id == persona), ct);
-            if (personaSkill is null)
-            {
-                var available = await db.Skills.AsNoTracking()
-                    .Where(s => s.UserId == context.UserId && s.IsActive)
-                    .Select(s => s.Name).ToListAsync(ct);
-                return new BuiltinToolResult(
-                    $"Persona '{persona}' não encontrada. Skills ativas: "
-                    + (available.Count == 0 ? "(nenhuma)" : string.Join(", ", available)));
-            }
+            return personaError;
         }
 
         var parentRun = context.RunId is { } parentId
@@ -259,38 +248,13 @@ public sealed class DelegateTaskBuiltinTool(
                 .SetChatBindingAsync(childChat.Id, parentBinding, ct);
         }
 
-        // SPEC-20261010-delegate-repo-target: `repo` explicita sobrescreve a
-        // herança — o chat filho é vinculado ao repo alvo (checkout
-        // compartilhado por slug). Falha no prepare → run filha marcada
-        // failed, sem enfileirar.
-        if (ReadString(args, "repo", 200) is { Length: > 0 } targetRepo)
+        var repoError = await BindTargetRepoAsync(scope, context, args, childChat, ct);
+        if (repoError is not null)
         {
-            var targetBranch = ReadString(args, "branch", 200);
-            if (string.IsNullOrWhiteSpace(targetBranch))
-            {
-                targetBranch = "main";
-            }
-            var cloneUrl = ReadString(args, "clone_url", 2000);
-            if (string.IsNullOrWhiteSpace(cloneUrl))
-            {
-                cloneUrl = $"https://github.com/{targetRepo.Trim()}.git";
-            }
-            var repos = scope.ServiceProvider
-                .GetRequiredService<WorkspaceRepoService>();
-            var token = await scope.ServiceProvider
-                .GetRequiredService<GitHubService>()
-                .GetTokenAsync(context.UserId, ct);
-            var (repoBinding, repoError) = await repos.OpenChatAsync(
-                context.UserId, childChat.Id, targetRepo.Trim(),
-                targetBranch.Trim(), cloneUrl, token, ct);
-            if (repoBinding is null)
-            {
-                childRun.Status = ChatRunStatus.Failed;
-                childRun.Error = repoError;
-                await db.SaveChangesAsync(ct);
-                return new BuiltinToolResult(
-                    $"Falha ao preparar o repo '{targetRepo}' para a subtarefa: {repoError}");
-            }
+            childRun.Status = ChatRunStatus.Failed;
+            childRun.Error = repoError;
+            await db.SaveChangesAsync(ct);
+            return new BuiltinToolResult(repoError);
         }
 
         dispatcher.Enqueue(childRun.Id);
@@ -311,6 +275,86 @@ public sealed class DelegateTaskBuiltinTool(
                     status = "queued",
                 });
         }
+
+        return await WaitForChildAsync(
+            db, scope, context, childChat, childRun, autoMerge, link, ct);
+    }
+
+    /// <summary>
+    /// Persona opcional (SPEC-20261010-delegate-persona): slug (Name ou Id)
+    /// de uma Skill ativa do usuário. Erro listando as ativas quando o
+    /// slug não existe.
+    /// </summary>
+    private static async Task<(Skill? Skill, BuiltinToolResult? Error)> ResolvePersonaAsync(
+        AppDbContext db, BuiltinToolContext context, JsonElement args, CancellationToken ct)
+    {
+        if (ReadString(args, "persona", 200) is not { Length: > 0 } persona)
+        {
+            return (null, null);
+        }
+
+        var skill = await db.Skills.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.UserId == context.UserId && s.IsActive
+                && (s.Name == persona || s.Id == persona), ct);
+        if (skill is not null)
+        {
+            return (skill, null);
+        }
+
+        var available = await db.Skills.AsNoTracking()
+            .Where(s => s.UserId == context.UserId && s.IsActive)
+            .Select(s => s.Name).ToListAsync(ct);
+        return (null, new BuiltinToolResult(
+            $"Persona '{persona}' não encontrada. Skills ativas: "
+            + (available.Count == 0 ? "(nenhuma)" : string.Join(", ", available))));
+    }
+
+    /// <summary>
+    /// SPEC-20261010-delegate-repo-target: `repo` explícito sobrescreve a
+    /// herança — o chat filho é vinculado ao repo alvo (checkout
+    /// compartilhado por slug). Retorna mensagem de erro pronta ou null.
+    /// </summary>
+    private static async Task<string?> BindTargetRepoAsync(
+        IServiceScope scope, BuiltinToolContext context, JsonElement args,
+        Chat childChat, CancellationToken ct)
+    {
+        if (ReadString(args, "repo", 200) is not { Length: > 0 } targetRepo)
+        {
+            return null;
+        }
+
+        var targetBranch = ReadString(args, "branch", 200);
+        if (string.IsNullOrWhiteSpace(targetBranch))
+        {
+            targetBranch = "main";
+        }
+        var cloneUrl = ReadString(args, "clone_url", 2000);
+        if (string.IsNullOrWhiteSpace(cloneUrl))
+        {
+            cloneUrl = $"https://github.com/{targetRepo.Trim()}.git";
+        }
+        var repos = scope.ServiceProvider.GetRequiredService<WorkspaceRepoService>();
+        var token = await scope.ServiceProvider
+            .GetRequiredService<GitHubService>()
+            .GetTokenAsync(context.UserId, ct);
+        var (repoBinding, repoError) = await repos.OpenChatAsync(
+            context.UserId, childChat.Id, targetRepo.Trim(),
+            targetBranch.Trim(), cloneUrl, token, ct);
+        return repoBinding is null
+            ? $"Falha ao preparar o repo '{targetRepo}' para a subtarefa: {repoError}"
+            : null;
+    }
+
+    /// <summary>
+    /// wait=true: faz polling da run filha até status terminal ou o
+    /// timeout de <see cref="TimeoutSeconds"/> — o resultado inclui a
+    /// nota de auto-merge quando habilitado.
+    /// </summary>
+    private static async Task<BuiltinToolResult> WaitForChildAsync(
+        AppDbContext db, IServiceScope scope, BuiltinToolContext context,
+        Chat childChat, ChatRun childRun, bool autoMerge, string link,
+        CancellationToken ct)
+    {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(TimeoutSeconds);
         while (DateTimeOffset.UtcNow < deadline)
         {

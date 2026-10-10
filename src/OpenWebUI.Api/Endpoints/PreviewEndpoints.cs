@@ -237,15 +237,15 @@ public static class PreviewEndpoints
     /// </summary>
     private sealed class ProxiedResult(HttpResponseMessage response, int port) : IResult
     {
-        public async Task ExecuteAsync(HttpContext context)
+        public async Task ExecuteAsync(HttpContext httpContext)
         {
             using (response)
             {
-                context.Response.StatusCode = (int)response.StatusCode;
+                httpContext.Response.StatusCode = (int)response.StatusCode;
                 foreach (var header in response.Headers.Concat(response.Content.Headers)
                              .Where(h => !HopByHop.Contains(h.Key)))
                 {
-                    context.Response.Headers[header.Key] = header.Key switch
+                    httpContext.Response.Headers[header.Key] = header.Key switch
                     {
                         var k when string.Equals(k, "Set-Cookie", StringComparison.OrdinalIgnoreCase) =>
                             header.Value.Select(v => RewriteCookie(v, port)).ToArray(),
@@ -255,11 +255,11 @@ public static class PreviewEndpoints
                     };
                 }
 
-                context.Response.Headers.Remove("transfer-encoding");
+                httpContext.Response.Headers.Remove("transfer-encoding");
                 // SSE do upstream (HMR/dev servers) passa sem buffering.
-                context.Response.Headers["X-Accel-Buffering"] = "no";
+                httpContext.Response.Headers["X-Accel-Buffering"] = "no";
                 await response.Content.CopyToAsync(
-                    context.Response.Body, context.RequestAborted);
+                    httpContext.Response.Body, httpContext.RequestAborted);
             }
         }
 
