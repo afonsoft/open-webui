@@ -267,4 +267,53 @@ public class LspResponseEdgeTests
             Directory.Delete(workdir, recursive: true);
         }
     }
+
+
+    [Test]
+    public void FlattenWorkspaceSymbols_RespeitaCap()
+    {
+        var syms = "[" + string.Join(",", Enumerable.Range(0, 3).Select(i =>
+            "{\"name\":\"s" + i + "\",\"kind\":5,\"location\":{\"uri\":\"file:///w/a" + i + ".cs\",\"range\":{\"start\":{\"line\":1,\"character\":0}}}}")) + "]";
+        using var doc = JsonDocument.Parse(syms);
+        var list = LspResponse.FlattenWorkspaceSymbols(doc.RootElement, "/w", 2);
+        Assert.That(list, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void SymbolKindName_TodosOsKind()
+    {
+        var esperados = new[] { "file", "module", "namespace", "package", "class",
+            "method", "property", "field", "constructor", "enum", "interface",
+            "function", "variable", "constant", "string", "number", "boolean",
+            "array", "object", "key", "null", "enummember", "struct", "event",
+            "operator", "typeparam" };
+        for (var i = 1; i <= 26; i++)
+        {
+            Assert.That(LspResponse.SymbolKindName(i), Is.EqualTo(esperados[i - 1]));
+        }
+        Assert.That(LspResponse.SymbolKindName(0), Is.EqualTo("symbol"));
+        Assert.That(LspResponse.SymbolKindName(99), Is.EqualTo("symbol"));
+    }
+
+    [Test]
+    public void Flatten_RangeSemStart_ZeroZero()
+    {
+        var syms = "[{\"name\":\"x\",\"kind\":12,\"location\":{\"uri\":\"file:///w/a.cs\"}}]";
+        using var doc = JsonDocument.Parse(syms);
+        var list = LspResponse.FlattenWorkspaceSymbols(doc.RootElement, "/w", 10);
+        Assert.Multiple(() =>
+        {
+            Assert.That(list[0].Line, Is.EqualTo(0));
+            Assert.That(list[0].Col, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public void RelPath_WorkdirInvalido_DevolveAbsoluto()
+    {
+        // GetFullPath lança em '\0' → filtro !Directory.Exists → path cru.
+        var bad = "bad\0dir";
+        Assert.That(Directory.Exists(bad), Is.False);
+        Assert.That(LspResponse.RelPath(bad, "/abs/a.cs"), Is.EqualTo("/abs/a.cs"));
+    }
 }

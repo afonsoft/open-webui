@@ -555,4 +555,130 @@ public class CheckpointServiceTests
         public IFileProvider ContentRootFileProvider { get; set; } =
             new PhysicalFileProvider(contentRoot);
     }
+
+
+    [Test]
+    public async Task Fallback_SegundoSnapshot_ReusaBlobDedup()
+    {
+        var dir = NewWorkdir();
+        var cpRoot = NewWorkdir();
+        try
+        {
+            File.WriteAllText(Path.Join(dir, "a.txt"), "v1\n");
+            var svc = Service(root: cpRoot);
+
+            var c0 = await svc.SnapshotAsync(dir, "r1", 0, CancellationToken.None);
+            var filesDir = Path.Join(cpRoot, "data", "checkpoints", "files");
+            var blobsAntes = Directory.Exists(filesDir)
+                ? Directory.EnumerateFiles(filesDir, "a.txt", SearchOption.AllDirectories).Count()
+                : 0;
+            Assert.That(blobsAntes, Is.EqualTo(1));
+
+            // Mesmo conteúdo: entry reaproveita o Stored do manifesto anterior.
+            var c1 = await svc.SnapshotAsync(dir, "r1", 1, CancellationToken.None);
+            Assert.That(c1, Is.Not.Null);
+            var blobsDepois = Directory.EnumerateFiles(
+                filesDir, "a.txt", SearchOption.AllDirectories).Count();
+            Assert.That(blobsDepois, Is.EqualTo(1), "blob idêntico não recopiado");
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            Directory.Delete(cpRoot, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Fallback_Revert_BlobAusente_ViraConflito()
+    {
+        var dir = NewWorkdir();
+        var cpRoot = NewWorkdir();
+        try
+        {
+            File.WriteAllText(Path.Join(dir, "a.txt"), "v1\n");
+            var svc = Service(root: cpRoot);
+            var c0 = await svc.SnapshotAsync(dir, "r1", 0, CancellationToken.None);
+            Assert.That(c0, Is.Not.Null);
+
+            // Apaga só o blob armazenado — restore marca conflito em vez de crash.
+            var filesDir = Path.Join(cpRoot, "data", "checkpoints", "files");
+            File.Delete(Directory.EnumerateFiles(
+                filesDir, "a.txt", SearchOption.AllDirectories).Single());
+            // Drift força a necessidade de restaurar o blob ausente.
+            File.WriteAllText(Path.Join(dir, "a.txt"), "v2-drift\n");
+            var result = await svc.RevertAsync(dir, c0!.Hash, force: false, CancellationToken.None);
+            Assert.That(result.Conflicts, Does.Contain("a.txt"));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            Directory.Delete(cpRoot, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Fallback_WalkFiles_PulaSkipDirsSymlinkESemPermissao()
+    {
+        var dir = NewWorkdir();
+        var cpRoot = NewWorkdir();
+        var locked = Path.Join(dir, "locked");
+        try
+        {
+            File.WriteAllText(Path.Join(dir, "a.txt"), "v1\n");
+            Directory.CreateDirectory(Path.Join(dir, "node_modules", "pkg"));
+            File.WriteAllText(Path.Join(dir, "node_modules", "pkg", "x.js"), "x");
+            var alvo = Path.Join(dir, "alvo");
+            Directory.CreateDirectory(alvo);
+            File.WriteAllText(Path.Join(alvo, "dentro.txt"), "y");
+            try
+            {
+                Directory.CreateSymbolicLink(Path.Join(dir, "link"), alvo);
+            }
+            catch (IOException) { /* FS sem symlink */ }
+            Directory.CreateDirectory(locked);
+            File.WriteAllText(Path.Join(locked, "s.txt"), "z");
+            File.SetUnixFileMode(locked, UnixFileMode.None);
+
+            var svc = Service(root: cpRoot);
+            var c0 = await svc.SnapshotAsync(dir, "r1", 0, CancellationToken.None);
+            Assert.That(c0, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(c0!.Files, Does.Contain("a.txt"));
+                Assert.That(c0.Files, Does.Not.Contain("node_modules/pkg/x.js"));
+                Assert.That(c0.Files, Does.Contain("alvo/dentro.txt"),
+                    "o dir alvo é real e é andado — só o link é pulado");
+                Assert.That(c0.Files, Does.Not.Contain("link/dentro.txt"));
+                Assert.That(c0.Files, Does.Not.Contain("locked/s.txt"));
+            });
+        }
+        finally
+        {
+            try { File.SetUnixFileMode(locked, UnixFileMode.UserRead
+                | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+            catch (IOException) { }
+            Directory.Delete(dir, recursive: true);
+            Directory.Delete(cpRoot, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Prune_WorkdirSemGit_FallbackNaoFalha()
+    {
+        var dir = NewWorkdir();
+        var cpRoot = NewWorkdir();
+        try
+        {
+            File.WriteAllText(Path.Join(dir, "a.txt"), "v1\n");
+            var svc = Service(root: cpRoot);
+            await svc.PruneAsync(dir, CancellationToken.None);
+            await svc.PruneAsync(dir, CancellationToken.None); // gate do intervalo
+            Assert.That(File.Exists(Path.Join(dir, "a.txt")), Is.True);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+            Directory.Delete(cpRoot, recursive: true);
+        }
+    }
 }
