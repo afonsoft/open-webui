@@ -107,7 +107,7 @@
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[AutomationDetail] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[AutomationDetail] carga falhou: {ex.Message}");
         }
     }
 

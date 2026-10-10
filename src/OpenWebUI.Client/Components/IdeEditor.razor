@@ -435,7 +435,7 @@
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        _lspChangeCts?.Cancel();
+        if (_lspChangeCts is not null) { await _lspChangeCts.CancelAsync(); }
         _selfRef?.Dispose();
         if (_editorReady)
         {

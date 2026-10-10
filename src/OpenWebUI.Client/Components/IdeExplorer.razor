@@ -93,7 +93,7 @@
         {
             // Offline: tree vazia + retry em vez da blazor-error-ui.
             _loadFailed = true;
-            Console.Error.WriteLine($"[IdeExplorer] refresh falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[IdeExplorer] refresh falhou: {ex.Message}");
         }
     }
 
@@ -117,7 +117,7 @@
             catch (HttpRequestException ex)
             {
                 // Offline: nó fica sem filhos; nova expansão retenta.
-                Console.Error.WriteLine($"[IdeExplorer] expand falhou: {ex.Message}");
+                await Console.Error.WriteLineAsync($"[IdeExplorer] expand falhou: {ex.Message}");
             }
             node.Loading = false;
         }

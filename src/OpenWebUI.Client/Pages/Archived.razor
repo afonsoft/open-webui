@@ -58,7 +58,7 @@
         {
             _loadFailed = true;
             _chats = [];
-            Console.Error.WriteLine($"[Archived] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Archived] carga falhou: {ex.Message}");
         }
     }
 

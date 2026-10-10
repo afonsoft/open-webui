@@ -262,7 +262,8 @@ static void UseContentSecurityPolicy(WebApplication app)
         "style-src 'self' 'unsafe-inline'; " +
         "font-src 'self' data:; " +
         "frame-src 'self' https:; " +
-        "media-src 'self' blob: data:";
+        "media-src 'self' blob: data:; " +
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'";
 
     app.Use(async (context, next) =>
     {

@@ -80,7 +80,7 @@
         {
             _loadFailed = true;
             _models = [];
-            Console.Error.WriteLine($"[ModelSelector] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[ModelSelector] carga falhou: {ex.Message}");
             return;
         }
 

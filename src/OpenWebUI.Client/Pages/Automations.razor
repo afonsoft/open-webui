@@ -201,7 +201,7 @@
         {
             _loadFailed = true;
             _items = [];
-            Console.Error.WriteLine($"[Automations] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Automations] carga falhou: {ex.Message}");
             return;
         }
         if (_models.Count > 0)

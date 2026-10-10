@@ -72,7 +72,7 @@ public sealed class IdeTestRunService(ApiService api)
                 PendingCommand = null;
                 PendingReason = null;
                 Error = null;
-                _pollCts?.Cancel();
+                if (_pollCts is not null) { await _pollCts.CancelAsync(); }
                 _pollCts = new CancellationTokenSource();
                 _ = PollAsync(jobId, _pollCts.Token);
             }
