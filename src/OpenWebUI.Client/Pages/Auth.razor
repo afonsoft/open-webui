@@ -38,7 +38,7 @@
                                     @(_signUp
                                         ? L["auth.have_account"]
                                         : L["auth.no_account"])
-                                    <button class="font-normal underline cursor-pointer" @onclick="() => SetMode(!_signUp)">
+                                    <button class="font-normal underline cursor-pointer px-1.5 -mx-1.5 py-1 -my-1" @onclick="() => SetMode(!_signUp)">
                                         @(_signUp ? L["auth.sign_in"] : L["auth.sign_up"])
                                     </button>
                                 </div>
