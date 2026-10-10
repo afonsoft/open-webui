@@ -271,7 +271,30 @@ public sealed class WorktreeService(
         }
     }
 
-    /// <summary>git -C workdir args; devolve stdout ou null em falha/timeout.</summary>
+    /// <summary>
+    /// <c>git status --porcelain</c> do worktree (SPEC-20261010-worktree-review):
+    /// não-vazio = há mudanças (tracked ou untracked) a revisar.
+    /// </summary>
+    public async Task<string?> StatusPorcelainAsync(string worktreePath, CancellationToken ct) =>
+        await RunGitAsync(worktreePath, ct, "status", "--porcelain");
+
+    /// <summary>
+    /// <c>git diff HEAD</c> do worktree — <paramref name="stat"/>=true devolve
+    /// só <c>--stat</c>; senão o patch completo (binário, sem renames). O
+    /// intent-to-add faz o diff cobrir também arquivos untracked; o índice é
+    /// restaurado com <c>reset</c> no fim.
+    /// </summary>
+    public async Task<string?> DiffAsync(
+        string worktreePath, CancellationToken ct, bool stat = false)
+    {
+        _ = await RunGitAsync(worktreePath, ct, "add", "--intent-to-add", "--all");
+        var output = stat
+            ? await RunGitAsync(worktreePath, ct, "diff", "HEAD", "--stat")
+            : await RunGitAsync(worktreePath, ct, "diff", "HEAD", "--binary", "--no-renames");
+        _ = await RunGitAsync(worktreePath, ct, "reset");
+        return output;
+    }
+
     private async Task<string?> RunGitAsync(string workdir, CancellationToken ct, params string[] args)
     {
         var (code, stdout, _) = await RunGitInputAsync(workdir, null, ct, args);

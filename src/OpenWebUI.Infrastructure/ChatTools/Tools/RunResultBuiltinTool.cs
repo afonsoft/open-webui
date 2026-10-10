@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Infrastructure.ChatTools.Tools;
 
@@ -11,7 +12,8 @@ namespace OpenWebUI.Infrastructure.ChatTools.Tools;
 /// <c>delegate_task wait=false</c>, que devolve <c>childRunId</c> na hora
 /// e deixa a colheita para depois. Read-only e owner-scoped — sem aprovação.
 /// </summary>
-public sealed class RunResultBuiltinTool(AppDbContext db) : IBuiltinChatTool
+public sealed class RunResultBuiltinTool(AppDbContext db, WorktreeService worktrees)
+    : IBuiltinChatTool
 {
     /// <summary>Cap de caracteres do conteúdo devolvido.</summary>
     private const int MaxResultChars = 6000;
@@ -67,11 +69,29 @@ public sealed class RunResultBuiltinTool(AppDbContext db) : IBuiltinChatTool
                 $"Run '{runId}' não encontrada para este usuário.");
         }
 
-        var payload = new { runId = run.Id, chatId = run.ChatId, status = run.Status };
+        // SPEC-20261010-worktree-review: quando a run isolou um worktree,
+        // o pai precisa saber que há mudanças a revisar
+        // (builtin:worktree_diff) antes de mergear (builtin:worktree_merge).
+        var worktree = worktrees.ResolveIsolated(context.UserId, run.Id);
+        var hasChanges = worktree is not null
+            && !string.IsNullOrWhiteSpace(
+                await worktrees.StatusPorcelainAsync(worktree, ct));
+        var reviewHint = hasChanges
+            ? "\n\n[worktree isolado com mudanças pendentes — revise com "
+                + "builtin_worktree_diff run_id=" + run.Id + " e mergeie com "
+                + "builtin_worktree_merge]"
+            : string.Empty;
+
+        var payload = new
+        {
+            runId = run.Id, chatId = run.ChatId, status = run.Status,
+            hasWorktreeChanges = hasChanges,
+        };
         return run.Status switch
         {
             ChatRunStatus.Completed => new BuiltinToolResult(
-                Truncate(run.PartialContent ?? "(sem conteúdo)", MaxResultChars),
+                Truncate(run.PartialContent ?? "(sem conteúdo)", MaxResultChars)
+                    + reviewHint,
                 payload),
             ChatRunStatus.Failed or ChatRunStatus.Stopped => new BuiltinToolResult(
                 $"Run terminou como '{run.Status}'"

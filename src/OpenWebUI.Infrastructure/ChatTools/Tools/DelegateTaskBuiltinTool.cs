@@ -94,6 +94,10 @@ public sealed class DelegateTaskBuiltinTool(
             "persona": {
               "type": "string",
               "description": "Optional persona: name or id of an active workspace Skill whose instructions become the sub-agent's system prompt (e.g. 'reviewer', 'tester')."
+            },
+            "merge": {
+              "type": "boolean",
+              "description": "true: auto-merge the child's worktree into the workspace when it completes (wait=true only; with wait=false the parent reviews via builtin_worktree_diff and merges via builtin_worktree_merge)."
             }
           },
           "required": ["prompt"]
@@ -116,6 +120,8 @@ public sealed class DelegateTaskBuiltinTool(
         var extra = ReadString(args, "context", MaxContextChars);
         var wait = !args.TryGetProperty("wait", out var waitEl)
             || waitEl.ValueKind is not JsonValueKind.False;
+        var autoMerge = args.TryGetProperty("merge", out var mergeEl)
+            && mergeEl.ValueKind == JsonValueKind.True;
         var fullPrompt = string.IsNullOrWhiteSpace(extra)
             ? prompt
             : $"{prompt}\n\nContexto adicional:\n{extra}";
@@ -329,7 +335,9 @@ public sealed class DelegateTaskBuiltinTool(
             {
                 ChatRunStatus.Completed => new BuiltinToolResult(
                     $"{Truncate(status.PartialContent ?? "(sem conteúdo)", MaxResultChars)}\n\n"
-                        + $"(subtarefa concluída — chat filho: {link})",
+                        + $"(subtarefa concluída — chat filho: {link})"
+                        + await AutoMergeNoteAsync(
+                            autoMerge, scope, context, childChat, childRun, ct),
                     result),
                 _ => new BuiltinToolResult(
                     $"Subtarefa terminou como '{status.Status}'"
@@ -364,6 +372,50 @@ public sealed class DelegateTaskBuiltinTool(
                 .FirstOrDefaultAsync(ct);
         }
         return depth;
+    }
+
+    /// <summary>
+    /// Auto-merge opt-in (SPEC-20261010-worktree-review, <c>merge=true</c>
+    /// + <c>wait=true</c>): depois da run filha completar, aplica o diff do
+    /// worktree dela no workdir do chat filho. Conflitos nunca são
+    /// forçados — voltam listados na nota e o worktree permanece.
+    /// </summary>
+    private static async Task<string> AutoMergeNoteAsync(
+        bool enabled,
+        IServiceScope scope,
+        BuiltinToolContext context,
+        Chat childChat,
+        ChatRun childRun,
+        CancellationToken ct)
+    {
+        if (!enabled)
+        {
+            return string.Empty;
+        }
+        try
+        {
+            var worktrees = scope.ServiceProvider
+                .GetRequiredService<WorktreeService>();
+            var worktree = worktrees.ResolveIsolated(context.UserId, childRun.Id);
+            if (worktree is null)
+            {
+                return "\n\n(merge: a run filha não isolou worktree — nada a aplicar)";
+            }
+            var repos = scope.ServiceProvider
+                .GetRequiredService<WorkspaceRepoService>();
+            var mainWorkdir = await repos.ResolveWorkdirAsync(
+                context.UserId, childChat.Id, ct);
+            var merge = await worktrees.MergeAsync(mainWorkdir, worktree, ct);
+            return merge.Merged
+                ? $"\n\n(merge: {merge.Applied.Count} arquivo(s) aplicados no workspace)"
+                : $"\n\n(merge: PARCIAL — {merge.Conflicts.Count} conflito(s) não "
+                    + "aplicados; worktree preservado p/ correção manual: "
+                    + string.Join("; ", merge.Conflicts) + ")";
+        }
+        catch (Exception ex)
+        {
+            return $"\n\n(merge: falhou — {ex.Message}; worktree preservado)";
+        }
     }
 
     private static string? ReadString(JsonElement args, string field, int max)
