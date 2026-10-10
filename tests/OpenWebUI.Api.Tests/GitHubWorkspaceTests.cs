@@ -878,6 +878,58 @@ public class GitHubWorkspaceTests
         Assert.That(Directory.Exists(Path.Join(wdB, ".git")), Is.True);
     }
 
+    [Test]
+    public async Task ChatBinding_OpenChat_RemotoInvalido_DevolveErro()
+    {
+        var (binding, error) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/ra", "main",
+            Path.Join(_root, "origem-inexistente"), null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(binding, Is.Null);
+            Assert.That(error, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_GetESet_GravaELimpa()
+    {
+        var origin = CriarOrigem("main");
+        var (binding, _) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/ra", "main", origin, null, default);
+
+        var lido = await _repos.GetChatBindingAsync("c1", default);
+        Assert.That(lido!.Repo, Is.EqualTo("a/ra"));
+        Assert.That(lido.Dir, Is.EqualTo(binding!.Dir));
+
+        await _repos.SetChatBindingAsync("c1", null, default);
+        Assert.That(await _repos.GetChatBindingAsync("c1", default), Is.Null);
+    }
+
+    [Test]
+    public async Task ChatBinding_HerdaComandosDoGlobal()
+    {
+        var origin = CriarOrigem("main");
+        await _repos.OpenAsync("u1", "a/ra", "main", origin, null, default);
+        await _repos.SetTestCommandAsync("u1", "dotnet test", default);
+        await _repos.SetFormatCommandAsync("u1", "dotnet format", default);
+        var originB = CriarOrigem("main");
+        var (chat, _) = await _repos.OpenChatAsync(
+            "u1", "c1", "b/rb", "main", originB, null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(chat!.TestCommand, Is.EqualTo("dotnet test"));
+            Assert.That(chat.FormatCommand, Is.EqualTo("dotnet format"));
+        });
+    }
+
+    [Test]
+    public async Task Workdir_ChatIdNull_SemBinding_CaiNoDefault()
+    {
+        var wd = await _repos.ResolveWorkdirAsync("u7", null, default);
+        Assert.That(wd, Does.EndWith("workspaces/u7"));
+    }
+
     private sealed class StubEnv(string contentRoot) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Test";
