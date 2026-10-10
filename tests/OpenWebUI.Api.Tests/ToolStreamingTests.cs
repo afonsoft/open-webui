@@ -4,8 +4,10 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using OpenWebUI.Api.Runs;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Api.Tests;
 
@@ -986,6 +988,17 @@ public class ToolStreamingTests
             $"/api/v1/chats/{chat.Id}", new ChatPatchRequest("always-allow"));
         Assert.That(patch.StatusCode, Is.EqualTo(HttpStatusCode.OK));
 
+        // Binding repo por chat no pai — o filho deve HERDAR
+        // (SPEC-20261010-chat-repo-binding).
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var cfg = scope.ServiceProvider.GetRequiredService<ConfigService>();
+            await cfg.SetAsync(
+                $"chat:{chat.Id}:workspace.repo",
+                new WorkspaceRepoBinding("a/pai", "main", "repos/a__pai", null, null),
+                default);
+        }
+
         var run = await EnfileirarAsync(chat.Id, "delegue a subtarefa",
             ["builtin:delegate_task", toolId]);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
@@ -1014,6 +1027,22 @@ public class ToolStreamingTests
         // "delegado:" que não podem confundir o lookup por título.
         var filho = chats!.SingleOrDefault(c => c.ParentChatId == chat.Id);
         Assert.That(filho, Is.Not.Null, "chat filho não foi criado");
+
+        // Herança de binding (SPEC-20261010-chat-repo-binding): o kv do
+        // filho aponta para o mesmo repo/dir do pai.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var cfg = scope.ServiceProvider.GetRequiredService<ConfigService>();
+            var herdado = await cfg.GetAsync<WorkspaceRepoBinding?>(
+                $"chat:{filho!.Id}:workspace.repo", null, default);
+            Assert.Multiple(() =>
+            {
+                Assert.That(herdado, Is.Not.Null, "filho não herdou o binding do chat pai");
+                Assert.That(herdado!.Repo, Is.EqualTo("a/pai"));
+                Assert.That(herdado.Dir, Is.EqualTo("repos/a__pai"));
+            });
+        }
+
         var runs = await _client.GetFromJsonAsync<List<ChatRunResponse>>(
             $"/api/v1/chats/{filho!.Id}/runs");
         Assert.That(runs, Has.Count.EqualTo(1));

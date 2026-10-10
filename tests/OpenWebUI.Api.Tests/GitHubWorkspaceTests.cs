@@ -924,6 +924,22 @@ public class GitHubWorkspaceTests
     }
 
     [Test]
+    public async Task ChatBinding_OpenChat_SlugOuBranchInvalidos_DevolveErro()
+    {
+        var (b1, e1) = await _repos.OpenChatAsync(
+            "u1", "c1", "sem-barra", "main", "x", null, default);
+        var (b2, e2) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/b", "-ruim", "x", null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(b1, Is.Null);
+            Assert.That(e1, Is.Not.Null.And.Not.Empty);
+            Assert.That(b2, Is.Null);
+            Assert.That(e2, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
     public async Task ChatBinding_Reopen_MesmaCheckout_TrocaBranch()
     {
         // Mesmo slug → checkout compartilhado: o segundo open cai no

@@ -609,6 +609,34 @@ public class ChatEndpointsTests
     }
 
     [Test]
+    public async Task WorkspaceRepo_PutSemBranch_400()
+    {
+        var auth = await SignUpAsync("RepoNB", "reponb@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("sem branch", Mensagens("oi"));
+
+        var res = await _client.PutAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/workspace-repo",
+            new WorkspaceRepoOpenRequest("a/b", null));
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task WorkspaceRepo_PutCloneInexistente_400()
+    {
+        var auth = await SignUpAsync("RepoNF", "reponf@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("clone falha", Mensagens("oi"));
+
+        // Repo inexistente no github → OpenChatAsync falha → BadRequest.
+        var res = await _client.PutAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/workspace-repo",
+            new WorkspaceRepoOpenRequest(
+                "devin-nao-existe/repo-inexistente-xyz", "main"));
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
     public async Task WorkspaceRepo_PutVazio_LimpaBindingDoChat()
     {
         var auth = await SignUpAsync("RepoClr", "repoclr@chats.local", "senha123");
