@@ -1073,4 +1073,60 @@ public class BuiltinToolsTests
             HttpRequestMessage request, CancellationToken cancellationToken) =>
             throw new HttpRequestException("conexão recusada");
     }
+
+    // ---------------- builtin:run_result (SPEC-20261010-async-delegate) ----------------
+
+    private async Task<ChatRun> SeedRunAsync(
+        string status, string userId = "u1", string? content = null)
+    {
+        await using var db = NewDb();
+        var run = new ChatRun
+        {
+            ChatId = "c1",
+            UserId = userId,
+            Model = "m",
+            Status = status,
+            PartialContent = content,
+            Error = status == ChatRunStatus.Failed ? "boom" : null,
+            RequestJson = "{}",
+        };
+        db.ChatRuns.Add(run);
+        await db.SaveChangesAsync();
+        return run;
+    }
+
+    [Test]
+    public async Task RunResult_Completed_DevolveConteudo()
+    {
+        var run = await SeedRunAsync(ChatRunStatus.Completed, content: "resposta do filho");
+        var result = await new RunResultBuiltinTool(NewDb())
+            .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("resposta do filho"));
+    }
+
+    [Test]
+    public async Task RunResult_RunDeOutroUsuario_NotFound()
+    {
+        var run = await SeedRunAsync(ChatRunStatus.Completed, userId: "u2");
+        var result = await new RunResultBuiltinTool(NewDb())
+            .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("não encontrada"));
+    }
+
+    [Test]
+    public async Task RunResult_AindaRodando_DevolveStatusSemConteudo()
+    {
+        var run = await SeedRunAsync(ChatRunStatus.Running);
+        var result = await new RunResultBuiltinTool(NewDb())
+            .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("running"));
+    }
+
+    [Test]
+    public async Task RunResult_SemRunId_PedeParametro()
+    {
+        var result = await new RunResultBuiltinTool(NewDb())
+            .ExecuteAsync(Args("{}"), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("run_id"));
+    }
 }
