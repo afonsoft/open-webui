@@ -73,9 +73,10 @@ public sealed class WorktreeService(
     /// <c>Warning</c> descrevendo o fallback <c>shared</c>.
     /// </summary>
     public async Task<(string? Worktree, string? Warning)> TryCreateForRunAsync(
-        string userId, string runId, string mainWorkdir, CancellationToken ct)
+        string userId, string runId, string mainWorkdir, CancellationToken ct,
+        bool force = false)
     {
-        if (!IsolationEnabled)
+        if (!IsolationEnabled && !force)
         {
             return (null, null);
         }
