@@ -12,7 +12,11 @@
         <h1 class="page-title" tabindex="-1">@L["page.notes"]</h1>
         <a href="/notes/new" class="auth-submit page-new text-center">@L["notes.new"]</a>
     </div>
-    @if (_notes is null)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadNotesAsync" />
+    }
+    else if (_notes is null)
     {
         <div class="sidebar-empty">@L["common.loading"]</div>
     }
@@ -42,10 +46,23 @@
 
 @code {
     private List<NoteResponse>? _notes;
+    private bool _loadFailed;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadNotesAsync();
+
+    private async Task LoadNotesAsync()
     {
-        _notes = await Api.GetNotesAsync();
+        _loadFailed = false;
+        try
+        {
+            _notes = await Api.GetNotesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            _notes = [];
+            Console.Error.WriteLine($"[Notes] carga falhou: {ex.Message}");
+        }
     }
 
     private async Task DeleteNoteAsync(NoteResponse note)

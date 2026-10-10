@@ -1,5 +1,7 @@
 {
   "common.loading": "Loading…",
+  "common.offline_load": "Caricamento non riuscito — potresti essere offline.",
+  "common.retry": "Riprova",
   "common.save": "Salva",
   "common.edit": "✏️ Edit",
   "common.delete": "Elimina",

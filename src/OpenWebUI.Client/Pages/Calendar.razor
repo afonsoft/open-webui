@@ -55,6 +55,10 @@
     {
         <div class="sidebar-empty">@L["common.loading"]</div>
     }
+    else if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadAsync" />
+    }
     else
     {
         <div class="grid grid-cols-7 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -225,6 +229,7 @@
     private int? _selectedDay;
     private string _layer = "events";
     private bool _loading = true;
+    private bool _loadFailed;
     private List<AutomationRunResponse>? _runs;
     private List<AutomationResponse> _automations = [];
     private List<CalendarResponse> _calendars = [];
@@ -255,11 +260,21 @@
         var last = first.AddMonths(1).AddSeconds(-1);
         var from = first.ToUnixTimeSeconds();
         var to = last.ToUnixTimeSeconds();
-        _calendars = await Api.GetCalendarsAsync();
-        _eventCalendarId = _calendars.FirstOrDefault()?.Id;
-        _events = await Api.GetCalendarEventsAsync(from, to);
-        _automations = await Api.GetAutomationsAsync();
-        _runs = await Api.GetAutomationRunsInRangeAsync(from, to);
+        try
+        {
+            _calendars = await Api.GetCalendarsAsync();
+            _eventCalendarId = _calendars.FirstOrDefault()?.Id;
+            _events = await Api.GetCalendarEventsAsync(from, to);
+            _automations = await Api.GetAutomationsAsync();
+            _runs = await Api.GetAutomationRunsInRangeAsync(from, to);
+            _loadFailed = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: grade renderiza vazia + retry manual.
+            _loadFailed = true;
+            Console.Error.WriteLine($"[Calendar] carga falhou: {ex.Message}");
+        }
         _loading = false;
     }
 

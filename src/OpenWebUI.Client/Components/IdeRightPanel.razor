@@ -178,8 +178,16 @@
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
-        _terminalEnabled = await Api.GetTerminalEnabledAsync();
-        _previewEnabled = await Api.GetPreviewEnabledAsync();
+        try
+        {
+            _terminalEnabled = await Api.GetTerminalEnabledAsync();
+            _previewEnabled = await Api.GetPreviewEnabledAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: abas extras somem — chat/changes/pulls/tests/jobs restam.
+            Console.Error.WriteLine($"[IdeRightPanel] init falhou: {ex.Message}");
+        }
     }
 
     /// <summary>Ao iniciar um run (botão do header ou da aba Changes) salta à aba Tests.</summary>

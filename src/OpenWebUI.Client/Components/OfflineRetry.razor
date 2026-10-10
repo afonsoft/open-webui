@@ -1,0 +1,16 @@
+@inject LocalizationService L
+
+@* Estado degradado offline (SPEC-20261010-offline-init-resilience): exibido
+   quando o fetch de init falha com HttpRequestException — texto honesto +
+   retry manual em vez da blazor-error-ui. *@
+<div class="sidebar-empty flex items-center justify-center gap-2" data-offline-fallback>
+    <span>@L["common.offline_load"]</span>
+    <button class="auth-submit !w-auto px-3 py-1 text-xs" @onclick="OnRetry">
+        @L["common.retry"]
+    </button>
+</div>
+
+@code {
+    /// <summary>Recarrega o fetch que falhou.</summary>
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

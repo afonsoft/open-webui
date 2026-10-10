@@ -199,9 +199,16 @@
     {
         if (Message.Role == "assistant")
         {
-            var config = await Api.GetAppConfigCachedAsync();
-            _codeExecEnabled = config?.Features.EnableCodeExecution ?? false;
-            _imageGenEnabled = config?.Features.EnableImageGeneration ?? false;
+            try
+            {
+                var config = await Api.GetAppConfigCachedAsync();
+                _codeExecEnabled = config?.Features.EnableCodeExecution ?? false;
+                _imageGenEnabled = config?.Features.EnableImageGeneration ?? false;
+            }
+            catch (HttpRequestException)
+            {
+                // Offline: bolha renderiza o texto; features extras ficam off.
+            }
         }
     }
 

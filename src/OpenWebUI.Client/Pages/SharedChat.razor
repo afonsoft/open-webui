@@ -12,6 +12,10 @@
         {
             <div class="sidebar-empty">@L["common.loading"]</div>
         }
+        else if (_loadFailed)
+        {
+            <OfflineRetry OnRetry="LoadChatAsync" />
+        }
         else if (_chat is null)
         {
             <div class="chat-empty">
@@ -60,13 +64,22 @@
 
     private SharedChatResponse? _chat;
     private bool _loading = true;
+    private bool _loadFailed;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await LoadChatAsync();
+
+    private async Task LoadChatAsync()
     {
         _loading = true;
+        _loadFailed = false;
         try
         {
             _chat = await Api.GetSharedChatAsync(ShareId);
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[SharedChat] carga falhou: {ex.Message}");
         }
         finally
         {

@@ -11,7 +11,11 @@
         <a class="msg-action" href="/automations">← @L["common.back"]</a>
     </div>
 
-    @if (_notFound)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadAsync" />
+    }
+    else if (_notFound)
     {
         <div class="sidebar-empty">@L["common.not_found"]</div>
     }
@@ -82,17 +86,29 @@
     private AutomationResponse? _item;
     private List<AutomationRunResponse>? _runs;
     private bool _notFound;
+    private bool _loadFailed;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loadFailed = false;
         if (Id is null) { _notFound = true; return; }
-        _item = await Api.GetAutomationAsync(Id);
-        if (_item is null)
+        try
         {
-            _notFound = true;
-            return;
+            _item = await Api.GetAutomationAsync(Id);
+            if (_item is null)
+            {
+                _notFound = true;
+                return;
+            }
+            _runs = await Api.GetAutomationRunsAsync(Id);
         }
-        _runs = await Api.GetAutomationRunsAsync(Id);
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[AutomationDetail] carga falhou: {ex.Message}");
+        }
     }
 
     private async Task RunNowAsync()

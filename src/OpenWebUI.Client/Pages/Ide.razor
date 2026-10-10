@@ -14,6 +14,14 @@
 {
     <div class="flex h-full items-center justify-center text-sm text-gray-400">…</div>
 }
+else if (_loadFailed)
+{
+    @* Offline: o fetch de init falhou — painel com retry manual. *@
+    <div class="flex h-full flex-col items-center justify-center gap-2 p-6">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">@L["ide.title"]</h2>
+        <OfflineRetry OnRetry="LoadInitAsync" />
+    </div>
+}
 else if (!_enabled)
 {
     <div class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
@@ -76,6 +84,7 @@ else
 @code {
     private bool _ready;
     private bool _enabled;
+    private bool _loadFailed;
     private WorkspaceRepoResponse? _repo;
     private WorkspaceGitResponse? _git;
     private List<ChatJobResponse> _jobs = [];
@@ -89,15 +98,26 @@ else
     private Timer? _poll;
 
     /// <inheritdoc/>
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadInitAsync();
+
+    /// <summary>Fetch inicial (flag + repo) — falha de rede vira estado
+    /// degradado com retry, nunca a blazor-error-ui.</summary>
+    private async Task LoadInitAsync()
     {
-        _enabled = await Api.GetIdeEnabledAsync();
-        if (!_enabled)
+        try
         {
-            _ready = true;
-            return;
+            _enabled = await Api.GetIdeEnabledAsync();
+            if (_enabled)
+            {
+                _repo = await Api.GetWorkspaceRepoAsync();
+            }
+            _loadFailed = false;
         }
-        _repo = await Api.GetWorkspaceRepoAsync();
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[Ide] init falhou: {ex.Message}");
+        }
         _ready = true;
     }
 
@@ -119,7 +139,7 @@ else
 
     private async Task ReloadAsync()
     {
-        _repo = await Api.GetWorkspaceRepoAsync();
+        await LoadInitAsync();
         _dark = Theme.Current == "dark";
         await RefreshSideAsync();
     }
@@ -137,9 +157,17 @@ else
     /// <summary>Refresh do lado direito (git + jobs) + badge do explorer.</summary>
     private async Task RefreshSideAsync()
     {
-        _git = await Api.GetWorkspaceGitAsync();
-        _jobs = await Api.GetJobsAsync(all: true);
-        _checkpoints = await Api.GetCheckpointsAsync();
+        try
+        {
+            _git = await Api.GetWorkspaceGitAsync();
+            _jobs = await Api.GetJobsAsync(all: true);
+            _checkpoints = await Api.GetCheckpointsAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: mantém o último snapshot; o timer retenta sozinho.
+            Console.Error.WriteLine($"[Ide] refresh falhou: {ex.Message}");
+        }
         await InvokeAsync(StateHasChanged);
     }
 
