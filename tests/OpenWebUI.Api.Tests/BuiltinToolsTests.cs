@@ -4,7 +4,11 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.ChatTools.Tools;
@@ -26,11 +30,14 @@ public class BuiltinToolsTests
     private string _uploadDir = null!;
     private string _dbPath = null!;
     private ServiceProvider _provider = null!;
+    private FakeRunDispatcher _fakeDispatcher = null!;
+    private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
         var root = Path.Join(Path.GetTempPath(), $"owui-builtin-{Guid.NewGuid():N}");
+        _root = root;
         _workspace = Path.Join(root, "workspace");
         _uploadDir = Path.Join(root, "uploads");
         Directory.CreateDirectory(_workspace);
@@ -41,6 +48,15 @@ public class BuiltinToolsTests
         services.AddDbContext<AppDbContext>(
             o => o.UseSqlite($"Data Source={_dbPath}"));
         services.AddLogging();
+        services.AddMemoryCache();
+        services.AddSingleton<IHostEnvironment>(new StubEnvLocal(root));
+        services.AddScoped<ConfigService>();
+        services.AddScoped<WorkspaceRepoService>();
+        services.AddSingleton<System.Net.Http.IHttpClientFactory>(
+            new StubHttpClientFactory());
+        services.AddScoped<GitHubService>();
+        _fakeDispatcher = new FakeRunDispatcher();
+        services.AddSingleton<IChatRunDispatcher>(_fakeDispatcher);
         _provider = services.BuildServiceProvider();
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -966,6 +982,138 @@ public class BuiltinToolsTests
             Assert.That(d.Removed, Is.EqualTo(1));
             Assert.That(d.Text, Does.Contain("--- a/a.txt").And.Contain("-two").And.Contain("+TWO"));
         });
+    }
+
+    // ---------------- delegate_task repo alvo (SPEC-20261010-delegate-repo-target) ----------------
+
+    [Test]
+    public async Task Delegate_RepoAlvo_VinculaChatFilhoAoRepoInformado()
+    {
+        // `repo`+`clone_url` explicitos sobrescrevem a heranca: o chat filho
+        // fica vinculado ao repo alvo (checkout proprio por slug).
+        var origin = CriarOrigemGit("main");
+        using (var seedDb = NewDb())
+        {
+            seedDb.ChatRuns.Add(new ChatRun
+            {
+                Id = "r1", ChatId = "c1", UserId = "u1", Model = "m/x",
+                Status = ChatRunStatus.Running,
+                RequestJson = JsonSerializer.Serialize(
+                    new ChatCompletionRequest("m/x",
+                        [new ChatCompletionMessage("user", "delegue")],
+                        Stream: true, ToolIds: ["builtin:delegate_task"])),
+                CreatedAt = 1,
+            });
+            seedDb.SaveChanges();
+        }
+
+        var tool = new DelegateTaskBuiltinTool(
+            _provider.GetRequiredService<IServiceScopeFactory>(), _fakeDispatcher);
+        var res = await tool.ExecuteAsync(
+            Args($$"""{"prompt":"suba no outro repo","wait":false,"repo":"b/rb","clone_url":"{{origin}}"}"""),
+            Ctx(), default);
+
+        Assert.That(res.Refused, Is.False, res.Text);
+        var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+            JsonSerializer.Serialize(res.Result))!;
+        Assert.That(_fakeDispatcher.Enqueued,
+            Is.EqualTo(new[] { data["childRunId"].GetString()! }),
+            "run filha nao foi enfileirada");
+
+        var childChatId = data["childChatId"].GetString()!;
+        using var scope = _provider.CreateScope();
+        var cfg = scope.ServiceProvider.GetRequiredService<ConfigService>();
+        var binding = await cfg.GetAsync<WorkspaceRepoBinding?>(
+            $"chat:{childChatId}:workspace.repo", null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(binding, Is.Not.Null, "chat filho sem binding do repo alvo");
+            Assert.That(binding!.Repo, Is.EqualTo("b/rb"));
+            Assert.That(binding.Branch, Is.EqualTo("main"));
+            Assert.That(Directory.Exists(
+                Path.Join(_root, "data", "workspaces", "u1", binding.Dir)),
+                Is.True, "checkout do repo alvo nao foi criado");
+        });
+    }
+
+    [Test]
+    public async Task Delegate_RepoAlvoInvalido_RunFilhaFalhaSemEnfileirar()
+    {
+        // Slug fora do padrao owner/repo → run filha marcada failed e o
+        // dispatcher nao e chamado.
+        using (var seedDb = NewDb())
+        {
+            seedDb.ChatRuns.Add(new ChatRun
+            {
+                Id = "r1", ChatId = "c1", UserId = "u1", Model = "m/x",
+                Status = ChatRunStatus.Running,
+                RequestJson = JsonSerializer.Serialize(
+                    new ChatCompletionRequest("m/x",
+                        [new ChatCompletionMessage("user", "delegue")],
+                        Stream: true, ToolIds: ["builtin:delegate_task"])),
+                CreatedAt = 1,
+            });
+            seedDb.SaveChanges();
+        }
+
+        var tool = new DelegateTaskBuiltinTool(
+            _provider.GetRequiredService<IServiceScopeFactory>(), _fakeDispatcher);
+        var res = await tool.ExecuteAsync(
+            Args("""{"prompt":"x","wait":false,"repo":"..%2F..evil","clone_url":"x"}"""),
+            Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("Falha ao preparar o repo"));
+            Assert.That(_fakeDispatcher.Enqueued, Is.Empty);
+        });
+        using var scope = _provider.CreateScope();
+        var db2 = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var filha = db2.ChatRuns.Single(r => r.ParentRunId == "r1");
+        Assert.That(filha.Status, Is.EqualTo(ChatRunStatus.Failed));
+    }
+
+    private static string CriarOrigemGit(string branch)
+    {
+        var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(origin);
+        GitLocal(origin, "init", "-b", branch);
+        File.WriteAllText(Path.Join(origin, "readme.md"), "oi\n");
+        GitLocal(origin, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
+        GitLocal(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "base");
+        return origin;
+    }
+
+    private static void GitLocal(string workdir, params string[] args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            WorkingDirectory = workdir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+        using var proc = System.Diagnostics.Process.Start(psi)!;
+        proc.WaitForExit(30000);
+        Assert.That(proc.ExitCode, Is.EqualTo(0), $"git {string.Join(' ', args)} falhou");
+    }
+
+    private sealed class FakeRunDispatcher : IChatRunDispatcher
+    {
+        public List<string> Enqueued { get; } = [];
+        public void Enqueue(string runId) => Enqueued.Add(runId);
+    }
+
+    private sealed class StubEnvLocal(string contentRoot) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Test";
+        public string ApplicationName { get; set; } = "tests";
+        public string ContentRootPath { get; set; } = contentRoot;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null)
