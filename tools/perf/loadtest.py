@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import random
 import statistics
 import time
@@ -646,6 +647,9 @@ def main() -> None:
     metrics = asyncio.run(run(args))
     report = render_report(args, metrics, getattr(args, "_done", []))
     print(report)
+    for out in (args.md, args.json):
+        if out:
+            os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     if args.md:
         with open(args.md, "w") as f:
             f.write(report)
