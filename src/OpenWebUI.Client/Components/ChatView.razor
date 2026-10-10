@@ -167,10 +167,19 @@
                         var message = _messages[i];
                         if (message.Role == "tool")
                         {
-                            <ToolCallCard
-                                Name="@(message.ToolCallId ?? "tool")"
-                                ResultPreview="@message.Content"
-                                Ok="true" />
+                            @* Histórico: bloco de tool calls consecutivas vira o
+                               mesmo work log colapsado (derivado client-side). *@
+                            var lastTool = index;
+                            while (lastTool + 1 < _messages.Count
+                                && _messages[lastTool + 1].Role == "tool")
+                            {
+                                lastTool++;
+                            }
+                            var persisted = _messages
+                                .Skip(index).Take(lastTool - index + 1)
+                                .Select(PersistedToolCall).ToList();
+                            <RunActivityFeed Calls="persisted" Streaming="false" Collapsed="true" />
+                            i = lastTool;
                             continue;
                         }
                         var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
@@ -193,21 +202,9 @@
 
             @if (_liveToolCalls.Count > 0)
             {
-                <div class="flex flex-col gap-1.5 py-2">
-                    @foreach (var t in _liveToolCalls)
-                    {
-                        <ToolCallCard
-                            Name="@t.Call.Name"
-                            ArgsPreview="@t.Call.ArgsPreview"
-                            ResultPreview="@t.Result?.Preview"
-                            ImagePath="@t.Result?.ImagePath"
-                            VideoPath="@t.Result?.VideoPath"
-                            Result="@t.Result?.Result"
-                            Running="@(t.Result is null && _streaming)"
-                            Denied="@(t.Result?.Denied ?? false)"
-                            Ok="@(t.Result is null ? null : t.Result.Ok)" />
-                    }
-                </div>
+                @* Feed amigável de atividade (SPEC chat-activity-feed) —
+                   linhas simples durante a run, "N passos" colapsado no fim. *@
+                <RunActivityFeed Calls="_liveToolCalls" Streaming="_streaming" Collapsed="!_streaming" />
             }
 
             @if (_runTasks.Count > 0)
@@ -746,7 +743,24 @@
     // Streaming de tools (SPEC-20261007-chat-tool-streaming):
     // fase atual, calls ao vivo e pedido de aprovação pendente.
     private string? _statusLabel;
+    private bool _hasDeltas;
     private readonly List<ToolCallView> _liveToolCalls = [];
+
+    /// <summary>Label "Pensando…" — comparada por referência no flip para
+    /// "Escrevendo resposta…" quando o primeiro delta chega.</summary>
+    private string _thinkingLabel => L["chat.status_thinking"];
+
+    /// <summary>Converte mensagem persistida role=tool em ToolCallView para
+    /// o work log colapsado (histórico — sem ArgsPreview disponível).</summary>
+    private static ToolCallView PersistedToolCall(ChatMessageModel m)
+    {
+        var name = m.ToolCallId ?? "tool";
+        return new ToolCallView
+        {
+            Call = new RunToolCallEvent(name, name, null),
+            Result = new RunToolResultEvent(name, name, true, m.Content),
+        };
+    }
 
     /// <summary>Snapshot da lista de tarefas da run (evento <c>tasks</c>, RF-010).</summary>
     private List<RunTaskItem> _runTasks = [];
@@ -796,12 +810,6 @@
     /// </summary>
     private const int RenderIntervalMs = 60;
 
-    /// <summary>Estado vivo de uma tool_call + seu tool_result.</summary>
-    private sealed class ToolCallView
-    {
-        public required RunToolCallEvent Call { get; init; }
-        public RunToolResultEvent? Result { get; set; }
-    }
 
     private string UserInitials =>
         string.IsNullOrWhiteSpace(Auth.CurrentUser?.Name)
@@ -1772,6 +1780,8 @@
         var index = _messages.Count - 1;
 
         _streaming = true;
+        _hasDeltas = false;
+        _statusLabel ??= _thinkingLabel;
         _arena = null;
         _arenaFeedback = null;
         _cts = new CancellationTokenSource();
@@ -1837,6 +1847,8 @@
         var index = _messages.Count - 1;
 
         _streaming = true;
+        _hasDeltas = false;
+        _statusLabel ??= _thinkingLabel;
         _activeRunId = run.Id;
         // Reattach numa run pausada já entra com o botão de resume.
         _paused = run.Status == "paused";
@@ -2002,6 +2014,11 @@
                 case ChatStreamService.ChatStreamEvent.Delta delta:
                     content.Append(delta.Text);
                     _messages[index] = placeholder with { Content = content.ToString() };
+                    _hasDeltas = true;
+                    if (_statusLabel == _thinkingLabel)
+                    {
+                        _statusLabel = L["chat.status_writing"];
+                    }
                     break;
                 case ChatStreamService.ChatStreamEvent.ToolCall call:
                     _liveToolCalls.Add(new ToolCallView { Call = call.Call });
@@ -2061,6 +2078,21 @@
                             // Estado terminal da run: encerra sem depender do
                             // fechamento do SSE (proxies podem segurar o FIN).
                             return true;
+                        case "generating":
+                            _statusLabel = _hasDeltas
+                                ? L["chat.status_writing"]
+                                : _thinkingLabel;
+                            break;
+                        case "running_tool":
+                            // Chip acompanha a atividade amigável da call atual.
+                            _statusLabel = _liveToolCalls.LastOrDefault(t => t.Result is null)
+                                is { } live
+                                ? L[ToolActivityMap.KeyFor(live.Call.Name)]
+                                : L["chat.activity.tool"];
+                            break;
+                        case "awaiting_approval":
+                            _statusLabel = L["chat.status_approval"];
+                            break;
                         default:
                             _paused = false;
                             _statusLabel = phase.Status.Label;
