@@ -38,10 +38,13 @@
             {
                 var info = ToolActivityMap.Map(t.Call.Name, t.Call.ArgsPreview);
                 var running = t.Result is null && Streaming;
+                var showDetails = running
+                    ? !_hiddenFor.Contains(t.Call.Id)
+                    : _detailsFor == t.Call.Id;
                 <div class="flex flex-col">
                     <button type="button"
                             class="flex min-h-8 items-center gap-1.5 px-1 py-1 text-left text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
-                            aria-expanded="@(_detailsFor == t.Call.Id ? "true" : "false")"
+                            aria-expanded="@(showDetails ? "true" : "false")"
                             @onclick="() => ToggleDetails(t)">
                         @if (running)
                         {
@@ -80,7 +83,7 @@
                             <span class="truncate text-gray-400 dark:text-gray-500">— @target</span>
                         }
                     </button>
-                    @if (_detailsFor == t.Call.Id)
+                    @if (showDetails)
                     {
                         <ToolCallCard
                             Name="@t.Call.Name"
@@ -111,10 +114,29 @@
 
     private bool _open;
     private string? _detailsFor;
+    private readonly HashSet<string> _hiddenFor = [];
 
     private bool HasError => Calls.Any(t => t.Result is { Ok: false, Denied: false });
     private bool HasDenied => Calls.Any(t => t.Result is { Denied: true });
 
-    private void ToggleDetails(ToolCallView t) =>
-        _detailsFor = _detailsFor == t.Call.Id ? null : t.Call.Id;
+    /// <summary>
+    /// Padrão Devin web: a call em execução mostra o painel (terminal)
+    /// automaticamente; quando termina colapsa pra linha amigável. Clique
+    /// na linha inverte o estado atual (esconde enquanto roda, revela
+    /// depois de pronta).
+    /// </summary>
+    private void ToggleDetails(ToolCallView t)
+    {
+        if (t.Result is null && Streaming)
+        {
+            if (!_hiddenFor.Remove(t.Call.Id))
+            {
+                _hiddenFor.Add(t.Call.Id);
+            }
+        }
+        else
+        {
+            _detailsFor = _detailsFor == t.Call.Id ? null : t.Call.Id;
+        }
+    }
 }

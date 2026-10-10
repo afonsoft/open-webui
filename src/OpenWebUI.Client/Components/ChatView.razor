@@ -184,6 +184,14 @@
                         }
                         var isLastAssistant = message.Role == "assistant" && i == _messages.Count - 1;
                         var msgKey = message.Id ?? $"m{index}";
+                        @if (isLastAssistant && _liveToolCalls.Count > 0)
+                        {
+                            @* Padrão Devin web: painel de atividade ACIMA do
+                               texto que a run produz — feed em cima, resposta
+                               embaixo. No histórico as role=tool já ficam
+                               antes da resposta por natureza. *@
+                            <RunActivityFeed Calls="_liveToolCalls" Streaming="_streaming" Collapsed="!_streaming" />
+                        }
                         <MessageBubble @key="msgKey"
                             Message="message"
                             Streaming="_streaming && isLastAssistant"
@@ -200,10 +208,12 @@
                 </div>
             }
 
-            @if (_liveToolCalls.Count > 0)
+            @if (_liveToolCalls.Count > 0
+                && (_messages.Count == 0 || _messages[^1].Role != "assistant"))
             {
-                @* Feed amigável de atividade (SPEC chat-activity-feed) —
-                   linhas simples durante a run, "N passos" colapsado no fim. *@
+                @* Fallback: feed embaixo quando a run ainda não tem
+                   placeholder de assistant na lista (ex.: eventos antes
+                   da primeira delta). *@
                 <RunActivityFeed Calls="_liveToolCalls" Streaming="_streaming" Collapsed="!_streaming" />
             }
 
@@ -752,15 +762,8 @@
 
     /// <summary>Converte mensagem persistida role=tool em ToolCallView para
     /// o work log colapsado (histórico — sem ArgsPreview disponível).</summary>
-    private static ToolCallView PersistedToolCall(ChatMessageModel m)
-    {
-        var name = m.ToolCallId ?? "tool";
-        return new ToolCallView
-        {
-            Call = new RunToolCallEvent(name, name, null),
-            Result = new RunToolResultEvent(name, name, true, m.Content),
-        };
-    }
+    private static ToolCallView PersistedToolCall(ChatMessageModel m) =>
+        ToolCallView.FromPersisted(m);
 
     /// <summary>Snapshot da lista de tarefas da run (evento <c>tasks</c>, RF-010).</summary>
     private List<RunTaskItem> _runTasks = [];
