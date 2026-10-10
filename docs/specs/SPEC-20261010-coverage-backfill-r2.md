@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-coverage-backfill-r2` |
 | Ticket | `GAP-tests-coverage-r2` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | SPEC-20261008-tests-coverage-gate |
 
@@ -35,3 +35,7 @@
 
 1. Fixtures per block, following `LspEndpointsTests`/`LspBuiltinToolsTests` recipes (binding via `config.SetAsync`, admin `DefaultUserRole="user"`, temp `DATA_ROOT` + cleanup).
 2. Full Release suite + measure; bump `.ci/coverage-*.txt` to measured-0.05.
+
+## Delivered
+
+- PR #291 (abdc743) — fixtures determinísticas (CoverageBackfillR2Tests.cs); baselines 90.26/76.99.

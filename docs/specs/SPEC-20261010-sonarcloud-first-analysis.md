@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-sonarcloud-first-analysis` |
 | Ticket | `GAP-automation-sonarcloud` |
-| Status | `Draft` |
+| Status | `Completed` |
 | Priority | `high` |
 | Depends on | — |
 
@@ -40,3 +40,7 @@
 1. User: create SonarCloud project + token → repo secret `SONAR_TOKEN`.
 2. Trigger a run; confirm upload + gate.
 3. Triage first findings → issues/SPECs per sonarqube-autofix.
+
+## Delivered
+
+- Provisionamento feito fora da spec em 2026-10-10: projeto afonsoft_open-webui live no SonarCloud e check "SonarQube Analysis" verde no CI.

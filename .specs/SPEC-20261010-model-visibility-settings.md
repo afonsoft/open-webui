@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-model-visibility-settings` |
 | Ticket | `[A DEFINIR — create-issues after approval]` |
-| Status | `Draft` |
+| Status | `Approved` |
 | Priority | `high` |
 | Depends on | — (integrates provider labels from SPEC-20261010-multi-provider-connections when available) |
 

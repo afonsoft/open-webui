@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-offline-init-resilience` |
 | Ticket | `GAP-impl-offline-init` |
-| Status | `In implementation` |
+| Status | `Completed` |
 | Priority | `medium` |
 | Depends on | SPEC-20261009-notification-feed (delivered) |
 
@@ -37,3 +37,7 @@
 
 1. Add a small `SafeInitAsync(Func<Task>)` helper (or try/catch inline where simpler) in each component.
 2. Tests per component: handler throws → assert no exception surfaces + fallback markup.
+
+## Delivered
+
+- PR #289 (9d4178c) — componentes sobrevivem a fetch offline com render degradado + retry.
