@@ -1,35 +1,98 @@
 namespace OpenWebUI.Application.Contracts;
 
+/// <summary>Tipos de provedor reconhecidos nas conexões tipadas.</summary>
+public static class ProviderTypes
+{
+    /// <summary>Ollama local/remoto.</summary>
+    public const string Ollama = "ollama";
+
+    /// <summary>API compatível com OpenAI.</summary>
+    public const string OpenAi = "openai";
+
+    /// <summary>API nativa da Anthropic (Messages API).</summary>
+    public const string Anthropic = "anthropic";
+
+    /// <summary>Google AI Studio (Gemini API).</summary>
+    public const string Google = "google";
+
+    /// <summary>Todos os tipos aceitos no campo <see cref="ProviderConnection.Type"/>.</summary>
+    public static readonly IReadOnlyList<string> All = [Ollama, OpenAi, Anthropic, Google];
+
+    /// <summary>Tipos que exigem API key (o Ollama não usa e o OpenAI é opcional).</summary>
+    public static bool KeyRequired(string type) =>
+        type is Anthropic or Google;
+
+    /// <summary>Endpoint oficial pré-preenchido por tipo (editável para proxies/gateways).</summary>
+    public static string DefaultBaseUrl(string type) => type switch
+    {
+        Anthropic => "https://api.anthropic.com",
+        Google => "https://generativelanguage.googleapis.com/v1beta",
+        OpenAi => "https://api.openai.com/v1",
+        Ollama => "http://localhost:11434",
+        _ => string.Empty,
+    };
+}
+
+/// <summary>Conexão tipada de provider (Anthropic, Google AI Studio, …).</summary>
+/// <param name="Type">Tipo do provedor — ver <see cref="ProviderTypes"/>.</param>
+/// <param name="BaseUrl">URL base do endpoint (oficial pré-preenchida, editável).</param>
+/// <param name="ApiKey">Chave de API da conexão (obrigatória para anthropic/google).</param>
+/// <param name="Name">Nome de exibição opcional.</param>
+public sealed record ProviderConnection(
+    string Type,
+    string BaseUrl,
+    string? ApiKey = null,
+    string? Name = null);
+
+/// <summary>Visão pública de uma conexão tipada: chave nunca é exposta.</summary>
+/// <param name="Type">Tipo do provedor.</param>
+/// <param name="BaseUrl">URL base configurada.</param>
+/// <param name="KeyConfigured">Indica se existe chave configurada.</param>
+/// <param name="Name">Nome de exibição opcional.</param>
+public sealed record ProviderConnectionResponse(
+    string Type,
+    string BaseUrl,
+    bool KeyConfigured,
+    string? Name = null);
+
 /// <summary>Configuração de conexões com provedores de IA (espelha Admin Settings → Connections).</summary>
 /// <param name="OllamaBaseUrls">URLs base de servidores Ollama.</param>
 /// <param name="OpenAiBaseUrls">URLs base de APIs compatíveis com OpenAI.</param>
 /// <param name="OpenAiApiKeys">Chaves de API correspondentes às URLs OpenAI.</param>
 /// <param name="OllamaNames">Nomes de exibição das conexões Ollama (opcional).</param>
 /// <param name="OpenAiNames">Nomes de exibição das conexões OpenAI (opcional).</param>
+/// <param name="Providers">Conexões tipadas adicionais (anthropic, google, …).</param>
 public sealed record ConnectionsConfig(
     IReadOnlyList<string> OllamaBaseUrls,
     IReadOnlyList<string> OpenAiBaseUrls,
     IReadOnlyList<string> OpenAiApiKeys,
     IReadOnlyList<string>? OllamaNames = null,
-    IReadOnlyList<string>? OpenAiNames = null)
+    IReadOnlyList<string>? OpenAiNames = null,
+    IReadOnlyList<ProviderConnection>? Providers = null)
 {
     /// <summary>Configuração padrão apontando para um Ollama local.</summary>
     public static ConnectionsConfig Default { get; } = new(
         OllamaBaseUrls: ["http://localhost:11434"],
         OpenAiBaseUrls: [],
         OpenAiApiKeys: []);
+
+    /// <summary>Conexões tipadas (nunca null — lista vazia quando ausente).</summary>
+    public IReadOnlyList<ProviderConnection> ProvidersOrEmpty =>
+        Providers ?? (IReadOnlyList<ProviderConnection>)[];
 }
 
 /// <summary>Visão pública das conexões: chaves de API são omitidas.</summary>
 /// <param name="OllamaBaseUrls">URLs base de servidores Ollama.</param>
 /// <param name="OpenAiBaseUrls">URLs base de APIs compatíveis com OpenAI.</param>
 /// <param name="OpenAiKeyConfigured">Indica se existe chave configurada por URL.</param>
+/// <param name="Providers">Conexões tipadas sem as chaves.</param>
 public sealed record ConnectionsConfigResponse(
     IReadOnlyList<string> OllamaBaseUrls,
     IReadOnlyList<string> OpenAiBaseUrls,
     IReadOnlyList<bool> OpenAiKeyConfigured,
     IReadOnlyList<string>? OllamaNames = null,
-    IReadOnlyList<string>? OpenAiNames = null);
+    IReadOnlyList<string>? OpenAiNames = null,
+    IReadOnlyList<ProviderConnectionResponse>? Providers = null);
 
 /// <summary>
 /// Modelos detectados por capacidade nas conexões cadastradas — alimenta os

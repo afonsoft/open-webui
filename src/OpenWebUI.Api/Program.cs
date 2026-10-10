@@ -528,8 +528,28 @@ static void SeedConnectionsFromEnv(AppDbContext db)
     var openAiKeys = SplitEnvUrls(
         Environment.GetEnvironmentVariable("OPENAI_API_KEYS")
         ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
+    var anthropicKeys = SplitEnvUrls(
+        Environment.GetEnvironmentVariable("ANTHROPIC_API_KEYS")
+        ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
+    var anthropicBase = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL")
+        ?? ProviderTypes.DefaultBaseUrl(ProviderTypes.Anthropic);
+    var googleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY")
+        ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+    var googleBase = Environment.GetEnvironmentVariable("GOOGLE_BASE_URL")
+        ?? ProviderTypes.DefaultBaseUrl(ProviderTypes.Google);
 
-    if (ollama.Count == 0 && openAi.Count == 0)
+    var providers = new List<ProviderConnection>();
+    foreach (var key in anthropicKeys)
+    {
+        providers.Add(new ProviderConnection(ProviderTypes.Anthropic, anthropicBase, key));
+    }
+
+    if (!string.IsNullOrWhiteSpace(googleKey))
+    {
+        providers.Add(new ProviderConnection(ProviderTypes.Google, googleBase, googleKey));
+    }
+
+    if (ollama.Count == 0 && openAi.Count == 0 && providers.Count == 0)
     {
         return;
     }
@@ -538,7 +558,7 @@ static void SeedConnectionsFromEnv(AppDbContext db)
     {
         Key = "connections",
         ValueJson = System.Text.Json.JsonSerializer.Serialize(
-            new ConnectionsConfig(ollama, openAi, openAiKeys)),
+            new ConnectionsConfig(ollama, openAi, openAiKeys, Providers: providers)),
         UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
     });
     db.SaveChanges();

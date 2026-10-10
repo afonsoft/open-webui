@@ -62,14 +62,33 @@ public class ProviderService(
                 .Where(model => seen.Add($"openai:{model.Id}")));
         }
 
+        foreach (var provider in connections.ProvidersOrEmpty)
+        {
+            models.AddRange((await FetchTypedModelsAsync(provider, ct))
+                .Where(model => seen.Add($"{provider.Type}:{model.Id}")));
+        }
+
         return models;
     }
+
+    private async Task<List<ModelInfo>> FetchTypedModelsAsync(
+        ProviderConnection provider, CancellationToken ct) =>
+        provider.Type switch
+        {
+            ProviderTypes.Anthropic => await FetchAnthropicModelsAsync(
+                provider.BaseUrl, provider.ApiKey, ct),
+            ProviderTypes.Google => await FetchGoogleModelsAsync(
+                provider.BaseUrl, provider.ApiKey, ct),
+            _ => [],
+        };
 
     private static string ConnectionsFingerprint(ConnectionsConfig c)
     {
         var raw = string.Join('\n', c.OllamaBaseUrls) + '|'
             + string.Join('\n', c.OpenAiBaseUrls) + '|'
-            + string.Join('\n', c.OpenAiApiKeys);
+            + string.Join('\n', c.OpenAiApiKeys) + '|'
+            + string.Join('\n',
+                c.ProvidersOrEmpty.Select(p => $"{p.Type}|{p.BaseUrl}|{p.ApiKey}"));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
     }
 
@@ -84,6 +103,16 @@ public class ProviderService(
         string type, int index, CancellationToken ct = default)
     {
         var connections = await config.GetConnectionsAsync(ct);
+        if (type is ProviderTypes.Anthropic or ProviderTypes.Google)
+        {
+            var typed = connections.ProvidersOrEmpty
+                .Where(p => string.Equals(p.Type, type, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            return index >= 0 && index < typed.Count
+                ? await FetchTypedModelsAsync(typed[index], ct)
+                : [];
+        }
+
         return type == "ollama"
             ? index >= 0 && index < connections.OllamaBaseUrls.Count
                 ? await FetchOllamaModelsAsync(connections.OllamaBaseUrls[index], ct)
@@ -186,6 +215,112 @@ public class ProviderService(
         return models;
     }
 
+    /// <summary>GET {base}/v1/models da Anthropic (x-api-key + anthropic-version); vazio quando indisponível.</summary>
+    private async Task<List<ModelInfo>> FetchAnthropicModelsAsync(
+        string baseUrl, string? apiKey, CancellationToken ct)
+    {
+        var models = new List<ModelInfo>();
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrEmpty(apiKey))
+        {
+            return models;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get, $"{TrimSlash(baseUrl)}/v1/models");
+            request.Headers.Add("x-api-key", apiKey);
+            request.Headers.Add("anthropic-version", "2023-06-01");
+
+            using var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return models;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var node = JsonNode.Parse(json);
+            foreach (var model in node?["data"]?.AsArray() ?? [])
+            {
+                var id = model?["id"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    models.Add(new ModelInfo(
+                        id,
+                        model!["display_name"]?.GetValue<string>() ?? id,
+                        "anthropic",
+                        "anthropic"));
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos Anthropic em {BaseUrl}.", baseUrl);
+        }
+        catch (TaskCanceledException ex)
+        {
+            // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos Anthropic em {BaseUrl}.", baseUrl);
+        }
+        return models;
+    }
+
+    /// <summary>GET {base}/models do Google AI Studio (x-goog-api-key); vazio quando indisponível.</summary>
+    private async Task<List<ModelInfo>> FetchGoogleModelsAsync(
+        string baseUrl, string? apiKey, CancellationToken ct)
+    {
+        var models = new List<ModelInfo>();
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrEmpty(apiKey))
+        {
+            return models;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get, $"{TrimSlash(baseUrl)}/models");
+            request.Headers.Add("x-goog-api-key", apiKey);
+
+            using var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return models;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var node = JsonNode.Parse(json);
+            foreach (var model in node?["models"]?.AsArray() ?? [])
+            {
+                var name = model?["name"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(name))
+                {
+                    continue;
+                }
+
+                var id = name.StartsWith("models/", StringComparison.Ordinal)
+                    ? name["models/".Length..]
+                    : name;
+                models.Add(new ModelInfo(
+                    id,
+                    model!["displayName"]?.GetValue<string>() ?? id,
+                    "google",
+                    "google"));
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // Provedor indisponível: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Falha ao listar modelos Google em {BaseUrl}.", baseUrl);
+        }
+        catch (TaskCanceledException ex)
+        {
+            // Timeout na conexão: ignora e segue para o próximo.
+            logger.LogDebug(ex, "Timeout ao listar modelos Google em {BaseUrl}.", baseUrl);
+        }
+        return models;
+    }
+
     /// <summary>Executa uma completion sem streaming e retorna o texto do assistant.</summary>
     /// <param name="request">Requisição de completion (Stream é ignorado).</param>
     /// <param name="ct">Token de cancelamento.</param>
@@ -244,6 +379,12 @@ public class ProviderService(
         var payload = BuildPayload(request, stream: false);
         JsonNode? json;
         bool openAi = provider == "openai";
+
+        if (provider is ProviderTypes.Anthropic or ProviderTypes.Google)
+        {
+            throw new InvalidOperationException(
+                $"Adaptador de chat para '{provider}' ainda não implementado.");
+        }
 
         if (openAi)
         {
@@ -332,6 +473,12 @@ public class ProviderService(
 
         try
         {
+            if (provider is ProviderTypes.Anthropic or ProviderTypes.Google)
+            {
+                throw new InvalidOperationException(
+                    $"Adaptador de chat para '{provider}' ainda não implementado.");
+            }
+
             return provider == "openai"
                 ? await StreamOpenAiToolsAsync(request, connections, payload, onDelta, ct)
                 : await StreamOllamaToolsAsync(request, connections, payload, onDelta, ct);
@@ -594,14 +741,24 @@ public class ProviderService(
             return request.Connection;
         }
 
-        var ollamaModels = (await ListModelsAsync(ct))
-            .Where(m => m.Provider == "ollama")
-            .Select(m => m.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var models = await ListModelsAsync(ct);
+        var byProvider = models
+            .GroupBy(m => m.Provider)
+            .ToDictionary(g => g.Key,
+                g => g.Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
 
-        if (ollamaModels.Contains(request.Model))
+        // Ordem de precedência: quem declarou o modelo primeiro leva.
+        foreach (var provider in new[]
         {
-            return "ollama";
+            ProviderTypes.Ollama, ProviderTypes.OpenAi,
+            ProviderTypes.Anthropic, ProviderTypes.Google,
+        })
+        {
+            if (byProvider.TryGetValue(provider, out var ids) && ids.Contains(request.Model))
+            {
+                return provider;
+            }
         }
 
         return connections.OpenAiBaseUrls.Count > 0 ? "openai" : "ollama";

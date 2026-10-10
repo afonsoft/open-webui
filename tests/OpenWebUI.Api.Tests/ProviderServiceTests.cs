@@ -28,7 +28,9 @@ public class ProviderServiceTests
     private readonly ConcurrentQueue<RecordedRequest> _requests = new();
     private readonly ConcurrentDictionary<string, (int Status, string Body, int DelayMs)> _routes = new();
 
-    private sealed record RecordedRequest(string Path, string? Authorization, string Body);
+    private sealed record RecordedRequest(
+        string Path, string? Authorization, string Body,
+        string? XApiKey = null, string? XGoogApiKey = null, string? AnthropicVersion = null);
 
     private sealed class FakeHttpClientFactory(TimeSpan? timeout) : IHttpClientFactory
     {
@@ -175,7 +177,10 @@ public class ProviderServiceTests
                 body = string.Empty;
             }
             _requests.Enqueue(new RecordedRequest(
-                path, ctx.Request.Headers["Authorization"], body));
+                path, ctx.Request.Headers["Authorization"], body,
+                ctx.Request.Headers["x-api-key"],
+                ctx.Request.Headers["x-goog-api-key"],
+                ctx.Request.Headers["anthropic-version"]));
 
             var (status, payload, delayMs) =
                 _routes.TryGetValue(path, out var route) ? route : (404, "{}", 0);
@@ -579,5 +584,122 @@ public class ProviderServiceTests
             Assert.That(result.ToolCalls, Is.Empty);
             Assert.That(result.ToolCallsJson, Is.EqualTo("[]"));
         });
+    }
+
+    // ---------------- Conexões tipadas (anthropic / google) ----------------
+
+    private Task SetProvidersAsync(params ProviderConnection[] providers) =>
+        _config.SetAsync("connections", new ConnectionsConfig([], [], [], Providers: providers));
+
+    [Test]
+    public async Task ListModels_Anthropic_ListaNativoComHeaders()
+    {
+        _routes["/v1/models"] = (200,
+            "{\"data\":[{\"id\":\"claude-3-5-sonnet-20241022\",\"display_name\":\"Claude 3.5 Sonnet\"}," +
+            "{\"id\":\"claude-3-haiku-20240307\"}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "sk-ant-test"));
+
+        var models = await NewService().ListModelsAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(models, Has.Count.EqualTo(2));
+            Assert.That(models[0].Id, Is.EqualTo("claude-3-5-sonnet-20241022"));
+            Assert.That(models[0].Name, Is.EqualTo("Claude 3.5 Sonnet"));
+            Assert.That(models[0].Provider, Is.EqualTo("anthropic"));
+            Assert.That(models[1].Name, Is.EqualTo("claude-3-haiku-20240307"));
+        });
+        var req = _requests.Single(r => r.Path == "/v1/models");
+        Assert.Multiple(() =>
+        {
+            Assert.That(req.XApiKey, Is.EqualTo("sk-ant-test"));
+            Assert.That(req.AnthropicVersion, Is.EqualTo("2023-06-01"));
+            Assert.That(req.Authorization, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task ListModels_Google_ListaNativoStripPrefix()
+    {
+        _routes["/models"] = (200,
+            "{\"models\":[{\"name\":\"models/gemini-2.0-flash\",\"displayName\":\"Gemini 2.0 Flash\"}," +
+            "{\"name\":\"models/gemini-1.5-pro\"}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("google", _mockUrl, "gk-test"));
+
+        var models = await NewService().ListModelsAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(models, Has.Count.EqualTo(2));
+            Assert.That(models[0].Id, Is.EqualTo("gemini-2.0-flash"));
+            Assert.That(models[0].Name, Is.EqualTo("Gemini 2.0 Flash"));
+            Assert.That(models[0].Provider, Is.EqualTo("google"));
+        });
+        var req = _requests.Single(r => r.Path == "/models");
+        Assert.That(req.XGoogApiKey, Is.EqualTo("gk-test"));
+    }
+
+    [Test]
+    public async Task ListModelsForConnection_AnanthropicEGoogle()
+    {
+        _routes["/v1/models"] = (200, "{\"data\":[{\"id\":\"c1\"}]}", 0);
+        _routes["/models"] = (200, "{\"models\":[{\"name\":\"models/g1\"}]}", 0);
+        await SetProvidersAsync(
+            new ProviderConnection("anthropic", _mockUrl, "k1"),
+            new ProviderConnection("google", _mockUrl, "k2"));
+
+        var service = NewService();
+        var anthropic = await service.ListModelsForConnectionAsync("anthropic", 0);
+        var google = await service.ListModelsForConnectionAsync("google", 0);
+        var outOfRange = await service.ListModelsForConnectionAsync("google", 5);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(anthropic.Select(m => m.Id), Is.EqualTo(new[] { "c1" }));
+            Assert.That(google.Select(m => m.Id), Is.EqualTo(new[] { "g1" }));
+            Assert.That(outOfRange, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task ListModels_TypedProvider_SemKeyNaoChama()
+    {
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, null));
+
+        var models = await NewService().ListModelsAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(models, Is.Empty);
+            Assert.That(_requests, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task Resolve_AutoResolve_ModeloAnthropic_CaiNoGuard()
+    {
+        _routes["/v1/models"] = (200, "{\"data\":[{\"id\":\"claude-x\"}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await NewService().CompleteWithToolsAsync(Req("claude-x")));
+        Assert.That(ex!.Message, Does.Contain("anthropic"));
+    }
+
+    [Test]
+    public async Task Resolve_AutoResolve_ModeloOllama_GanhaDeOpenAi()
+    {
+        // Mesmo id exposto por ollama e anthropic: precedência ollama primeiro.
+        _routes["/api/tags"] = (200, "{\"models\":[{\"model\":\"m1\",\"name\":\"m1\"}]}", 0);
+        _routes["/v1/models"] = (200, "{\"data\":[{\"id\":\"m1\"}]}", 0);
+        _routes["/api/chat"] = (200, "{\"message\":{\"content\":\"ok ollama\"},\"done\":true}", 0);
+        await _config.SetAsync("connections", new ConnectionsConfig(
+            [_mockUrl], [], [],
+            Providers: [new ProviderConnection("anthropic", _mockUrl, "k")]));
+
+        var content = await NewService().CompleteAsync(Req("m1"));
+
+        Assert.That(content, Is.EqualTo("ok ollama"));
+        Assert.That(_requests.Any(r => r.Path == "/api/chat"), Is.True);
     }
 }
