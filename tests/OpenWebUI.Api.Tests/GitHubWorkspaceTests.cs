@@ -924,6 +924,25 @@ public class GitHubWorkspaceTests
     }
 
     [Test]
+    public async Task ChatBinding_Reopen_MesmaCheckout_TrocaBranch()
+    {
+        // Mesmo slug → checkout compartilhado: o segundo open cai no
+        // caminho fetch+switch+pull do EnsureCheckoutAsync.
+        var origin = CriarOrigem("main", "dev");
+        await _repos.OpenChatAsync("u1", "c1", "a/ra", "main", origin, null, default);
+        var (b2, err) = await _repos.OpenChatAsync(
+            "u1", "c2", "a/ra", "dev", origin, null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(err, Is.Null);
+            Assert.That(b2!.Branch, Is.EqualTo("dev"));
+        });
+        // c1 e c2 compartilham o mesmo Dir (mesmo slug).
+        var (b1, _) = await _repos.ResolveBindingAsync("u1", "c1", default);
+        Assert.That(b1!.Dir, Is.EqualTo(b2.Dir));
+    }
+
+    [Test]
     public async Task Workdir_ChatIdNull_SemBinding_CaiNoDefault()
     {
         var wd = await _repos.ResolveWorkdirAsync("u7", null, default);
