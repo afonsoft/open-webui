@@ -31,7 +31,9 @@
 		<script src="js/ide-editor.js" defer></script>
 		<script>
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register('service-worker.js');
+				navigator.serviceWorker.register('service-worker.js')
+					.then(reg => console.debug('SW registered', reg.scope))
+					.catch(err => console.warn('SW registration failed', err));
 			}
 		</script>
 	</head>

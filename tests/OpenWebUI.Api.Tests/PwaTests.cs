@@ -67,6 +67,22 @@ public class PwaTests
     }
 
     [Test]
+    public async Task Index_RegistraServiceWorker_ComCatchNoErro()
+    {
+        // Covers AC: SPEC-20261010-sw-register-observability — o register do SW
+        // não pode ser fire-and-forget: falha de registro precisa aparecer no
+        // console (.catch) e sucesso em debug (.then) para diagnóstico.
+        var html = await _client.GetStringAsync("/");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(html, Does.Contain("navigator.serviceWorker.register('service-worker.js')"));
+            Assert.That(html, Does.Contain(".catch("));
+            Assert.That(html, Does.Contain("SW registration failed"));
+        });
+    }
+
+    [Test]
     public async Task ServiceWorker_SeparaCacheImutavelDoShellMutavel()
     {
         // Regressão do bug pós-E16: um único cache-first servia bundle WASM
