@@ -28,16 +28,17 @@ const consoleErrors = [];
 async function checkPage(page, name, vp) {
   const ctx = `${name}@${vp.name}`;
 
-  // 1) Conteúdo real renderizado (anti página-branca)
+  // 1) Conteúdo real renderizado (anti página-branca). O body é medido
+  // porque #main-content usa `display:contents` — sem box próprio (h=0
+  // legítimo, não é tela em branco).
   const mainInfo = await page.evaluate(() => {
     const el = document.querySelector('#main-content') || document.body;
-    const r = el.getBoundingClientRect();
     const visibles = [...el.querySelectorAll('*')]
       .filter(n => {
         const b = n.getBoundingClientRect();
         return b.width > 2 && b.height > 2;
       }).length;
-    return { w: r.width, h: r.height, visibles, scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth };
+    return { h: document.body.getBoundingClientRect().height, visibles, scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth };
   });
   if (mainInfo.visibles < 10 || mainInfo.h < 50) {
     failures.push(`${ctx}: página quase em branco (${mainInfo.visibles} nós visíveis, h=${mainInfo.h})`);
@@ -110,7 +111,16 @@ async function runViewport(browser, vp) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
   const page = await context.newPage();
   page.on('console', m => {
-    if (m.type() === 'error') consoleErrors.push(`${vp.name}: ${m.text().slice(0, 200)}`);
+    if (m.type() !== 'error') return;
+    const text = m.text().slice(0, 200);
+    // "Failed to load resource" = request a endpoint externo/provider —
+    // depende do ambiente (CI não tem Ollama/OpenAI), vira warning.
+    // console.error de código (exceção, log) continua falhando o job.
+    if (text.startsWith('Failed to load resource')) {
+      warnings.push(`${vp.name} resource: ${text} — ${m.location().url || ''}`);
+      return;
+    }
+    consoleErrors.push(`${vp.name}: ${text}`);
   });
   page.on('pageerror', e => consoleErrors.push(`${vp.name} pageerror: ${String(e).slice(0, 200)}`));
 
