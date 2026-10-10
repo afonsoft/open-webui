@@ -1290,6 +1290,88 @@ public class BuiltinToolsTests
         Assert.That(data["hasWorktreeChanges"].GetBoolean(), Is.True);
     }
 
+    // ---------------- agent memory (SPEC-20261010-agent-memory) ----------------
+
+    private WorkspaceRepoService Repos() =>
+        _provider.CreateScope().ServiceProvider
+            .GetRequiredService<WorkspaceRepoService>();
+
+    [Test]
+    public async Task MemorySave_Global_PersisteEUpsertPorTitulo()
+    {
+        var tool = new MemorySaveBuiltinTool(NewDb(), Repos());
+        var r1 = await tool.ExecuteAsync(
+            Args("""{"title":"test-cmd","content":"dotnet test t/"}"""),
+            Ctx(), default);
+        Assert.That(r1.Text, Does.Contain("global"));
+
+        await tool.ExecuteAsync(
+            Args("""{"title":"test-cmd","content":"novo comando"}"""),
+            Ctx(), default);
+        using var db = NewDb();
+        var rows = db.AgentMemories.Where(m => m.UserId == "u1").ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(rows.Count, Is.EqualTo(1), "mesmo título deve atualizar, não duplicar");
+            Assert.That(rows[0].Content, Is.EqualTo("novo comando"));
+        });
+    }
+
+    [Test]
+    public async Task MemorySave_RepoSemBinding_ErroSemGravar()
+    {
+        // chat c1 sem binding → scope=repo deve falhar limpo.
+        var tool = new MemorySaveBuiltinTool(NewDb(), Repos());
+        var res = await tool.ExecuteAsync(
+            Args("""{"title":"x","content":"y","scope":"repo"}"""), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("não tem repo"));
+            Assert.That(NewDb().AgentMemories.Count(), Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public async Task MemorySearch_FiltraQueryEEscopo()
+    {
+        using (var seed = NewDb())
+        {
+            seed.AgentMemories.AddRange(
+                new AgentMemory { UserId = "u1", Scope = "global",
+                    Title = "deploy", Content = "fly deploy app", UpdatedAt = 3 },
+                new AgentMemory { UserId = "u1", Scope = "repo", RepoSlug = "o/r1",
+                    Title = "tests", Content = "pytest -x", UpdatedAt = 2 },
+                new AgentMemory { UserId = "u1", Scope = "repo", RepoSlug = "o/outro",
+                    Title = "tests", Content = "não deve aparecer", UpdatedAt = 1 });
+            seed.SaveChanges();
+        }
+        // binding do chat c1 → o/r1
+        using (var scope = _provider.CreateScope())
+        {
+            var cfg = scope.ServiceProvider.GetRequiredService<ConfigService>();
+            await cfg.SetAsync("chat:c1:workspace.repo",
+                new WorkspaceRepoBinding("o/r1", "main", "r1"), default);
+        }
+
+        var tool = new MemorySearchBuiltinTool(NewDb(), Repos());
+        var def = await tool.ExecuteAsync(Args("{}"), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(def.Text, Does.Contain("fly deploy"));
+            Assert.That(def.Text, Does.Contain("pytest -x"));
+            Assert.That(def.Text, Does.Not.Contain("não deve aparecer"),
+                "memória de outro repo vazou pro escopo default");
+        });
+
+        var filtered = await tool.ExecuteAsync(
+            Args("""{"query":"deploy"}"""), Ctx(), default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(filtered.Text, Does.Contain("fly deploy"));
+            Assert.That(filtered.Text, Does.Not.Contain("pytest"));
+        });
+    }
+
     private static string CriarOrigemGit(string branch)
     {
         var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");

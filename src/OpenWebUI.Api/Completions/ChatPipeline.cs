@@ -203,6 +203,32 @@ public static class ChatPipeline
             }
         }
 
+        // 3.5a. Memórias duráveis do agente (SPEC-20261010-agent-memory):
+        // globais + as do repo bound deste chat — as 12 mais recentes, cap
+        // ~1800 chars, num bloco marcado. O agente grava/edita via
+        // builtin_memory_save; a busca completa é builtin_memory_search.
+        {
+            var memories = await db.AgentMemories.AsNoTracking()
+                .Where(m => m.UserId == user.Id
+                    && (m.Scope == "global"
+                        || (repoBinding != null && m.RepoSlug == repoBinding.Repo)))
+                .OrderByDescending(m => m.UpdatedAt)
+                .Take(12)
+                .Select(m => new { m.Title, m.Scope, m.RepoSlug, m.Content })
+                .ToListAsync(ct);
+            if (memories.Count > 0)
+            {
+                var lines = memories.Select(m =>
+                    $"- [{m.Scope}{(m.RepoSlug is not null ? $" {m.RepoSlug}" : "")}] "
+                    + $"{m.Title}: {m.Content}");
+                var block = "<agent_memory>\n" + string.Join("\n", lines)
+                    + "\n</agent_memory>";
+                systemParts.Add(block.Length <= 1800
+                    ? block
+                    : block[..1800] + "\n…\n</agent_memory>");
+            }
+        }
+
         // 3.5b. Menções @path do composer (SPEC-20261009-ide-mentions-tests
         // RF-002): cada chip vira um bloco <file path="…"> no prompt — cap
         // 16KB/arquivo, 64KB total; fora do jail é descartado em silêncio.
