@@ -20,6 +20,15 @@ namespace OpenWebUI.Infrastructure.ChatTools.Tools;
 /// Um chat separado é necessário: o dispatcher serializa runs por chat —
 /// um filho no mesmo chat só executaria depois que o pai terminasse,
 /// enquanto o pai o aguarda (deadlock).
+/// <para>
+/// SPEC-20261010-async-delegate: <c>wait=false</c> retorna imediatamente
+/// com <c>childRunId</c> — a run filha continua server-side e o pai
+/// colhe o resultado depois via <c>builtin:run_result</c> (paralelismo
+/// real entre subtarefas). A profundidade é derivada da cadeia
+/// <see cref="ChatRun.ParentRunId"/>: runs com profundidade ≥
+/// <see cref="MaxDepth"/> perdem a tool <c>delegate_task</c> (sub-agents
+/// encadeados até 3 níveis, estilo opencode-web).
+/// </para>
 /// </summary>
 public sealed class DelegateTaskBuiltinTool(
     IServiceScopeFactory scopeFactory,
@@ -30,6 +39,14 @@ public sealed class DelegateTaskBuiltinTool(
 
     /// <summary>Intervalo entre polls de status da run filha.</summary>
     private const int PollMs = 1500;
+
+    /// <summary>
+    /// Profundidade máxima da cadeia de delegação (SPEC-20261010-async-delegate):
+    /// depth 0 = run raiz; filhos a partir de <see cref="MaxDepth"/> não herdam
+    /// a tool <c>delegate_task</c>. Derivada caminhando <see cref="ChatRun.ParentRunId"/>
+    /// — sem coluna nova no schema.
+    /// </summary>
+    private const int MaxDepth = 3;
 
     /// <summary>Caps de entrada/saída.</summary>
     private const int MaxPromptChars = 4000;
@@ -42,7 +59,8 @@ public sealed class DelegateTaskBuiltinTool(
 
     /// <inheritdoc />
     public string Description =>
-        "Delegate to a child agent — call for parallel work.";
+        "Delegate to a child agent — call for parallel work. "
+            + "Set wait=false to run in background and collect later via builtin_run_result.";
 
     /// <inheritdoc />
     public string ParametersJson => """
@@ -56,6 +74,10 @@ public sealed class DelegateTaskBuiltinTool(
             "context": {
               "type": "string",
               "description": "Optional extra context (paths, decisions, constraints) appended to the prompt."
+            },
+            "wait": {
+              "type": "boolean",
+              "description": "true (default): block until the child finishes. false: return childRunId immediately — collect later with builtin_run_result."
             }
           },
           "required": ["prompt"]
@@ -76,6 +98,8 @@ public sealed class DelegateTaskBuiltinTool(
         }
 
         var extra = ReadString(args, "context", MaxContextChars);
+        var wait = !args.TryGetProperty("wait", out var waitEl)
+            || waitEl.ValueKind is not JsonValueKind.False;
         var fullPrompt = string.IsNullOrWhiteSpace(extra)
             ? prompt
             : $"{prompt}\n\nContexto adicional:\n{extra}";
@@ -93,17 +117,23 @@ public sealed class DelegateTaskBuiltinTool(
                 "delegate_task só pode ser chamada dentro de uma run de chat.");
         }
 
-        // Herda modelo + tools do pai, excluindo o próprio delegate
-        // (recursão de profundidade 1 — o filho não pode delegar).
+        // Profundidade da cadeia pai (depth 0 = raiz). Runs de profundidade
+        // ≥ MaxDepth perdem a tool delegate_task — o filho não pode delegar
+        // além do limite (SPEC-20261010-async-delegate).
+        var childDepth = await DepthOfAsync(db, parentRun, ct) + 1;
+
+        // Herda modelo + tools do pai; exclui o próprio delegate apenas
+        // quando o filho atingiria o teto de profundidade.
         IReadOnlyList<string>? childToolIds = null;
         try
         {
             var parentRequest = JsonSerializer.Deserialize<ChatCompletionRequest>(
                 parentRun.RequestJson, JsonOptions);
             childToolIds = parentRequest?.ToolIds
-                ?.Where(id => !id.Equals(
-                    $"{BuiltinToolRegistry.IdPrefix}{Name}",
-                    StringComparison.OrdinalIgnoreCase))
+                ?.Where(id => childDepth < MaxDepth
+                    || !id.Equals(
+                        $"{BuiltinToolRegistry.IdPrefix}{Name}",
+                        StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
         catch (JsonException)
@@ -175,6 +205,21 @@ public sealed class DelegateTaskBuiltinTool(
         dispatcher.Enqueue(childRun.Id);
 
         var link = $"/c/{childChat.Id}";
+        if (!wait)
+        {
+            // wait=false: devolve já — o pai segue o turno e colhe o
+            // resultado depois via builtin:run_result (paralelismo real).
+            return new BuiltinToolResult(
+                $"Subtarefa delegada em background — run filha {childRun.Id} "
+                    + $"(chat filho: {link}). Chame builtin_run_result com "
+                    + $"run_id={childRun.Id} para colher o resultado.",
+                new
+                {
+                    childChatId = childChat.Id,
+                    childRunId = childRun.Id,
+                    status = "queued",
+                });
+        }
         var deadline = DateTimeOffset.UtcNow.AddSeconds(TimeoutSeconds);
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -213,6 +258,27 @@ public sealed class DelegateTaskBuiltinTool(
             $"Subtarefa ainda em andamento após {TimeoutSeconds}s — continua em "
                 + $"background; acompanhe o resultado no chat filho: {link}",
             new { childChatId = childChat.Id, childRunId = childRun.Id, status = "running" });
+    }
+
+    /// <summary>
+    /// Profundidade da run na cadeia <see cref="ChatRun.ParentRunId"/>
+    /// (0 = raiz). Limita o walk a <see cref="MaxDepth"/> — ciclos ou
+    /// correntes longas não custam mais que MaxDepth lookups.
+    /// </summary>
+    private static async Task<int> DepthOfAsync(
+        AppDbContext db, ChatRun run, CancellationToken ct)
+    {
+        var depth = 0;
+        var cursor = run.ParentRunId;
+        while (cursor is not null && depth < MaxDepth)
+        {
+            depth++;
+            cursor = await db.ChatRuns.AsNoTracking()
+                .Where(r => r.Id == cursor)
+                .Select(r => r.ParentRunId)
+                .FirstOrDefaultAsync(ct);
+        }
+        return depth;
     }
 
     private static string? ReadString(JsonElement args, string field, int max)

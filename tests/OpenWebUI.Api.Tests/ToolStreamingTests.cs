@@ -1009,7 +1009,10 @@ public class ToolStreamingTests
         // a filha herdou o toolId (menos o próprio delegate): o mock
         // devolve a call `eco` e o loop fecha com "resposta pós-tool".
         var chats = await _client.GetFromJsonAsync<List<ChatResponse>>("/api/v1/chats/");
-        var filho = chats!.SingleOrDefault(c => c.Title.StartsWith("delegado:"));
+        // Filho DIRETO via ParentChatId — com SPEC-20261010-async-delegate o
+        // filho também pode delegar (depth < MaxDepth), gerando netos/bisnetos
+        // "delegado:" que não podem confundir o lookup por título.
+        var filho = chats!.SingleOrDefault(c => c.ParentChatId == chat.Id);
         Assert.That(filho, Is.Not.Null, "chat filho não foi criado");
         var runs = await _client.GetFromJsonAsync<List<ChatRunResponse>>(
             $"/api/v1/chats/{filho!.Id}/runs");
