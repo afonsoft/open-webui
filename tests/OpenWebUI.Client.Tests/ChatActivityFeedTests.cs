@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -86,13 +87,12 @@ public sealed class ChatActivityFeedTests
 
         Assert.Multiple(() =>
         {
-            // Linhas amigáveis, sem nome de tool nem JSON cru.
+            // Linhas amigáveis + painel auto-aberto da call em execução
+            // (padrão Devin web: nome da tool e args visíveis enquanto roda).
             Assert.That(cut.Markup, Does.Contain("chat.activity.web_search"));
             Assert.That(cut.Markup, Does.Contain("dotnet 10"));
-            Assert.That(cut.Markup, Does.Not.Contain("builtin:web_search"));
-            Assert.That(cut.Markup, Does.Not.Contain("{\\"));
-            // 1 spinner (call sem resultado) + 1 check (concluída).
-            Assert.That(cut.FindAll("svg.animate-spin"), Has.Count.EqualTo(1));
+            // 1 spinner na linha + 1 no painel auto-aberto da call rodando.
+            Assert.That(cut.FindAll("svg.animate-spin"), Has.Count.EqualTo(2));
             Assert.That(cut.Find("div[role='log']"), Is.Not.Null);
         });
     }
@@ -145,5 +145,104 @@ public sealed class ChatActivityFeedTests
         // segundo clique recolhe
         cut.Find("button[aria-expanded]").Click();
         Assert.That(cut.Markup, Does.Not.Contain("builtin:file_edit"));
+    }
+
+    [Test]
+    public void Feed_Rodando_AbrePainelDaCall_ECliqueEsconde()
+    {
+        // Padrão Devin web: a call em execução mostra o painel
+        // automaticamente; clique na linha esconde enquanto roda.
+        using var ctx = Setup();
+        var calls = new List<ToolCallView>
+        {
+            Live("1", "builtin:shell_exec", "{\"command\":\"ls -la\"}"),
+            Live("2", "builtin:web_search", "{\"query\":\"x\"}", ok: true),
+        };
+        var cut = ctx.Render<RunActivityFeed>(p => p
+            .Add(c => c.Calls, calls)
+            .Add(c => c.Streaming, true)
+            .Add(c => c.Collapsed, false));
+
+        // Painel do shell aberto sozinho; web_search concluída fica só na linha.
+        Assert.That(cut.FindAll("[data-testid='tool-terminal-output'], .bg-gray-950"),
+            Has.Count.EqualTo(1));
+        Assert.That(cut.Markup, Does.Contain("ls -la"));
+
+        // Clique na linha em execução esconde o painel.
+        cut.FindAll("button[aria-expanded]")[0].Click();
+        Assert.That(cut.FindAll(".bg-gray-950"), Has.Count.EqualTo(0));
+    }
+
+    [Test]
+    public void Persisted_Delegate_ReidrataChildChatId()
+    {
+        // Histórico: delegate_task grava "(chat filho: /c/{id})" no texto —
+        // FromPersisted reidrata o payload pro painel da sub-conversa.
+        var msg = new ChatMessageModel("m1", "tool",
+            "Subtarefa delegada em background — run filha r1 (chat filho: /c/abc123). " +
+            "Chame builtin_run_result com run_id=r1 para colher o resultado.",
+            null, 0, ToolCallId: "builtin:delegate_task");
+
+        var view = ToolCallView.FromPersisted(msg);
+        Assert.Multiple(() =>
+        {
+            Assert.That(view.Result?.Result?.ValueKind,
+                Is.EqualTo(JsonValueKind.Object));
+            Assert.That(view.Result!.Result!.Value
+                .GetProperty("childChatId").GetString(), Is.EqualTo("abc123"));
+        });
+
+        // Tool comum não produz payload estruturado.
+        var other = ToolCallView.FromPersisted(
+            new ChatMessageModel("m2", "tool", "ok", null, 0,
+                ToolCallId: "builtin:web_search"));
+        Assert.That(other.Result?.Result, Is.Null);
+    }
+
+    [Test]
+    public async Task Card_Shell_AutoAbreRodando_ColapsaAoTerminar()
+    {
+        using var ctx = Setup();
+        var cut = ctx.Render<ToolCallCard>(p => p
+            .Add(c => c.Name, "builtin:shell_exec")
+            .Add(c => c.ArgsPreview, "{\"command\":\"dotnet test\"}")
+            .Add(c => c.Running, true));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cut.Find("button[aria-expanded]")
+                .GetAttribute("aria-expanded"), Is.EqualTo("true"));
+            Assert.That(cut.Markup, Does.Contain("bg-gray-950"));
+            Assert.That(cut.Markup, Does.Contain("dotnet test"));
+        });
+
+        // Resultado chegou → painel colapsa sozinho (linha continua clicável).
+        await cut.InvokeAsync(() => cut.Instance.SetParametersAsync(
+            Microsoft.AspNetCore.Components.ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    ["Running"] = false,
+                    ["ResultPreview"] = "saida do comando",
+                    ["Ok"] = true,
+                })));
+        Assert.Multiple(() =>
+        {
+            Assert.That(cut.Find("button[aria-expanded]")
+                .GetAttribute("aria-expanded"), Is.EqualTo("false"));
+            Assert.That(cut.Markup, Does.Not.Contain("bg-gray-950"));
+        });
+
+        // Clique reabre mostrando a saída no terminal com scroll.
+        cut.Find("button[aria-expanded]").Click();
+        Assert.Multiple(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("bg-gray-950"));
+            Assert.That(cut.Markup, Does.Contain("saida do comando"));
+            Assert.That(cut.Markup, Does.Contain("max-h-60 overflow-y-auto"));
+        });
+
+        // Segundo clique fecha de novo — escolha do usuário persiste.
+        cut.Find("button[aria-expanded]").Click();
+        Assert.That(cut.Markup, Does.Not.Contain("bg-gray-950"));
     }
 }
