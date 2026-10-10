@@ -52,6 +52,9 @@ public class BuiltinToolsTests
         services.AddSingleton<IHostEnvironment>(new StubEnvLocal(root));
         services.AddScoped<ConfigService>();
         services.AddScoped<WorkspaceRepoService>();
+        services.AddScoped<ProviderService>();
+        services.AddScoped<NotificationService>();
+        services.AddScoped<AutomationService>();
         services.AddSingleton<System.Net.Http.IHttpClientFactory>(
             new StubHttpClientFactory());
         services.AddScoped<GitHubService>();
@@ -1572,5 +1575,148 @@ public class BuiltinToolsTests
         var result = await new RunResultBuiltinTool(NewDb(), NovaWorktreeService())
             .ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.That(result.Text, Does.Contain("run_id"));
+    }
+
+    // ---------------- Routine / Reminder (SPEC-20261010-agent-routines) ----------------
+
+    private RoutineBuiltinTool NovaRoutine() =>
+        new(NewDb(), _provider.GetRequiredService<AutomationService>());
+
+    [Test]
+    public async Task Routine_Create_AgendaELista()
+    {
+        var tool = NovaRoutine();
+        var create = await tool.ExecuteAsync(
+            Args("""{"action":"create","name":"job diário","prompt":"resuma","schedule_kind":"interval","interval_minutes":30,"model":"m1"}"""),
+            Ctx(), default);
+        Assert.That(create.Text, Does.Contain("Rotina"));
+
+        await using var db = NewDb();
+        var automation = await db.Automations.SingleAsync(a => a.UserId == "u1");
+        Assert.Multiple(() =>
+        {
+            Assert.That(automation.ScheduleKind, Is.EqualTo("interval"));
+            Assert.That(automation.IntervalMinutes, Is.EqualTo(30));
+            Assert.That(automation.ModelId, Is.EqualTo("m1"));
+            Assert.That(automation.NextRunAt,
+                Is.GreaterThan(DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+        });
+
+        var list = await tool.ExecuteAsync(Args("""{"action":"list"}"""), Ctx(), default);
+        Assert.That(list.Text, Does.Contain("job diário"));
+    }
+
+    [Test]
+    public async Task Routine_Once_InMinutes_DisparaUmaVez()
+    {
+        var tool = NovaRoutine();
+        var create = await tool.ExecuteAsync(
+            Args("""{"action":"create","name":"lem","prompt":"x","schedule_kind":"once","in_minutes":10,"model":"m"}"""),
+            Ctx(), default);
+        Assert.That(create.Text, Does.Contain("Rotina"));
+
+        await using var db = NewDb();
+        var automation = await db.Automations.SingleAsync(a => a.UserId == "u1");
+        var esperado = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds();
+        Assert.That(automation.NextRunAt, Is.InRange(esperado - 30, esperado + 30));
+
+        // Depois de disparar, ComputeNextRun devolve null — nunca reagenda.
+        var depois = DateTimeOffset.FromUnixTimeSeconds(automation.NextRunAt!.Value)
+            .AddSeconds(1);
+        Assert.That(AutomationSchedule.ComputeNextRun(automation, depois), Is.Null);
+    }
+
+    [Test]
+    public async Task Routine_DisableEnable_ParaEVolta()
+    {
+        var tool = NovaRoutine();
+        await tool.ExecuteAsync(
+            Args("""{"action":"create","name":"r","prompt":"p","schedule_kind":"interval","interval_minutes":5,"model":"m"}"""),
+            Ctx(), default);
+        string id;
+        await using (var db = NewDb())
+        {
+            id = (await db.Automations.SingleAsync(a => a.UserId == "u1")).Id;
+        }
+
+        var disable = await tool.ExecuteAsync(
+            Args($$"""{"action":"disable","id":"{{id}}"}"""), Ctx(), default);
+        Assert.That(disable.Text, Does.Contain("desabilitada"));
+        await using (var db = NewDb())
+        {
+            var row = await db.Automations.SingleAsync(a => a.Id == id);
+            Assert.Multiple(() =>
+            {
+                Assert.That(row.Enabled, Is.False);
+                Assert.That(row.NextRunAt, Is.Null);
+            });
+        }
+
+        var enable = await tool.ExecuteAsync(
+            Args($$"""{"action":"enable","id":"{{id}}"}"""), Ctx(), default);
+        Assert.That(enable.Text, Does.Contain("habilitada"));
+        await using (var db = NewDb())
+        {
+            Assert.That((await db.Automations.SingleAsync(a => a.Id == id)).NextRunAt,
+                Is.Not.Null);
+        }
+    }
+
+    [Test]
+    public async Task Routine_Delete_RemoveRegistro()
+    {
+        var tool = NovaRoutine();
+        await tool.ExecuteAsync(
+            Args("""{"action":"create","name":"r","prompt":"p","schedule_kind":"daily","time_of_day":"10:00","model":"m"}"""),
+            Ctx(), default);
+        string id;
+        await using (var db = NewDb())
+        {
+            id = (await db.Automations.SingleAsync(a => a.UserId == "u1")).Id;
+        }
+
+        var del = await tool.ExecuteAsync(
+            Args($$"""{"action":"delete","id":"{{id}}"}"""), Ctx(), default);
+        Assert.That(del.Text, Does.Contain("removida"));
+        await using var db2 = NewDb();
+        Assert.That(await db2.Automations.CountAsync(a => a.UserId == "u1"), Is.Zero);
+    }
+
+    [Test]
+    public async Task Routine_Create_SemModeloESemRun_Erro()
+    {
+        var result = await NovaRoutine().ExecuteAsync(
+            Args("""{"action":"create","name":"r","prompt":"p","schedule_kind":"interval"}"""),
+            Ctx(), default);
+        Assert.That(result.Text, Does.Contain("model"));
+    }
+
+    [Test]
+    public async Task Reminder_AgendaOnce_ComModeloDaRun()
+    {
+        await using (var db = NewDb())
+        {
+            db.ChatRuns.Add(new ChatRun
+            {
+                Id = "r1", ChatId = "c1", UserId = "u1",
+                Model = "modelo-da-run", RequestJson = "{}",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var result = await new ReminderBuiltinTool(NewDb()).ExecuteAsync(
+            Args("""{"message":"revisar o PR","in_minutes":5}"""), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("Lembrete"));
+
+        await using var check = NewDb();
+        var automation = await check.Automations.SingleAsync(a => a.UserId == "u1");
+        var esperado = DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds();
+        Assert.Multiple(() =>
+        {
+            Assert.That(automation.ScheduleKind, Is.EqualTo("once"));
+            Assert.That(automation.ModelId, Is.EqualTo("modelo-da-run"));
+            Assert.That(automation.NextRunAt, Is.InRange(esperado - 30, esperado + 30));
+            Assert.That(automation.Prompt, Does.Contain("revisar o PR"));
+        });
     }
 }

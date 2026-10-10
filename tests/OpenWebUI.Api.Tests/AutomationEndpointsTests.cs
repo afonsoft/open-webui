@@ -159,6 +159,26 @@ public class AutomationEndpointsTests
     }
 
     [Test]
+    public async Task Once_InMinutes_AgendaExecucaoUnica()
+    {
+        var user = await SignUpAsync("Once", "once@auto.local", "senha123");
+        UseToken(user.Token);
+
+        // Validação: once sem RunAt nem InMinutes → 400
+        var invalid = await _client.PostAsJsonAsync("/api/v1/automations",
+            NewAutomation(kind: "once", minutes: null));
+        Assert.That(invalid.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
+        // once + inMinutes → 200 com NextRunAt futuro
+        var created = await _client.PostAsJsonAsync("/api/v1/automations",
+            NewAutomation(kind: "once", minutes: null) with { InMinutes = 5 });
+        Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var automation = await created.Content.ReadFromJsonAsync<AutomationResponse>();
+        var esperado = DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds();
+        Assert.That(automation!.NextRunAt, Is.InRange(esperado - 30, esperado + 30));
+    }
+
+    [Test]
     public async Task RunNow_ExecutaProvider_ECriaChat()
     {
         var user = await SignUpAsync("Runner", "runner@auto.local", "senha123");

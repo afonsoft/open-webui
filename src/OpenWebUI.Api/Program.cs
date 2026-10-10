@@ -101,6 +101,8 @@ builder.Services.AddScoped<IBuiltinChatTool, WorktreeDiffBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, WorktreeMergeBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, MemorySaveBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, MemorySearchBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, RoutineBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, ReminderBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, BrowserScreenshotBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nListWorkflowsBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nTriggerBuiltinTool>();
