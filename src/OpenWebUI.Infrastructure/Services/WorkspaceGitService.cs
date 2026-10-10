@@ -55,6 +55,27 @@ public sealed class WorkspaceGitService
             return Empty;
         }
 
+        var (files, added, removed) = await CollectChangedFilesAsync(workdir, ct);
+
+        var diff = await RunGitAsync(workdir, ct, "diff", "HEAD", "--no-renames");
+        var truncated = false;
+        if (diff is not null && diff.Length > MaxDiffChars)
+        {
+            diff = diff[..MaxDiffChars] + "\n… [diff truncado]";
+            truncated = true;
+        }
+
+        return new GitWorkspaceInfo(
+            true, branch.Trim(), added, removed, files, diff, truncated);
+    }
+
+    /// <summary>
+    /// Arquivos alterados vs <c>HEAD</c> (numstat) mais untracked (<c>??</c> do
+    /// porcelain, que não aparece no diff) com linhas contadas como adições.
+    /// </summary>
+    private static async Task<(List<GitChangedFile> Files, int Added, int Removed)>
+        CollectChangedFilesAsync(string workdir, CancellationToken ct)
+    {
         var files = new List<GitChangedFile>();
         var numstat = await RunGitAsync(
             workdir, ct, "diff", "HEAD", "--numstat", "--no-renames") ?? string.Empty;
@@ -78,18 +99,8 @@ public sealed class WorkspaceGitService
             workdir, ct, "status", "--porcelain=v1", "--untracked-files=all") ?? string.Empty;
         foreach (var line in status.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
-            if (!line.StartsWith("?? ", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var path = line[3..].Trim();
-            // git cita paths com caracteres especiais (core.quotePath).
-            if (path.Length > 1 && path.StartsWith('"') && path.EndsWith('"'))
-            {
-                path = path[1..^1].Replace("\\\"", "\"");
-            }
-            if (path.Length == 0)
+            var path = ParseUntrackedPath(line);
+            if (path is null)
             {
                 continue;
             }
@@ -99,16 +110,24 @@ public sealed class WorkspaceGitService
             files.Add(new GitChangedFile(path, a, 0, "A"));
         }
 
-        var diff = await RunGitAsync(workdir, ct, "diff", "HEAD", "--no-renames");
-        var truncated = false;
-        if (diff is not null && diff.Length > MaxDiffChars)
+        return (files, added, removed);
+    }
+
+    /// <summary>Path de uma linha <c>?? </c> do porcelain (desfaz core.quotePath); null fora do formato.</summary>
+    private static string? ParseUntrackedPath(string line)
+    {
+        if (!line.StartsWith("?? ", StringComparison.Ordinal))
         {
-            diff = diff[..MaxDiffChars] + "\n… [diff truncado]";
-            truncated = true;
+            return null;
         }
 
-        return new GitWorkspaceInfo(
-            true, branch.Trim(), added, removed, files, diff, truncated);
+        var path = line[3..].Trim();
+        // git cita paths com caracteres especiais (core.quotePath).
+        if (path.Length > 1 && path.StartsWith('"') && path.EndsWith('"'))
+        {
+            path = path[1..^1].Replace("\\\"", "\"");
+        }
+        return path.Length == 0 ? null : path;
     }
 
     private static GitWorkspaceInfo Empty => new(false, null, 0, 0, [], null, false);

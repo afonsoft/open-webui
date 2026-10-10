@@ -378,124 +378,7 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                     continue;
                 }
 
-                switch (evt)
-                {
-                    case "tool_call":
-                        produced = new ChatStreamEvent.ToolCall(
-                            new RunToolCallEvent(
-                                node["id"]?.GetValue<string>() ?? string.Empty,
-                                node["name"]?.GetValue<string>() ?? "tool",
-                                node["argsPreview"]?.GetValue<string>()));
-                        break;
-                    case "tool_result":
-                        produced = new ChatStreamEvent.ToolResult(
-                            new RunToolResultEvent(
-                                node["id"]?.GetValue<string>() ?? string.Empty,
-                                node["name"]?.GetValue<string>() ?? "tool",
-                                node["ok"]?.GetValue<bool>() ?? false,
-                                node["preview"]?.GetValue<string>(),
-                                node["imagePath"]?.GetValue<string>(),
-                                node["denied"]?.GetValue<bool>() ?? false,
-                                node["result"] is { } resultNode
-                                    ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
-                                    : null,
-                                node["videoPath"]?.GetValue<string>()));
-                        break;
-                    case "question_asked":
-                        produced = new ChatStreamEvent.QuestionAsked(
-                            new RunQuestionAskedEvent(
-                                node["callId"]?.GetValue<string>() ?? string.Empty,
-                                node["question"]?.GetValue<string>() ?? string.Empty,
-                                (node["options"] as JsonArray)?
-                                    .Select(o => o?.GetValue<string>() ?? string.Empty)
-                                    .ToArray() ?? [],
-                                node["multiple"]?.GetValue<bool>() ?? false));
-                        break;
-                    case "approval_asked":
-                        produced = new ChatStreamEvent.ApprovalAsked(
-                            new RunApprovalAskedEvent(
-                                node["callId"]?.GetValue<string>() ?? string.Empty,
-                                node["toolName"]?.GetValue<string>() ?? "tool",
-                                node["kind"]?.GetValue<string>() ?? "http",
-                                node["argsPreview"]?.GetValue<string>()));
-                        break;
-                    case "mode":
-                        produced = new ChatStreamEvent.Mode(
-                            new RunModeEvent(
-                                node["mode"]?.GetValue<string>() ?? "build"));
-                        break;
-                    case "tasks":
-                    {
-                        var arr = node as JsonArray ?? node["tasks"] as JsonArray;
-                        var items = (arr ?? [])
-                            .Select(t => new RunTaskItem(
-                                t?["id"]?.GetValue<string>() ?? string.Empty,
-                                t?["content"]?.GetValue<string>() ?? string.Empty,
-                                t?["status"]?.GetValue<string>() ?? "pending"))
-                            .ToList();
-                        produced = new ChatStreamEvent.Tasks(new RunTasksEvent(items));
-                        break;
-                    }
-                    case "changes":
-                    {
-                        var arr = node["changes"] as JsonArray ?? node as JsonArray ?? [];
-                        var items = arr
-                            .Select(c => new RunChangeItem(
-                                c?["path"]?.GetValue<string>() ?? string.Empty,
-                                c?["added"]?.GetValue<int>() ?? 0,
-                                c?["removed"]?.GetValue<int>() ?? 0,
-                                c?["diff"]?.GetValue<string>()))
-                            .ToList();
-                        produced = new ChatStreamEvent.Changes(new RunChangesEvent(items));
-                        break;
-                    }
-                    case "checkpoint":
-                    {
-                        var files = (node["files"] as JsonArray ?? [])
-                            .Select(f => f?.GetValue<string>() ?? string.Empty)
-                            .Where(f => f.Length > 0)
-                            .ToList();
-                        produced = new ChatStreamEvent.Checkpoint(new RunCheckpointEvent(
-                            node["hash"]?.GetValue<string>() ?? string.Empty,
-                            files,
-                            node["turn"]?.GetValue<int>() ?? 0));
-                        break;
-                    }
-                    case "status":
-                        // Fases do executor usam "phase"; transições de estado da
-                        // run (dispatcher/FinishAsync) usam "status".
-                        if ((node["phase"] ?? node["status"])?.GetValue<string>() is { } phase)
-                        {
-                            produced = new ChatStreamEvent.Phase(
-                                new RunPhaseEvent(
-                                    phase, node["label"]?.GetValue<string>()));
-                        }
-                        break;
-                    default:
-                        error = node["error"]?.GetValue<string>();
-                        // Gateways podem emitir chunks sem choice (só role/usage/keepalive):
-                        // indexar um array vazio lança ArgumentOutOfRangeException.
-                        var choices = node["choices"] as JsonArray;
-                        var delta = choices is { Count: > 0 }
-                            ? choices[0]?["delta"]?["content"]?.GetValue<string>()
-                            : null;
-                        var arena = node["arena"];
-                        if (arena is not null)
-                        {
-                            LastArenaResult = new ArenaCompletionResult(
-                                arena["battle_id"]?.GetValue<string>() ?? string.Empty,
-                                (arena["responses"] as JsonArray ?? [])
-                                    .Select(r => new ArenaCompletionResponse(
-                                        r?["label"]?.GetValue<string>() ?? "?",
-                                        r?["content"]?.GetValue<string>() ?? string.Empty))
-                                    .ToList());
-                        }
-                        if (!string.IsNullOrEmpty(delta))
-                        {
-                            produced = new ChatStreamEvent.Delta(delta);
-                        }
-                        break;
-                }
+                produced = ParseEventPayload(node, evt, out error);
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException)
             {
@@ -513,6 +396,143 @@ public class ChatStreamService(HttpClient http, AuthService auth)
                 yield return produced with { Seq = lastSeq };
             }
         }
+    }
+
+    /// <summary>Despacha o payload por <c>event:</c>; sem nome segue o formato OpenAI.</summary>
+    private ChatStreamEvent? ParseEventPayload(JsonNode node, string? evt, out string? error)
+    {
+        error = null;
+        return evt switch
+        {
+            "tool_call" => ParseToolCall(node),
+            "tool_result" => ParseToolResult(node),
+            "question_asked" => ParseQuestionAsked(node),
+            "approval_asked" => ParseApprovalAsked(node),
+            "mode" => ParseMode(node),
+            "tasks" => ParseTasks(node),
+            "changes" => ParseChanges(node),
+            "checkpoint" => ParseCheckpoint(node),
+            "status" => ParseStatus(node),
+            _ => ParseOpenAiChunk(node, out error),
+        };
+    }
+
+    private static ChatStreamEvent ParseToolCall(JsonNode node) =>
+        new ChatStreamEvent.ToolCall(
+            new RunToolCallEvent(
+                node["id"]?.GetValue<string>() ?? string.Empty,
+                node["name"]?.GetValue<string>() ?? "tool",
+                node["argsPreview"]?.GetValue<string>()));
+
+    private static ChatStreamEvent ParseToolResult(JsonNode node) =>
+        new ChatStreamEvent.ToolResult(
+            new RunToolResultEvent(
+                node["id"]?.GetValue<string>() ?? string.Empty,
+                node["name"]?.GetValue<string>() ?? "tool",
+                node["ok"]?.GetValue<bool>() ?? false,
+                node["preview"]?.GetValue<string>(),
+                node["imagePath"]?.GetValue<string>(),
+                node["denied"]?.GetValue<bool>() ?? false,
+                node["result"] is { } resultNode
+                    ? JsonDocument.Parse(resultNode.ToJsonString()).RootElement
+                    : null,
+                node["videoPath"]?.GetValue<string>()));
+
+    private static ChatStreamEvent ParseQuestionAsked(JsonNode node) =>
+        new ChatStreamEvent.QuestionAsked(
+            new RunQuestionAskedEvent(
+                node["callId"]?.GetValue<string>() ?? string.Empty,
+                node["question"]?.GetValue<string>() ?? string.Empty,
+                (node["options"] as JsonArray)?
+                    .Select(o => o?.GetValue<string>() ?? string.Empty)
+                    .ToArray() ?? [],
+                node["multiple"]?.GetValue<bool>() ?? false));
+
+    private static ChatStreamEvent ParseApprovalAsked(JsonNode node) =>
+        new ChatStreamEvent.ApprovalAsked(
+            new RunApprovalAskedEvent(
+                node["callId"]?.GetValue<string>() ?? string.Empty,
+                node["toolName"]?.GetValue<string>() ?? "tool",
+                node["kind"]?.GetValue<string>() ?? "http",
+                node["argsPreview"]?.GetValue<string>()));
+
+    private static ChatStreamEvent ParseMode(JsonNode node) =>
+        new ChatStreamEvent.Mode(
+            new RunModeEvent(
+                node["mode"]?.GetValue<string>() ?? "build"));
+
+    private static ChatStreamEvent ParseTasks(JsonNode node)
+    {
+        var arr = node as JsonArray ?? node["tasks"] as JsonArray;
+        var items = (arr ?? [])
+            .Select(t => new RunTaskItem(
+                t?["id"]?.GetValue<string>() ?? string.Empty,
+                t?["content"]?.GetValue<string>() ?? string.Empty,
+                t?["status"]?.GetValue<string>() ?? "pending"))
+            .ToList();
+        return new ChatStreamEvent.Tasks(new RunTasksEvent(items));
+    }
+
+    private static ChatStreamEvent ParseChanges(JsonNode node)
+    {
+        var arr = node["changes"] as JsonArray ?? node as JsonArray ?? [];
+        var items = arr
+            .Select(c => new RunChangeItem(
+                c?["path"]?.GetValue<string>() ?? string.Empty,
+                c?["added"]?.GetValue<int>() ?? 0,
+                c?["removed"]?.GetValue<int>() ?? 0,
+                c?["diff"]?.GetValue<string>()))
+            .ToList();
+        return new ChatStreamEvent.Changes(new RunChangesEvent(items));
+    }
+
+    private static ChatStreamEvent ParseCheckpoint(JsonNode node)
+    {
+        var files = (node["files"] as JsonArray ?? [])
+            .Select(f => f?.GetValue<string>() ?? string.Empty)
+            .Where(f => f.Length > 0)
+            .ToList();
+        return new ChatStreamEvent.Checkpoint(new RunCheckpointEvent(
+            node["hash"]?.GetValue<string>() ?? string.Empty,
+            files,
+            node["turn"]?.GetValue<int>() ?? 0));
+    }
+
+    private static ChatStreamEvent? ParseStatus(JsonNode node)
+    {
+        // Fases do executor usam "phase"; transições de estado da
+        // run (dispatcher/FinishAsync) usam "status".
+        if ((node["phase"] ?? node["status"])?.GetValue<string>() is { } phase)
+        {
+            return new ChatStreamEvent.Phase(
+                new RunPhaseEvent(
+                    phase, node["label"]?.GetValue<string>()));
+        }
+        return null;
+    }
+
+    /// <summary>Chunk do formato OpenAI (sem <c>event:</c>): delta, erro ou arena.</summary>
+    private ChatStreamEvent? ParseOpenAiChunk(JsonNode node, out string? error)
+    {
+        error = node["error"]?.GetValue<string>();
+        // Gateways podem emitir chunks sem choice (só role/usage/keepalive):
+        // indexar um array vazio lança ArgumentOutOfRangeException.
+        var choices = node["choices"] as JsonArray;
+        var delta = choices is { Count: > 0 }
+            ? choices[0]?["delta"]?["content"]?.GetValue<string>()
+            : null;
+        var arena = node["arena"];
+        if (arena is not null)
+        {
+            LastArenaResult = new ArenaCompletionResult(
+                arena["battle_id"]?.GetValue<string>() ?? string.Empty,
+                (arena["responses"] as JsonArray ?? [])
+                    .Select(r => new ArenaCompletionResponse(
+                        r?["label"]?.GetValue<string>() ?? "?",
+                        r?["content"]?.GetValue<string>() ?? string.Empty))
+                    .ToList());
+        }
+        return string.IsNullOrEmpty(delta) ? null : new ChatStreamEvent.Delta(delta);
     }
 
     private static async Task EnsureSuccessAsync(

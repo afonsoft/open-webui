@@ -159,40 +159,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 
 // Inicializa o banco e obtém o segredo JWT antes de configurar a autenticação.
-string jwtSecret;
-using (var bootstrap = new AppDbContext(CreateDbOptions(connectionString)))
-{
-    if (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-    {
-        var path = connectionString["Data Source=".Length..].Split(';')[0].Trim();
-        if (!string.IsNullOrEmpty(path) && path != ":memory:")
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        }
-    }
-
-    DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
-    SeedConnectionsFromEnv(bootstrap);
-    SeedWhisperUrlFromEnv(bootstrap);
-    SeedAdminUserFromEnv(bootstrap);
-    var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
-    if (entry is null)
-    {
-        var secret = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
-        bootstrap.ConfigEntries.Add(new ConfigEntry
-        {
-            Key = "webui.jwt.secret",
-            ValueJson = System.Text.Json.JsonSerializer.Serialize(secret),
-            UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-        });
-        bootstrap.SaveChanges();
-        jwtSecret = secret;
-    }
-    else
-    {
-        jwtSecret = System.Text.Json.JsonSerializer.Deserialize<string>(entry.ValueJson)!;
-    }
-}
+var jwtSecret = BootstrapDatabase(connectionString);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -200,18 +167,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = JwtTokenService.BuildValidationParameters(jwtSecret);
         options.Events = new JwtBearerEvents
         {
-            // SignalR envia o JWT via query string no handshake do WebSocket.
-            OnMessageReceived = context =>
-            {
-                var token = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(token) &&
-                    (context.HttpContext.Request.Path.StartsWithSegments("/ws") ||
-                     context.HttpContext.Request.Path.StartsWithSegments("/api/v1/terminals")))
-                {
-                    context.Token = token;
-                }
-                return Task.CompletedTask;
-            },
+            OnMessageReceived = AcceptTokenFromQueryString,
         };
     });
 builder.Services.AddAuthorization();
@@ -244,206 +200,307 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
         | ForwardedHeaders.XForwardedHost,
 });
 
-// Content-Security-Policy própria (SPEC-20261010-app-csp-header): antes a app
-// não emitia CSP nenhum e herdava um report-only frouxo do proxy de produção
-// (script-src unsafe-inline/eval, connect-src 'none') que só gerava ruído de
-// violação para o service worker e as chamadas de API. A política abaixo é a
-// que o boot WASM realmente precisa:
-//  - 'unsafe-inline' cobre os scripts inline do index.html (tema + registro
-//    do service worker); um nonce fica para uma iteração futura.
-//  - 'wasm-unsafe-eval'/'unsafe-eval' cobrem o WebAssembly.instantiate do
-//    dotnet.wasm e o eval do runner JS de codeexec (browsers antigos sem a
-//    keyword wasm-* caem para 'unsafe-eval').
-//  - https://cdn.jsdelivr.net cobre o importScripts do Pyodide em
-//    js/py-worker.js (o worker herda o script-src do documento).
-//  - worker-src blob: cobre new Worker(URL.createObjectURL(...)) do codeexec.
-//  - connect-src https: cobre chamadas a provedores/CDN client-side
-//    (ex.: pacotes Pyodide), wss: o SignalR /ws e data:/blob: os fallbacks
-//    b64→Response do boot e object URLs geradas pelo cliente.
-// Aplica-se só a documentos HTML: o proxy de port preview (/preview/{port})
-// deve repassar o payload do upstream intacto — um CSP nosso ali quebraria
-// apps terceiros que consomem CDNs externos.
-const string ContentSecurityPolicy =
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net; " +
-    "worker-src 'self' blob:; " +
-    "connect-src 'self' https: wss: data: blob:; " +
-    "img-src 'self' data: blob: https:; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "font-src 'self' data:; " +
-    "frame-src 'self' https:; " +
-    "media-src 'self' blob: data:";
-
-app.Use(async (context, next) =>
-{
-    context.Response.OnStarting(() =>
-    {
-        var path = context.Request.Path.Value ?? string.Empty;
-        var isHtml =
-            context.Response.ContentType?.StartsWith(
-                "text/html", StringComparison.OrdinalIgnoreCase) == true;
-        if (isHtml
-            && !path.StartsWith("/preview/", StringComparison.OrdinalIgnoreCase)
-            && !context.Response.Headers.ContainsKey("Content-Security-Policy"))
-        {
-            context.Response.Headers["Content-Security-Policy"] = ContentSecurityPolicy;
-        }
-
-        return Task.CompletedTask;
-    });
-
-    await next();
-});
+UseContentSecurityPolicy(app);
 
 // Serve os static web assets com fingerprinting e resolve os placeholders
 // #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).
 app.MapStaticAssets();
 
-// Documento/rotas da SPA e a cadeia mutável de boot (index.html, boot.js e os
-// loaders não-fingerprinted) sempre revalidam — caso contrário uma cópia antiga
-// em cache continua apontando para fingerprints antigos e o deploy nunca chega
-// ao browser (previne também o loop de reload do PWA conhecido no upstream).
-app.Use(async (context, next) =>
-{
-    context.Response.OnStarting(() =>
-    {
-        var path = context.Request.Path.Value ?? string.Empty;
-        var isDocument =
-            context.Request.Method == "GET" &&
-            !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
-            !path.StartsWith("/ws", StringComparison.OrdinalIgnoreCase) &&
-            !path.StartsWith("/framework-assets/", StringComparison.OrdinalIgnoreCase) &&
-            (path == "/" || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
-             path.EndsWith("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
-             path.EndsWith("/js/boot.js", StringComparison.OrdinalIgnoreCase) ||
-             path.EndsWith("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
-             path is "/_framework/blazor.webassembly.js"
-                 or "/_framework/dotnet.js"
-                 or "/_framework/dotnet.boot.js" ||
-             !path.Contains('.'));
-        if (isDocument)
-        {
-            context.Response.Headers.CacheControl = "no-cache";
-        }
-
-        return Task.CompletedTask;
-    });
-
-    await next();
-});
+UseSpaNoCacheHeaders(app);
 
 app.UseAuthentication();
-
-// Chaves de API (Bearer sk-...) autenticam como o usuário dono da chave.
-app.Use(async (context, next) =>
-{
-    var header = context.Request.Headers.Authorization.ToString();
-    if (header.StartsWith("Bearer sk-", StringComparison.Ordinal))
-    {
-        var key = header["Bearer ".Length..].Trim();
-        var hash = AuthEndpoints.HashApiKey(key);
-        var memoryCache = context.RequestServices.GetRequiredService<IMemoryCache>();
-        // Flag lida fora do cache (ConfigService já cacheia) para que desligar
-        // API keys passe a valer imediatamente para chaves já resolvidas.
-        using (var flagScope = context.RequestServices.CreateScope())
-        {
-            var flagConfig = flagScope.ServiceProvider.GetRequiredService<ConfigService>();
-            var flagAdmin = await flagConfig.GetAdminConfigAsync();
-            if (!flagAdmin.EnableApiKeys)
-            {
-                await next();
-                return;
-            }
-        }
-        // Cache de 2min: evita escopo DI + 2 queries ao SQLite por request.
-        // Revogação/rotação evicta explicitamente em AuthEndpoints; o TTL curto
-        // cobre mudanças de role (admin rebaixa usuário) fora desse caminho.
-        var identity = await memoryCache.GetOrCreateAsync(
-            ApiKeyAuthCache.CacheKey(hash),
-            async entry =>
-            {
-                entry.AbsoluteExpirationRelativeToNow = ApiKeyAuthCache.Ttl;
-                using var scope = context.RequestServices.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var apiKey = await db.ApiKeys.AsNoTracking()
-                    .FirstOrDefaultAsync(k => k.KeyHash == hash);
-                var user = apiKey is null
-                    ? null
-                    : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
-                if (user is null || user.Role == UserRoles.Pending)
-                {
-                    return null;
-                }
-                return new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, user.Id),
-                    new Claim(ClaimTypes.Name, user.Name),
-                    new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role),
-                ], "ApiKey");
-            });
-        if (identity is not null)
-        {
-            context.User = new ClaimsPrincipal(identity);
-        }
-    }
-
-    await next();
-});
-
+UseApiKeyAuthentication(app);
 app.UseAuthorization();
 app.UseWebSockets();
 
-app.MapAuthEndpoints();
-app.MapNotificationEndpoints();
-app.MapPassthroughEndpoints();
-app.MapTerminalEndpoints();
-app.MapTerminalPtyEndpoints();
-app.MapBrowserToolEndpoints();
-app.MapTerminalWebSocket();
-app.MapScimEndpoints();
-app.MapSamlEndpoints();
-app.MapPluginEndpoints();
-app.MapChatEndpoints();
-app.MapUserEndpoints();
-app.MapWorkspaceEndpoints();
-app.MapUtilsEndpoints();
-app.MapFileEndpoints();
-app.MapModelEndpoints();
-app.MapEvaluationEndpoints();
-app.MapAnalyticsEndpoints();
-app.MapTaskEndpoints();
-app.MapApiEndpoints();
-app.MapGroupEndpoints();
-app.MapOAuthEndpoints();
-app.MapKnowledgeEndpoints();
-app.MapToolEndpoints();
-app.MapChatJobEndpoints();
-app.MapMcpEndpoints();
-app.MapChannelEndpoints();
-app.MapImageEndpoints();
-app.MapAutomationEndpoints();
-app.MapAutomationHookEndpoints();
-app.MapN8nEndpoints();
-app.MapVideoEndpoints();
-app.MapConfigEndpoints();
-app.MapGitHubEndpoints();
-app.MapWorkspaceFileEndpoints();
-app.MapCheckpointEndpoints();
-app.MapWorkspaceTestRunEndpoints();
-app.MapRepoSkillEndpoints();
-app.MapIdeEndpoints();
-app.MapPreviewEndpoints();
-app.MapLspEndpoints();
-app.MapAudioEndpoints();
-app.MapRetrievalEndpoints();
-app.MapCalendarEndpoints();
-app.MapFrameworkAssetsEndpoints();
-app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
-
-app.MapFallbackToFile("index.html");
+MapAllEndpoints(app);
 
 app.Run();
+
+/// <summary>SignalR envia o JWT via query string no handshake do WebSocket.</summary>
+static Task AcceptTokenFromQueryString(MessageReceivedContext context)
+{
+    var token = context.Request.Query["access_token"];
+    if (!string.IsNullOrEmpty(token) &&
+        (context.HttpContext.Request.Path.StartsWithSegments("/ws") ||
+         context.HttpContext.Request.Path.StartsWithSegments("/api/v1/terminals")))
+    {
+        context.Token = token;
+    }
+    return Task.CompletedTask;
+}
+
+/// <summary>
+/// Content-Security-Policy própria (SPEC-20261010-app-csp-header): antes a app
+/// não emitia CSP nenhum e herdava um report-only frouxo do proxy de produção
+/// (script-src unsafe-inline/eval, connect-src 'none') que só gerava ruído de
+/// violação para o service worker e as chamadas de API. A política abaixo é a
+/// que o boot WASM realmente precisa:
+///  - 'unsafe-inline' cobre os scripts inline do index.html (tema + registro
+///    do service worker); um nonce fica para uma iteração futura.
+///  - 'wasm-unsafe-eval'/'unsafe-eval' cobrem o WebAssembly.instantiate do
+///    dotnet.wasm e o eval do runner JS de codeexec (browsers antigos sem a
+///    keyword wasm-* caem para 'unsafe-eval').
+///  - https://cdn.jsdelivr.net cobre o importScripts do Pyodide em
+///    js/py-worker.js (o worker herda o script-src do documento).
+///  - worker-src blob: cobre new Worker(URL.createObjectURL(...)) do codeexec.
+///  - connect-src https: cobre chamadas a provedores/CDN client-side
+///    (ex.: pacotes Pyodide), wss: o SignalR /ws e data:/blob: os fallbacks
+///    b64→Response do boot e object URLs geradas pelo cliente.
+/// Aplica-se só a documentos HTML: o proxy de port preview (/preview/{port})
+/// deve repassar o payload do upstream intacto — um CSP nosso ali quebraria
+/// apps terceiros que consomem CDNs externos.
+/// </summary>
+static void UseContentSecurityPolicy(WebApplication app)
+{
+    const string ContentSecurityPolicy =
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net; " +
+        "worker-src 'self' blob:; " +
+        "connect-src 'self' https: wss: data: blob:; " +
+        "img-src 'self' data: blob: https:; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:; " +
+        "frame-src 'self' https:; " +
+        "media-src 'self' blob: data:";
+
+    app.Use(async (context, next) =>
+    {
+        context.Response.OnStarting(() =>
+        {
+            var path = context.Request.Path.Value ?? string.Empty;
+            var isHtml =
+                context.Response.ContentType?.StartsWith(
+                    "text/html", StringComparison.OrdinalIgnoreCase) == true;
+            if (isHtml
+                && !path.StartsWith("/preview/", StringComparison.OrdinalIgnoreCase)
+                && !context.Response.Headers.ContainsKey("Content-Security-Policy"))
+            {
+                context.Response.Headers["Content-Security-Policy"] = ContentSecurityPolicy;
+            }
+
+            return Task.CompletedTask;
+        });
+
+        await next();
+    });
+}
+
+/// <summary>
+/// Documento/rotas da SPA e a cadeia mutável de boot (index.html, boot.js e os
+/// loaders não-fingerprinted) sempre revalidam — caso contrário uma cópia antiga
+/// em cache continua apontando para fingerprints antigos e o deploy nunca chega
+/// ao browser (previne também o loop de reload do PWA conhecido no upstream).
+/// </summary>
+static void UseSpaNoCacheHeaders(WebApplication app)
+{
+    app.Use(async (context, next) =>
+    {
+        context.Response.OnStarting(() =>
+        {
+            var path = context.Request.Path.Value ?? string.Empty;
+            var isDocument =
+                context.Request.Method == "GET" &&
+                !path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+                !path.StartsWith("/ws", StringComparison.OrdinalIgnoreCase) &&
+                !path.StartsWith("/framework-assets/", StringComparison.OrdinalIgnoreCase) &&
+                (path == "/" || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+                 path.EndsWith("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
+                 path.EndsWith("/js/boot.js", StringComparison.OrdinalIgnoreCase) ||
+                 path.EndsWith("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase) ||
+                 path is "/_framework/blazor.webassembly.js"
+                     or "/_framework/dotnet.js"
+                     or "/_framework/dotnet.boot.js" ||
+                 !path.Contains('.'));
+            if (isDocument)
+            {
+                context.Response.Headers.CacheControl = "no-cache";
+            }
+
+            return Task.CompletedTask;
+        });
+
+        await next();
+    });
+}
+
+/// <summary>Chaves de API (Bearer sk-...) autenticam como o usuário dono da chave.</summary>
+static void UseApiKeyAuthentication(WebApplication app)
+{
+    app.Use(async (context, next) =>
+    {
+        var header = context.Request.Headers.Authorization.ToString();
+        if (header.StartsWith("Bearer sk-", StringComparison.Ordinal))
+        {
+            var identity = await ResolveApiKeyIdentityAsync(
+                context, header["Bearer ".Length..].Trim());
+            if (identity is not null)
+            {
+                context.User = new ClaimsPrincipal(identity);
+            }
+        }
+
+        await next();
+    });
+}
+
+/// <summary>
+/// Resolve a identidade do dono de uma chave <c>sk-*</c>; null quando a flag
+/// está desligada, a chave não existe ou o usuário está pendente.
+/// </summary>
+static async Task<ClaimsIdentity?> ResolveApiKeyIdentityAsync(HttpContext context, string key)
+{
+    var hash = AuthEndpoints.HashApiKey(key);
+    var memoryCache = context.RequestServices.GetRequiredService<IMemoryCache>();
+    // Flag lida fora do cache (ConfigService já cacheia) para que desligar
+    // API keys passe a valer imediatamente para chaves já resolvidas.
+    using (var flagScope = context.RequestServices.CreateScope())
+    {
+        var flagConfig = flagScope.ServiceProvider.GetRequiredService<ConfigService>();
+        var flagAdmin = await flagConfig.GetAdminConfigAsync();
+        if (!flagAdmin.EnableApiKeys)
+        {
+            return null;
+        }
+    }
+    // Cache de 2min: evita escopo DI + 2 queries ao SQLite por request.
+    // Revogação/rotação evicta explicitamente em AuthEndpoints; o TTL curto
+    // cobre mudanças de role (admin rebaixa usuário) fora desse caminho.
+    return await memoryCache.GetOrCreateAsync(
+        ApiKeyAuthCache.CacheKey(hash),
+        async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = ApiKeyAuthCache.Ttl;
+            using var scope = context.RequestServices.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var apiKey = await db.ApiKeys.AsNoTracking()
+                .FirstOrDefaultAsync(k => k.KeyHash == hash);
+            var user = apiKey is null
+                ? null
+                : await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == apiKey.UserId);
+            if (user is null || user.Role == UserRoles.Pending)
+            {
+                return null;
+            }
+            return new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Name, user.Name),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Role, user.Role),
+            ], "ApiKey");
+        });
+}
+
+/// <summary>
+/// Mapeia todos os endpoints na MESMA ordem original — a precedência de
+/// rotas sobrepostas depende da sequência de registro.
+/// </summary>
+static void MapAllEndpoints(WebApplication app)
+{
+    MapPlatformEndpoints(app);
+    MapDomainEndpoints(app);
+    MapFeatureEndpoints(app);
+    app.MapFrameworkAssetsEndpoints();
+    app.MapHub<OpenWebUI.Api.Hubs.ChatHub>("/ws");
+    app.MapFallbackToFile("index.html");
+}
+
+/// <summary>Auth, notificações, passthrough, terminais e identidade federada.</summary>
+static void MapPlatformEndpoints(WebApplication app)
+{
+    app.MapAuthEndpoints();
+    app.MapNotificationEndpoints();
+    app.MapPassthroughEndpoints();
+    app.MapTerminalEndpoints();
+    app.MapTerminalPtyEndpoints();
+    app.MapBrowserToolEndpoints();
+    app.MapTerminalWebSocket();
+    app.MapScimEndpoints();
+    app.MapSamlEndpoints();
+    app.MapPluginEndpoints();
+}
+
+/// <summary>Domínio principal: chats, usuários, workspace, modelos, tasks e tools.</summary>
+static void MapDomainEndpoints(WebApplication app)
+{
+    app.MapChatEndpoints();
+    app.MapUserEndpoints();
+    app.MapWorkspaceEndpoints();
+    app.MapUtilsEndpoints();
+    app.MapFileEndpoints();
+    app.MapModelEndpoints();
+    app.MapEvaluationEndpoints();
+    app.MapAnalyticsEndpoints();
+    app.MapTaskEndpoints();
+    app.MapApiEndpoints();
+    app.MapGroupEndpoints();
+    app.MapOAuthEndpoints();
+    app.MapKnowledgeEndpoints();
+    app.MapToolEndpoints();
+    app.MapChatJobEndpoints();
+    app.MapMcpEndpoints();
+    app.MapChannelEndpoints();
+}
+
+/// <summary>Mídia, automações, integrações e recursos do workspace.</summary>
+static void MapFeatureEndpoints(WebApplication app)
+{
+    app.MapImageEndpoints();
+    app.MapAutomationEndpoints();
+    app.MapAutomationHookEndpoints();
+    app.MapN8nEndpoints();
+    app.MapVideoEndpoints();
+    app.MapConfigEndpoints();
+    app.MapGitHubEndpoints();
+    app.MapWorkspaceFileEndpoints();
+    app.MapCheckpointEndpoints();
+    app.MapWorkspaceTestRunEndpoints();
+    app.MapRepoSkillEndpoints();
+    app.MapIdeEndpoints();
+    app.MapPreviewEndpoints();
+    app.MapLspEndpoints();
+    app.MapAudioEndpoints();
+    app.MapRetrievalEndpoints();
+    app.MapCalendarEndpoints();
+}
+
+/// <summary>
+/// Inicializa o banco (diretório + migrations + seeds de env) e devolve o
+/// segredo JWT — criado quando a base ainda não tem um.
+/// </summary>
+static string BootstrapDatabase(string connectionString)
+{
+    using var bootstrap = new AppDbContext(CreateDbOptions(connectionString));
+    if (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+    {
+        var path = connectionString["Data Source=".Length..].Split(';')[0].Trim();
+        if (!string.IsNullOrEmpty(path) && path != ":memory:")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        }
+    }
+
+    DatabaseMigrator.MigrateAsync(bootstrap).GetAwaiter().GetResult();
+    SeedConnectionsFromEnv(bootstrap);
+    SeedWhisperUrlFromEnv(bootstrap);
+    SeedAdminUserFromEnv(bootstrap);
+    var entry = bootstrap.ConfigEntries.Find("webui.jwt.secret");
+    if (entry is not null)
+    {
+        return System.Text.Json.JsonSerializer.Deserialize<string>(entry.ValueJson)!;
+    }
+
+    var secret = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
+    bootstrap.ConfigEntries.Add(new ConfigEntry
+    {
+        Key = "webui.jwt.secret",
+        ValueJson = System.Text.Json.JsonSerializer.Serialize(secret),
+        UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+    });
+    bootstrap.SaveChanges();
+    return secret;
+}
 
 static void ConfigureDatabase(DbContextOptionsBuilder options, string connectionString) =>
     options.UseSqlite(connectionString);

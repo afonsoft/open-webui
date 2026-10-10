@@ -71,99 +71,12 @@ public static class ApplyPatch
                 continue;
             }
 
-            if (line.StartsWith("*** Add File: ", StringComparison.Ordinal))
+            var op = ParseOp(lines, ref i, out error);
+            if (op is null)
             {
-                var path = line["*** Add File: ".Length..].Trim();
-                var content = new List<string>();
-                i++;
-                while (i < lines.Length
-                    && !lines[i].StartsWith("*** ", StringComparison.Ordinal))
-                {
-                    var l = lines[i];
-                    if (!l.StartsWith('+'))
-                    {
-                        error = $"Add File '{path}': linha deve começar com '+' — '{l}'.";
-                        return null;
-                    }
-                    content.Add(l[1..]);
-                    i++;
-                }
-                ops.Add(new PatchOp("add", path, null, content, null));
-                continue;
+                return null;
             }
-
-            if (line.StartsWith("*** Update File: ", StringComparison.Ordinal))
-            {
-                var path = line["*** Update File: ".Length..].Trim();
-                i++;
-                string? moveTo = null;
-                if (i < lines.Length && lines[i].StartsWith("*** Move to: ", StringComparison.Ordinal))
-                {
-                    moveTo = lines[i]["*** Move to: ".Length..].Trim();
-                    i++;
-                }
-
-                var hunks = new List<PatchHunk>();
-                var expected = new List<string>();
-                var replacement = new List<string>();
-                while (i < lines.Length
-                    && !lines[i].StartsWith("*** ", StringComparison.Ordinal))
-                {
-                    var l = lines[i];
-                    if (l.StartsWith("@@", StringComparison.Ordinal))
-                    {
-                        // Separador de hunk — fecha o bloco atual.
-                        if (expected.Count > 0 || replacement.Count > 0)
-                        {
-                            hunks.Add(new PatchHunk(expected, replacement));
-                            expected = new List<string>();
-                            replacement = new List<string>();
-                        }
-                        i++;
-                        continue;
-                    }
-                    if (l.StartsWith(' '))
-                    {
-                        expected.Add(l[1..]);
-                        replacement.Add(l[1..]);
-                    }
-                    else if (l.StartsWith('-'))
-                    {
-                        expected.Add(l[1..]);
-                    }
-                    else if (l.StartsWith('+'))
-                    {
-                        replacement.Add(l[1..]);
-                    }
-                    else
-                    {
-                        error = $"Update File '{path}': linha inválida no hunk — '{l}' (use ' ', '-' ou '+').";
-                        return null;
-                    }
-                    i++;
-                }
-                if (expected.Count > 0 || replacement.Count > 0)
-                {
-                    hunks.Add(new PatchHunk(expected, replacement));
-                }
-                if (hunks.Count == 0 && moveTo is null)
-                {
-                    error = $"Update File '{path}': nenhum hunk nem '*** Move to:'.";
-                    return null;
-                }
-                ops.Add(new PatchOp("update", path, moveTo, null, hunks));
-                continue;
-            }
-
-            if (line.StartsWith("*** Delete File: ", StringComparison.Ordinal))
-            {
-                ops.Add(new PatchOp("delete", line["*** Delete File: ".Length..].Trim(), null, null, null));
-                i++;
-                continue;
-            }
-
-            error = $"patch inválido — linha inesperada '{line}'.";
-            return null;
+            ops.Add(op);
         }
 
         if (!ended)
@@ -179,6 +92,144 @@ public static class ApplyPatch
 
         error = "";
         return ops;
+    }
+
+    /// <summary>Parse da operação na linha atual (<c>*** Add|Update|Delete File:</c>).</summary>
+    private static PatchOp? ParseOp(string[] lines, ref int i, out string error)
+    {
+        var line = lines[i];
+        if (line.StartsWith("*** Add File: ", StringComparison.Ordinal))
+        {
+            return ParseAddFile(lines, ref i, line["*** Add File: ".Length..].Trim(), out error);
+        }
+
+        if (line.StartsWith("*** Update File: ", StringComparison.Ordinal))
+        {
+            return ParseUpdateFile(lines, ref i, line["*** Update File: ".Length..].Trim(), out error);
+        }
+
+        if (line.StartsWith("*** Delete File: ", StringComparison.Ordinal))
+        {
+            i++;
+            error = "";
+            return new PatchOp("delete", line["*** Delete File: ".Length..].Trim(), null, null, null);
+        }
+
+        error = $"patch inválido — linha inesperada '{line}'.";
+        return null;
+    }
+
+    /// <summary><c>*** Add File:</c> — consome as linhas <c>+</c> até o próximo <c>*** </c>.</summary>
+    private static PatchOp? ParseAddFile(string[] lines, ref int i, string path, out string error)
+    {
+        var content = new List<string>();
+        i++;
+        while (i < lines.Length
+            && !lines[i].StartsWith("*** ", StringComparison.Ordinal))
+        {
+            var l = lines[i];
+            if (!l.StartsWith('+'))
+            {
+                error = $"Add File '{path}': linha deve começar com '+' — '{l}'.";
+                return null;
+            }
+            content.Add(l[1..]);
+            i++;
+        }
+        error = "";
+        return new PatchOp("add", path, null, content, null);
+    }
+
+    /// <summary><c>*** Update File:</c> — <c>*** Move to:</c> opcional + hunks separados por <c>@@</c>.</summary>
+    private static PatchOp? ParseUpdateFile(string[] lines, ref int i, string path, out string error)
+    {
+        i++;
+        string? moveTo = null;
+        if (i < lines.Length && lines[i].StartsWith("*** Move to: ", StringComparison.Ordinal))
+        {
+            moveTo = lines[i]["*** Move to: ".Length..].Trim();
+            i++;
+        }
+
+        var hunks = ParseHunks(lines, ref i, path, out error);
+        if (hunks is null)
+        {
+            return null;
+        }
+        if (hunks.Count == 0 && moveTo is null)
+        {
+            error = $"Update File '{path}': nenhum hunk nem '*** Move to:'.";
+            return null;
+        }
+        error = "";
+        return new PatchOp("update", path, moveTo, null, hunks);
+    }
+
+    /// <summary>
+    /// Hunks de um update até o próximo <c>*** </c>: <c>@@</c> fecha o bloco,
+    /// <c>' '</c> contexto, <c>-</c> removido, <c>+</c> adicionado.
+    /// </summary>
+    private static List<PatchHunk>? ParseHunks(string[] lines, ref int i, string path, out string error)
+    {
+        var hunks = new List<PatchHunk>();
+        var expected = new List<string>();
+        var replacement = new List<string>();
+        while (i < lines.Length
+            && !lines[i].StartsWith("*** ", StringComparison.Ordinal))
+        {
+            var l = lines[i];
+            if (l.StartsWith("@@", StringComparison.Ordinal))
+            {
+                // Separador de hunk — fecha o bloco atual.
+                FlushHunk(hunks, ref expected, ref replacement);
+                i++;
+                continue;
+            }
+            if (!AppendHunkLine(l, expected, replacement))
+            {
+                error = $"Update File '{path}': linha inválida no hunk — '{l}' (use ' ', '-' ou '+').";
+                return null;
+            }
+            i++;
+        }
+        FlushHunk(hunks, ref expected, ref replacement);
+        error = "";
+        return hunks;
+    }
+
+    /// <summary>Fecha o hunk em acumulação (quando há linhas) e reinicia os buffers.</summary>
+    private static void FlushHunk(
+        List<PatchHunk> hunks, ref List<string> expected, ref List<string> replacement)
+    {
+        if (expected.Count > 0 || replacement.Count > 0)
+        {
+            hunks.Add(new PatchHunk(expected, replacement));
+            expected = new List<string>();
+            replacement = new List<string>();
+        }
+    }
+
+    /// <summary>Classifica a linha do hunk em expected/replacement; false quando inválida.</summary>
+    private static bool AppendHunkLine(string l, List<string> expected, List<string> replacement)
+    {
+        if (l.StartsWith(' '))
+        {
+            expected.Add(l[1..]);
+            replacement.Add(l[1..]);
+        }
+        else if (l.StartsWith('-'))
+        {
+            expected.Add(l[1..]);
+        }
+        else if (l.StartsWith('+'))
+        {
+            replacement.Add(l[1..]);
+        }
+        else
+        {
+            return false;
+        }
+        return true;
     }
 
     /// <summary>

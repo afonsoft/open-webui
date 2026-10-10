@@ -290,47 +290,69 @@
 
         if (Kind == "models")
         {
-            _baseModels = await Api.GetModelsAsync();
-            if (_baseModels.Count > 0 && string.IsNullOrEmpty(_mBase))
-            {
-                _mBase = _baseModels[0].Id;
-            }
+            await LoadBaseModelsAsync();
         }
 
         if (!IsCreate && Id is not null)
         {
-            switch (Kind)
-            {
-                case "prompts":
-                    _prompt = await Api.GetPromptAsync(Id);
-                    if (_prompt is null) { _notFound = true; break; }
-                    _pCommand = _prompt.Command; _pTitle = _prompt.Title; _pContent = _prompt.Content;
-                    break;
-                case "models":
-                    _model = await Api.GetCustomModelAsync(Id);
-                    if (_model is null) { _notFound = true; break; }
-                    _mName = _model.Name; _mBase = _model.BaseModelId ?? "";
-                    _mSystem = _model.SystemPrompt ?? ""; _mParams = _model.ParamsJson ?? "";
-                    _mMeta = _model.MetaJson ?? ""; _mGrants = _model.AccessGrantsJson ?? "";
-                    break;
-                case "tools":
-                    _tool = (await Api.GetToolsAsync()).FirstOrDefault(t => t.Id == Id);
-                    if (_tool is null) { _notFound = true; break; }
-                    _tName = _tool.Name; _tDesc = _tool.Description ?? ""; _tSpec = _tool.SpecJson;
-                    _tCode = _tool.Code ?? ""; _tEnabled = _tool.Enabled;
-                    break;
-                default:
-                    _files = await Api.GetFilesAsync();
-                    _knowledge = await Api.GetKnowledgeDetailAsync(Id);
-                    if (_knowledge is null) { _notFound = true; break; }
-                    _kName = _knowledge.Name; _kDesc = _knowledge.Description ?? "";
-                    break;
-            }
+            await LoadExistingAsync(Id);
         }
         else if (Kind == "knowledge")
         {
             _files = await Api.GetFilesAsync();
         }
+    }
+
+    private async Task LoadBaseModelsAsync()
+    {
+        _baseModels = await Api.GetModelsAsync();
+        if (_baseModels.Count > 0 && string.IsNullOrEmpty(_mBase))
+        {
+            _mBase = _baseModels[0].Id;
+        }
+    }
+
+    private async Task LoadExistingAsync(string id)
+    {
+        switch (Kind)
+        {
+            case "prompts": await LoadPromptAsync(id); break;
+            case "models": await LoadModelAsync(id); break;
+            case "tools": await LoadToolAsync(id); break;
+            default: await LoadKnowledgeAsync(id); break;
+        }
+    }
+
+    private async Task LoadPromptAsync(string id)
+    {
+        _prompt = await Api.GetPromptAsync(id);
+        if (_prompt is null) { _notFound = true; return; }
+        _pCommand = _prompt.Command; _pTitle = _prompt.Title; _pContent = _prompt.Content;
+    }
+
+    private async Task LoadModelAsync(string id)
+    {
+        _model = await Api.GetCustomModelAsync(id);
+        if (_model is null) { _notFound = true; return; }
+        _mName = _model.Name; _mBase = _model.BaseModelId ?? "";
+        _mSystem = _model.SystemPrompt ?? ""; _mParams = _model.ParamsJson ?? "";
+        _mMeta = _model.MetaJson ?? ""; _mGrants = _model.AccessGrantsJson ?? "";
+    }
+
+    private async Task LoadToolAsync(string id)
+    {
+        _tool = (await Api.GetToolsAsync()).FirstOrDefault(t => t.Id == id);
+        if (_tool is null) { _notFound = true; return; }
+        _tName = _tool.Name; _tDesc = _tool.Description ?? ""; _tSpec = _tool.SpecJson;
+        _tCode = _tool.Code ?? ""; _tEnabled = _tool.Enabled;
+    }
+
+    private async Task LoadKnowledgeAsync(string id)
+    {
+        _files = await Api.GetFilesAsync();
+        _knowledge = await Api.GetKnowledgeDetailAsync(id);
+        if (_knowledge is null) { _notFound = true; return; }
+        _kName = _knowledge.Name; _kDesc = _knowledge.Description ?? "";
     }
 
     private async Task SaveAsync()

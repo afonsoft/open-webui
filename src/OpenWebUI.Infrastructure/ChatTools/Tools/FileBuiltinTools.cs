@@ -590,6 +590,28 @@ public sealed class FileEditBuiltinTool(
         var occurrences = Occurrences(oldText, oldString);
         var replaceAll = args.TryGetProperty("replace_all", out var ra)
             && ra.ValueKind is JsonValueKind.True;
+        var guard = CheckOccurrences(occurrences, replaceAll, path);
+        if (guard is not null)
+        {
+            return guard;
+        }
+
+        var newText = replaceAll
+            ? oldText.Replace(oldString, newString, StringComparison.Ordinal)
+            : ReplaceFirst(oldText, oldString, newString);
+        await File.WriteAllTextAsync(full, newText, ct);
+        // LSP didChange — best-effort (SPEC S8).
+        if (lsp is not null)
+        {
+            await lsp.NotifyFileWrittenAsync(context.WorkspacePath, full, ct);
+        }
+
+        return await BuildResultAsync(context, full, oldText, newText, occurrences, ct);
+    }
+
+    /// <summary>Guarda de ocorrências: 0 → erro de não-achado; &gt;1 sem replace_all → erro de ambiguidade.</summary>
+    private static BuiltinToolResult? CheckOccurrences(int occurrences, bool replaceAll, string path)
+    {
         if (occurrences == 0)
         {
             return new BuiltinToolResult(
@@ -604,16 +626,14 @@ public sealed class FileEditBuiltinTool(
                 + "para um trecho único, ou replace_all=true para trocar todas.");
         }
 
-        var newText = replaceAll
-            ? oldText.Replace(oldString, newString, StringComparison.Ordinal)
-            : ReplaceFirst(oldText, oldString, newString);
-        await File.WriteAllTextAsync(full, newText, ct);
-        // LSP didChange — best-effort (SPEC S8).
-        if (lsp is not null)
-        {
-            await lsp.NotifyFileWrittenAsync(context.WorkspacePath, full, ct);
-        }
+        return null;
+    }
 
+    /// <summary>Diff + format hook + resultado estruturado da edição.</summary>
+    private async Task<BuiltinToolResult> BuildResultAsync(
+        BuiltinToolContext context, string full, string oldText, string newText,
+        int occurrences, CancellationToken ct)
+    {
         var rel = WorkspaceFiles.RelativeOf(context.WorkspacePath, full);
         var diff = UnifiedDiff.Compute(rel, oldText, newText);
         var text = $"Arquivo '{rel}' editado (+{diff.Added}/-{diff.Removed} linhas).";

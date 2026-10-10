@@ -185,32 +185,44 @@ public sealed class GitHubService(
     private async Task<WorkspacePullResponse?> MapPullAsync(
         string token, string owner, string repo, JsonElement pr, CancellationToken ct)
     {
-        var checks = EmptyChecks;
         var headObj = pr.TryGetProperty("head", out var h0) && h0.ValueKind == JsonValueKind.Object
             ? h0 : (JsonElement?)null;
-        var sha = headObj is { } hh && hh.TryGetProperty("sha", out var s) ? s.GetString() : null;
-        if (sha is not null)
+        var checks = await ResolveChecksAsync(token, owner, repo, headObj, ct);
+        if (checks is null)
         {
-            var rollup = await FetchChecksAsync(token, owner, repo, sha, ct);
-            if (rollup is null)
-            {
-                return null; // 401/403 no caminho dos checks
-            }
-            checks = rollup;
+            return null; // 401/403 no caminho dos checks
         }
 
         return new WorkspacePullResponse(
-            pr.TryGetProperty("number", out var n) ? n.GetInt32() : 0,
-            pr.TryGetProperty("title", out var t) ? t.GetString() ?? string.Empty : string.Empty,
-            pr.TryGetProperty("user", out var u) && u.ValueKind == JsonValueKind.Object
-                && u.TryGetProperty("login", out var l) ? l.GetString() : null,
-            headObj is { } hb && hb.TryGetProperty("ref", out var r) ? r.GetString() : null,
-            pr.TryGetProperty("updated_at", out var up) ? up.GetString() : null,
-            pr.TryGetProperty("html_url", out var h)
-                ? h.GetString() ?? string.Empty : string.Empty,
+            GetInt(pr, "number"),
+            GetString(pr, "title") ?? string.Empty,
+            GetNestedString(pr, "user", "login"),
+            headObj is { } hb ? GetString(hb, "ref") : null,
+            GetString(pr, "updated_at"),
+            GetString(pr, "html_url") ?? string.Empty,
             pr.TryGetProperty("draft", out var d) && d.GetBoolean(),
             checks);
     }
+
+    /// <summary>Rollup de checks do head.sha; <see cref="EmptyChecks"/> sem sha.</summary>
+    private async Task<WorkspacePrChecksResponse?> ResolveChecksAsync(
+        string token, string owner, string repo, JsonElement? headObj, CancellationToken ct)
+    {
+        var sha = headObj is { } hh && hh.TryGetProperty("sha", out var s) ? s.GetString() : null;
+        return sha is null
+            ? EmptyChecks
+            : await FetchChecksAsync(token, owner, repo, sha, ct);
+    }
+
+    private static int GetInt(JsonElement el, string name) =>
+        el.TryGetProperty(name, out var v) ? v.GetInt32() : 0;
+
+    private static string? GetString(JsonElement el, string name) =>
+        el.TryGetProperty(name, out var v) ? v.GetString() : null;
+
+    private static string? GetNestedString(JsonElement el, string name, string nested) =>
+        el.TryGetProperty(name, out var o) && o.ValueKind == JsonValueKind.Object
+            && o.TryGetProperty(nested, out var v) ? v.GetString() : null;
 
     private static readonly WorkspacePrChecksResponse EmptyChecks =
         new(0, 0, 0, 0, "pending");
@@ -222,9 +234,7 @@ public sealed class GitHubService(
     private async Task<WorkspacePrChecksResponse?> FetchChecksAsync(
         string token, string owner, string repo, string sha, CancellationToken ct)
     {
-        var passing = 0;
-        var failing = 0;
-        var pending = 0;
+        var tally = new CheckTally();
 
         var (statusCode, statusDoc) = await SendStatusAsync(token, HttpMethod.Get,
             $"{ApiBase}/repos/{owner}/{repo}/commits/{sha}/status", ct);
@@ -232,20 +242,7 @@ public sealed class GitHubService(
         {
             return null;
         }
-        if (statusDoc is not null
-            && statusDoc.RootElement.TryGetProperty("statuses", out var statuses)
-            && statuses.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var st in statuses.EnumerateArray())
-            {
-                switch (st.TryGetProperty("state", out var s) ? s.GetString() : null)
-                {
-                    case "success": passing++; break;
-                    case "failure" or "error": failing++; break;
-                    default: pending++; break;
-                }
-            }
-        }
+        CountStatuses(statusDoc, tally);
 
         var (checksCode, checksDoc) = await SendStatusAsync(token, HttpMethod.Get,
             $"{ApiBase}/repos/{owner}/{repo}/commits/{sha}/check-runs?per_page=100", ct);
@@ -253,30 +250,76 @@ public sealed class GitHubService(
         {
             return null;
         }
-        if (checksDoc is not null
-            && checksDoc.RootElement.TryGetProperty("check_runs", out var runs)
-            && runs.ValueKind == JsonValueKind.Array)
+        CountCheckRuns(checksDoc, tally);
+
+        var state = tally.Failing > 0 ? "failure"
+            : tally.Pending > 0 || tally.Total == 0 ? "pending"
+            : "success";
+        return new WorkspacePrChecksResponse(
+            tally.Total, tally.Passing, tally.Failing, tally.Pending, state);
+    }
+
+    /// <summary>Soma o array <c>statuses</c> do combined status no tally.</summary>
+    private static void CountStatuses(JsonDocument? statusDoc, CheckTally tally)
+    {
+        if (statusDoc is null
+            || !statusDoc.RootElement.TryGetProperty("statuses", out var statuses)
+            || statuses.ValueKind != JsonValueKind.Array)
         {
-            foreach (var run in runs.EnumerateArray())
+            return;
+        }
+        foreach (var st in statuses.EnumerateArray())
+        {
+            tally.AddStatus(st.TryGetProperty("state", out var s) ? s.GetString() : null);
+        }
+    }
+
+    /// <summary>Soma o array <c>check_runs</c> no tally (só runs completados contam).</summary>
+    private static void CountCheckRuns(JsonDocument? checksDoc, CheckTally tally)
+    {
+        if (checksDoc is null
+            || !checksDoc.RootElement.TryGetProperty("check_runs", out var runs)
+            || runs.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+        foreach (var run in runs.EnumerateArray())
+        {
+            var runStatus = run.TryGetProperty("status", out var rs) ? rs.GetString() : null;
+            var conclusion = run.TryGetProperty("conclusion", out var c)
+                && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+            tally.AddRun(runStatus, conclusion);
+        }
+    }
+
+    /// <summary>Contadores do rollup de CI (passing/failing/pending).</summary>
+    private sealed class CheckTally
+    {
+        public int Passing { get; private set; }
+        public int Failing { get; private set; }
+        public int Pending { get; private set; }
+        public int Total => Passing + Failing + Pending;
+
+        public void AddStatus(string? state)
+        {
+            switch (state)
             {
-                var runStatus = run.TryGetProperty("status", out var rs) ? rs.GetString() : null;
-                var conclusion = run.TryGetProperty("conclusion", out var c)
-                    && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
-                switch (runStatus == "completed" ? conclusion : null)
-                {
-                    case "success" or "neutral" or "skipped": passing++; break;
-                    case "failure" or "cancelled" or "timed_out"
-                        or "action_required" or "startup_failure": failing++; break;
-                    default: pending++; break;
-                }
+                case "success": Passing++; break;
+                case "failure" or "error": Failing++; break;
+                default: Pending++; break;
             }
         }
 
-        var total = passing + failing + pending;
-        var state = failing > 0 ? "failure"
-            : pending > 0 || total == 0 ? "pending"
-            : "success";
-        return new WorkspacePrChecksResponse(total, passing, failing, pending, state);
+        public void AddRun(string? runStatus, string? conclusion)
+        {
+            switch (runStatus == "completed" ? conclusion : null)
+            {
+                case "success" or "neutral" or "skipped": Passing++; break;
+                case "failure" or "cancelled" or "timed_out"
+                    or "action_required" or "startup_failure": Failing++; break;
+                default: Pending++; break;
+            }
+        }
     }
 
     /// <summary>Branches do repositório (até 100) + a branch padrão.</summary>

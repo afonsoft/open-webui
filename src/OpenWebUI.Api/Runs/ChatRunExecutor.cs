@@ -420,6 +420,21 @@ public sealed class ChatRunExecutor(
         ChatRun run, ProviderToolCall call, string output, JsonElement? result, bool denied)
     {
         var ok = !denied && !output.StartsWith("Erro", StringComparison.Ordinal);
+        var (imagePath, videoPath) = ExtractMediaPaths(result);
+        PublishTasksSnapshot(run, result);
+        if (AccumulateChanges(result))
+        {
+            broadcaster.Publish(run.Id,
+                $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
+        }
+        broadcaster.Publish(run.Id,
+            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result, VideoPath: videoPath), JsonOptions)}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Extrai imagePath/videoPath do payload estruturado da tool.</summary>
+    private static (string? ImagePath, string? VideoPath) ExtractMediaPaths(JsonElement? result)
+    {
         string? imagePath = null;
         string? videoPath = null;
         if (result is { } el && el.ValueKind == JsonValueKind.Object)
@@ -433,31 +448,37 @@ public sealed class ChatRunExecutor(
                 videoPath = vid.GetString();
             }
         }
+        return (imagePath, videoPath);
+    }
 
-        // todo_write publica o snapshot de tarefas como evento `tasks`
-        // (RF-010 chat-agent-parity) — replay cobre attach tardio.
+    /// <summary>
+    /// todo_write publica o snapshot de tarefas como evento <c>tasks</c>
+    /// (RF-010 chat-agent-parity) — replay cobre attach tardio.
+    /// </summary>
+    private void PublishTasksSnapshot(ChatRun run, JsonElement? result)
+    {
         if (result is { } res && res.ValueKind == JsonValueKind.Object
             && res.TryGetProperty("tasks", out var tasks)
             && tasks.ValueKind == JsonValueKind.Array)
         {
             broadcaster.Publish(run.Id, $"event: tasks\ndata: {tasks.GetRawText()}");
         }
+    }
 
-        // file_write/file_edit (path único) e apply_patch (files[])
-        // acumulam o diff por path e publicam o snapshot `changes`
-        // (RF-015) — aba Changes do painel lateral.
-        var changesTouched = false;
+    /// <summary>
+    /// file_write/file_edit (path único) e apply_patch (files[]) acumulam o
+    /// diff por path (RF-015) — devolve true quando algum change foi tocado.
+    /// </summary>
+    private bool AccumulateChanges(JsonElement? result)
+    {
+        var touched = false;
         if (result is { } chg && chg.ValueKind == JsonValueKind.Object
             && chg.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String
             && chg.TryGetProperty("added", out var a) && a.ValueKind == JsonValueKind.Number
             && chg.TryGetProperty("removed", out var r) && r.ValueKind == JsonValueKind.Number)
         {
-            var diff = chg.TryGetProperty("diff", out var d) && d.ValueKind == JsonValueKind.String
-                ? Truncate(d.GetString()!, ChangeDiffChars)
-                : null;
-            _changes[p.GetString()!] = new RunChangeItem(
-                p.GetString()!, a.GetInt32(), r.GetInt32(), diff);
-            changesTouched = true;
+            TrackChange(p.GetString()!, a.GetInt32(), r.GetInt32(), ExtractDiff(chg));
+            touched = true;
         }
         if (result is { } chgFiles && chgFiles.ValueKind == JsonValueKind.Object
             && chgFiles.TryGetProperty("files", out var files)
@@ -469,25 +490,23 @@ public sealed class ChatRunExecutor(
                     && f.TryGetProperty("added", out var fa) && fa.ValueKind == JsonValueKind.Number
                     && f.TryGetProperty("removed", out var fr) && fr.ValueKind == JsonValueKind.Number)
                 {
-                    var fdiff = f.TryGetProperty("diff", out var fd)
-                        && fd.ValueKind == JsonValueKind.String
-                        ? Truncate(fd.GetString()!, ChangeDiffChars)
-                        : null;
-                    _changes[fp.GetString()!] = new RunChangeItem(
-                        fp.GetString()!, fa.GetInt32(), fr.GetInt32(), fdiff);
-                    changesTouched = true;
+                    TrackChange(fp.GetString()!, fa.GetInt32(), fr.GetInt32(), ExtractDiff(f));
+                    touched = true;
                 }
             }
         }
-        if (changesTouched)
-        {
-            broadcaster.Publish(run.Id,
-                $"event: changes\ndata: {JsonSerializer.Serialize(new RunChangesEvent(_changes.Values.ToList()), JsonOptions)}");
-        }
-        broadcaster.Publish(run.Id,
-            $"event: tool_result\ndata: {JsonSerializer.Serialize(new RunToolResultEvent(call.Id, call.Name, ok, Scrub(Truncate(output, PreviewChars)), ImagePath: imagePath, Denied: denied, Result: result, VideoPath: videoPath), JsonOptions)}");
-        return Task.CompletedTask;
+        return touched;
     }
+
+    /// <summary>Registra o diff do path no acumulador da run (aba Changes do painel).</summary>
+    private void TrackChange(string path, int added, int removed, string? diff) =>
+        _changes[path] = new RunChangeItem(path, added, removed, diff);
+
+    /// <summary>Diff textual de um item de change, truncado para o snapshot.</summary>
+    private static string? ExtractDiff(JsonElement el) =>
+        el.TryGetProperty("diff", out var d) && d.ValueKind == JsonValueKind.String
+            ? Truncate(d.GetString()!, ChangeDiffChars)
+            : null;
 
     /// <summary>
     /// Gate de aprovação por tool call (RF-003/RF-004): tool não-mutável

@@ -61,136 +61,203 @@ public sealed class ApplyPatchBuiltinTool(FormatHookService? formatHook = null) 
 
         // Fase 1: jail + existência + pré-cálculo de cada arquivo.
         // Nada é escrito aqui — um patch inválido não aplica nada.
-        var root = Path.GetFullPath(context.WorkspacePath);
-        var plans = new List<FilePlan>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var op in ops)
+        var (plans, planError) = await PlanAllAsync(ops, context, ct);
+        if (planError is not null)
         {
-            var full = WorkspaceFiles.ResolveInside(context.WorkspacePath, op.Path, out var jailError);
-            if (full is null)
-            {
-                return new BuiltinToolResult($"{op.Path}: {jailError}");
-            }
-            var rel = WorkspaceFiles.RelativeOf(root, full);
-            if (!seen.Add(rel))
-            {
-                return new BuiltinToolResult($"Arquivo '{rel}' aparece 2× no patch.");
-            }
-
-            string? fullMove = null;
-            string? relMove = null;
-            if (op.MoveTo is not null)
-            {
-                fullMove = WorkspaceFiles.ResolveInside(context.WorkspacePath, op.MoveTo, out var moveError);
-                if (fullMove is null)
-                {
-                    return new BuiltinToolResult($"{op.MoveTo}: {moveError}");
-                }
-                relMove = WorkspaceFiles.RelativeOf(root, fullMove);
-            }
-
-            var exists = File.Exists(full);
-            string? oldText = exists ? await File.ReadAllTextAsync(full, ct) : null;
-            string? newText;
-            switch (op.Kind)
-            {
-                case "add":
-                    if (exists)
-                    {
-                        return new BuiltinToolResult($"Add File '{rel}': arquivo já existe.");
-                    }
-                    if (Encoding.UTF8.GetByteCount(string.Join('\n', op.AddLines!)) > WorkspaceFiles.MaxFileBytes)
-                    {
-                        return new BuiltinToolResult(
-                            $"Add File '{rel}': conteúdo excede {WorkspaceFiles.MaxFileBytes / 1024}KB.");
-                    }
-                    newText = string.Join('\n', op.AddLines!);
-                    break;
-
-                case "update":
-                    if (!exists)
-                    {
-                        return new BuiltinToolResult($"Update File '{rel}': arquivo não existe.");
-                    }
-                    if (op.Hunks!.Count > 0)
-                    {
-                        newText = ApplyPatch.ApplyHunks(oldText!, op.Hunks, out var hunkError);
-                        if (newText is null)
-                        {
-                            return new BuiltinToolResult($"Update File '{rel}': {hunkError}");
-                        }
-                    }
-                    else
-                    {
-                        newText = oldText;
-                    }
-                    if (fullMove is not null && File.Exists(fullMove))
-                    {
-                        return new BuiltinToolResult($"Move to '{relMove}': destino já existe.");
-                    }
-                    if (Encoding.UTF8.GetByteCount(newText) > WorkspaceFiles.MaxFileBytes)
-                    {
-                        return new BuiltinToolResult(
-                            $"Update File '{rel}': resultado excede {WorkspaceFiles.MaxFileBytes / 1024}KB.");
-                    }
-                    break;
-
-                case "delete":
-                    if (!exists)
-                    {
-                        return new BuiltinToolResult($"Delete File '{rel}': arquivo não existe.");
-                    }
-                    newText = null;
-                    break;
-
-                default:
-                    return new BuiltinToolResult($"Operação desconhecida '{op.Kind}'.");
-            }
-
-            plans.Add(new FilePlan(op.Kind, rel, full, relMove, fullMove, oldText, newText));
+            return new BuiltinToolResult(planError);
         }
 
         // Fase 2: escrita/movimento/remoção.
-        var results = new List<(string Path, string Action, UnifiedDiff.Result Diff)>();
-        foreach (var plan in plans)
-        {
-            switch (plan.Kind)
-            {
-                case "add":
-                    Directory.CreateDirectory(Path.GetDirectoryName(plan.Full)!);
-                    await File.WriteAllTextAsync(plan.Full, plan.NewText!, ct);
-                    results.Add((plan.Rel, "add", UnifiedDiff.Compute(plan.Rel, null, plan.NewText!)));
-                    break;
-
-                case "update":
-                    if (plan.FullMove is not null)
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(plan.FullMove)!);
-                        File.Move(plan.Full, plan.FullMove);
-                    }
-                    if (plan.NewText != plan.OldText)
-                    {
-                        await File.WriteAllTextAsync(plan.FullMove ?? plan.Full, plan.NewText!, ct);
-                    }
-                    results.Add((plan.RelMove ?? plan.Rel,
-                        plan.FullMove is not null ? "rename+update" : "update",
-                        UnifiedDiff.Compute(
-                            plan.RelMove ?? plan.Rel, plan.OldText, plan.NewText!)));
-                    break;
-
-                case "delete":
-                    File.Delete(plan.Full);
-                    results.Add((plan.Rel, "delete",
-                        UnifiedDiff.Compute(plan.Rel, plan.OldText, "")));
-                    break;
-            }
-        }
+        var results = await ApplyAllAsync(plans!, ct);
 
         // Format hook uma vez com todos os arquivos tocados (RF-004).
         var formatWarning = formatHook is null ? null : await formatHook.RunForUserAsync(
             context.UserId, context.WorkspacePath,
             results.Select(r => r.Path).ToList(), ct);
 
+        return BuildResult(results, formatWarning);
+    }
+
+    /// <summary>Fase 1: valida e pré-calcula cada arquivo (nada é escrito).</summary>
+    private static async Task<(List<FilePlan>? Plans, string? Error)> PlanAllAsync(
+        IReadOnlyList<PatchOp> ops, BuiltinToolContext context, CancellationToken ct)
+    {
+        var root = Path.GetFullPath(context.WorkspacePath);
+        var plans = new List<FilePlan>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var op in ops)
+        {
+            var (plan, error) = await PlanOpAsync(op, context, root, seen, ct);
+            if (error is not null)
+            {
+                return (null, error);
+            }
+            plans.Add(plan!);
+        }
+        return (plans, null);
+    }
+
+    /// <summary>Valida uma op (jail, duplicata, existência) e calcula o novo conteúdo.</summary>
+    private static async Task<(FilePlan? Plan, string? Error)> PlanOpAsync(
+        PatchOp op, BuiltinToolContext context, string root,
+        HashSet<string> seen, CancellationToken ct)
+    {
+        var full = WorkspaceFiles.ResolveInside(context.WorkspacePath, op.Path, out var jailError);
+        if (full is null)
+        {
+            return (null, $"{op.Path}: {jailError}");
+        }
+        var rel = WorkspaceFiles.RelativeOf(root, full);
+        if (!seen.Add(rel))
+        {
+            return (null, $"Arquivo '{rel}' aparece 2× no patch.");
+        }
+
+        var (fullMove, relMove, moveError) = ResolveMoveTarget(op, context, root);
+        if (moveError is not null)
+        {
+            return (null, moveError);
+        }
+
+        var exists = File.Exists(full);
+        var oldText = exists ? await File.ReadAllTextAsync(full, ct) : null;
+        var (newText, error) = ComputeNewText(op, rel, exists, oldText, fullMove, relMove);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+        return (new FilePlan(op.Kind, rel, full, relMove, fullMove, oldText, newText), null);
+    }
+
+    /// <summary>Resolve o destino de <c>*** Move to:</c> pelo jail (quando presente).</summary>
+    private static (string? FullMove, string? RelMove, string? Error) ResolveMoveTarget(
+        PatchOp op, BuiltinToolContext context, string root)
+    {
+        if (op.MoveTo is null)
+        {
+            return (null, null, null);
+        }
+        var fullMove = WorkspaceFiles.ResolveInside(context.WorkspacePath, op.MoveTo, out var moveError);
+        if (fullMove is null)
+        {
+            return (null, null, $"{op.MoveTo}: {moveError}");
+        }
+        return (fullMove, WorkspaceFiles.RelativeOf(root, fullMove), null);
+    }
+
+    /// <summary>Conteúdo resultante da op (add/update/delete) com a mesma ordem de checagens.</summary>
+    private static (string? NewText, string? Error) ComputeNewText(
+        PatchOp op, string rel, bool exists, string? oldText,
+        string? fullMove, string? relMove) => op.Kind switch
+    {
+        "add" => ComputeAddText(op, rel, exists),
+        "update" => ComputeUpdateText(op, rel, exists, oldText, fullMove, relMove),
+        "delete" => ComputeDeleteText(rel, exists),
+        _ => (null, $"Operação desconhecida '{op.Kind}'."),
+    };
+
+    private static (string? NewText, string? Error) ComputeAddText(
+        PatchOp op, string rel, bool exists)
+    {
+        if (exists)
+        {
+            return (null, $"Add File '{rel}': arquivo já existe.");
+        }
+        var newText = string.Join('\n', op.AddLines!);
+        if (Encoding.UTF8.GetByteCount(newText) > WorkspaceFiles.MaxFileBytes)
+        {
+            return (null, $"Add File '{rel}': conteúdo excede {WorkspaceFiles.MaxFileBytes / 1024}KB.");
+        }
+        return (newText, null);
+    }
+
+    private static (string? NewText, string? Error) ComputeUpdateText(
+        PatchOp op, string rel, bool exists, string? oldText,
+        string? fullMove, string? relMove)
+    {
+        if (!exists)
+        {
+            return (null, $"Update File '{rel}': arquivo não existe.");
+        }
+        string? newText;
+        if (op.Hunks!.Count > 0)
+        {
+            newText = ApplyPatch.ApplyHunks(oldText!, op.Hunks, out var hunkError);
+            if (newText is null)
+            {
+                return (null, $"Update File '{rel}': {hunkError}");
+            }
+        }
+        else
+        {
+            newText = oldText;
+        }
+        if (fullMove is not null && File.Exists(fullMove))
+        {
+            return (null, $"Move to '{relMove}': destino já existe.");
+        }
+        if (Encoding.UTF8.GetByteCount(newText) > WorkspaceFiles.MaxFileBytes)
+        {
+            return (null, $"Update File '{rel}': resultado excede {WorkspaceFiles.MaxFileBytes / 1024}KB.");
+        }
+        return (newText, null);
+    }
+
+    private static (string? NewText, string? Error) ComputeDeleteText(string rel, bool exists) =>
+        exists
+            ? (null, null)
+            : (null, $"Delete File '{rel}': arquivo não existe.");
+
+    /// <summary>Fase 2: executa escrita/movimento/remoção de cada plano.</summary>
+    private static async Task<List<(string Path, string Action, UnifiedDiff.Result Diff)>> ApplyAllAsync(
+        IReadOnlyList<FilePlan> plans, CancellationToken ct)
+    {
+        var results = new List<(string Path, string Action, UnifiedDiff.Result Diff)>();
+        foreach (var plan in plans)
+        {
+            results.Add(await ApplyPlanAsync(plan, ct));
+        }
+        return results;
+    }
+
+    /// <summary>Aplica um plano (o Kind já foi validado na fase 1).</summary>
+    private static async Task<(string Path, string Action, UnifiedDiff.Result Diff)> ApplyPlanAsync(
+        FilePlan plan, CancellationToken ct)
+    {
+        switch (plan.Kind)
+        {
+            case "add":
+                Directory.CreateDirectory(Path.GetDirectoryName(plan.Full)!);
+                await File.WriteAllTextAsync(plan.Full, plan.NewText!, ct);
+                return (plan.Rel, "add", UnifiedDiff.Compute(plan.Rel, null, plan.NewText!));
+
+            case "update":
+                if (plan.FullMove is not null)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(plan.FullMove)!);
+                    File.Move(plan.Full, plan.FullMove);
+                }
+                if (plan.NewText != plan.OldText)
+                {
+                    await File.WriteAllTextAsync(plan.FullMove ?? plan.Full, plan.NewText!, ct);
+                }
+                return (plan.RelMove ?? plan.Rel,
+                    plan.FullMove is not null ? "rename+update" : "update",
+                    UnifiedDiff.Compute(
+                        plan.RelMove ?? plan.Rel, plan.OldText, plan.NewText!));
+
+            default: // "delete" — demais kinds foram rejeitados na fase 1.
+                File.Delete(plan.Full);
+                return (plan.Rel, "delete",
+                    UnifiedDiff.Compute(plan.Rel, plan.OldText, ""));
+        }
+    }
+
+    /// <summary>Resumo textual + payload estruturado (files[] com diff truncado).</summary>
+    private static BuiltinToolResult BuildResult(
+        List<(string Path, string Action, UnifiedDiff.Result Diff)> results,
+        string? formatWarning)
+    {
         var sb = new StringBuilder($"Patch aplicado: {results.Count} arquivo(s).");
         foreach (var (path, action, diff) in results)
         {
