@@ -333,6 +333,7 @@ public class ProviderService(
         {
             "ollama" => await CompleteOllamaAsync(request, connections, ct),
             "openai" => await CompleteOpenAiAsync(request, connections, ct),
+            "anthropic" => await CompleteAnthropicAsync(request, connections, ct),
             _ => throw new InvalidOperationException(
                 $"Nenhuma conexão configurada atende ao modelo '{request.Model}'."),
         };
@@ -355,6 +356,7 @@ public class ProviderService(
         {
             "ollama" => StreamOllamaAsync(request, connections, ct),
             "openai" => StreamOpenAiAsync(request, connections, ct),
+            "anthropic" => StreamAnthropicAsync(request, connections, ct),
             _ => throw new InvalidOperationException(
                 $"Nenhuma conexão configurada atende ao modelo '{request.Model}'."),
         };
@@ -380,7 +382,12 @@ public class ProviderService(
         JsonNode? json;
         bool openAi = provider == "openai";
 
-        if (provider is ProviderTypes.Anthropic or ProviderTypes.Google)
+        if (provider is ProviderTypes.Anthropic)
+        {
+            return await CompleteAnthropicWithToolsAsync(request, connections, ct);
+        }
+
+        if (provider is ProviderTypes.Google)
         {
             throw new InvalidOperationException(
                 $"Adaptador de chat para '{provider}' ainda não implementado.");
@@ -473,15 +480,18 @@ public class ProviderService(
 
         try
         {
-            if (provider is ProviderTypes.Anthropic or ProviderTypes.Google)
+            if (provider is ProviderTypes.Google)
             {
                 throw new InvalidOperationException(
                     $"Adaptador de chat para '{provider}' ainda não implementado.");
             }
 
-            return provider == "openai"
-                ? await StreamOpenAiToolsAsync(request, connections, payload, onDelta, ct)
-                : await StreamOllamaToolsAsync(request, connections, payload, onDelta, ct);
+            return provider switch
+            {
+                "openai" => await StreamOpenAiToolsAsync(request, connections, payload, onDelta, ct),
+                "anthropic" => await StreamAnthropicToolsAsync(request, connections, onDelta, ct),
+                _ => await StreamOllamaToolsAsync(request, connections, payload, onDelta, ct),
+            };
         }
         catch (HttpRequestException)
         {
@@ -762,6 +772,438 @@ public class ProviderService(
         }
 
         return connections.OpenAiBaseUrls.Count > 0 ? "openai" : "ollama";
+    }
+
+    // ---------------- Anthropic (Messages API) ----------------
+
+    private const string AnthropicVersion = "2023-06-01";
+
+    private static ProviderConnection FindTypedConnection(
+        ConnectionsConfig connections, string type) =>
+        connections.ProvidersOrEmpty.FirstOrDefault(p =>
+            string.Equals(p.Type, type, StringComparison.OrdinalIgnoreCase))
+        ?? throw new InvalidOperationException($"Nenhuma conexão '{type}' configurada.");
+
+    private static HttpRequestMessage NewAnthropicRequest(
+        ProviderConnection connection, JsonObject payload)
+    {
+        var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post, $"{TrimSlash(connection.BaseUrl)}/v1/messages")
+        {
+            Content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        if (!string.IsNullOrEmpty(connection.ApiKey))
+        {
+            httpRequest.Headers.Add("x-api-key", connection.ApiKey);
+        }
+        httpRequest.Headers.Add("anthropic-version", AnthropicVersion);
+        return httpRequest;
+    }
+
+    /// <summary>
+    /// Converte a conversa OpenAI-shaped para o formato da Messages API:
+    /// <c>system</c> vira campo top-level, mensagens <c>tool</c> viram blocos
+    /// <c>tool_result</c> numa mensagem user consecutiva, <c>tool_calls</c> do
+    /// assistant viram blocos <c>tool_use</c> com <c>input</c> objeto e tools
+    /// OpenAI viram <c>{name, description, input_schema}</c>.
+    /// </summary>
+    private static JsonObject BuildAnthropicPayload(ChatCompletionRequest request, bool stream)
+    {
+        var system = new List<string>();
+        var messages = new List<JsonObject>();
+        foreach (var m in request.Messages)
+        {
+            if (m.Role == "system")
+            {
+                if (!string.IsNullOrWhiteSpace(m.Content))
+                {
+                    system.Add(m.Content);
+                }
+                continue;
+            }
+
+            if (m.ToolCallId is not null || m.Role == "tool")
+            {
+                var block = new JsonObject
+                {
+                    ["type"] = "tool_result",
+                    ["tool_use_id"] = m.ToolCallId,
+                    ["content"] = m.Content,
+                };
+                if (messages.Count > 0
+                    && messages[^1]["role"]?.GetValue<string>() == "user"
+                    && messages[^1]["content"] is JsonArray prev
+                    && prev.All(n => n?["type"]?.GetValue<string>() == "tool_result"))
+                {
+                    // Tool results da mesma rodada entram numa única mensagem user.
+                    prev.Add(block);
+                }
+                else
+                {
+                    messages.Add(new JsonObject
+                    {
+                        ["role"] = "user",
+                        ["content"] = new JsonArray(block),
+                    });
+                }
+                continue;
+            }
+
+            if (m.Role == "assistant" && m.ToolCallsJson is not null)
+            {
+                var blocks = new JsonArray();
+                if (!string.IsNullOrEmpty(m.Content))
+                {
+                    blocks.Add(new JsonObject { ["type"] = "text", ["text"] = m.Content });
+                }
+                foreach (var call in JsonNode.Parse(m.ToolCallsJson)!.AsArray())
+                {
+                    var name = call?["function"]?["name"]?.GetValue<string>();
+                    if (name is null)
+                    {
+                        continue;
+                    }
+                    var argsRaw = call?["function"]?["arguments"];
+                    JsonNode? input;
+                    try
+                    {
+                        input = argsRaw is JsonValue s
+                            ? JsonNode.Parse(s.GetValue<string>())
+                            : argsRaw?.DeepClone();
+                    }
+                    catch (Exception)
+                    {
+                        input = new JsonObject();
+                    }
+                    blocks.Add(new JsonObject
+                    {
+                        ["type"] = "tool_use",
+                        ["id"] = call?["id"]?.GetValue<string>()
+                            ?? Guid.NewGuid().ToString("N"),
+                        ["name"] = name,
+                        ["input"] = input ?? new JsonObject(),
+                    });
+                }
+                messages.Add(new JsonObject
+                {
+                    ["role"] = "assistant",
+                    ["content"] = blocks,
+                });
+                continue;
+            }
+
+            messages.Add(new JsonObject
+            {
+                ["role"] = m.Role == "assistant" ? "assistant" : "user",
+                ["content"] = m.Content,
+            });
+        }
+
+        var payload = new JsonObject
+        {
+            ["model"] = request.Model,
+            ["max_tokens"] = 4096,
+            ["messages"] = new JsonArray(messages.Cast<JsonNode>().ToArray()),
+            ["stream"] = stream,
+        };
+        if (system.Count > 0)
+        {
+            payload["system"] = string.Join("\n", system);
+        }
+
+        if (request.Tools is { Count: > 0 })
+        {
+            var tools = new JsonArray();
+            foreach (var tool in request.Tools)
+            {
+                var fn = JsonNode.Parse(tool.GetRawText())?["function"];
+                var name = fn?["name"]?.GetValue<string>();
+                if (name is null)
+                {
+                    continue;
+                }
+                tools.Add(new JsonObject
+                {
+                    ["name"] = name,
+                    ["description"] = fn?["description"]?.GetValue<string>(),
+                    ["input_schema"] = fn?["parameters"]?.DeepClone()
+                        ?? new JsonObject { ["type"] = "object" },
+                });
+            }
+            if (tools.Count > 0)
+            {
+                payload["tools"] = tools;
+            }
+        }
+
+        if (request.Params is not null)
+        {
+            foreach (var (key, value) in request.Params)
+            {
+                switch (key)
+                {
+                    case "temperature":
+                    case "top_p":
+                    case "top_k":
+                        payload[key] = ToJsonNode(value);
+                        break;
+                    case "max_tokens":
+                    case "max_completion_tokens":
+                        payload["max_tokens"] = ToJsonNode(value);
+                        break;
+                    case "stop":
+                        payload["stop_sequences"] = value is string s
+                            ? new JsonArray(s)
+                            : ToJsonNode(value);
+                        break;
+                }
+            }
+        }
+
+        return payload;
+    }
+
+    private static JsonNode? ToJsonNode(object? value) => value switch
+    {
+        JsonElement e => JsonNode.Parse(e.GetRawText()),
+        bool b => b,
+        int i => i,
+        long l => l,
+        float f => f,
+        double d => d,
+        decimal m => m,
+        string s => s,
+        null => null,
+        _ => JsonSerializer.SerializeToNode(value, JsonOptions),
+    };
+
+    /// <summary>Parseia a resposta da Messages API: texto + tool_use normalizados.</summary>
+    private static ProviderCompletion ParseAnthropicResponse(JsonNode? json)
+    {
+        var content = new StringBuilder();
+        var calls = new List<ProviderToolCall>();
+        var callsJson = new JsonArray();
+        foreach (var block in json?["content"]?.AsArray() ?? [])
+        {
+            switch (block?["type"]?.GetValue<string>())
+            {
+                case "text":
+                    content.Append(block?["text"]?.GetValue<string>());
+                    break;
+                case "tool_use":
+                    var id = block?["id"]?.GetValue<string>()
+                        ?? Guid.NewGuid().ToString("N");
+                    var name = block?["name"]?.GetValue<string>() ?? string.Empty;
+                    var input = block?["input"]?.ToJsonString() ?? "{}";
+                    calls.Add(new ProviderToolCall(id, name, input));
+                    callsJson.Add(new JsonObject
+                    {
+                        ["id"] = id,
+                        ["type"] = "function",
+                        ["function"] = new JsonObject
+                        {
+                            ["name"] = name,
+                            ["arguments"] = input,
+                        },
+                    });
+                    break;
+            }
+        }
+        return new ProviderCompletion(content.ToString(), calls, callsJson.ToJsonString());
+    }
+
+    private async Task<string> CompleteAnthropicAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "anthropic");
+        var payload = BuildAnthropicPayload(request, stream: false);
+        using var httpRequest = NewAnthropicRequest(connection, payload);
+        using var response = await httpClientFactory.CreateClient().SendAsync(httpRequest, ct);
+        response.EnsureSuccessStatusCode();
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return ParseAnthropicResponse(json).Content;
+    }
+
+    private async Task<ProviderCompletion> CompleteAnthropicWithToolsAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "anthropic");
+        var payload = BuildAnthropicPayload(request, stream: false);
+        using var httpRequest = NewAnthropicRequest(connection, payload);
+        using var response = await httpClientFactory.CreateClient().SendAsync(httpRequest, ct);
+        response.EnsureSuccessStatusCode();
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return ParseAnthropicResponse(json);
+    }
+
+    /// <summary>Lê eventos SSE (pares event:/data: separados por linha em branco).</summary>
+    private static async IAsyncEnumerable<(string Event, JsonNode? Data)> ReadSseEventsAsync(
+        StreamReader reader, [EnumeratorCancellation] CancellationToken ct)
+    {
+        string? eventName = null;
+        JsonNode? data = null;
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                if (eventName is not null || data is not null)
+                {
+                    yield return (eventName ?? string.Empty, data);
+                    eventName = null;
+                    data = null;
+                }
+                continue;
+            }
+            if (line.StartsWith("event:", StringComparison.Ordinal))
+            {
+                eventName = line["event:".Length..].Trim();
+            }
+            else if (line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                try
+                {
+                    data = JsonNode.Parse(line["data:".Length..].Trim());
+                }
+                catch (JsonException)
+                {
+                    data = null;
+                }
+            }
+        }
+        if (eventName is not null || data is not null)
+        {
+            yield return (eventName ?? string.Empty, data);
+        }
+    }
+
+    /// <summary>
+    /// Stream simples para o cliente: traduz content_block_delta de texto da
+    /// Anthropic em linhas <c>data:</c> de chunk OpenAI, terminando em [DONE].
+    /// </summary>
+    private async IAsyncEnumerable<string> StreamAnthropicAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "anthropic");
+        var payload = BuildAnthropicPayload(request, stream: true);
+        using var httpRequest = NewAnthropicRequest(connection, payload);
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        await foreach (var (eventName, data) in ReadSseEventsAsync(reader, ct))
+        {
+            if (eventName == "content_block_delta"
+                && data?["delta"]?["type"]?.GetValue<string>() == "text_delta")
+            {
+                var text = data?["delta"]?["text"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    var chunk = new JsonObject
+                    {
+                        ["object"] = "chat.completion.chunk",
+                        ["choices"] = new JsonArray(new JsonObject
+                        {
+                            ["index"] = 0,
+                            ["delta"] = new JsonObject { ["content"] = text },
+                        }),
+                    };
+                    yield return $"data: {chunk.ToJsonString()}";
+                }
+            }
+            else if (eventName == "message_stop")
+            {
+                break;
+            }
+        }
+        yield return "data: [DONE]";
+    }
+
+    /// <summary>
+    /// Round streamed Anthropic: text_delta dispara <paramref name="onDelta"/>;
+    /// blocos tool_use chegam via content_block_start (id/name) + deltas
+    /// input_json_delta (partial_json acumulado por index) até o stop do bloco.
+    /// </summary>
+    private async Task<ProviderCompletion> StreamAnthropicToolsAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        Func<string, CancellationToken, Task>? onDelta,
+        CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "anthropic");
+        var payload = BuildAnthropicPayload(request, stream: true);
+        using var httpRequest = NewAnthropicRequest(connection, payload);
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        var content = new StringBuilder();
+        var calls = new List<ProviderToolCall>();
+        var callsJson = new JsonArray();
+        var openTools = new Dictionary<int, (string Id, string Name, StringBuilder Args)>();
+
+        await foreach (var (eventName, data) in ReadSseEventsAsync(reader, ct))
+        {
+            var index = data?["index"]?.GetValue<int>() ?? 0;
+            if (eventName == "content_block_start"
+                && data?["content_block"]?["type"]?.GetValue<string>() == "tool_use")
+            {
+                openTools[index] = (
+                    data?["content_block"]?["id"]?.GetValue<string>()
+                        ?? Guid.NewGuid().ToString("N"),
+                    data?["content_block"]?["name"]?.GetValue<string>() ?? string.Empty,
+                    new StringBuilder());
+            }
+            else if (eventName == "content_block_delta")
+            {
+                var delta = data?["delta"];
+                if (delta?["type"]?.GetValue<string>() == "text_delta")
+                {
+                    var text = delta?["text"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        content.Append(text);
+                        if (onDelta is not null)
+                        {
+                            await onDelta(text, ct);
+                        }
+                    }
+                }
+                else if (delta?["type"]?.GetValue<string>() == "input_json_delta"
+                    && openTools.TryGetValue(index, out var tool))
+                {
+                    tool.Args.Append(delta?["partial_json"]?.GetValue<string>());
+                }
+            }
+            else if (eventName == "content_block_stop"
+                && openTools.Remove(index, out var closed))
+            {
+                var args = closed.Args.ToString();
+                if (args.Length == 0)
+                {
+                    args = "{}";
+                }
+                calls.Add(new ProviderToolCall(closed.Id, closed.Name, args));
+                callsJson.Add(new JsonObject
+                {
+                    ["id"] = closed.Id,
+                    ["type"] = "function",
+                    ["function"] = new JsonObject
+                    {
+                        ["name"] = closed.Name,
+                        ["arguments"] = args,
+                    },
+                });
+            }
+        }
+
+        return new ProviderCompletion(content.ToString(), calls, callsJson.ToJsonString());
     }
 
     private JsonObject BuildPayload(ChatCompletionRequest request, bool stream)

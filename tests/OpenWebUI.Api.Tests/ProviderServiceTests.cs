@@ -676,14 +676,180 @@ public class ProviderServiceTests
     }
 
     [Test]
-    public async Task Resolve_AutoResolve_ModeloAnthropic_CaiNoGuard()
+    public async Task Complete_AutoResolve_ModeloAnthropic_VaiParaMessages()
     {
         _routes["/v1/models"] = (200, "{\"data\":[{\"id\":\"claude-x\"}]}", 0);
+        _routes["/v1/messages"] = (200,
+            "{\"content\":[{\"type\":\"text\",\"text\":\"resposta claude\"}]}", 0);
         await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await NewService().CompleteWithToolsAsync(Req("claude-x")));
-        Assert.That(ex!.Message, Does.Contain("anthropic"));
+        var result = await NewService().CompleteWithToolsAsync(Req("claude-x"));
+
+        Assert.That(result.Content, Is.EqualTo("resposta claude"));
+        var req = _requests.Single(r => r.Path == "/v1/messages");
+        Assert.Multiple(() =>
+        {
+            Assert.That(req.XApiKey, Is.EqualTo("k"));
+            Assert.That(req.AnthropicVersion, Is.EqualTo("2023-06-01"));
+        });
+        var body = JsonNode.Parse(req.Body)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(body["model"]!.GetValue<string>(), Is.EqualTo("claude-x"));
+            Assert.That(body["max_tokens"]!.GetValue<int>(), Is.EqualTo(4096));
+            Assert.That(body["stream"]!.GetValue<bool>(), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task CompleteAnthropic_Payload_SystemTopLevelEToolResult()
+    {
+        _routes["/v1/messages"] = (200,
+            "{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}," +
+            "{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"get_time\",\"input\":{\"tz\":\"UTC\"}}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
+
+        var toolCalls = "[{\"id\":\"tu_0\",\"type\":\"function\",\"function\":" +
+            "{\"name\":\"get_time\",\"arguments\":\"{\\\"tz\\\":\\\"UTC\\\"}\"}}]";
+        var tools = new[] { JsonDocument.Parse(
+            "{\"type\":\"function\",\"function\":{\"name\":\"get_time\",\"description\":\"hora\"," +
+            "\"parameters\":{\"type\":\"object\",\"properties\":{\"tz\":{\"type\":\"string\"}}}}}").RootElement };
+        var request = new ChatCompletionRequest(
+            "claude",
+            [
+                new ChatCompletionMessage("system", "seja direto"),
+                new ChatCompletionMessage("user", "que horas?"),
+                new ChatCompletionMessage("assistant", "vou ver", ToolCallsJson: toolCalls),
+                new ChatCompletionMessage("tool", "12:00", ToolCallId: "tu_0"),
+                new ChatCompletionMessage("tool", "UTC", ToolCallId: "tu_0"),
+            ],
+            Stream: false,
+            Connection: "anthropic",
+            Tools: tools);
+
+        var result = await NewService().CompleteWithToolsAsync(request);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Content, Is.EqualTo("ok"));
+            Assert.That(result.ToolCalls, Has.Count.EqualTo(1));
+            Assert.That(result.ToolCalls[0].Id, Is.EqualTo("tu_1"));
+            Assert.That(result.ToolCalls[0].ArgumentsJson, Is.EqualTo("{\"tz\":\"UTC\"}"));
+            Assert.That(result.ToolCallsJson, Does.Contain("\"name\":\"get_time\""));
+        });
+
+        var body = JsonNode.Parse(_requests.Single(r => r.Path == "/v1/messages").Body)!;
+        var messages = body["messages"]!.AsArray();
+        Assert.Multiple(() =>
+        {
+            Assert.That(body["system"]!.GetValue<string>(), Is.EqualTo("seja direto"));
+            // system fora das messages; tool_calls -> blocos tool_use; tools -> input_schema.
+            Assert.That(messages.Select(m => m!["role"]!.GetValue<string>()),
+                Is.EqualTo(new[] { "user", "assistant", "user" }));
+            Assert.That(messages[1]!["content"]!.AsArray()[1]!["type"]!.GetValue<string>(),
+                Is.EqualTo("tool_use"));
+            Assert.That(messages[1]!["content"]!.AsArray()[1]!["input"]!["tz"]!.GetValue<string>(),
+                Is.EqualTo("UTC"));
+            // Dois tool results consecutivos agrupados numa única mensagem user.
+            Assert.That(messages[2]!["content"]!.AsArray(), Has.Count.EqualTo(2));
+            Assert.That(messages[2]!["content"]!.AsArray()[0]!["type"]!.GetValue<string>(),
+                Is.EqualTo("tool_result"));
+            Assert.That(body["tools"]!.AsArray()[0]!["input_schema"]!["properties"]!["tz"],
+                Is.Not.Null);
+            Assert.That(body["tools"]!.AsArray()[0]!["description"]!.GetValue<string>(),
+                Is.EqualTo("hora"));
+        });
+    }
+
+    [Test]
+    public async Task StreamAnthropic_TextoViraChunkOpenAi()
+    {
+        _routes["/v1/messages"] = (200,
+            "event: content_block_delta\n" +
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"oi\"}}\n\n" +
+            "event: content_block_delta\n" +
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" mundo\"}}\n\n" +
+            "event: message_stop\n" +
+            "data: {\"type\":\"message_stop\"}\n\n", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
+
+        var lines = await DrainAsync(NewService().StreamCompletionAsync(
+            Req("claude", connection: "anthropic")));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(lines[0], Does.Contain("\"content\":\"oi\""));
+            Assert.That(lines[1], Does.Contain("\"content\":\" mundo\""));
+            Assert.That(lines[^1], Is.EqualTo("data: [DONE]"));
+        });
+        var body = JsonNode.Parse(_requests.Single(r => r.Path == "/v1/messages").Body)!;
+        Assert.That(body["stream"]!.GetValue<bool>(), Is.True);
+    }
+
+    [Test]
+    public async Task StreamAnthropicTools_ToolUseAcumulado()
+    {
+        _routes["/v1/messages"] = (200,
+            "event: content_block_delta\n" +
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"vou chamar\"}}\n\n" +
+            "event: content_block_start\n" +
+            "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tu_9\",\"name\":\"get_time\"}}\n\n" +
+            "event: content_block_delta\n" +
+            "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"tz\\\":\"}}\n\n" +
+            "event: content_block_delta\n" +
+            "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"UTC\\\"}\"}}\n\n" +
+            "event: content_block_stop\n" +
+            "data: {\"type\":\"content_block_stop\",\"index\":1}\n\n" +
+            "event: message_stop\n" +
+            "data: {\"type\":\"message_stop\"}\n\n", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
+
+        var deltas = new List<string>();
+        var result = await NewService().CompleteWithToolsStreamingAsync(
+            Req("claude", connection: "anthropic"),
+            (d, _) => { deltas.Add(d); return Task.CompletedTask; });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Content, Is.EqualTo("vou chamar"));
+            Assert.That(deltas, Is.EqualTo(new[] { "vou chamar" }));
+            Assert.That(result.ToolCalls, Has.Count.EqualTo(1));
+            Assert.That(result.ToolCalls[0].Id, Is.EqualTo("tu_9"));
+            Assert.That(result.ToolCalls[0].Name, Is.EqualTo("get_time"));
+            Assert.That(result.ToolCalls[0].ArgumentsJson, Is.EqualTo("{\"tz\":\"UTC\"}"));
+            Assert.That(result.ToolCallsJson, Does.Contain("\"id\":\"tu_9\""));
+        });
+    }
+
+    [Test]
+    public async Task CompleteAnthropic_Params_Whitelist()
+    {
+        _routes["/v1/messages"] = (200, "{\"content\":[{\"type\":\"text\",\"text\":\"x\"}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("anthropic", _mockUrl, "k"));
+        var request = new ChatCompletionRequest(
+            "claude",
+            [new ChatCompletionMessage("user", "oi")],
+            Stream: false,
+            Connection: "anthropic",
+            Params: new Dictionary<string, object>
+            {
+                ["max_tokens"] = 128,
+                ["temperature"] = 0.5,
+                ["stop"] = "FIM",
+                ["frequency_penalty"] = 0.9, // não existe na Messages API — descartado
+            });
+
+        await NewService().CompleteAsync(request);
+
+        var body = JsonNode.Parse(_requests.Single(r => r.Path == "/v1/messages").Body)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(body["max_tokens"]!.GetValue<int>(), Is.EqualTo(128));
+            Assert.That(body["temperature"]!.GetValue<double>(), Is.EqualTo(0.5));
+            Assert.That(body["stop_sequences"]!.AsArray()[0]!.GetValue<string>(), Is.EqualTo("FIM"));
+            Assert.That(body["frequency_penalty"], Is.Null);
+        });
     }
 
     [Test]
