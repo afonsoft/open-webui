@@ -653,6 +653,7 @@ def main() -> None:
         payload = {
             "base": args.base,
             "model": args.model,
+            "windows": {k: list(v) for k, v in metrics.windows.items()},
             "samples": [s.__dict__ for s in metrics.samples],
             "counters": metrics.counters,
         }

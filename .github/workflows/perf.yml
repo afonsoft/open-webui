@@ -1,0 +1,198 @@
+name: ⚡ Performance Load Test
+
+permissions: {}
+
+on:
+  # Perf é pesado (app publicado + load real): sem gatilho em PR.
+  # Roda semanalmente, sob demanda, e quando o harness muda.
+  schedule:
+    - cron: '30 3 * * 0'    # Domingo 03:30 UTC
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Cenários (rps,sessions,subagents,real ou all)'
+        default: 'rps,sessions,subagents'
+        required: false
+        type: string
+      duration:
+        description: 'Segundos do cenário rps'
+        default: '60'
+        required: false
+        type: string
+      workers:
+        description: 'Workers concorrentes no cenário rps'
+        default: '24'
+        required: false
+        type: string
+      min_rps:
+        description: 'Gate: rps agregado mínimo (falha abaixo)'
+        default: '30'
+        required: false
+        type: string
+  push:
+    branches:
+      - "main"
+    paths:
+      - "tools/perf/**"
+      - ".github/workflows/perf.yml"
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  PERF_PORT: "8090"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load-test:
+    name: Load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Publish App (Release)
+        run: dotnet publish src/OpenWebUI.Api --configuration Release --output app-out --verbosity minimal
+
+      - name: Install aiohttp (perf harness)
+        run: pip install --quiet aiohttp
+
+      - name: Start mock Ollama
+        run: |
+          nohup python3 tools/perf/mock_ollama.py > mock-ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:11434/api/tags > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::mock Ollama não subiu em 30s"; cat mock-ollama.log; exit 1
+
+      - name: Gate de secrets LLM
+        id: gate
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "::notice::secrets.LLM_API_KEY ausente — passe 'real' pulado"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Start app (mock + real provider opcional)
+        env:
+          ASPNETCORE_URLS: http://127.0.0.1:${{ env.PERF_PORT }}
+          OLLAMA_BASE_URL: http://127.0.0.1:11434
+          OPENAI_API_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.LLM_API_KEY }}
+          ConnectionStrings__Default: Data Source=${{ runner.temp }}/perf.db
+        run: |
+          # content root = app-out: rodar fora dele deixa wwwroot/_framework inacessível.
+          cd app-out
+          nohup dotnet OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:${{ env.PERF_PORT }}/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::app não subiu em 90s"; cat "$GITHUB_WORKSPACE/app.log"; exit 1
+
+      - name: Run load test (mock provider)
+        env:
+          LT_SCENARIO: ${{ inputs.scenario || 'rps,sessions,subagents' }}
+          LT_DURATION: ${{ inputs.duration || '60' }}
+          LT_WORKERS: ${{ inputs.workers || '24' }}
+        run: |
+          python3 tools/perf/loadtest.py \
+            --base http://127.0.0.1:${{ env.PERF_PORT }} \
+            --email perf@load.test --password loadtest123 \
+            --model mock:latest \
+            --scenario "$LT_SCENARIO" \
+            --duration "$LT_DURATION" --workers "$LT_WORKERS" \
+            --json perf-results/metrics-mock.json \
+            --md perf-results/report-mock.md
+
+      - name: Run load test (real provider)
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: |
+          python3 tools/perf/loadtest.py \
+            --base http://127.0.0.1:${{ env.PERF_PORT }} \
+            --email perf@load.test --password loadtest123 \
+            --real-model "$LLM_MODEL" --scenario real \
+            --real-users 2 --real-chats-per-user 2 --real-rounds 1 \
+            --json perf-results/metrics-real.json \
+            --md perf-results/report-real.md
+
+      - name: Perf gate (rps + erros)
+        env:
+          MIN_RPS: ${{ inputs.min_rps || '30' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          m = json.load(open("perf-results/metrics-mock.json"))
+          samples = m["samples"]
+          windows = m.get("windows", {})
+          min_rps = float(os.environ["MIN_RPS"])
+          total = len(samples)
+          errors = sum(1 for s in samples if s.get("err") or s.get("status", 0) >= 400)
+          err_pct = errors / total * 100 if total else 0.0
+          print(f"samples={total} errors={errors} ({err_pct:.2f}%)")
+          if err_pct > 2.0:
+              print(f"::error::error rate {err_pct:.2f}% > 2%"); sys.exit(1)
+          # throughput do cenário rps = samples dentro da janela temporal registrada
+          if "rps" in windows:
+              t0, t1 = windows["rps"]
+              in_win = [s for s in samples if t0 <= s["t"] <= t1]
+              rps = len(in_win) / max(t1 - t0, 0.001)
+              print(f"rps scenario: {len(in_win)} reqs em {t1-t0:.1f}s = {rps:.1f} rps (min {min_rps})")
+              if rps < min_rps:
+                  print(f"::error::throughput {rps:.1f} rps < {min_rps} rps"); sys.exit(1)
+          # sub-agentes: se o cenário rodou, exige pelo menos um filho spawnado
+          if "subagents" in windows:
+              spawned = m["counters"].get("subagent_children_spawned", 0)
+              print(f"subagent children spawned: {spawned}")
+              if spawned < 1:
+                  print("::error::cenário subagents rodou mas nenhum filho spawnou"); sys.exit(1)
+          print("perf gate OK")
+          PY
+
+      - name: Reports no job summary
+        if: always()
+        run: |
+          for f in perf-results/report-mock.md perf-results/report-real.md; do
+            [ -f "$f" ] && { echo "# $(basename $f)"; cat "$f"; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "## app.log (tail)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -40 app.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload perf results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
+        with:
+          name: perf-results-${{ github.run_id }}
+          path: |
+            perf-results/
+            app.log
+            mock-ollama.log
+          if-no-files-found: ignore
+          retention-days: 30
