@@ -34,7 +34,8 @@ public static class ConfigEndpoints
         group.MapPost("/channels", UpdateChannelsToggleAsync);
 
         group.MapGet("/direct_connections", GetDirectConnectionsAsync);
-        group.MapPost("/direct_connections", UpdateDirectConnectionsAsync);
+        group.MapPost("/direct_connections", UpdateDirectConnectionsAsync)
+            .AddEndpointFilter(ApiEndpoints.InvalidateModelListCacheAsync);
 
         group.MapGet("/code_execution", GetCodeExecutionAsync);
         group.MapPost("/code_execution", UpdateCodeExecutionAsync);

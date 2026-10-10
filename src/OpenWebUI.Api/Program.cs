@@ -155,6 +155,7 @@ builder.Services.AddHttpClient(PreviewEndpoints.HttpClientName)
     });
 
 builder.Services.AddMemoryCache();
+builder.Services.AddHybridCache();
 builder.Services.AddHttpClient();
 builder.Services.AddOpenApi();
 

@@ -198,6 +198,30 @@ public class ApiTests
     }
 
     [Test]
+    public async Task Models_Cache_InvalidaAposCriarModelo()
+    {
+        var auth = await SignUpAsync("Cache", "cache-models@test.local", "senha123");
+        UseToken(auth.Token);
+
+        // Primeira listagem popula o HybridCache (resposta vazia).
+        var before = await _client.GetFromJsonAsync<ModelListResponse>("/api/models");
+        Assert.That(before, Is.Not.Null);
+
+        var created = await _client.PostAsJsonAsync("/api/v1/models/create",
+            new ModelEntryUpsertRequest("CacheBust", "llama3", "Seja direto", null, null));
+        Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var model = (await created.Content.ReadFromJsonAsync<ModelEntryResponse>())!;
+
+        // O filtro de invalidação deve derrubar o cache: o modelo aparece já.
+        var after = await _client.GetFromJsonAsync<ModelListResponse>("/api/models");
+        Assert.That(after!.Data.Any(m => m.Id == model.Id), Is.True);
+
+        // Duas leituras seguidas (segunda servida do cache) permanecem coerentes.
+        var again = await _client.GetFromJsonAsync<ModelListResponse>("/api/models");
+        Assert.That(again!.Data.Any(m => m.Id == model.Id), Is.True);
+    }
+
+    [Test]
     public async Task Version_SemAuth_RetornaVersao()
     {
         _client.DefaultRequestHeaders.Authorization = null;
