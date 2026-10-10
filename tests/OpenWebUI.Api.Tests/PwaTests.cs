@@ -51,6 +51,43 @@ public class PwaTests
     }
 
     [Test]
+    public async Task Index_EmiteContentSecurityPolicyDoBootWasm()
+    {
+        // AC SPEC-20261010-app-csp-header: GET / declara um CSP real —
+        // worker-src 'self' para SW/py-worker, connect-src cobrindo
+        // API/SSE/ws, e wasm-unsafe-eval para o boot do dotnet.wasm.
+        var response = await _client.GetAsync("/");
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(
+            response.Headers.TryGetValues("Content-Security-Policy", out var values),
+            Is.True, "GET / não emitiu Content-Security-Policy");
+        var csp = string.Join(' ', values!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(csp, Does.Contain("default-src 'self'"));
+            Assert.That(csp, Does.Contain("worker-src 'self'"));
+            Assert.That(csp, Does.Contain("connect-src 'self'"));
+            Assert.That(csp, Does.Contain("wss:"));
+            Assert.That(csp, Does.Contain("wasm-unsafe-eval"));
+        });
+    }
+
+    [Test]
+    public async Task AssetsNaoHtml_NaoEmitemContentSecurityPolicy()
+    {
+        // O CSP é política de documento: estampar em todo response (ex.: o
+        // proxy /preview/{port}) imporia nossa política a apps terceiros.
+        var manifest = await _client.GetAsync("/manifest.webmanifest");
+
+        Assert.That(manifest.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(
+            manifest.Headers.Contains("Content-Security-Policy")
+                || (manifest.Content.Headers.Contains("Content-Security-Policy")),
+            Is.False);
+    }
+
+    [Test]
     public async Task Manifest_ServiceWorker_EIcones_SaoServidos()
     {
         var manifest = await _client.GetAsync("/manifest.webmanifest");
