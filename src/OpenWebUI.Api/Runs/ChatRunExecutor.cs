@@ -317,8 +317,10 @@ public sealed class ChatRunExecutor(
         // Com repo vinculado o workdir vira o checkout do repo (mesmo jail);
         // binding por chat precede o global (SPEC-20261010-chat-repo-binding).
         var workdir = await repos.ResolveWorkdirAsync(user.Id, run.ChatId, ct);
+        // SPEC-20261010-subagent-worktree: sub-runs (delegate_task) SEMPRE
+        // isolam em worktree; runs raiz respeitam Workspace:RunIsolation.
         var (isolated, warning) = await worktrees.TryCreateForRunAsync(
-            user.Id, run.Id, workdir, ct);
+            user.Id, run.Id, workdir, ct, force: run.ParentRunId is not null);
         if (warning is not null)
         {
             // Fallback shared: visível no stream como fase informativa.
