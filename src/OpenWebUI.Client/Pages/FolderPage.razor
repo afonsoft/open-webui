@@ -69,7 +69,7 @@
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[FolderPage] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[FolderPage] carga falhou: {ex.Message}");
         }
     }
 }

@@ -142,7 +142,7 @@
         {
             // Offline: mantém o último dado / empty state honesto.
             _loadFailed = true;
-            Console.Error.WriteLine($"[WorkspacePullsPanel] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspacePullsPanel] carga falhou: {ex.Message}");
         }
         finally
         {

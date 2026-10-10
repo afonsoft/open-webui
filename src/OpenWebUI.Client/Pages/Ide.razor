@@ -123,7 +123,7 @@ else
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[Ide] init falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Ide] init falhou: {ex.Message}");
         }
         _ready = true;
     }
@@ -173,7 +173,7 @@ else
         catch (HttpRequestException ex)
         {
             // Offline: mantém o último snapshot; o timer retenta sozinho.
-            Console.Error.WriteLine($"[Ide] refresh falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Ide] refresh falhou: {ex.Message}");
         }
         await InvokeAsync(StateHasChanged);
     }

@@ -189,7 +189,7 @@
         catch (HttpRequestException ex)
         {
             // Offline: abas extras somem — chat/changes/pulls/tests/jobs restam.
-            Console.Error.WriteLine($"[IdeRightPanel] init falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[IdeRightPanel] init falhou: {ex.Message}");
         }
     }
 

@@ -79,7 +79,7 @@
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[SharedChat] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[SharedChat] carga falhou: {ex.Message}");
         }
         finally
         {
