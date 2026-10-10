@@ -235,7 +235,7 @@ public sealed class CheckpointService(
                 .Select(parts => new CheckpointSummary(
                     parts[0],
                     parts.Length > 2 && parts[2].StartsWith("turn ", StringComparison.Ordinal)
-                        && int.TryParse(parts[2][5..], out var t) ? t : 0,
+                        && int.TryParse(parts[2][5..].Split(' ', 2)[0], out var t) ? t : 0,
                     long.Parse(parts[1])))
                 .ToList();
         }
