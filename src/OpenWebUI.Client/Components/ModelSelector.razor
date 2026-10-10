@@ -56,7 +56,6 @@
 
     private const string ModelKey = "webui.model";
     private List<ModelInfo>? _models;
-    private bool _loadFailed;
     private bool _open;
     private bool _focusMenu;
     private ElementReference _trigger;
@@ -74,11 +73,9 @@
         try
         {
             _models = await Api.GetModelsAsync();
-            _loadFailed = false;
         }
         catch (HttpRequestException ex)
         {
-            _loadFailed = true;
             _models = [];
             await Console.Error.WriteLineAsync($"[ModelSelector] carga falhou: {ex.Message}");
             return;
@@ -111,11 +108,9 @@
         if (_open)
         {
             _focusMenu = true;
-            if (_loadFailed)
-            {
-                // Retry manual: voltou a rede, recarrega sem reload da página.
-                _ = LoadModelsAsync();
-            }
+            // Refresh a cada abertura: /api/models é cacheado server-side e o
+            // picker fica consistente após mexer em conexões (sem reload).
+            _ = LoadModelsAsync();
         }
     }
 
