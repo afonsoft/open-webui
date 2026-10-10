@@ -338,14 +338,28 @@ public class ChatRunEndpointsTests
     public async Task Steer_RunViva_PersisteInboxDuravel()
     {
         // SPEC-20261010-steer-queue: POST em run viva grava linha pending.
+        // Run seeded direto (running) — enfileirar de verdade tornaria o teste
+        // flaky: o provider mock pode finalizar a run antes do POST chegar.
         var auth = await SignUpAsync("SteerA", "steera@runs.local");
         UseToken(auth.Token);
         var chat = await CriarChatAsync(
             [new ChatMessageModel("m1", "user", "oi", null, 100)]);
-        var run = await EnfileirarAsync(chat.Id, null);
+
+        var runId = Guid.NewGuid().ToString();
+        using (var seed = _factory.Services.CreateScope())
+        {
+            var seedDb = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            seedDb.ChatRuns.Add(new ChatRun
+            {
+                Id = runId, ChatId = chat.Id, UserId = auth.User.Id,
+                Model = "llama3", Status = ChatRunStatus.Running,
+                RequestJson = "{}",
+            });
+            await seedDb.SaveChangesAsync();
+        }
 
         var response = await _client.PostAsJsonAsync(
-            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/steer",
+            $"/api/v1/chats/{chat.Id}/runs/{runId}/steer",
             new SteerRunRequest("também faz X", "steer"));
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Accepted),
             await response.Content.ReadAsStringAsync());
@@ -353,7 +367,7 @@ public class ChatRunEndpointsTests
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.ChatRunSteers
-            .Where(s => s.RunId == run.Id)
+            .Where(s => s.RunId == runId)
             .SingleOrDefaultAsync();
         Assert.That(row, Is.Not.Null);
         Assert.That(row!.Mode, Is.EqualTo("steer"));
