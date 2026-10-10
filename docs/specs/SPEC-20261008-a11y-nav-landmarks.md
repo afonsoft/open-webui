@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-a11y-nav-landmarks` |
 | Ticket | [#184](https://github.com/afonsoft/open-webui/issues/184) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -131,3 +131,9 @@ N/A — client-only.
 ## Open Questions / Pending Ambiguity
 
 - Chat `h1` content on `/` (empty state) — recommend "Open WebUI" (static) since there's no chat title yet.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/192 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/184
+- Epic: https://github.com/afonsoft/open-webui/issues/182

@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-a11y-keyboard-focus` |
 | Ticket | [#186](https://github.com/afonsoft/open-webui/issues/186) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -152,3 +152,9 @@ N/A — client-only.
 ## Open Questions / Pending Ambiguity
 
 - Exact focus-ring color token (recommend reusing `.input` ring tokens for consistency).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/194 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/186
+- Epic: https://github.com/afonsoft/open-webui/issues/182

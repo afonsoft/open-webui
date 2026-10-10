@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-spec-status-sweep` |
 | Ticket | `GAP-doc-stale-specs` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` |
 | Depends on | SPEC-20261008-spec-status-reconciliation (delivered) |
 
@@ -35,3 +35,8 @@
 
 1. Per SPEC: read acceptance criteria → map to merged PRs/CI guards.
 2. Flip + move delivered ones; list the rest with pending items in the sweep commit message.
+
+## Delivered
+
+- PR: this sweep PR (issue #285: https://github.com/afonsoft/open-webui/issues/285)
+- 8 SPECs verified with merged delivery PRs (#191–#198): all flipped to `Completed` and archived under `docs/specs/`.

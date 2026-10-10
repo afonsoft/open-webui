@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-ui-polish` |
 | Ticket | [#190](https://github.com/afonsoft/open-webui/issues/190) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -131,3 +131,9 @@ N/A — client-only.
 
 - `prompt` usage (`Workspace:337` add-knowledge-file-by-name): replace with input dialog vs. keep native — recommend small input dialog for consistency.
 - Virtualize adoption vs. documented deferral — decide by list-size reality at impl time.
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/198 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/190
+- Epic: https://github.com/afonsoft/open-webui/issues/182
