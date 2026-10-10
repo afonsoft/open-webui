@@ -5,6 +5,7 @@ using OpenWebUI.Application.Contracts;
 using OpenWebUI.Application.Interfaces;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Infrastructure.ChatTools.Tools;
 
@@ -188,6 +189,19 @@ public sealed class DelegateTaskBuiltinTool(
         };
         db.ChatRuns.Add(childRun);
         await db.SaveChangesAsync(ct);
+
+        // SPEC-20261010-chat-repo-binding: o filho herda o binding POR CHAT
+        // do pai (não o global) — subtarefa roda no mesmo checkout.
+        if (context.ChatId is { } boundParent
+            && await scope.ServiceProvider
+                .GetRequiredService<WorkspaceRepoService>()
+                .GetChatBindingAsync(boundParent, ct) is { } parentBinding)
+        {
+            await scope.ServiceProvider
+                .GetRequiredService<WorkspaceRepoService>()
+                .SetChatBindingAsync(childChat.Id, parentBinding, ct);
+        }
+
         dispatcher.Enqueue(childRun.Id);
 
         var link = $"/c/{childChat.Id}";

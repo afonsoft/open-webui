@@ -43,6 +43,8 @@ public static class ChatEndpoints
         group.MapGet("/all", ListAllChatsAdminAsync);
         group.MapGet("/{id}", GetChatAsync);
         group.MapGet("/{id}/children", ListChildrenAsync);
+        group.MapGet("/{id}/workspace-repo", GetWorkspaceRepoAsync);
+        group.MapPut("/{id}/workspace-repo", PutWorkspaceRepoAsync);
         group.MapPost("/{id}", UpdateChatAsync);
         group.MapPatch("/{id}", PatchChatAsync);
         group.MapDelete("/{id}", DeleteChatAsync);
@@ -451,6 +453,93 @@ public static class ChatEndpoints
             .Select(c => new ChatChildSummaryResponse(
                 c.Id, c.Title, lastRuns.GetValueOrDefault(c.Id), c.CreatedAt))
             .ToList());
+    }
+
+    /// <summary>
+    /// Binding workspace↔repo DO CHAT (SPEC-20261010-chat-repo-binding):
+    /// devolve o binding efetivo com <c>source</c> = chat|user|none —
+    /// "chat" quando o chat tem repo próprio, "user" no fallback global.
+    /// </summary>
+    private static async Task<IResult> GetWorkspaceRepoAsync(
+        string id, HttpContext http, AppDbContext db,
+        WorkspaceRepoService repos, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (!await db.Chats.AsNoTracking()
+                .AnyAsync(c => c.Id == id && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound();
+        }
+
+        var (binding, source) = await repos.ResolveBindingAsync(user.Id, id, ct);
+        return Results.Ok(new ChatWorkspaceRepoResponse(
+            binding is null
+                ? null
+                : new WorkspaceRepoResponse(
+                    binding.Repo, binding.Branch, binding.Dir,
+                    binding.TestCommand, binding.FormatCommand),
+            source));
+    }
+
+    /// <summary>
+    /// Abre/atualiza o repo por chat (checkout compartilhado por slug) ou
+    /// limpa o binding de chat (body vazio/repo nulo → volta ao global).
+    /// </summary>
+    private static async Task<IResult> PutWorkspaceRepoAsync(
+        string id,
+        WorkspaceRepoOpenRequest? request,
+        HttpContext http,
+        AppDbContext db,
+        WorkspaceRepoService repos, GitHubService github, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (!await db.Chats.AsNoTracking()
+                .AnyAsync(c => c.Id == id && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound();
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.Repo))
+        {
+            // Limpa o binding por chat → resolução cai no global do usuário.
+            await repos.SetChatBindingAsync(id, null, ct);
+            var (fallback, fallbackSource) = await repos.ResolveBindingAsync(user.Id, id, ct);
+            return Results.Ok(new ChatWorkspaceRepoResponse(
+                fallback is null
+                    ? null
+                    : new WorkspaceRepoResponse(
+                        fallback.Repo, fallback.Branch, fallback.Dir,
+                        fallback.TestCommand, fallback.FormatCommand),
+                fallbackSource));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Branch))
+        {
+            return Results.BadRequest(new { detail = "branch é obrigatória." });
+        }
+
+        var slug = request.Repo.Trim();
+        var token = await github.GetTokenAsync(user.Id, ct);
+        var (binding, error) = await repos.OpenChatAsync(
+            user.Id, id, slug, request.Branch.Trim(),
+            $"https://github.com/{slug}.git", token, ct);
+        if (binding is null)
+        {
+            return Results.BadRequest(new { detail = error });
+        }
+        return Results.Ok(new ChatWorkspaceRepoResponse(
+            new WorkspaceRepoResponse(
+                binding.Repo, binding.Branch, binding.Dir,
+                binding.TestCommand, binding.FormatCommand),
+            "chat"));
     }
 
     private static async Task<IResult> UpdateChatAsync(

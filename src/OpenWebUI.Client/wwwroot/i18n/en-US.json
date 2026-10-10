@@ -851,5 +851,8 @@
   "sidebar.children": "Subtasks",
   "sidebar.delegated": "Delegated chat",
   "sidebar.delegated_badge": "delegated",
-  "chat.parent": "Parent chat"
+  "chat.parent": "Parent chat",
+  "chat.repo_source_chat": "this chat",
+  "chat.repo_source_user": "workspace",
+  "chat.repo_source_none": "none"
 }

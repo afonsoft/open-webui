@@ -851,5 +851,8 @@
   "sidebar.children": "",
   "sidebar.delegated": "",
   "sidebar.delegated_badge": "",
-  "chat.parent": ""
+  "chat.parent": "",
+  "chat.repo_source_chat": "此聊天",
+  "chat.repo_source_user": "全局",
+  "chat.repo_source_none": "无"
 }

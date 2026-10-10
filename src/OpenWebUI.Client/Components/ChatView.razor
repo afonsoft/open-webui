@@ -634,7 +634,8 @@
         </div>
     </div>
 
-    <RepoPickerModal @bind-Active="_repoPicker" Bound="OnRepoBoundAsync" />
+    <RepoPickerModal @bind-Active="_repoPicker" Bound="OnRepoBoundAsync"
+                     Source="OnRepoSourceChanged" ChatId="_loadedChatId" />
     <CallOverlay Active="_callActive" Lang="@SttLang"
                  OnTurn="ExecuteVoiceTurnAsync"
                  OnClose="() => _callActive = false" />
@@ -734,6 +735,7 @@
     /// <summary>Snapshot git do workspace (git bar do header + aba Changes).</summary>
     private WorkspaceGitResponse? _git;
     private WorkspaceRepoResponse? _repo;
+    private string? _repoSource;
     private bool _repoPicker;
     /// <summary>Aba que o painel abre na próxima renderização (clique no chip git).</summary>
     private string? _requestedPanelTab;
@@ -821,6 +823,8 @@
             var configTask = Api.GetAppConfigCachedAsync();
             var storedTask = StoredWebSearchAsync();
             var repoTask = Api.GetWorkspaceRepoAsync();
+            // Por chat (SPEC-20261010-chat-repo-binding): depois que o chat
+            // carrega, o binding efetivo + origem vem do endpoint por chat.
             await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask, repoTask);
 
             _prompts = promptsTask.Result;
@@ -1077,6 +1081,11 @@
             await Realtime.JoinChatAsync(chat.Id);
             _chatTitle = chat.Title;
             _parentChatId = chat.ParentChatId;
+
+        // Binding por chat: substitui o global carregado no init.
+        var chatRepo = await Api.GetChatWorkspaceRepoAsync(chat.Id);
+        _repo = chatRepo?.Binding;
+        _repoSource = chatRepo?.Source;
             _parentTitle = chat.ParentTitle;
             // Chat sem ToolIds persistidos (legado/nunca tocado): default genérico.
             _toolIds = chat.ToolIds.Count > 0
@@ -2352,6 +2361,7 @@
     private async Task OnRepoBoundAsync(WorkspaceRepoResponse? binding)
     {
         _repo = binding?.Repo is null ? null : binding;
+        _repoSource ??= "chat";
         if (_repo?.Repo is not null)
         {
             _repoSkills = await Api.GetRepoSkillsAsync();
@@ -2365,6 +2375,12 @@
         _git = null;
         await RefreshGitAsync();
         StateHasChanged();
+    }
+
+    private Task OnRepoSourceChanged(string? source)
+    {
+        _repoSource = source;
+        return Task.CompletedTask;
     }
 
     /// <summary>Pós-revert de checkpoint (S6): recarrega o git bar/aba Changes.</summary>

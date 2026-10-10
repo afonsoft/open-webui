@@ -17,6 +17,8 @@
             </div>
             <div class="modal-body">
                 <RepoBindingPanel BoundChanged="OnBoundChangedAsync"
+                                  SourceChanged="OnSourceChangedAsync"
+                                  ChatId="ChatId"
                                   Opened="CloseAsync" Unbound="OnUnboundAsync" />
             </div>
         </div>
@@ -32,6 +34,12 @@
 
     /// <summary>Disparado quando o binding muda (null = desvinculado).</summary>
     [Parameter] public EventCallback<WorkspaceRepoResponse?> Bound { get; set; }
+
+    /// <summary>Disparado com a origem do binding efetivo (chat|user|none).</summary>
+    [Parameter] public EventCallback<string?> Source { get; set; }
+
+    /// <summary>Escopo do binding por chat (null = global do usuário).</summary>
+    [Parameter] public string? ChatId { get; set; }
 
     private bool _wasActive;
     private bool _focusPending;
@@ -63,6 +71,9 @@
 
     private async Task OnBoundChangedAsync(WorkspaceRepoResponse? binding) =>
         await Bound.InvokeAsync(binding);
+
+    private async Task OnSourceChangedAsync(string? source) =>
+        await Source.InvokeAsync(source);
 
     /// <summary>
     /// O botão de desvincular some junto com a linha e o foco cai no

@@ -802,6 +802,169 @@ public class GitHubWorkspaceTests
         public HttpClient CreateClient(string name) => new(handler);
     }
 
+    // ---------------- Binding por chat (SPEC-20261010-chat-repo-binding) ----------------
+
+    [Test]
+    public async Task ChatBinding_Resolve_PriorizaChat_SobreGlobal()
+    {
+        var originA = CriarOrigem("main");
+        var originB = CriarOrigem("main");
+        var (global, _) = await _repos.OpenAsync("u1", "a/ra", "main", originA, null, default);
+        var (chat, err) = await _repos.OpenChatAsync("u1", "c1", "b/rb", "main", originB, null, default);
+
+        Assert.That(err, Is.Null);
+        var (resolved, source) = await _repos.ResolveBindingAsync("u1", "c1", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("chat"));
+            Assert.That(resolved!.Repo, Is.EqualTo("b/rb"));
+            Assert.That(resolved.Dir, Is.Not.EqualTo(global!.Dir));
+            Assert.That(_repos.ResolveWorkdirAsync("u1", "c1", default).Result,
+                Does.EndWith(resolved.Dir));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_SemChatBinding_CaiNoGlobal_EClearVolta()
+    {
+        var origin = CriarOrigem("main");
+        await _repos.OpenAsync("u1", "a/ra", "main", origin, null, default);
+
+        // Sem binding por chat → fallback global.
+        var (fallback, source) = await _repos.ResolveBindingAsync("u1", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("user"));
+            Assert.That(fallback!.Repo, Is.EqualTo("a/ra"));
+        });
+
+        // Binding por chat → depois de limpar volta ao global.
+        var originB = CriarOrigem("main");
+        await _repos.OpenChatAsync("u1", "c9", "b/rb", "main", originB, null, default);
+        await _repos.SetChatBindingAsync("c9", null, default);
+        var (back, backSource) = await _repos.ResolveBindingAsync("u1", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(backSource, Is.EqualTo("user"));
+            Assert.That(back!.Repo, Is.EqualTo("a/ra"));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_SemNenhum_SourceNone()
+    {
+        var (binding, source) = await _repos.ResolveBindingAsync("u9", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("none"));
+            Assert.That(binding, Is.Null);
+            Assert.That(_repos.ResolveWorkdirAsync("u9", "c9", default).Result,
+                Does.EndWith("workspaces/u9".Replace('/', Path.DirectorySeparatorChar)));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_DoisChats_WorkdirsDistintos()
+    {
+        var originA = CriarOrigem("main");
+        var originB = CriarOrigem("main");
+        await _repos.OpenChatAsync("u1", "cA", "a/ra", "main", originA, null, default);
+        await _repos.OpenChatAsync("u1", "cB", "b/rb", "main", originB, null, default);
+
+        var wdA = await _repos.ResolveWorkdirAsync("u1", "cA", default);
+        var wdB = await _repos.ResolveWorkdirAsync("u1", "cB", default);
+        Assert.That(wdA, Is.Not.EqualTo(wdB));
+        Assert.That(Directory.Exists(Path.Join(wdA, ".git")), Is.True);
+        Assert.That(Directory.Exists(Path.Join(wdB, ".git")), Is.True);
+    }
+
+    [Test]
+    public async Task ChatBinding_OpenChat_RemotoInvalido_DevolveErro()
+    {
+        var (binding, error) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/ra", "main",
+            Path.Join(_root, "origem-inexistente"), null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(binding, Is.Null);
+            Assert.That(error, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_GetESet_GravaELimpa()
+    {
+        var origin = CriarOrigem("main");
+        var (binding, _) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/ra", "main", origin, null, default);
+
+        var lido = await _repos.GetChatBindingAsync("c1", default);
+        Assert.That(lido!.Repo, Is.EqualTo("a/ra"));
+        Assert.That(lido.Dir, Is.EqualTo(binding!.Dir));
+
+        await _repos.SetChatBindingAsync("c1", null, default);
+        Assert.That(await _repos.GetChatBindingAsync("c1", default), Is.Null);
+    }
+
+    [Test]
+    public async Task ChatBinding_HerdaComandosDoGlobal()
+    {
+        var origin = CriarOrigem("main");
+        await _repos.OpenAsync("u1", "a/ra", "main", origin, null, default);
+        await _repos.SetTestCommandAsync("u1", "dotnet test", default);
+        await _repos.SetFormatCommandAsync("u1", "dotnet format", default);
+        var originB = CriarOrigem("main");
+        var (chat, _) = await _repos.OpenChatAsync(
+            "u1", "c1", "b/rb", "main", originB, null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(chat!.TestCommand, Is.EqualTo("dotnet test"));
+            Assert.That(chat.FormatCommand, Is.EqualTo("dotnet format"));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_OpenChat_SlugOuBranchInvalidos_DevolveErro()
+    {
+        var (b1, e1) = await _repos.OpenChatAsync(
+            "u1", "c1", "sem-barra", "main", "x", null, default);
+        var (b2, e2) = await _repos.OpenChatAsync(
+            "u1", "c1", "a/b", "-ruim", "x", null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(b1, Is.Null);
+            Assert.That(e1, Is.Not.Null.And.Not.Empty);
+            Assert.That(b2, Is.Null);
+            Assert.That(e2, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_Reopen_MesmaCheckout_TrocaBranch()
+    {
+        // Mesmo slug → checkout compartilhado: o segundo open cai no
+        // caminho fetch+switch+pull do EnsureCheckoutAsync.
+        var origin = CriarOrigem("main", "dev");
+        await _repos.OpenChatAsync("u1", "c1", "a/ra", "main", origin, null, default);
+        var (b2, err) = await _repos.OpenChatAsync(
+            "u1", "c2", "a/ra", "dev", origin, null, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(err, Is.Null);
+            Assert.That(b2!.Branch, Is.EqualTo("dev"));
+        });
+        // c1 e c2 compartilham o mesmo Dir (mesmo slug).
+        var (b1, _) = await _repos.ResolveBindingAsync("u1", "c1", default);
+        Assert.That(b1!.Dir, Is.EqualTo(b2.Dir));
+    }
+
+    [Test]
+    public async Task Workdir_ChatIdNull_SemBinding_CaiNoDefault()
+    {
+        var wd = await _repos.ResolveWorkdirAsync("u7", null, default);
+        Assert.That(wd, Does.EndWith("workspaces/u7"));
+    }
+
     private sealed class StubEnv(string contentRoot) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Test";

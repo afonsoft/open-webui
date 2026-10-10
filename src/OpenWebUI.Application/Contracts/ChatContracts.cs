@@ -55,6 +55,13 @@ public sealed record ChatChildSummaryResponse(
     string? LastRunStatus,
     long CreatedAt);
 
+/// <summary>Binding workspace↔repo resolvido para um chat (SPEC-20261010-chat-repo-binding).</summary>
+/// <param name="Binding">Repo efetivo (null quando nenhum binding em nenhum nível).</param>
+/// <param name="Source">Origem do binding: <c>chat</c> (repo próprio), <c>user</c> (global do usuário) ou <c>none</c>.</param>
+public sealed record ChatWorkspaceRepoResponse(
+    WorkspaceRepoResponse? Binding,
+    string Source);
+
 /// <summary>Contagem de chats aguardando ação do usuário (D2 attention-inbox).</summary>
 /// <param name="Count">Chats do usuário com aprovação/pergunta pendente.</param>
 public sealed record AttentionCountResponse(int Count);
