@@ -86,7 +86,7 @@
                                     <span class="max-w-14 sm:max-w-44 truncate font-mono">@_repo.Branch</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
                                 </button>
-                                <a href="/ide" class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
+                                <a href="@(_loadedChatId is null ? "/ide" : $"/ide?chatId={_loadedChatId}")" class="flex size-6 cursor-pointer items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50/40 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/40 dark:hover:text-gray-200"
                                         title="@L["ide.open"]" aria-label="@L["ide.open"]">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" /></svg>
                                 </a>
@@ -653,7 +653,7 @@
                             Model="@_model" RunId="@_activeRunId" Git="_git"
                             IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
                             RequestedTab="@_requestedPanelTab"
-                            Checkpoints="_runCheckpoints"
+                            Checkpoints="_runCheckpoints" ChatId="_loadedChatId"
                             OnReverted="OnCheckpointRevertedAsync"
                             OnClose="() => _showPanel = false"
                             OnKillJob="KillJobAsync" />
@@ -667,7 +667,7 @@
                                 Model="@_model" RunId="@_activeRunId" Git="_git"
                                 IsAdmin="@(Auth.CurrentUser?.Role == UserRoles.Admin)"
                                 RequestedTab="@_requestedPanelTab"
-                                Checkpoints="_runCheckpoints"
+                                Checkpoints="_runCheckpoints" ChatId="_loadedChatId"
                                 OnReverted="OnCheckpointRevertedAsync"
                                 OnClose="() => _showPanel = false"
                                 OnKillJob="KillJobAsync" />
@@ -1319,7 +1319,7 @@
         var cursor = (string?)null;
         for (var page = 0; page < 3; page++)
         {
-            var tree = await Api.GetWorkspaceTreeAsync("", 3, cursor);
+            var tree = await Api.GetWorkspaceTreeAsync("", 3, cursor, _loadedChatId);
             if (tree is null)
             {
                 return null;
@@ -2364,8 +2364,8 @@
         _repoSource ??= "chat";
         if (_repo?.Repo is not null)
         {
-            _repoSkills = await Api.GetRepoSkillsAsync();
-            _repoCommands = await Api.GetRepoCommandsAsync();
+            _repoSkills = await Api.GetRepoSkillsAsync(_loadedChatId);
+            _repoCommands = await Api.GetRepoCommandsAsync(_loadedChatId);
         }
         else
         {

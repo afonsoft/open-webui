@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
@@ -36,9 +38,9 @@ public static class LspEndpoints
     /// renderiza Problems/squiggles (state "unavailable"/null → nada).
     /// </summary>
     private static Task<IResult> StatusAsync(
-        string? path, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? path, string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         LspService lsp, CancellationToken ct) =>
-        WithWorkdirAsync(http, db, repos, ct, (uid, workdir) =>
+        WithWorkdirAsync(http, db, repos, chatId, ct, (uid, workdir) =>
         {
             var language = lsp.LanguageFor(path);
             if (language is null)
@@ -64,9 +66,9 @@ public static class LspEndpoints
     /// <c>synced:false</c> informa que nada foi enviado.
     /// </summary>
     private static Task<IResult> DocSyncAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        [FromQuery] string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         LspService lsp, CancellationToken ct) =>
-        WithWorkdirAsync(http, db, repos, ct, async (uid, workdir) =>
+        WithWorkdirAsync(http, db, repos, chatId, ct, async (uid, workdir) =>
         {
             var request = await JsonSerializer.DeserializeAsync<LspDocSyncRequest>(
                 http.Request.Body, JsonOptions, ct);
@@ -128,9 +130,9 @@ public static class LspEndpoints
     /// code, source, message</c> — cap <see cref="LspOptions.ResultCap"/>.
     /// </summary>
     private static Task<IResult> DiagnosticsAsync(
-        string? path, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? path, string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         LspService lsp, CancellationToken ct) =>
-        WithWorkdirAsync(http, db, repos, ct, async (uid, workdir) =>
+        WithWorkdirAsync(http, db, repos, chatId, ct, async (uid, workdir) =>
         {
             string? full = null;
             if (path is not null)
@@ -172,10 +174,10 @@ public static class LspEndpoints
 
     /// <summary>Tooltip do editor — hover do servidor (texto ou null).</summary>
     private static Task<IResult> HoverAsync(
-        string? path, int? line, int? col,
+        string? path, int? line, int? col, string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         LspService lsp, CancellationToken ct) =>
-        WithWorkdirAsync(http, db, repos, ct, async (uid, workdir) =>
+        WithWorkdirAsync(http, db, repos, chatId, ct, async (uid, workdir) =>
         {
             var full = WorkspaceFiles.ResolveInside(workdir, path, out var error);
             if (full is null)
@@ -213,7 +215,7 @@ public static class LspEndpoints
 
     /// <summary>Repo vinculado → executa o handler com (userId, workdir).</summary>
     private static async Task<IResult> WithWorkdirAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        HttpContext http, AppDbContext db, WorkspaceRepoService repos, string? chatId,
         CancellationToken ct, Func<string, string, Task<IResult>> handler)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -221,12 +223,17 @@ public static class LspEndpoints
         {
             return Results.Unauthorized();
         }
-        if (await repos.GetBindingAsync(user.Id, ct) is null)
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound(new { detail = "Chat não encontrado." });
+        }
+        if ((await repos.ResolveBindingAsync(user.Id, chatId, ct)).Binding is null)
         {
             return Results.NotFound(
                 new { detail = "Nenhum repositório vinculado.", bound = false });
         }
-        return await handler(user.Id, await repos.ResolveWorkdirAsync(user.Id, ct));
+        return await handler(user.Id, await repos.ResolveWorkdirAsync(user.Id, chatId, ct));
     }
 
 }

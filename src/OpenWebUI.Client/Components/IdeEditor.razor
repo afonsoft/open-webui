@@ -94,6 +94,9 @@
     /// <summary>Tema escuro ativo (sincronizado pela página).</summary>
     [Parameter] public bool Dark { get; set; }
 
+    /// <summary>Chat cujo binding resolve o workdir + LSP (null = global).</summary>
+    [Parameter] public string? ChatId { get; set; }
+
     private enum ConflictChoice { Reload, Overwrite, CopyAs }
 
     private sealed class IdeTab
@@ -155,7 +158,7 @@
         _tabs.Add(tab);
         await ActivateAsync(tab);
 
-        var r = await Api.GetWorkspaceFileStatusAsync(path);
+        var r = await Api.GetWorkspaceFileStatusAsync(path, chatId: ChatId);
         tab.Loading = false;
         if (r.Body is { } body)
         {
@@ -207,7 +210,7 @@
         _tabs.Remove(tab);
         if (tab.LspOpened)
         {
-            _ = Api.PostLspDocAsync(tab.Path, "close", null);
+            _ = Api.PostLspDocAsync(tab.Path, "close", null, ChatId);
         }
         if (wasActive)
         {
@@ -278,7 +281,7 @@
             return;
         }
         await StashActiveFromJsAsync();
-        var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, t.ETag);
+        var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, t.ETag, ChatId);
         if (r.Ok)
         {
             t.ETag = r.ETag;
@@ -297,7 +300,7 @@
         {
             case ConflictChoice.Reload:
                 {
-                    var r = await Api.GetWorkspaceFileStatusAsync(t.Path);
+                    var r = await Api.GetWorkspaceFileStatusAsync(t.Path, chatId: ChatId);
                     if (r.Body is { } body)
                     {
                         t.Doc = body.Content;
@@ -312,7 +315,7 @@
                 }
             case ConflictChoice.Overwrite:
                 {
-                    var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, "*");
+                    var r = await Api.PutWorkspaceFileAsync(t.Path, t.Doc, "*", ChatId);
                     if (r.Ok)
                     {
                         t.ETag = r.ETag;
@@ -328,7 +331,7 @@
                     {
                         return;
                     }
-                    await Api.PutWorkspaceFileAsync(to, t.Doc);
+                    await Api.PutWorkspaceFileAsync(to, t.Doc, chatId: ChatId);
                     await OnSaved.InvokeAsync();
                     break;
                 }
@@ -342,14 +345,14 @@
     {
         try
         {
-            var status = await Api.GetLspStatusAsync(tab.Path);
+            var status = await Api.GetLspStatusAsync(tab.Path, ChatId);
             if (status is null || !status.Enabled || status.Language is null)
             {
                 return; // linguagem sem servidor → UI não renderiza nada
             }
             if (!tab.LspOpened)
             {
-                tab.LspOpened = await Api.PostLspDocAsync(tab.Path, "open", tab.Doc);
+                tab.LspOpened = await Api.PostLspDocAsync(tab.Path, "open", tab.Doc, ChatId);
             }
             await RefreshLspDiagnosticsAsync(tab.Path);
         }
@@ -363,7 +366,7 @@
     /// <summary>Pull diagnostics do arquivo e joga nas squiggles/Problems.</summary>
     private async Task RefreshLspDiagnosticsAsync(string path)
     {
-        var r = await Api.GetLspDiagnosticsAsync(path);
+        var r = await Api.GetLspDiagnosticsAsync(path, ChatId);
         if (r is null)
         {
             return;
@@ -383,7 +386,7 @@
         {
             return null;
         }
-        try { return await Api.GetLspHoverAsync(t.Path, line, col); }
+        try { return await Api.GetLspHoverAsync(t.Path, line, col, ChatId); }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
             or OperationCanceledException or System.Text.Json.JsonException)
         {
@@ -413,7 +416,7 @@
             try
             {
                 await Task.Delay(800, ct);
-                await Api.PostLspDocAsync(tab.Path, "change", tab.Doc);
+                await Api.PostLspDocAsync(tab.Path, "change", tab.Doc, ChatId);
                 await Task.Delay(800, ct);
                 await InvokeAsync(async () =>
                 {

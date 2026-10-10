@@ -24,10 +24,10 @@ public static class RepoSkillEndpoints
     }
 
     private static async Task<IResult> ListSkillsAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         SkillDiscoveryService skills, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -39,10 +39,10 @@ public static class RepoSkillEndpoints
     }
 
     private static async Task<IResult> GetSkillAsync(
-        string name, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string name, string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         SkillDiscoveryService skills, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -57,10 +57,10 @@ public static class RepoSkillEndpoints
     }
 
     private static async Task<IResult> ListCommandsAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         SkillDiscoveryService skills, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -73,10 +73,10 @@ public static class RepoSkillEndpoints
     }
 
     private static async Task<IResult> GetCommandAsync(
-        string name, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string name, string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         SkillDiscoveryService skills, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -93,7 +93,7 @@ public static class RepoSkillEndpoints
 
     /// <summary>Guard comum: usuário autenticado + repo vinculado → workdir.</summary>
     private static async Task<(string? UserId, string? Workdir, IResult? Reject)> BoundWorkdirAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos, CancellationToken ct)
+        HttpContext http, AppDbContext db, WorkspaceRepoService repos, string? chatId, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -101,13 +101,19 @@ public static class RepoSkillEndpoints
             return (null, null, Results.Unauthorized());
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
-        if (binding is null)
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return (null, null, Results.NotFound(new { detail = "Chat não encontrado." }));
+        }
+
+        var binding = await repos.ResolveBindingAsync(user.Id, chatId, ct);
+        if (binding.Binding is null)
         {
             return (null, null, Results.NotFound(
                 new { detail = "Nenhum repositório vinculado.", bound = false }));
         }
 
-        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, ct), null);
+        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, chatId, ct), null);
     }
 }

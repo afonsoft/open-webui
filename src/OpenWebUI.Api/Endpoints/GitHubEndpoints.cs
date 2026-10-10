@@ -221,7 +221,7 @@ public static class GitHubEndpoints
     /// por token ausente ou indisponibilidade do GitHub.
     /// </summary>
     private static async Task<IResult> ListPullsAsync(
-        HttpContext http, AppDbContext db,
+        string? chatId, HttpContext http, AppDbContext db,
         WorkspaceRepoService repos, GitHubService github, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
@@ -230,7 +230,13 @@ public static class GitHubEndpoints
             return Results.Unauthorized();
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound(new { detail = "Chat não encontrado." });
+        }
+
+        var binding = (await repos.ResolveBindingAsync(user.Id, chatId, ct)).Binding;
         if (binding is null)
         {
             return Results.NotFound(new { detail = "Nenhum repositório vinculado ao workspace." });

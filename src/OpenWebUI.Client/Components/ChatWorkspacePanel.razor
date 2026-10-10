@@ -78,7 +78,7 @@
 
             case "changes":
                 @* Checkpoints da run (S6): Revert por snapshot. *@
-                <CheckpointList Checkpoints="Checkpoints" OnReverted="OnReverted" />
+                <CheckpointList Checkpoints="Checkpoints" ChatId="ChatId" OnReverted="OnReverted" />
                 @if (Git is { Git: true } git)
                 {
                     @* Workspace é repo git: branch + numstat + diff real (RF-018). *@
@@ -269,7 +269,7 @@
 
             case "pulls":
                 @* PRs abertos do repo vinculado + rollup de checks (D1). *@
-                <WorkspacePullsPanel />
+                <WorkspacePullsPanel ChatId="ChatId" />
                 break;
 
             case "tests":
@@ -409,6 +409,9 @@
     [Parameter] public bool IsAdmin { get; set; }
 
     /// <summary>Fecha o painel.</summary>
+    /// <summary>Chat cujo binding resolve o workspace (SPEC-20261010-workspace-chatid-scope); null = global.</summary>
+    [Parameter] public string? ChatId { get; set; }
+
     [Parameter] public EventCallback OnClose { get; set; }
 
     /// <summary>Pede o kill de um job (id).</summary>
