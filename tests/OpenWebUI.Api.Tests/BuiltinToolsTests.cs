@@ -1159,6 +1159,134 @@ public class BuiltinToolsTests
         });
     }
 
+    // ---------------- worktree review (SPEC-20261010-worktree-review) ----------------
+
+    private WorktreeService NovaWorktreeService() =>
+        new(new StubEnvLocal(_root),
+            new ConfigurationBuilder().Build(),
+            _provider.GetRequiredService<IServiceScopeFactory>(),
+            Microsoft.Extensions.Logging.Abstractions
+                .NullLogger<WorktreeService>.Instance);
+
+    /// <summary>Repo git bound ao chat c1 + worktree isolado da run.</summary>
+    private (string Repo, string WtDir, WorktreeService Wt) PrepararWorktreeDeRun(
+        string runId)
+    {
+        var wt = NovaWorktreeService();
+        var slug = $"r{Guid.NewGuid():N}"[..8];
+        var repo = Path.Join(_root, "data", "workspaces", "u1", slug);
+        Directory.CreateDirectory(repo);
+        GitLocal(repo, "init", "-b", "main");
+        File.WriteAllText(Path.Join(repo, "a.txt"), "base\n");
+        GitLocal(repo, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
+        GitLocal(repo, "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-m", "base");
+
+        using (var scope = _provider.CreateScope())
+        {
+            var cfg = scope.ServiceProvider.GetRequiredService<ConfigService>();
+            cfg.SetAsync("chat:c1:workspace.repo",
+                new WorkspaceRepoBinding($"o/{slug}", "main", slug),
+                default).Wait();
+        }
+        using (var seed = NewDb())
+        {
+            seed.ChatRuns.Add(new ChatRun
+            {
+                Id = runId, ChatId = "c1", UserId = "u1", Model = "m/x",
+                Status = ChatRunStatus.Completed, RequestJson = "{}",
+            });
+            seed.SaveChanges();
+        }
+
+        var wtDir = wt.PathFor("u1", runId);
+        GitLocal(repo, "worktree", "add", "--detach", wtDir, "HEAD");
+        return (repo, wtDir, wt);
+    }
+
+    [Test]
+    public async Task WorktreeDiff_RunComMudancas_MostraStatEPatch()
+    {
+        var (repo, wtDir, wt) = PrepararWorktreeDeRun("r-wt1");
+        File.WriteAllText(Path.Join(wtDir, "a.txt"), "alterado\n");
+        File.WriteAllText(Path.Join(wtDir, "novo.txt"), "n\n");
+
+        var tool = new WorktreeDiffBuiltinTool(NewDb(), wt);
+        var res = await tool.ExecuteAsync(
+            Args("""{"run_id":"r-wt1"}"""), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("a.txt"));
+            Assert.That(res.Text, Does.Contain("novo.txt"));
+            Assert.That(res.Text, Does.Contain("alterado"));
+        });
+        var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+            JsonSerializer.Serialize(res.Result))!;
+        Assert.That(data["hasChanges"].GetBoolean(), Is.True);
+    }
+
+    [Test]
+    public async Task WorktreeMerge_AplicaDiffNoWorkdirDoChatDaRun()
+    {
+        var (repo, wtDir, wt) = PrepararWorktreeDeRun("r-wt2");
+        File.WriteAllText(Path.Join(wtDir, "a.txt"), "mergeado\n");
+
+        using var scope = _provider.CreateScope();
+        var repos = scope.ServiceProvider
+            .GetRequiredService<WorkspaceRepoService>();
+        var tool = new WorktreeMergeBuiltinTool(NewDb(), wt, repos);
+        var res = await tool.ExecuteAsync(
+            Args("""{"run_id":"r-wt2","action":"merge"}"""), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("a.txt"), res.Text);
+            Assert.That(File.ReadAllText(Path.Join(repo, "a.txt")),
+                Is.EqualTo("mergeado\n"));
+            Assert.That(Directory.Exists(wtDir), Is.False,
+                "worktree deveria ser removido após merge completo");
+        });
+    }
+
+    [Test]
+    public async Task WorktreeMerge_Discard_RemoveSemAplicar()
+    {
+        var (repo, wtDir, wt) = PrepararWorktreeDeRun("r-wt3");
+        File.WriteAllText(Path.Join(wtDir, "a.txt"), "descartado\n");
+
+        using var scope = _provider.CreateScope();
+        var repos = scope.ServiceProvider
+            .GetRequiredService<WorkspaceRepoService>();
+        var tool = new WorktreeMergeBuiltinTool(NewDb(), wt, repos);
+        var res = await tool.ExecuteAsync(
+            Args("""{"run_id":"r-wt3","action":"discard"}"""), Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("descartado"));
+            Assert.That(File.ReadAllText(Path.Join(repo, "a.txt")),
+                Is.EqualTo("base\n"));
+            Assert.That(Directory.Exists(wtDir), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task RunResult_RunComWorktreeDirty_SinalizaRevisaoPendente()
+    {
+        var (_, wtDir, wt) = PrepararWorktreeDeRun("r-wt4");
+        File.WriteAllText(Path.Join(wtDir, "a.txt"), "pendente\n");
+
+        var tool = new RunResultBuiltinTool(NewDb(), wt);
+        var res = await tool.ExecuteAsync(
+            Args("""{"run_id":"r-wt4"}"""), Ctx(), default);
+
+        Assert.That(res.Text, Does.Contain("worktree"), res.Text);
+        var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+            JsonSerializer.Serialize(res.Result))!;
+        Assert.That(data["hasWorktreeChanges"].GetBoolean(), Is.True);
+    }
+
     private static string CriarOrigemGit(string branch)
     {
         var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
@@ -1333,7 +1461,7 @@ public class BuiltinToolsTests
     public async Task RunResult_Completed_DevolveConteudo()
     {
         var run = await SeedRunAsync(ChatRunStatus.Completed, content: "resposta do filho");
-        var result = await new RunResultBuiltinTool(NewDb())
+        var result = await new RunResultBuiltinTool(NewDb(), NovaWorktreeService())
             .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
         Assert.That(result.Text, Does.Contain("resposta do filho"));
     }
@@ -1342,7 +1470,7 @@ public class BuiltinToolsTests
     public async Task RunResult_RunDeOutroUsuario_NotFound()
     {
         var run = await SeedRunAsync(ChatRunStatus.Completed, userId: "u2");
-        var result = await new RunResultBuiltinTool(NewDb())
+        var result = await new RunResultBuiltinTool(NewDb(), NovaWorktreeService())
             .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
         Assert.That(result.Text, Does.Contain("não encontrada"));
     }
@@ -1351,7 +1479,7 @@ public class BuiltinToolsTests
     public async Task RunResult_AindaRodando_DevolveStatusSemConteudo()
     {
         var run = await SeedRunAsync(ChatRunStatus.Running);
-        var result = await new RunResultBuiltinTool(NewDb())
+        var result = await new RunResultBuiltinTool(NewDb(), NovaWorktreeService())
             .ExecuteAsync(Args($$"""{"run_id":"{{run.Id}}"}"""), Ctx(), default);
         Assert.That(result.Text, Does.Contain("running"));
     }
@@ -1359,7 +1487,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task RunResult_SemRunId_PedeParametro()
     {
-        var result = await new RunResultBuiltinTool(NewDb())
+        var result = await new RunResultBuiltinTool(NewDb(), NovaWorktreeService())
             .ExecuteAsync(Args("{}"), Ctx(), default);
         Assert.That(result.Text, Does.Contain("run_id"));
     }
