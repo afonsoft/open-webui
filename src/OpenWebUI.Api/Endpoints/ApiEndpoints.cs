@@ -367,7 +367,11 @@ public static class ApiEndpoints
                 .Select((_, i) => !string.IsNullOrEmpty(connections.OpenAiApiKeys.ElementAtOrDefault(i)))
                 .ToList(),
             connections.OllamaNames,
-            connections.OpenAiNames));
+            connections.OpenAiNames,
+            connections.ProvidersOrEmpty
+                .Select(p => new ProviderConnectionResponse(
+                    p.Type, p.BaseUrl, !string.IsNullOrEmpty(p.ApiKey), p.Name))
+                .ToList()));
     }
 
     /// <summary>
@@ -501,7 +505,37 @@ public static class ApiEndpoints
             })
             .ToList();
 
-        var updated = request with { OpenAiApiKeys = keys };
+        // Conexões tipadas: valida tipo/chave e preserva chaves existentes
+        // quando o campo vier vazio (a UI não reenvia segredos).
+        var typedProviders = new List<ProviderConnection>();
+        foreach (var p in request.ProvidersOrEmpty)
+        {
+            var type = p.Type?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (!ProviderTypes.All.Contains(type))
+            {
+                return Results.BadRequest(new { error = $"provider type desconhecido: {p.Type}" });
+            }
+
+            var baseUrl = p.BaseUrl?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(baseUrl))
+            {
+                return Results.BadRequest(new { error = $"provider {type} sem baseUrl" });
+            }
+
+            var previous = current.ProvidersOrEmpty.FirstOrDefault(c =>
+                string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(c.BaseUrl?.TrimEnd('/'), baseUrl.TrimEnd('/'),
+                    StringComparison.OrdinalIgnoreCase));
+            var apiKey = !string.IsNullOrEmpty(p.ApiKey) ? p.ApiKey : previous?.ApiKey;
+            if (ProviderTypes.KeyRequired(type) && string.IsNullOrEmpty(apiKey))
+            {
+                return Results.BadRequest(new { error = $"provider {type} exige apiKey" });
+            }
+
+            typedProviders.Add(new ProviderConnection(type, baseUrl, apiKey, p.Name));
+        }
+
+        var updated = request with { OpenAiApiKeys = keys, Providers = typedProviders };
         await config.SetAsync("connections", updated, ct);
 
         // Detecção de capacidades em background: classifica /models e
@@ -528,7 +562,11 @@ public static class ApiEndpoints
                 .Select((_, i) => !string.IsNullOrEmpty(updated.OpenAiApiKeys.ElementAtOrDefault(i)))
                 .ToList(),
             updated.OllamaNames,
-            updated.OpenAiNames));
+            updated.OpenAiNames,
+            updated.ProvidersOrEmpty
+                .Select(p => new ProviderConnectionResponse(
+                    p.Type, p.BaseUrl, !string.IsNullOrEmpty(p.ApiKey), p.Name))
+                .ToList()));
     }
 
     private static async Task<IResult> ExportConfigAsync(

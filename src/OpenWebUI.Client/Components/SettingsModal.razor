@@ -266,6 +266,24 @@
                             }
                             <button class="button-sm" @onclick="() => _openAiRows.Add(new ConnectionRow())">@L["settings.add_connection"]</button>
                         </div>
+                        <div class="field">
+                            <div class="field-label">@L["settings.api_providers"]</div>
+                            @foreach (var row in _providerRows)
+                            {
+                                <div class="flex gap-2 mb-1 items-center flex-wrap sm:flex-nowrap">
+                                    <select class="input w-40 flex-none" @bind="row.Type" @bind:after="() => OnProviderTypeChanged(row)"
+                                            aria-label="@L["settings.provider_type"]">
+                                        <option value="anthropic">@L["settings.provider_anthropic"]</option>
+                                        <option value="google">@L["settings.provider_google"]</option>
+                                    </select>
+                                    <input class="input flex-1 min-w-40" @bind="row.Url" placeholder="@ProviderTypes.DefaultBaseUrl(row.Type)" aria-label="URL" />
+                                    <input class="input w-48" type="password" @bind="row.Key" aria-label="API key"
+                                           placeholder="@(row.KeyConfigured ? L["settings.keys_keep"] : L["settings.api_key_required"])" />
+                                    <button class="msg-action danger flex-none" aria-label="@L["common.delete"]" @onclick="() => _providerRows.Remove(row)">✕</button>
+                                </div>
+                            }
+                            <button class="button-sm" @onclick="AddProviderRow">@L["settings.add_provider"]</button>
+                        </div>
                         @if (_saveMessage is not null)
                         {
                             <div class="field-note">@_saveMessage</div>
@@ -614,6 +632,37 @@
     }
     private List<ConnectionRow> _ollamaRows = [];
     private List<ConnectionRow> _openAiRows = [];
+
+    /// <summary>Linha editável de conexão tipada (anthropic/google).</summary>
+    private sealed class ProviderRow
+    {
+        public string Type = ProviderTypes.Anthropic;
+        public string Name = string.Empty;
+        public string Url = string.Empty;
+        public string Key = string.Empty;
+        public bool KeyConfigured;
+    }
+    private List<ProviderRow> _providerRows = [];
+
+    private void AddProviderRow()
+    {
+        var row = new ProviderRow { Url = ProviderTypes.DefaultBaseUrl(ProviderTypes.Anthropic) };
+        _providerRows.Add(row);
+    }
+
+    /// <summary>Trocar o tipo recarrega o endpoint oficial quando o campo está
+    /// vazio ou ainda aponta para um default conhecido (URL custom é preservada).</summary>
+    private void OnProviderTypeChanged(ProviderRow row)
+    {
+        var knownDefaults = ProviderTypes.All
+            .Select(ProviderTypes.DefaultBaseUrl)
+            .Where(u => u.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (row.Url.Trim().Length == 0 || knownDefaults.Contains(row.Url.Trim().TrimEnd('/')))
+        {
+            row.Url = ProviderTypes.DefaultBaseUrl(row.Type);
+        }
+    }
     private string? _saveMessage;
     private string? _version;
 
@@ -790,6 +839,15 @@
                         Url = url,
                         Name = _connections.OpenAiNames?.ElementAtOrDefault(i) ?? string.Empty,
                         KeyConfigured = _connections.OpenAiKeyConfigured.ElementAtOrDefault(i),
+                    })
+                    .ToList();
+                _providerRows = (_connections.Providers ?? [])
+                    .Select(p => new ProviderRow
+                    {
+                        Type = p.Type,
+                        Name = p.Name ?? string.Empty,
+                        Url = p.BaseUrl,
+                        KeyConfigured = p.KeyConfigured,
                     })
                     .ToList();
             }
@@ -1069,10 +1127,17 @@
         var openAi = openAiRows.Select(r => r.Url.Trim()).ToList();
         var openAiNames = openAiRows.Select(r => r.Name.Trim()).ToList();
         var keys = openAiRows.Select(r => r.Key.Trim()).ToList();
+        var providerRows = _providerRows
+            .Where(r => r.Url.Trim().Length > 0)
+            .Select(r => new ProviderConnection(
+                r.Type, r.Url.Trim(),
+                r.Key.Trim().Length > 0 ? r.Key.Trim() : null,
+                r.Name.Trim().Length > 0 ? r.Name.Trim() : null))
+            .ToList();
 
         // Chaves deixadas em branco são preservadas pelo servidor.
         var result = await Api.UpdateConnectionsAsync(
-            new ConnectionsConfig(ollama, openAi, keys, ollamaNames, openAiNames));
+            new ConnectionsConfig(ollama, openAi, keys, ollamaNames, openAiNames, providerRows));
         _saveMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
         _connections = result;
         if (result is not null)
@@ -1081,6 +1146,12 @@
             {
                 _openAiRows[i].KeyConfigured = result.OpenAiKeyConfigured[i];
                 _openAiRows[i].Key = string.Empty;
+            }
+
+            for (var i = 0; i < _providerRows.Count && result.Providers is not null && i < result.Providers.Count; i++)
+            {
+                _providerRows[i].KeyConfigured = result.Providers[i].KeyConfigured;
+                _providerRows[i].Key = string.Empty;
             }
         }
     }

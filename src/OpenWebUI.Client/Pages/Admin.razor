@@ -474,6 +474,53 @@
                             }
                         }
                         <div class="card-row">
+                            <div class="card-main">
+                                <div class="card-title">@L["settings.api_providers"]</div>
+                                <div class="card-sub">@L["admin.prov_typed_sub"]</div>
+                            </div>
+                            <div class="card-actions">
+                                <button class="button-sm" @onclick="AddProvTypedRow">+ @L["common.add"]</button>
+                            </div>
+                        </div>
+                        @for (var i = 0; i < _provTypedRows.Count; i++)
+                        {
+                            var row = _provTypedRows[i];
+                            var idx = i;
+                            <div class="card-row">
+                                <div class="flex flex-col sm:flex-row gap-2 w-full">
+                                    <select aria-label="@L["settings.provider_type"]" class="input sm:w-44"
+                                            @bind="row.Type" @bind:after="() => OnProvTypedTypeChanged(row)">
+                                        <option value="anthropic">@L["settings.provider_anthropic"]</option>
+                                        <option value="google">@L["settings.provider_google"]</option>
+                                    </select>
+                                    <input aria-label="@L["admin.prov_name"]" class="input sm:w-40" @bind="row.Name" placeholder="@L["admin.prov_name"]" />
+                                    <input aria-label="URL" class="input flex-1" @bind="row.Url" placeholder="@ProviderTypes.DefaultBaseUrl(row.Type)" />
+                                    <input aria-label="@L["settings.api_key"]" class="input sm:w-48" type="password" @bind="row.Key"
+                                           placeholder="@(row.KeyConfigured ? L["admin.prov_key_set"] : L["settings.api_key_required"])" />
+                                    <div class="flex gap-2 items-center">
+                                        <button class="button-sm" disabled="@_provTesting"
+                                                @onclick="() => TestProvTypedConnectionAsync(row)">@L["admin.prov_test"]</button>
+                                        <button class="msg-action danger" aria-label="@L["common.delete"]" @onclick="() => _provTypedRows.Remove(row)">🗑</button>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (row.TestedModels is { Count: > 0 })
+                            {
+                                <div class="card-row">
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach (var m in row.TestedModels.Take(20))
+                                        {
+                                            <span class="role-badge">@m</span>
+                                        }
+                                        @if (row.TestedModels.Count > 20)
+                                        {
+                                            <span class="role-badge">+@(row.TestedModels.Count - 20)</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        <div class="card-row">
                             @if (_provMessage is not null)
                             {
                                 <div class="field-note">@_provMessage</div>
@@ -1583,6 +1630,18 @@
     }
     private List<ProvConnectionRow> _provOllamaRows = [];
     private List<ProvConnectionRow> _provOpenAiRows = [];
+
+    /// <summary>Linha editável de conexão tipada (anthropic/google) — com resultado do teste.</summary>
+    private sealed class ProvTypedRow
+    {
+        public string Type = ProviderTypes.Anthropic;
+        public string Name = string.Empty;
+        public string Url = string.Empty;
+        public string Key = string.Empty;
+        public bool KeyConfigured;
+        public List<string>? TestedModels;
+    }
+    private List<ProvTypedRow> _provTypedRows = [];
     private readonly Dictionary<(string Type, int Idx), List<string>> _provConnModels = new();
     private bool _provTesting;
     private string? _provMessage;
@@ -1882,10 +1941,60 @@
                         && _connections.OpenAiKeyConfigured[i],
                 }).ToList();
         }
+        _provTypedRows = (_connections?.Providers ?? [])
+            .Select(p => new ProvTypedRow
+            {
+                Type = p.Type,
+                Url = p.BaseUrl,
+                Name = p.Name ?? string.Empty,
+                KeyConfigured = p.KeyConfigured,
+            })
+            .ToList();
         // Sem conexão Ollama cadastrada o proxy responde 503 — evita a chamada.
         _provOllamaInstalled = _provOllamaRows.Count > 0
             ? (await Api.GetOllamaTagsAsync())?.Models.ToList() ?? []
             : [];
+    }
+
+    private void AddProvTypedRow() => _provTypedRows.Add(
+        new ProvTypedRow { Url = ProviderTypes.DefaultBaseUrl(ProviderTypes.Anthropic) });
+
+    /// <summary>Trocar o tipo recarrega o endpoint oficial quando a URL está
+    /// vazia ou ainda é um default conhecido (URL custom é preservada).</summary>
+    private void OnProvTypedTypeChanged(ProvTypedRow row)
+    {
+        var knownDefaults = ProviderTypes.All
+            .Select(ProviderTypes.DefaultBaseUrl)
+            .Where(u => u.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (row.Url.Trim().Length == 0 || knownDefaults.Contains(row.Url.Trim().TrimEnd('/')))
+        {
+            row.Url = ProviderTypes.DefaultBaseUrl(row.Type);
+        }
+    }
+
+    private async Task TestProvTypedConnectionAsync(ProvTypedRow row)
+    {
+        _provTesting = true;
+        _provMessage = null;
+        row.TestedModels = null;
+        try
+        {
+            // Índice da linha dentro das conexões do mesmo tipo (contrato do endpoint).
+            var sameTypeIndex = _provTypedRows
+                .Where(r => r.Type == row.Type)
+                .ToList()
+                .IndexOf(row);
+            var result = await Api.GetConnectionModelsAsync(row.Type, sameTypeIndex);
+            row.TestedModels = result?.Data.Select(m => m.Id).ToList() ?? [];
+            _provMessage = row.TestedModels.Count == 0
+                ? L["admin.prov_test_empty"]
+                : L.T("admin.prov_test_ok", ("count", row.TestedModels.Count.ToString()));
+        }
+        finally
+        {
+            _provTesting = false;
+        }
     }
 
     private async Task TestConnectionAsync(string type, int index)
@@ -1913,12 +2022,20 @@
         var ollamaNames = _provOllamaRows.Where(r => r.Url.Trim().Length > 0)
             .Select(r => r.Name.Trim()).ToList();
         var openAiRows = _provOpenAiRows.Where(r => r.Url.Trim().Length > 0).ToList();
+        var typedRows = _provTypedRows
+            .Where(r => r.Url.Trim().Length > 0)
+            .Select(r => new ProviderConnection(
+                r.Type, r.Url.Trim(),
+                r.Key.Trim().Length > 0 ? r.Key.Trim() : null,
+                r.Name.Trim().Length > 0 ? r.Name.Trim() : null))
+            .ToList();
         var result = await Api.UpdateConnectionsAsync(new ConnectionsConfig(
             ollama,
             openAiRows.Select(r => r.Url.Trim()).ToList(),
             openAiRows.Select(r => r.Key.Trim()).ToList(),
             ollamaNames,
-            openAiRows.Select(r => r.Name.Trim()).ToList()));
+            openAiRows.Select(r => r.Name.Trim()).ToList(),
+            typedRows));
         _provMessage = result is null ? L["settings.save_failed"] : L["settings.saved"];
         _connections = result;
         if (result is not null)
@@ -1928,6 +2045,12 @@
             {
                 _provOpenAiRows[i].KeyConfigured = result.OpenAiKeyConfigured[i];
                 _provOpenAiRows[i].Key = string.Empty;
+            }
+
+            for (var i = 0; i < _provTypedRows.Count && result.Providers is not null && i < result.Providers.Count; i++)
+            {
+                _provTypedRows[i].KeyConfigured = result.Providers[i].KeyConfigured;
+                _provTypedRows[i].Key = string.Empty;
             }
         }
     }
