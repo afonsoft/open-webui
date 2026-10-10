@@ -802,6 +802,82 @@ public class GitHubWorkspaceTests
         public HttpClient CreateClient(string name) => new(handler);
     }
 
+    // ---------------- Binding por chat (SPEC-20261010-chat-repo-binding) ----------------
+
+    [Test]
+    public async Task ChatBinding_Resolve_PriorizaChat_SobreGlobal()
+    {
+        var originA = CriarOrigem("main");
+        var originB = CriarOrigem("main");
+        var (global, _) = await _repos.OpenAsync("u1", "a/ra", "main", originA, null, default);
+        var (chat, err) = await _repos.OpenChatAsync("u1", "c1", "b/rb", "main", originB, null, default);
+
+        Assert.That(err, Is.Null);
+        var (resolved, source) = await _repos.ResolveBindingAsync("u1", "c1", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("chat"));
+            Assert.That(resolved!.Repo, Is.EqualTo("b/rb"));
+            Assert.That(resolved.Dir, Is.Not.EqualTo(global!.Dir));
+            Assert.That(_repos.ResolveWorkdirAsync("u1", "c1", default).Result,
+                Does.EndWith(resolved.Dir));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_SemChatBinding_CaiNoGlobal_EClearVolta()
+    {
+        var origin = CriarOrigem("main");
+        await _repos.OpenAsync("u1", "a/ra", "main", origin, null, default);
+
+        // Sem binding por chat → fallback global.
+        var (fallback, source) = await _repos.ResolveBindingAsync("u1", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("user"));
+            Assert.That(fallback!.Repo, Is.EqualTo("a/ra"));
+        });
+
+        // Binding por chat → depois de limpar volta ao global.
+        var originB = CriarOrigem("main");
+        await _repos.OpenChatAsync("u1", "c9", "b/rb", "main", originB, null, default);
+        await _repos.SetChatBindingAsync("c9", null, default);
+        var (back, backSource) = await _repos.ResolveBindingAsync("u1", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(backSource, Is.EqualTo("user"));
+            Assert.That(back!.Repo, Is.EqualTo("a/ra"));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_SemNenhum_SourceNone()
+    {
+        var (binding, source) = await _repos.ResolveBindingAsync("u9", "c9", default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source, Is.EqualTo("none"));
+            Assert.That(binding, Is.Null);
+            Assert.That(_repos.ResolveWorkdirAsync("u9", "c9", default).Result,
+                Does.EndWith("workspaces/u9".Replace('/', Path.DirectorySeparatorChar)));
+        });
+    }
+
+    [Test]
+    public async Task ChatBinding_DoisChats_WorkdirsDistintos()
+    {
+        var originA = CriarOrigem("main");
+        var originB = CriarOrigem("main");
+        await _repos.OpenChatAsync("u1", "cA", "a/ra", "main", originA, null, default);
+        await _repos.OpenChatAsync("u1", "cB", "b/rb", "main", originB, null, default);
+
+        var wdA = await _repos.ResolveWorkdirAsync("u1", "cA", default);
+        var wdB = await _repos.ResolveWorkdirAsync("u1", "cB", default);
+        Assert.That(wdA, Is.Not.EqualTo(wdB));
+        Assert.That(Directory.Exists(Path.Join(wdA, ".git")), Is.True);
+        Assert.That(Directory.Exists(Path.Join(wdB, ".git")), Is.True);
+    }
+
     private sealed class StubEnv(string contentRoot) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Test";

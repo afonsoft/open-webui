@@ -21,6 +21,13 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
 
     private static string BindingKey(string userId) => $"u:{userId}:workspace.repo";
 
+    /// <summary>
+    /// Binding por chat (SPEC-20261010-chat-repo-binding): precede o binding
+    /// global do usuário — cada chat pode trabalhar num repo diferente
+    /// (estilo opencode-web, uma session por projeto).
+    /// </summary>
+    private static string ChatBindingKey(string chatId) => $"chat:{chatId}:workspace.repo";
+
     /// <summary>Raiz do workspace do usuário (jail das tools). Respeita
     /// <see cref="DataPaths.Root"/> (env <c>DATA_ROOT</c> — no Docker, /data).</summary>
     public string WorkspaceRoot(string userId) =>
@@ -30,13 +37,45 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
     public Task<WorkspaceRepoBinding?> GetBindingAsync(string userId, CancellationToken ct) =>
         config.GetAsync<WorkspaceRepoBinding?>(BindingKey(userId), null, ct);
 
+    /// <summary>Binding por chat (null quando o chat não tem repo próprio).</summary>
+    public Task<WorkspaceRepoBinding?> GetChatBindingAsync(string chatId, CancellationToken ct) =>
+        config.GetAsync<WorkspaceRepoBinding?>(ChatBindingKey(chatId), null, ct);
+
+    /// <summary>Define ou limpa (null) o binding por chat.</summary>
+    public Task SetChatBindingAsync(
+        string chatId, WorkspaceRepoBinding? binding, CancellationToken ct) =>
+        config.SetAsync(ChatBindingKey(chatId), binding, ct);
+
+    /// <summary>
+    /// Binding efetivo com a origem: <c>chat</c> → <c>user</c> → <c>none</c>.
+    /// </summary>
+    public async Task<(WorkspaceRepoBinding? Binding, string Source)> ResolveBindingAsync(
+        string userId, string? chatId, CancellationToken ct)
+    {
+        if (chatId is not null
+            && await GetChatBindingAsync(chatId, ct) is { } chatBinding)
+        {
+            return (chatBinding, "chat");
+        }
+        var userBinding = await GetBindingAsync(userId, ct);
+        return (userBinding, userBinding is not null ? "user" : "none");
+    }
+
     /// <summary>
     /// Diretório de trabalho efetivo: o checkout do repo vinculado quando
     /// existe, senão a raiz do workspace.
     /// </summary>
-    public async Task<string> ResolveWorkdirAsync(string userId, CancellationToken ct)
+    public Task<string> ResolveWorkdirAsync(string userId, CancellationToken ct) =>
+        ResolveWorkdirAsync(userId, null, ct);
+
+    /// <summary>
+    /// Igual a <see cref="ResolveWorkdirAsync(string, CancellationToken)"/>
+    /// resolvendo primeiro o binding por chat (SPEC-20261010-chat-repo-binding).
+    /// </summary>
+    public async Task<string> ResolveWorkdirAsync(
+        string userId, string? chatId, CancellationToken ct)
     {
-        var binding = await GetBindingAsync(userId, ct);
+        var (binding, _) = await ResolveBindingAsync(userId, chatId, ct);
         if (binding is null)
         {
             return WorkspaceRoot(userId);
@@ -65,6 +104,70 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
             return (null, "Branch inválida.");
         }
 
+        var (dir, absDir, error) = await EnsureCheckoutAsync(
+            userId, slug, branch, cloneUrl, token, ct);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        // TestCommand/FormatCommand customizados sobrevivem a re-open/branch switch (RF-003).
+        var previous = await GetBindingAsync(userId, ct);
+        var binding = new WorkspaceRepoBinding(
+            slug, branch, dir, previous?.TestCommand, previous?.FormatCommand);
+        await config.SetAsync(BindingKey(userId), binding, ct);
+        // Bind/branch novo → cache de skills/commands do workdir expira na hora.
+        SkillDiscoveryService.Invalidate(absDir);
+        return (binding, null);
+    }
+
+    /// <summary>
+    /// Igual a <see cref="OpenAsync"/> gravando o binding por chat
+    /// (SPEC-20261010-chat-repo-binding). O checkout é compartilhado —
+    /// diretório determinístico por slug, então vários chats (e o binding
+    /// global) apontam para a mesma pasta sem clonar de novo.
+    /// </summary>
+    public async Task<(WorkspaceRepoBinding? Binding, string? Error)> OpenChatAsync(
+        string userId, string chatId, string slug, string branch,
+        string cloneUrl, string? token, CancellationToken ct)
+    {
+        if (!IsValidSlug(slug))
+        {
+            return (null, "Repositório inválido — use o formato owner/repo.");
+        }
+        if (string.IsNullOrWhiteSpace(branch) || branch.Any(char.IsWhiteSpace)
+            || branch.StartsWith('-'))
+        {
+            return (null, "Branch inválida.");
+        }
+
+        var (dir, absDir, error) = await EnsureCheckoutAsync(
+            userId, slug, branch, cloneUrl, token, ct);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        // Comandos customizados: herda do binding de chat anterior, caindo
+        // no global do usuário quando o chat nunca teve repo próprio.
+        var previous = await GetChatBindingAsync(chatId, ct)
+            ?? await GetBindingAsync(userId, ct);
+        var binding = new WorkspaceRepoBinding(
+            slug, branch, dir, previous?.TestCommand, previous?.FormatCommand);
+        await config.SetAsync(ChatBindingKey(chatId), binding, ct);
+        SkillDiscoveryService.Invalidate(absDir);
+        return (binding, null);
+    }
+
+    /// <summary>
+    /// Garante o checkout do repo no workspace (clone shallow ou
+    /// fetch+switch de branch no existente). Devolve o dir relativo e o
+    /// caminho absoluto; <paramref name="error"/> preenchido em falha.
+    /// </summary>
+    private async Task<(string Dir, string AbsDir, string? Error)> EnsureCheckoutAsync(
+        string userId, string slug, string branch,
+        string cloneUrl, string? token, CancellationToken ct)
+    {
         var name = slug[(slug.IndexOf('/') + 1)..];
         var dir = $"repos/{Sanitize(slug[..slug.IndexOf('/')])}__{Sanitize(name)}";
         var root = WorkspaceRoot(userId);
@@ -84,26 +187,14 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
         }
         else if (Directory.Exists(absDir) && Directory.EnumerateFileSystemEntries(absDir).Any())
         {
-            return (null, $"Diretório '{dir}' já existe com outro conteúdo.");
+            return (dir, absDir, $"Diretório '{dir}' já existe com outro conteúdo.");
         }
         else
         {
             error = await CloneAsync(absDir, cloneUrl, branch, token, ct);
         }
 
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        // TestCommand/FormatCommand customizados sobrevivem a re-open/branch switch (RF-003).
-        var previous = await GetBindingAsync(userId, ct);
-        var binding = new WorkspaceRepoBinding(
-            slug, branch, dir, previous?.TestCommand, previous?.FormatCommand);
-        await config.SetAsync(BindingKey(userId), binding, ct);
-        // Bind/branch novo → cache de skills/commands do workdir expira na hora.
-        SkillDiscoveryService.Invalidate(absDir);
-        return (binding, null);
+        return (dir, absDir, error);
     }
 
     /// <summary>Desvincula o repositório (o checkout permanece no disco).</summary>

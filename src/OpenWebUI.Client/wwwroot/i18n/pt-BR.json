@@ -851,5 +851,8 @@
   "sidebar.children": "Subtarefas",
   "sidebar.delegated": "Chat delegado",
   "sidebar.delegated_badge": "delegado",
-  "chat.parent": "Chat pai"
+  "chat.parent": "Chat pai",
+  "chat.repo_source_chat": "deste chat",
+  "chat.repo_source_user": "global",
+  "chat.repo_source_none": "nenhum"
 }

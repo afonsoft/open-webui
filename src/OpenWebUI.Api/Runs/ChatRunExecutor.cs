@@ -119,7 +119,8 @@ public sealed class ChatRunExecutor(
                 .Select(c => c.Mode).FirstOrDefaultAsync(ct) ?? "build";
 
             var effective = await ChatPipeline.EnrichRequestAsync(
-                request, user, db, config, rag, webSearch, repos, ct, chatMode);
+                request, user, db, config, rag, webSearch, repos, ct, chatMode,
+                run.ChatId);
 
             var outletRules = ModelFilterService.OutletRules(
                 ModelFilterService.Parse(await db.ModelEntries.AsNoTracking()
@@ -300,8 +301,9 @@ public sealed class ChatRunExecutor(
     private async Task<BuiltinToolContext> BuildToolContextAsync(
         ChatRun run, User user, CancellationToken ct)
     {
-        // Com repo vinculado o workdir vira o checkout do repo (mesmo jail).
-        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        // Com repo vinculado o workdir vira o checkout do repo (mesmo jail);
+        // binding por chat precede o global (SPEC-20261010-chat-repo-binding).
+        var workdir = await repos.ResolveWorkdirAsync(user.Id, run.ChatId, ct);
         var (isolated, warning) = await worktrees.TryCreateForRunAsync(
             user.Id, run.Id, workdir, ct);
         if (warning is not null)

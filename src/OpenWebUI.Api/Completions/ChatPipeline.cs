@@ -43,7 +43,8 @@ public static class ChatPipeline
         WebSearchService webSearch,
         WorkspaceRepoService repos,
         CancellationToken ct,
-        string? agentMode = null)
+        string? agentMode = null,
+        string? chatId = null)
     {
         var model = request.Model;
         var messages = request.Messages.ToList();
@@ -179,7 +180,9 @@ public static class ChatPipeline
         // 3.5. Repositório vinculado ao workspace (SPEC-20261008-github-repo-workspace):
         // o modelo precisa saber que as tools file_*/shell_exec operam dentro
         // do checkout do repo vinculado (a raiz do workspace vira a raiz do repo).
-        var repoBinding = await repos.GetBindingAsync(user.Id, ct);
+        // Binding por chat precede o global do usuário
+        // (SPEC-20261010-chat-repo-binding).
+        var (repoBinding, _) = await repos.ResolveBindingAsync(user.Id, chatId, ct);
         if (repoBinding is not null)
         {
             systemParts.Add(
@@ -191,7 +194,7 @@ public static class ChatPipeline
             // SPEC-20261009-repo-skills-slash-commands RF-005: instruções do
             // projeto (AGENTS.md → CLAUDE.md → .cursor/rules/*.md → README.md,
             // cap 32KB) entram como bloco marcado no system prompt.
-            var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var workdir = await repos.ResolveWorkdirAsync(user.Id, chatId, ct);
             var instructions = SkillDiscoveryService.LoadProjectInstructions(workdir);
             if (!string.IsNullOrWhiteSpace(instructions))
             {
@@ -205,7 +208,7 @@ public static class ChatPipeline
         // 16KB/arquivo, 64KB total; fora do jail é descartado em silêncio.
         if (request.MentionPaths is { Count: > 0 } mentionPaths)
         {
-            var mentionWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+            var mentionWorkdir = await repos.ResolveWorkdirAsync(user.Id, chatId, ct);
             var mentions = await OpenWebUI.Infrastructure.ChatTools.WorkspaceMentionContext
                 .BuildAsync(mentionWorkdir, mentionPaths, ct);
             if (!string.IsNullOrEmpty(mentions))

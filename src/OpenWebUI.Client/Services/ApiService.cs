@@ -910,6 +910,21 @@ public class ApiService(HttpClient http, AuthService auth)
         await SendStatusAsync(HttpMethod.Delete, "/api/v1/workspace/repo/");
 
     /// <summary>
+    /// Binding repo↔workspace DO CHAT (SPEC-20261010-chat-repo-binding):
+    /// devolve binding efetivo + origem (chat|user|none).
+    /// </summary>
+    public Task<ChatWorkspaceRepoResponse?> GetChatWorkspaceRepoAsync(string chatId) =>
+        SendAsync<ChatWorkspaceRepoResponse>(
+            HttpMethod.Get, $"/api/v1/chats/{chatId}/workspace-repo");
+
+    /// <summary>Abre repo por chat; <paramref name="repo"/> nulo limpa o binding do chat.</summary>
+    public Task<ChatWorkspaceRepoResponse?> PutChatWorkspaceRepoAsync(
+        string chatId, string? repo, string? branch) =>
+        SendAsync<ChatWorkspaceRepoResponse>(
+            HttpMethod.Put, $"/api/v1/chats/{chatId}/workspace-repo",
+            repo is null ? null : new WorkspaceRepoOpenRequest(repo, branch));
+
+    /// <summary>
     /// Aplica o diff do worktree da run no workdir compartilhado (E16 S9):
     /// conflitos voltam listados no response — nunca aplicados à força.
     /// </summary>

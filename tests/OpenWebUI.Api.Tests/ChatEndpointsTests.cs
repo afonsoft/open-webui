@@ -525,4 +525,67 @@ public class ChatEndpointsTests
         var res = await _client.GetAsync($"/api/v1/chats/{chat.Id}/children");
         Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
+
+    // ---- SPEC-20261010-chat-repo-binding: GET/PUT /{id}/workspace-repo ----
+
+    [Test]
+    public async Task WorkspaceRepo_SemBinding_SourceNone()
+    {
+        var auth = await SignUpAsync("RepoU", "repou@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("sem repo", Mensagens("oi"));
+
+        var resp = await _client.GetFromJsonAsync<ChatWorkspaceRepoResponse>(
+            $"/api/v1/chats/{chat.Id}/workspace-repo");
+        Assert.Multiple(() =>
+        {
+            Assert.That(resp!.Source, Is.EqualTo("none"));
+            Assert.That(resp.Binding, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task WorkspaceRepo_ChatInexistente_404()
+    {
+        var auth = await SignUpAsync("Repo404", "repo404@chats.local", "senha123");
+        UseToken(auth.Token);
+
+        Assert.That(
+            (await _client.GetAsync("/api/v1/chats/nao-existe/workspace-repo"))
+                .StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        Assert.That(
+            (await _client.PutAsJsonAsync(
+                "/api/v1/chats/nao-existe/workspace-repo",
+                new WorkspaceRepoOpenRequest("a/b", "main")))
+                .StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task WorkspaceRepo_ChatDeOutroUsuario_404()
+    {
+        var dono = await SignUpAsync("RepoA", "repoa@chats.local", "senha123");
+        UseToken(dono.Token);
+        var chat = await CriarChatAsync("repo privado", Mensagens("oi"));
+
+        var outro = await SignUpAsync("RepoB", "repob@chats.local", "senha123");
+        UseToken(outro.Token);
+        Assert.That(
+            (await _client.GetAsync($"/api/v1/chats/{chat.Id}/workspace-repo"))
+                .StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task WorkspaceRepo_PutVazio_LimpaBindingDoChat()
+    {
+        var auth = await SignUpAsync("RepoClr", "repoclr@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("limpa", Mensagens("oi"));
+
+        var resp = await _client.PutAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/workspace-repo",
+            new WorkspaceRepoOpenRequest(null, null));
+        Assert.That(resp.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var body = await resp.Content.ReadFromJsonAsync<ChatWorkspaceRepoResponse>();
+        Assert.That(body!.Source, Is.EqualTo("none"));
+    }
 }

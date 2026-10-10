@@ -851,5 +851,8 @@
   "sidebar.children": "Sotto-attività",
   "sidebar.delegated": "Chat delegata",
   "sidebar.delegated_badge": "delegata",
-  "chat.parent": "Chat genitore"
+  "chat.parent": "Chat genitore",
+  "chat.repo_source_chat": "di questa chat",
+  "chat.repo_source_user": "globale",
+  "chat.repo_source_none": "nessuno"
 }

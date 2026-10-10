@@ -851,5 +851,8 @@
   "sidebar.children": "Teilaufgaben",
   "sidebar.delegated": "Delegierter Chat",
   "sidebar.delegated_badge": "delegiert",
-  "chat.parent": "Übergeordneter Chat"
+  "chat.parent": "Übergeordneter Chat",
+  "chat.repo_source_chat": "dieses Chats",
+  "chat.repo_source_user": "global",
+  "chat.repo_source_none": "keins"
 }

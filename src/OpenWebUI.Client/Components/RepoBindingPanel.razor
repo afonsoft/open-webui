@@ -17,7 +17,12 @@ else
         <div class="memory-row">
             <div class="memory-text min-w-0">
                 <div class="text-sm text-gray-800 dark:text-gray-100 truncate font-mono">@boundRepo</div>
-                <div class="field-note mt-0">@L.T("chat.repo_bound_branch", ("branch", _bound.Branch ?? ""))</div>
+                <div class="field-note mt-0">@L.T("chat.repo_bound_branch", ("branch", _bound.Branch ?? ""))
+                    @if (_source is { } src)
+                    {
+                        <span class="role-badge ms-1">@L[$"chat.repo_source_{src}"]</span>
+                    }
+                </div>
             </div>
             <div class="card-actions">
                 <button type="button" class="msg-action danger"
@@ -114,6 +119,15 @@ else
     /// <summary>Disparado quando o binding muda (null = desvinculado).</summary>
     [Parameter] public EventCallback<WorkspaceRepoResponse?> BoundChanged { get; set; }
 
+    /// <summary>Disparado com a origem do binding efetivo (chat|user|none).</summary>
+    [Parameter] public EventCallback<string?> SourceChanged { get; set; }
+
+    /// <summary>
+    /// Escopo do binding (SPEC-20261010-chat-repo-binding): quando setado,
+    /// o painel opera no binding POR CHAT; null = global do usuário.
+    /// </summary>
+    [Parameter] public string? ChatId { get; set; }
+
     /// <summary>Disparado após abrir um repo com sucesso (o modal fecha).</summary>
     [Parameter] public EventCallback Opened { get; set; }
 
@@ -126,6 +140,7 @@ else
     private List<GitHubRepoResponse>? _repos;
     private List<string>? _branches;
     private WorkspaceRepoResponse? _bound;
+    private string? _source;
     private string _filter = string.Empty;
     private string _slug = string.Empty;
     private string _branch = "main";
@@ -141,8 +156,17 @@ else
         try
         {
             var cfgTask = Api.GetGitHubConfigAsync();
-            var boundTask = Api.GetWorkspaceRepoAsync();
-            _bound = await boundTask;
+            if (ChatId is { } cid)
+            {
+                var resp = await Api.GetChatWorkspaceRepoAsync(cid);
+                _bound = resp?.Binding;
+                _source = resp?.Source;
+            }
+            else
+            {
+                _bound = await Api.GetWorkspaceRepoAsync();
+                _source = null;
+            }
             var cfg = await cfgTask;
             _ghConfigured = cfg?.Configured == true;
             if (_bound?.Repo is { } repo)
@@ -200,7 +224,18 @@ else
     {
         _opening = true;
         _message = null;
-        var opened = await Api.OpenWorkspaceRepoAsync(_slug.Trim(), _branch.Trim());
+        WorkspaceRepoResponse? opened;
+        if (ChatId is { } cid)
+        {
+            var resp = await Api.PutChatWorkspaceRepoAsync(cid, _slug.Trim(), _branch.Trim());
+            opened = resp?.Binding;
+            _source = resp?.Source;
+            await SourceChanged.InvokeAsync(_source);
+        }
+        else
+        {
+            opened = await Api.OpenWorkspaceRepoAsync(_slug.Trim(), _branch.Trim());
+        }
         _opening = false;
         if (opened?.Repo is null)
         {
@@ -215,15 +250,28 @@ else
 
     private async Task UnbindAsync()
     {
-        if (await Api.UnbindWorkspaceRepoAsync())
+        if (ChatId is { } cid)
+        {
+            // Desvincula o binding POR CHAT — a resposta já traz o
+            // fallback global (source "user") quando existir.
+            var resp = await Api.PutChatWorkspaceRepoAsync(cid, null, null);
+            if (resp is not null)
+            {
+                _bound = resp.Binding;
+                _source = resp.Source;
+                await BoundChanged.InvokeAsync(resp.Binding);
+                await SourceChanged.InvokeAsync(resp.Source);
+                await Unbound.InvokeAsync();
+                return;
+            }
+        }
+        else if (await Api.UnbindWorkspaceRepoAsync())
         {
             _bound = null;
             await BoundChanged.InvokeAsync(null);
             await Unbound.InvokeAsync();
+            return;
         }
-        else
-        {
-            _message = L["chat.repo_unbind_error"];
-        }
+        _message = L["chat.repo_unbind_error"];
     }
 }

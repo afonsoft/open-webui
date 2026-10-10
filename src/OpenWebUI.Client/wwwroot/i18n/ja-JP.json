@@ -851,5 +851,8 @@
   "sidebar.children": "サブタスク",
   "sidebar.delegated": "チャット",
   "sidebar.delegated_badge": "",
-  "chat.parent": "チャット"
+  "chat.parent": "チャット",
+  "chat.repo_source_chat": "このチャット",
+  "chat.repo_source_user": "グローバル",
+  "chat.repo_source_none": "なし"
 }
