@@ -56,7 +56,7 @@ public class ChannelsV2Tests
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Dm_CreateOrReturn_DoisMembros() // RF-001
     {
         UseToken(_user.Token);
@@ -80,7 +80,7 @@ public class ChannelsV2Tests
         Assert.That(adminList!.First(c => c.Id == dm.Id).Name, Is.EqualTo("User"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Dm_TerceiroNaoVe_NaoSaiNaoAdiciona() // RF-001
     {
         var list = await GetDmIdAsync();
@@ -106,7 +106,7 @@ public class ChannelsV2Tests
         return channels!.First(c => c.Type == "dm").Id;
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Threads_RespostasEReplyCount() // RF-002
     {
         var channelId = await GetDmIdAsync();
@@ -134,7 +134,7 @@ public class ChannelsV2Tests
         Assert.That(feed!.First(m => m.Id == root.Id).ReplyCount, Is.EqualTo(1));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Reactions_ToggleEAggregado() // RF-003
     {
         var channelId = await GetDmIdAsync();
@@ -172,7 +172,7 @@ public class ChannelsV2Tests
         Assert.That(feed!.First(m => m.Id == msg.Id).Reactions[0].Count, Is.EqualTo(1));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Read_UnreadCount_MarcaLido() // RF-004
     {
         // canal de grupo entre admin e user
@@ -209,7 +209,7 @@ public class ChannelsV2Tests
         Assert.That(self!.First(c => c.Id == channel.Id).UnreadCount, Is.EqualTo(0));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Pin_FixaELista() // RF-005
     {
         var channelId = await GetDmIdAsync();
@@ -235,7 +235,7 @@ public class ChannelsV2Tests
         Assert.That(after!, Is.Empty);
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Reactions_NaoMembro_Forbidden() // RF-003
     {
         var channelId = await GetDmIdAsync();

@@ -221,7 +221,7 @@ public class InfraServicesTests
         return json.RootElement.GetProperty("indexed").GetBoolean();
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Models_OllamaEOpenAI_AgregaOsDoisProvedores()
     {
         UseToken(_adminToken);
@@ -242,7 +242,7 @@ public class InfraServicesTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ChatCompletions_Ollama_StreamNDJSON_ViraSSE()
     {
         var user = await SignUpAsync("Ollama", "ollama@infra.local", "senha123");
@@ -264,7 +264,7 @@ public class InfraServicesTests
         Assert.That(_lastOllamaChatBody, Does.Contain("\"stream\":true"));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ChatCompletions_OpenAI_StreamSSE_EncaminhaLinhas()
     {
         var user = await SignUpAsync("OpenAi", "openai@infra.local", "senha123");
@@ -284,7 +284,7 @@ public class InfraServicesTests
         });
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task ChatCompletions_ConexaoInexistente_RetornaErroSSE()
     {
         var user = await SignUpAsync("BadConn", "badconn@infra.local", "senha123");
@@ -305,7 +305,7 @@ public class InfraServicesTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Knowledge_UploadIndexa_ComEmbeddingOllama_EChatInjetaContextoRag()
     {
         var user = await SignUpAsync("Rag", "rag@infra.local", "senha123");
@@ -336,7 +336,7 @@ public class InfraServicesTests
         });
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Embedding_SemOllama_UsaRotaEmbeddingsOpenAI()
     {
         UseToken(_adminToken);
@@ -366,7 +366,7 @@ public class InfraServicesTests
         }
     }
 
-    [Test, Order(7)]
+    [Test]
     public void AutomationSchedule_Interval_SomaMinutosEClampMinimo()
     {
         var now = new DateTimeOffset(2026, 6, 17, 10, 0, 0, TimeSpan.Zero);
@@ -382,7 +382,7 @@ public class InfraServicesTests
         Assert.That(clamped, Is.EqualTo(now.AddMinutes(1).ToUnixTimeSeconds()));
     }
 
-    [Test, Order(8)]
+    [Test]
     public void AutomationSchedule_Daily_BordasDeHorarioUtc()
     {
         var now = new DateTimeOffset(2026, 6, 17, 10, 0, 0, TimeSpan.Zero); // quarta-feira
@@ -412,7 +412,7 @@ public class InfraServicesTests
             new Automation { ScheduleKind = "daily" }, now), Is.Null);
     }
 
-    [Test, Order(9)]
+    [Test]
     public void AutomationSchedule_Weekly_DiaDaSemanaEBordasUtc()
     {
         var now = new DateTimeOffset(2026, 6, 17, 10, 0, 0, TimeSpan.Zero); // quarta (3)
@@ -446,7 +446,7 @@ public class InfraServicesTests
             new Automation { ScheduleKind = "cron" }, now), Is.Null);
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task ConfigService_JwtSecret_IdempotenteEPersistido()
     {
         string first;
@@ -468,7 +468,7 @@ public class InfraServicesTests
         Assert.That(third, Is.EqualTo(first));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task OAuthCatalog_ProvidersRegistrados_ViaEnv()
     {
         var original = new Dictionary<string, string?>
@@ -515,7 +515,7 @@ public class InfraServicesTests
         }
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task ToolExecutor_LoadEnabled_ECaminhosDeErro()
     {
         var user = await SignUpAsync("Tools", "tools@infra.local", "senha123");

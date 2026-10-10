@@ -55,7 +55,7 @@ public class ConfigV2Tests
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Banners_CrudSomenteAdmin()
     {
         UseToken(_admin.Token);
@@ -83,7 +83,7 @@ public class ConfigV2Tests
         Assert.That(afterDelete!.Any(b => b.Id == banner.Id), Is.False);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Banners_UsuarioComum_LeMasNaoEscreve()
     {
         var user = await SignUpAsync("Comum", "comum@cfgv2.local");
@@ -97,7 +97,7 @@ public class ConfigV2Tests
         Assert.That(write.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ModelsConfig_PersisteDefaultModelsESugestoes()
     {
         UseToken(_admin.Token);
@@ -121,7 +121,7 @@ public class ConfigV2Tests
         Assert.That(appConfig.DefaultPromptSuggestions.Select(s => s.Title), Does.Contain("Resumir"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task SignupToggle_Desabilitado_BloqueiaCadastro()
     {
         UseToken(_admin.Token);
@@ -138,7 +138,7 @@ public class ConfigV2Tests
         await _client.PostAsJsonAsync("/api/v1/configs/signup", new SignupConfig(true, "user"));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task ApiKeyToggle_Desabilitado_RejeitaChaveExistente()
     {
         UseToken(_admin.Token);
@@ -162,7 +162,7 @@ public class ConfigV2Tests
         await _client.PostAsJsonAsync("/api/v1/configs/api_key", new FeatureToggle(true));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Toggles_E_CodeExecution_Roundtrip()
     {
         UseToken(_admin.Token);
@@ -184,7 +184,7 @@ public class ConfigV2Tests
         Assert.That(direct!.Enabled, Is.True);
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task JwtConfig_Roundtrip_E_Validacao()
     {
         UseToken(_admin.Token);
@@ -201,7 +201,7 @@ public class ConfigV2Tests
         await _client.PostAsJsonAsync("/api/v1/configs/jwt", new JwtExpiryConfig("7d"));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Writes_UsuarioComum_RetornaProibido()
     {
         var user = await SignUpAsync("Sem Admin", "semadmin@cfgv2.local");

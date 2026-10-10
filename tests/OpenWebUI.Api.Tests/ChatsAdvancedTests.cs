@@ -63,7 +63,7 @@ public class ChatsAdvancedTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Edicao_PreservaVersaoAnterior()
     {
         UseToken(_user.Token);
@@ -77,7 +77,7 @@ public class ChatsAdvancedTests
         Assert.That(versions![0].Content, Is.EqualTo("pergunta original"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Regeneracao_PreservaVersaoPeloUpsertCompleto()
     {
         UseToken(_user.Token);
@@ -98,7 +98,7 @@ public class ChatsAdvancedTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Versoes_VaziasParaMensagemSemEdicao()
     {
         UseToken(_user.Token);
@@ -112,7 +112,7 @@ public class ChatsAdvancedTests
         Assert.That(m1.Content, Is.EqualTo("pergunta editada"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task AdminLista_TodosOsChatsPaginados()
     {
         UseToken(_admin.Token);
@@ -129,7 +129,7 @@ public class ChatsAdvancedTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task AdminLista_NaoAdminRecebe403()
     {
         UseToken(_user.Token);
@@ -137,7 +137,7 @@ public class ChatsAdvancedTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task AdminLista_FiltroPorTitulo()
     {
         UseToken(_admin.Token);

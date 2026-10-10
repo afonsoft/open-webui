@@ -90,7 +90,7 @@ public class PermissionsGranularTests
 
     // ----------------- Override por usuário -----------------
 
-    [Test, Order(1)]
+    [Test]
     public async Task Override_Usuario_Vence_Grupo_Na_Verificacao_Do_Servico()
     {
         // Grupo que nega workspace.models; override do usuário permite de volta.
@@ -113,7 +113,7 @@ public class PermissionsGranularTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Put_Permissoes_NaoAdmin_403()
     {
         var user = await SignUpAsync("U2", "u2@perm.local");
@@ -129,7 +129,7 @@ public class PermissionsGranularTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Put_Permissoes_Valida_Objeto()
     {
         var user = await SignUpAsync("U3", "u3@perm.local");
@@ -141,7 +141,7 @@ public class PermissionsGranularTests
         Assert.That(bad.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Put_Permissoes_UsuarioInexistente_404()
     {
         UseToken(_admin.Token);
@@ -153,7 +153,7 @@ public class PermissionsGranularTests
 
     // ----------------- Membership por domínio -----------------
 
-    [Test, Order(5)]
+    [Test]
     public async Task Signup_Dominio_EntraNoGrupo_Automaticamente()
     {
         UseToken(_admin.Token);
@@ -168,7 +168,7 @@ public class PermissionsGranularTests
         Assert.That(corp!.Members.Any(m => m.UserId == user.User.Id), Is.True);
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Signup_SemDominio_NaoEntraEmGrupo()
     {
         var user = await SignUpAsync("Fora", "fora@perm.local");
@@ -180,7 +180,7 @@ public class PermissionsGranularTests
 
     // ----------------- Enforcement nos endpoints -----------------
 
-    [Test, Order(8)]
+    [Test]
     public async Task Permissao_Negada_Bloqueia_Endpoints_Workspace()
     {
         var user = await SignUpAsync("U8", "u8@perm.local");
@@ -210,7 +210,7 @@ public class PermissionsGranularTests
             Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Grupo_Update_Domains_Substitui()
     {
         UseToken(_admin.Token);

@@ -59,7 +59,7 @@ public class UtilsEndpointsTests
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Gravatar_RetornaUrlSha256Upstream()
     {
         UseToken(_admin.Token);
@@ -75,7 +75,7 @@ public class UtilsEndpointsTests
         Assert.That(url, Does.Contain("?d=mp"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Gravatar_SemEmail_Retorna400()
     {
         UseToken(_admin.Token);
@@ -83,7 +83,7 @@ public class UtilsEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task CodeFormat_Json_FormataComIndentacao()
     {
         UseToken(_admin.Token);
@@ -98,7 +98,7 @@ public class UtilsEndpointsTests
         Assert.That(formatted, Does.Contain("\"a\": 1"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task CodeFormat_LinguagemSemExecutor_Retorna501()
     {
         UseToken(_admin.Token);
@@ -109,7 +109,7 @@ public class UtilsEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotImplemented));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task CodeFormat_JsonInvalido_Retorna400()
     {
         UseToken(_admin.Token);
@@ -120,7 +120,7 @@ public class UtilsEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task CodeFormat_UsuarioComum_Retorna403()
     {
         var user = await SignUpAsync("Comum", "comum@utils.local", "senha123");
@@ -132,7 +132,7 @@ public class UtilsEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Gravatar_UsuarioComum_Retorna200()
     {
         // Gravatar fica disponível a qualquer usuário verificado (get_verified_user).

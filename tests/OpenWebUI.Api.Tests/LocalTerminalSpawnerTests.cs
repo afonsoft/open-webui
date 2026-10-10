@@ -141,7 +141,7 @@ public class TerminalLocalEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Config_LocalSemUrl_Aceita_ESpawnNoPrimeiroProxy()
     {
         var created = await _client.PostAsJsonAsync("/api/v1/terminals/config",
@@ -162,7 +162,7 @@ public class TerminalLocalEndpointsTests
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Config_TypeInvalido_AindaRejeita_EUrlExternaSegueObrigatoria()
     {
         var badType = await _client.PostAsJsonAsync("/api/v1/terminals/config",

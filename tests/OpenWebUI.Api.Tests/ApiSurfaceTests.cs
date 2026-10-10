@@ -211,7 +211,7 @@ public class ApiSurfaceTests
         return body;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task AppConfig_Get_RetornaFlagsEProvedores()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -229,7 +229,7 @@ public class ApiSurfaceTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task AppConfig_Post_ExigeAdmin_EAtualiza()
     {
         // Sem token: a rota exige autenticação.
@@ -261,7 +261,7 @@ public class ApiSurfaceTests
         await _client.PostAsJsonAsync("/api/config", restore);
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task VersionUpdates_Get_RetornaVersaoAtual()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -276,7 +276,7 @@ public class ApiSurfaceTests
         });
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Changelog_Get_RetornaLista()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -289,7 +289,7 @@ public class ApiSurfaceTests
             Is.EqualTo(JsonValueKind.Array));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task ConfigExportImport_Admin_FazRoundTrip()
     {
         var user = await SignUpAsync("ExpUser", "expuser@surface.local", "senha123");
@@ -319,7 +319,7 @@ public class ApiSurfaceTests
             Is.EqualTo("true"));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Completions_ModeloCustomizado_AplicaBaseSystemEParams()
     {
         var user = await SignUpAsync("Custom", "custom@surface.local", "senha123");
@@ -352,7 +352,7 @@ public class ApiSurfaceTests
         });
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Completions_AnexoDeArquivo_InjetaContexto()
     {
         var user = await SignUpAsync("Attach", "attach@surface.local", "senha123");
@@ -368,7 +368,7 @@ public class ApiSurfaceTests
         Assert.That(SystemContent(payload), Does.Contain("CONTEUDO-ANEXO-77AB"));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Completions_ReferenciaArquivoPorHash_InjetaContexto()
     {
         var user = await SignUpAsync("RefFile", "reffile@surface.local", "senha123");
@@ -384,7 +384,7 @@ public class ApiSurfaceTests
         Assert.That(SystemContent(payload), Does.Contain("CONTEUDO-REFERENCIA-9F2C"));
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Completions_ReferenciaColecaoPorHash_InjetaContexto()
     {
         var user = await SignUpAsync("RefCol", "refcol@surface.local", "senha123");
@@ -409,7 +409,7 @@ public class ApiSurfaceTests
         Assert.That(SystemContent(payload), Does.Contain("CONTEUDO-COLECAO-55DD"));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task Completions_MemoriaDoUsuario_EntraNoSystem()
     {
         var user = await SignUpAsync("MemUser", "memuser@surface.local", "senha123");
@@ -426,7 +426,7 @@ public class ApiSurfaceTests
         Assert.That(SystemContent(payload), Does.Contain("Gosta de respostas curtas"));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Completions_ProvedorFora_EmiteErroNoSse()
     {
         var user = await SignUpAsync("NoProv", "noprov@surface.local", "senha123");
@@ -451,7 +451,7 @@ public class ApiSurfaceTests
             new ConnectionsConfig([mockUrl.TrimEnd('/')], [], []));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task OAuth_ProviderNaoConfigurado_Retorna404()
     {
         // Slug fora do catálogo: nunca resolve, com ou sem env.
@@ -463,7 +463,7 @@ public class ApiSurfaceTests
         Assert.That(callback.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task OAuth_LoginOidc_RedirecionaParaAuthorizeComState()
     {
         var response = await _noRedirect.GetAsync("/oauth/oidc/login");
@@ -478,7 +478,7 @@ public class ApiSurfaceTests
         });
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task OAuth_Callback_StateInvalido_Retorna400()
     {
         var response = await _noRedirect.GetAsync(
@@ -489,7 +489,7 @@ public class ApiSurfaceTests
         Assert.That(body, Does.Contain("State OAuth inválido"));
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task OAuth_CallbackCompleto_CriaUsuarioERedirecionaComToken()
     {
         // Dado: state válido obtido do redirect de login.
@@ -507,7 +507,7 @@ public class ApiSurfaceTests
         Assert.That(back, Does.Contain("oauth_token="));
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task OAuth_CallbackCompleto_UsuarioExistente_ReutilizaConta()
     {
         var login = await _noRedirect.GetAsync("/oauth/oidc/login");
@@ -522,7 +522,7 @@ public class ApiSurfaceTests
         Assert.That(callback.Headers.Location!.ToString(), Does.Contain("oauth_token="));
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task Automations_List_RetornaSomenteDoUsuario()
     {
         var owner = await SignUpAsync("AutoOwner", "autoowner@surface.local", "senha123");

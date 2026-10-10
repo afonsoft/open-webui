@@ -60,7 +60,7 @@ public class RateLimitTests
     private static RateLimitConfig Config(bool enabled, int permit = 60, int maxFailures = 5) =>
         new(enabled, permit, 60, maxFailures, 300);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Config_GetERespostaPadrao()
     {
         UseToken(_admin.Token);
@@ -74,7 +74,7 @@ public class RateLimitTests
         });
     }
 
-    [Test, Order(2)]
+    [Test, DependsOnTest(nameof(Config_GetERespostaPadrao), AllowFailure = true)]
     public async Task Config_SomenteAdminAltera()
     {
         var signup = await _client.PostAsJsonAsync(
@@ -90,7 +90,7 @@ public class RateLimitTests
         Assert.That(reset.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(3)]
+    [Test, DependsOnTest(nameof(Config_SomenteAdminAltera), AllowFailure = true)]
     public async Task Login_BloqueiaAposMaximoDeFalhas()
     {
         UseToken(_admin.Token);
@@ -109,7 +109,7 @@ public class RateLimitTests
         Assert.That(locked.StatusCode, Is.EqualTo((HttpStatusCode)429));
     }
 
-    [Test, Order(4)]
+    [Test, DependsOnTest(nameof(Login_BloqueiaAposMaximoDeFalhas), AllowFailure = true)]
     public async Task Login_ResetAdminLiberaBloqueio()
     {
         UseToken(_admin.Token);
@@ -121,7 +121,7 @@ public class RateLimitTests
         Assert.That(ok.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(5)]
+    [Test, DependsOnTest(nameof(Login_ResetAdminLiberaBloqueio), AllowFailure = true)]
     public async Task Completions_SemLimiteQuandoDesabilitado()
     {
         var user = (await (await _client.PostAsJsonAsync(
@@ -137,7 +137,7 @@ public class RateLimitTests
         }
     }
 
-    [Test, Order(6)]
+    [Test, DependsOnTest(nameof(Completions_SemLimiteQuandoDesabilitado), AllowFailure = true)]
     public async Task Completions_LimitaComRetryAfterQuandoHabilitado()
     {
         UseToken(_admin.Token);
@@ -162,7 +162,7 @@ public class RateLimitTests
         });
     }
 
-    [Test, Order(7)]
+    [Test, DependsOnTest(nameof(Completions_LimitaComRetryAfterQuandoHabilitado), AllowFailure = true)]
     public async Task Completions_JanelaEIndependentePorUsuario()
     {
         // Outro usuário tem janela própria — não herda o limite consumido por ltd@.

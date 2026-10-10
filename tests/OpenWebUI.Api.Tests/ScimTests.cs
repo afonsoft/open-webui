@@ -74,7 +74,7 @@ public class ScimTests
     }
 
     /// <summary>SCIM exige token dedicado: sem token, JWT de admin não serve.</summary>
-    [Test, Order(1)]
+    [Test]
     public async Task T01_SemTokenDedicado_Retorna401()
     {
         var anon = _factory.CreateClient();
@@ -87,7 +87,7 @@ public class ScimTests
     }
 
     /// <summary>ServiceProviderConfig expõe as capacidades do provedor.</summary>
-    [Test, Order(2)]
+    [Test]
     public async Task T02_ServiceProviderConfig_RetornaCapacidades()
     {
         var response = await _scim.GetAsync("/scim/v2/ServiceProviderConfig");
@@ -99,7 +99,7 @@ public class ScimTests
     }
 
     /// <summary>POST /Users provisiona um usuário compatível com o modelo interno.</summary>
-    [Test, Order(3)]
+    [Test]
     public async Task T03_CriarUsuario_ViaScim_CriaComRolePadrao()
     {
         var response = await _scim.PostAsJsonAsync("/scim/v2/Users", new
@@ -122,7 +122,7 @@ public class ScimTests
     }
 
     /// <summary>GET /Users lista com paginação e filtro userName eq.</summary>
-    [Test, Order(4)]
+    [Test, DependsOnTest(nameof(T03_CriarUsuario_ViaScim_CriaComRolePadrao), AllowFailure = true)]
     public async Task T04_ListarUsuarios_ComFiltro_RetornaSomenteMatch()
     {
         var all = await _scim.GetFromJsonAsync<ScimListResponse<ScimUser>>(
@@ -139,7 +139,7 @@ public class ScimTests
     }
 
     /// <summary>PATCH active=false desativa (role pending → não autentica).</summary>
-    [Test, Order(5)]
+    [Test, DependsOnTest(nameof(T04_ListarUsuarios_ComFiltro_RetornaSomenteMatch), AllowFailure = true)]
     public async Task T05_PatchActiveFalse_DesativaUsuario()
     {
         var list = await _scim.GetFromJsonAsync<ScimListResponse<ScimUser>>(
@@ -168,7 +168,7 @@ public class ScimTests
     }
 
     /// <summary>PUT substitui atributos e reativa o usuário.</summary>
-    [Test, Order(6)]
+    [Test, DependsOnTest(nameof(T05_PatchActiveFalse_DesativaUsuario), AllowFailure = true)]
     public async Task T06_Put_SubstituiAtributosEReativa()
     {
         var list = await _scim.GetFromJsonAsync<ScimListResponse<ScimUser>>(
@@ -192,7 +192,7 @@ public class ScimTests
     }
 
     /// <summary>DELETE remove o usuário; GET subsequente retorna 404.</summary>
-    [Test, Order(7)]
+    [Test, DependsOnTest(nameof(T06_Put_SubstituiAtributosEReativa), AllowFailure = true)]
     public async Task T07_Delete_RemoveUsuario()
     {
         var list = await _scim.GetFromJsonAsync<ScimListResponse<ScimUser>>(
@@ -206,7 +206,7 @@ public class ScimTests
     }
 
     /// <summary>Groups: criar grupo com membro e listar.</summary>
-    [Test, Order(8)]
+    [Test, DependsOnTest(nameof(T07_Delete_RemoveUsuario), AllowFailure = true)]
     public async Task T08_Groups_CriarEListar()
     {
         var users = await _scim.GetFromJsonAsync<ScimListResponse<ScimUser>>(
@@ -231,7 +231,7 @@ public class ScimTests
     }
 
     /// <summary>Desabilitar SCIM bloqueia os endpoints.</summary>
-    [Test, Order(9)]
+    [Test]
     public async Task T09_Desabilitado_EndpointsRetornam401()
     {
         await _admin.PostAsJsonAsync("/api/v1/configs/scim",

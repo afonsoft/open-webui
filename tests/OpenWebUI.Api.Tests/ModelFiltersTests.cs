@@ -148,7 +148,7 @@ public class ModelFiltersTests
         return await response.Content.ReadAsStringAsync();
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task SystemInject_IncluiTextoNoPromptEnviado()
     {
         await CreateModelAsync(
@@ -159,7 +159,7 @@ public class ModelFiltersTests
         Assert.That(_lastBody, Does.Contain("INJETADO-XYZ"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task RegexRedact_RemovePadrao_DoConteudoEnviado()
     {
         await CreateModelAsync(
@@ -174,7 +174,7 @@ public class ModelFiltersTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task RegexRedact_Outlet_RedigeSaidaSse()
     {
         await CreateModelAsync(
@@ -189,7 +189,7 @@ public class ModelFiltersTests
         });
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task MaxTokensCap_LimitaParametroEnviado()
     {
         await CreateModelAsync(
@@ -208,7 +208,7 @@ public class ModelFiltersTests
         Assert.That(_lastBody, Does.Contain("\"num_predict\":64"));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task ParamsOverride_SobrescreveParametroEnviado()
     {
         await CreateModelAsync(
@@ -219,7 +219,7 @@ public class ModelFiltersTests
         Assert.That(_lastBody, Does.Contain("\"temperature\":0.11"));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Save_FilterInvalido_Retorna400()
     {
         var bad = await _client.PostAsJsonAsync("/api/v1/models/create",
@@ -240,7 +240,7 @@ public class ModelFiltersTests
         });
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task ModeloSemFiltros_FluxoInalterado()
     {
         await CreateModelAsync("""{"note":"sem filtros"}""", "filtro-nenhum");

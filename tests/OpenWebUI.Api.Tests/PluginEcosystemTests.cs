@@ -173,7 +173,7 @@ public class PluginEcosystemTests
     // ---------------- Skills ----------------
 
     /// <summary>CRUD de skill pelo dono; outro usuário não enxerga.</summary>
-    [Test, Order(1)]
+    [Test]
     public async Task T01_Skills_CrudOwnerScoped()
     {
         UseToken(_userToken);
@@ -202,7 +202,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>Skill anexada ao modelo via MetaJson.skill_ids entra no system prompt.</summary>
-    [Test, Order(2)]
+    [Test]
     public async Task T02_SkillInjetada_NoSystemPrompt()
     {
         UseToken(_userToken);
@@ -225,7 +225,7 @@ public class PluginEcosystemTests
     // ---------------- Functions ----------------
 
     /// <summary>Functions é admin-only: usuário comum recebe 403.</summary>
-    [Test, Order(3)]
+    [Test]
     public async Task T03_Functions_NaoAdmin_Retorna403()
     {
         UseToken(_userToken);
@@ -237,7 +237,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>CRUD admin de function: create, toggle, valves, delete.</summary>
-    [Test, Order(4)]
+    [Test]
     public async Task T04_Functions_CrudToggleValves()
     {
         UseToken(_adminToken);
@@ -272,7 +272,7 @@ public class PluginEcosystemTests
     // ---------------- Pipelines ----------------
 
     /// <summary>Servidor de pipelines: registro com key mascarada e descoberta de pipes.</summary>
-    [Test, Order(5)]
+    [Test]
     public async Task T05_Pipelines_RegistrarEDescobrir()
     {
         UseToken(_adminToken);
@@ -292,7 +292,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>Pipes aparecem como modelos `pipeline:{id}` no seletor.</summary>
-    [Test, Order(6)]
+    [Test]
     public async Task T06_Models_IncluiPipes()
     {
         UseToken(_userToken);
@@ -302,7 +302,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>Completion pipeline:{id} roteia ao servidor e faz passthrough do SSE.</summary>
-    [Test, Order(7)]
+    [Test]
     public async Task T07_CompletionPipeline_RoteiaComPassthrough()
     {
         UseToken(_adminToken);
@@ -324,7 +324,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>Pipe inexistente em todos os servidores → 404.</summary>
-    [Test, Order(8)]
+    [Test]
     public async Task T08_CompletionPipeline_Inexistente_Retorna404()
     {
         UseToken(_userToken);
@@ -335,7 +335,7 @@ public class PluginEcosystemTests
     }
 
     /// <summary>Servidor de pipelines fora do ar → 502.</summary>
-    [Test, Order(9)]
+    [Test]
     public async Task T09_CompletionPipeline_ServidorFora_Retorna502()
     {
         // Servidor numa porta que só responde /models durante a descoberta

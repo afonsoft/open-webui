@@ -59,7 +59,7 @@ public class AuthAdminTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task UpdatePassword_SenhaAtualErrada_Retorna400()
     {
         var user = await SignUpAsync("Pwd", "pwd@authadmin.local", "senha123");
@@ -71,7 +71,7 @@ public class AuthAdminTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task UpdatePassword_NovaSenhaCurta_Retorna400()
     {
         var user = await SignUpAsync("PwdShort", "pwdshort@authadmin.local", "senha123");
@@ -83,7 +83,7 @@ public class AuthAdminTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task UpdatePassword_TrocaComSucesso_PermiteLoginComNovaSenha()
     {
         var user = await SignUpAsync("PwdOk", "pwdok@authadmin.local", "senha123");
@@ -105,7 +105,7 @@ public class AuthAdminTests
         Assert.That(auth.Token, Is.Not.Empty);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task UpdateProfile_AtualizaNomeEImagem()
     {
         var user = await SignUpAsync("Perfil", "perfil@authadmin.local", "senha123");
@@ -123,7 +123,7 @@ public class AuthAdminTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task UpdateTimezone_PersisteFuso()
     {
         var user = await SignUpAsync("Tz", "tz@authadmin.local", "senha123");
@@ -137,7 +137,7 @@ public class AuthAdminTests
         Assert.That(me!.Timezone, Is.EqualTo("America/Sao_Paulo"));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task GetApiKey_SemChave_404_EAposCriar_RetornaInfo()
     {
         var user = await SignUpAsync("KeyInfo", "keyinfo@authadmin.local", "senha123");
@@ -154,7 +154,7 @@ public class AuthAdminTests
         Assert.That(info!.CreatedAt, Is.GreaterThan(0));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task AddUser_Admin_CriaUsuarioQueConsegueLogar()
     {
         UseToken(_admin.Token);
@@ -175,7 +175,7 @@ public class AuthAdminTests
         Assert.That(signin.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task AddUser_UsuarioComum_Retorna403()
     {
         var user = await SignUpAsync("Comum", "comum@authadmin.local", "senha123");
@@ -187,7 +187,7 @@ public class AuthAdminTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task AdminConfig_AdminVe_UsuarioComum403()
     {
         UseToken(_admin.Token);
@@ -202,7 +202,7 @@ public class AuthAdminTests
         Assert.That(userView.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task LdapDesabilitado_SigninDesconhecido_CaiParaAuthLocal()
     {
         // LDAP desabilitado: TryBindAsync retorna null e o signin de e-mail
@@ -223,7 +223,7 @@ public class AuthAdminTests
         Assert.That(rightPass.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Signin_CredenciaisInvalidas_RetornaErrorCode()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -236,7 +236,7 @@ public class AuthAdminTests
         Assert.That(body.GetProperty("error_code").GetString(), Is.EqualTo("invalid_credentials"));
     }
 
-    [Test, Order(12)]
+    [Test, DependsOnTest(nameof(LdapDesabilitado_SigninDesconhecido_CaiParaAuthLocal), AllowFailure = true)]
     public async Task Signup_EmailDuplicado_RetornaErrorCode()
     {
         _client.DefaultRequestHeaders.Authorization = null;

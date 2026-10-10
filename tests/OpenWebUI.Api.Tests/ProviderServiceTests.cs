@@ -195,7 +195,7 @@ public class ProviderServiceTests
         catch (ObjectDisposedException) { /* listener parou */ }
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task ListModels_OllamaMultiplasUrls_DedupIgnoraVaziasEForaDoAr()
     {
         _routes["/api/tags"] = (200,
@@ -223,7 +223,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ListModels_OpenAiMultiplasUrls_ChavesPorIndiceOwnedByEDedup()
     {
         _routes["/models"] = (200,
@@ -250,7 +250,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ListModels_Providers500_RetornaVazio()
     {
         _routes["/api/tags"] = (500, "{}", 0);
@@ -262,7 +262,7 @@ public class ProviderServiceTests
         Assert.That(models, Is.Empty);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task ListModels_JsonInvalido_PropagaJsonException()
     {
         // Objeto sem a chave "models": cai no ?? [] e não gera modelo.
@@ -275,7 +275,7 @@ public class ProviderServiceTests
         await Assert.CatchAsync<JsonException>(async () => await NewService().ListModelsAsync());
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task ListModels_RaizNaoObjeto_LancaInvalidOperation()
     {
         // Raiz JsonArray/JsonValue não tem indexador por nome: o serviço lança
@@ -287,7 +287,7 @@ public class ProviderServiceTests
             async () => await NewService().ListModelsAsync());
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task ListModels_OpenAiLento_TimeoutIgnorado()
     {
         _routes["/api/tags"] = (200, "{\"models\":[{\"model\":\"m1\",\"name\":\"m1\"}]}", 0);
@@ -301,7 +301,7 @@ public class ProviderServiceTests
         Assert.That(models.Select(m => m.Id), Is.EqualTo(new[] { "m1" }));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Complete_ModeloOllama_RetornaConteudo_EStringVaziaSemContent()
     {
         _routes["/api/tags"] = (200, "{\"models\":[{\"model\":\"m1\",\"name\":\"m1\"}]}", 0);
@@ -318,7 +318,7 @@ public class ProviderServiceTests
         Assert.That(empty, Is.EqualTo(string.Empty));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Complete_ModeloForaDoOllama_RoteiaParaOpenAiComApiKey()
     {
         _routes["/api/tags"] = (200, "{\"models\":[{\"model\":\"m1\",\"name\":\"m1\"}]}", 0);
@@ -338,7 +338,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Resolve_ConexaoExplicita_PulaResolucaoPorModelo()
     {
         _routes["/api/tags"] = (200, "{\"models\":[{\"model\":\"m1\",\"name\":\"m1\"}]}", 0);
@@ -357,7 +357,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Resolve_ConexaoInvalida_LancaInvalidOperation()
     {
         await SetConnectionsAsync([_mockUrl], [_mockUrl], []);
@@ -377,7 +377,7 @@ public class ProviderServiceTests
             await svc.CompleteAsync(Req("g", connection: "openai")));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task Resolve_SemNenhumProvider_LancaSemUrlOllama()
     {
         await SetConnectionsAsync([], [], []);
@@ -395,7 +395,7 @@ public class ProviderServiceTests
             await svc.CompleteWithToolsAsync(Req("qualquer")));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Complete_Provider500_PropagaHttpRequestException()
     {
         _routes["/api/chat"] = (500, "{}", 0);
@@ -416,7 +416,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Stream_Ollama_PulaLinhasVaziasEJsonInvalido_TerminaEmDone()
     {
         _routes["/api/chat"] = (200,
@@ -446,7 +446,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Stream_Ollama_ParamsViramOptions_MaxTokensPermaneceNoTopo()
     {
         _routes["/api/chat"] = (200, "{\"done\":true}\n", 0);
@@ -512,7 +512,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Stream_OpenAi_EncaminhaLinhasEParaEmDone()
     {
         _routes["/chat/completions"] = (200,
@@ -538,7 +538,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task CompleteWithTools_OpenAi_NormalizaToolCallsEArguments()
     {
         _routes["/chat/completions"] = (200,
@@ -565,7 +565,7 @@ public class ProviderServiceTests
         });
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task CompleteWithTools_Ollama_SemCalls_RetornaCallsJsonVazio()
     {
         _routes["/api/chat"] = (200, "{\"message\":{\"content\":\"so texto\"}}", 0);

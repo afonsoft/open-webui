@@ -128,7 +128,7 @@ public class AutomationEndpointsTests
         string? time = null, int? weekday = null, string model = "fake:1") =>
         new("Lembrete", "Diga olá", model, kind, minutes, time, weekday, true);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Crud_ComValidacao_EOwnership()
     {
         var user = await SignUpAsync("User1", "u1@auto.local", "senha123");
@@ -158,7 +158,7 @@ public class AutomationEndpointsTests
         Assert.That(foreign.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task RunNow_ExecutaProvider_ECriaChat()
     {
         var user = await SignUpAsync("Runner", "runner@auto.local", "senha123");
@@ -192,7 +192,7 @@ public class AutomationEndpointsTests
         Assert.That(inRange!.Count, Is.EqualTo(1));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task RunNow_ProviderFora_RegistraFalhaEMantemAgenda()
     {
         var user = await SignUpAsync("Faller", "faller@auto.local", "senha123");
@@ -232,7 +232,7 @@ public class AutomationEndpointsTests
             new ConnectionsConfig([mockUrl.TrimEnd('/')], [], []));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Update_ToggleDesabilita_LimpaNextRun()
     {
         var user = await SignUpAsync("Toggler", "toggler@auto.local", "senha123");

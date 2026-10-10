@@ -142,7 +142,7 @@ public class ArenaTests
     private string _arenaModelId = string.Empty;
     private string _battleId = string.Empty;
 
-    [Test, Order(1)]
+    [Test]
     public async Task ArenaModel_Criado_SemBaseModel() // RF-001
     {
         UseToken(_user.Token);
@@ -162,7 +162,7 @@ public class ArenaTests
         Assert.That(bad.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test, DependsOnTest(nameof(ArenaModel_Criado_SemBaseModel))]
     public async Task ArenaCompletion_DuasRespostasAnonimas() // RF-001
     {
         UseToken(_user.Token);
@@ -191,7 +191,7 @@ public class ArenaTests
             Does.StartWith("resposta de "));
     }
 
-    [Test, Order(3)]
+    [Test, DependsOnTest(nameof(ArenaCompletion_DuasRespostasAnonimas))]
     public async Task ArenaVote_RevelaModelosEAtualizaElo() // RF-002/RF-003
     {
         UseToken(_user.Token);
@@ -213,7 +213,7 @@ public class ArenaTests
         Assert.That(again.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(4)]
+    [Test, DependsOnTest(nameof(ArenaVote_RevelaModelosEAtualizaElo))]
     public async Task Leaderboard_OrdenaPorRating() // RF-003
     {
         UseToken(_admin.Token);
@@ -225,7 +225,7 @@ public class ArenaTests
         Assert.That(board.Sum(e => e.Battles), Is.EqualTo(2));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task AccessGrants_RestringemListagem() // RF-004
     {
         // modelos "public" seedados direto no SQLite do app

@@ -67,7 +67,7 @@ public class GroupAndSsoTests
         new(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
 
-    [Test, Order(1)]
+    [Test]
     // Covers RF-003: somente admin global cria grupos.
     public async Task Groups_SomenteAdminCria()
     {
@@ -89,7 +89,7 @@ public class GroupAndSsoTests
         Assert.That(list!.Count, Is.EqualTo(1));
     }
 
-    [Test, Order(2)]
+    [Test]
     // Covers RF-003/RF-004: membro em grupo sem sharing.public_chats recebe 403 no share;
     // removido do grupo, volta ao default permitido.
     public async Task Permissions_GrupoSemSharing_BloqueiaShare()
@@ -129,7 +129,7 @@ public class GroupAndSsoTests
             await allowed.Content.ReadAsStringAsync());
     }
 
-    [Test, Order(3)]
+    [Test]
     // Covers RF-001: conta OAuth nova cria usuário com papel default; e-mail
     // existente vincula a conta OAuth em vez de duplicar.
     public async Task OAuth_VinculaOuCriaUsuario()
@@ -160,7 +160,7 @@ public class GroupAndSsoTests
         Assert.That(accounts.Count, Is.EqualTo(2));
     }
 
-    [Test, Order(4)]
+    [Test]
     // Covers RF-001: /api/config expõe os providers OAuth configurados.
     public async Task Config_ExpoeProvidersOAuth()
     {

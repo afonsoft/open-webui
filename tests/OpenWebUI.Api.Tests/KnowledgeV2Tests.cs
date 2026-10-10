@@ -147,7 +147,7 @@ public class KnowledgeV2Tests
         return (await response.Content.ReadFromJsonAsync<KnowledgeResponse>())!;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task FileAdd_VinculaArquivoEnviadoEIndexa()
     {
         _embedOk = true;
@@ -166,7 +166,7 @@ public class KnowledgeV2Tests
         Assert.That(detail!.Files.Select(f => f.FileId), Does.Contain(fileId));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task FileAdd_ArquivoInexistente_404()
     {
         UseToken(_admin.Token);
@@ -177,7 +177,7 @@ public class KnowledgeV2Tests
         Assert.That(added.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task FileAdd_ArquivoDeOutroUsuario_404()
     {
         UseToken(_user.Token);
@@ -189,7 +189,7 @@ public class KnowledgeV2Tests
         Assert.That(added.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Reindex_SucessoComProvider()
     {
         _embedOk = true;
@@ -209,7 +209,7 @@ public class KnowledgeV2Tests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Reindex_FalhaDeProvider_502ComContagem()
     {
         UseToken(_admin.Token);
@@ -226,7 +226,7 @@ public class KnowledgeV2Tests
         Assert.That(body.RootElement.GetProperty("failed").GetInt32(), Is.EqualTo(1));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task BatchDelete_RespeitaDonoEAdmin()
     {
         UseToken(_admin.Token);
@@ -255,7 +255,7 @@ public class KnowledgeV2Tests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task BatchDelete_SemAutenticacao_401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -264,7 +264,7 @@ public class KnowledgeV2Tests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task List_FileCount_RefleteArquivosVinculados()
     {
         _embedOk = true;

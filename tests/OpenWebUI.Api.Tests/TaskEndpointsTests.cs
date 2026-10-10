@@ -153,7 +153,7 @@ public class TaskEndpointsTests
             ],
             chatId);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Tasks_SemToken_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -164,7 +164,7 @@ public class TaskEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Title_ComMockOllama_RetornaTituloLimpo()
     {
         var user = await SignUpAsync("Title", "title@tasks.local", "senha123");
@@ -185,7 +185,7 @@ public class TaskEndpointsTests
         Assert.That(result!.Title, Is.EqualTo("Chat sobre .NET"));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task FollowUps_ComMockOllama_RetornaSugestoes()
     {
         var user = await SignUpAsync("Follow", "follow@tasks.local", "senha123");
@@ -199,7 +199,7 @@ public class TaskEndpointsTests
         Assert.That(result!.FollowUps, Is.EqualTo(new[] { "Pergunta um?", "Pergunta dois?" }));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Tags_ComMockOllama_NormalizaEDeduplica()
     {
         var user = await SignUpAsync("Tags", "tags@tasks.local", "senha123");
@@ -214,7 +214,7 @@ public class TaskEndpointsTests
         Assert.That(result!.Tags, Is.EqualTo(new[] { "tech", "finance", "saúde" }));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Queries_ComMockOllama_ExtraiArrayJson()
     {
         var user = await SignUpAsync("Queries", "queries@tasks.local", "senha123");
@@ -233,7 +233,7 @@ public class TaskEndpointsTests
         Assert.That(queries, Is.EqualTo(new[] { "query um", "query dois" }));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Tasks_ProviderFalha_Title404EDemaisListasVazias()
     {
         var user = await SignUpAsync("Fail", "fail@tasks.local", "senha123");

@@ -176,7 +176,7 @@ public class EndpointEdgeTests
 
     // ---------- ChatEndpoints ----------
 
-    [Test, Order(1)]
+    [Test]
     public async Task Criar_PayloadInvalido_Retorna400()
     {
         var auth = await SignUpAsync("BadJson", "badjson@edges.local", "senha123");
@@ -187,7 +187,7 @@ public class EndpointEdgeTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Criar_TituloVazio_UsaNewChat()
     {
         var auth = await SignUpAsync("SemTitulo", "semtitulo@edges.local", "senha123");
@@ -205,7 +205,7 @@ public class EndpointEdgeTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Chat_Inexistente_Retorna404EmTodasAsOperacoes()
     {
         var auth = await SignUpAsync("Missing", "missing@edges.local", "senha123");
@@ -247,7 +247,7 @@ public class EndpointEdgeTests
         Assert.That(publicView.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Chat_DeOutroUsuario_Retorna404()
     {
         var dono = await SignUpAsync("Dono", "dono@edges.local", "senha123");
@@ -272,7 +272,7 @@ public class EndpointEdgeTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task MoverChat_PastaInexistente_Retorna404()
     {
         var auth = await SignUpAsync("Folder", "folder@edges.local", "senha123");
@@ -291,7 +291,7 @@ public class EndpointEdgeTests
         Assert.That(cleared.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Mensagem_Inexistente_Retorna404()
     {
         var auth = await SignUpAsync("Msg", "msg@edges.local", "senha123");
@@ -309,7 +309,7 @@ public class EndpointEdgeTests
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task DeletarMensagem_RemoveElaETodasAsPosteriores()
     {
         var auth = await SignUpAsync("Tail", "tail@edges.local", "senha123");
@@ -334,7 +334,7 @@ public class EndpointEdgeTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Tags_NormalizaEspacosVaziasEDuplicadas()
     {
         var auth = await SignUpAsync("Tagger", "tagger@edges.local", "senha123");
@@ -357,7 +357,7 @@ public class EndpointEdgeTests
         Assert.That(afterNull.Tags, Is.Empty);
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Import_TituloVazio_ViraNewChat()
     {
         var auth = await SignUpAsync("Import", "import@edges.local", "senha123");
@@ -374,7 +374,7 @@ public class EndpointEdgeTests
 
     // ---------- TaskEndpoints ----------
 
-    [Test, Order(10)]
+    [Test]
     public async Task Titulo_SemMensagens_UsaSoTemplate()
     {
         var auth = await SignUpAsync("Empty", "empty@edges.local", "senha123");
@@ -387,7 +387,7 @@ public class EndpointEdgeTests
         Assert.That(title.Title, Is.EqualTo("Titulo Mock"));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Titulo_RespostaCitadaEMultiLinha_LimpaETrunca()
     {
         var auth = await SignUpAsync("Cleaner", "cleaner@edges.local", "senha123");
@@ -409,7 +409,7 @@ public class EndpointEdgeTests
         Assert.That(titleLong.Title, Has.Length.EqualTo(80));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task FollowUps_JsonMalformado_RetornaListaVazia()
     {
         var auth = await SignUpAsync("Fu", "fu@edges.local", "senha123");
@@ -431,7 +431,7 @@ public class EndpointEdgeTests
         Assert.That(json.GetProperty("queries").GetArrayLength(), Is.EqualTo(0));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Tags_FiltraVaziasNormalizaEDeduplica()
     {
         var auth = await SignUpAsync("TagFil", "tagfil@edges.local", "senha123");
@@ -444,7 +444,7 @@ public class EndpointEdgeTests
         Assert.That(tags.Tags, Is.EqualTo(new[] { "tag", "outra" }));
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Titulo_ProviderFora_Retorna404()
     {
         var auth = await SignUpAsync("Down", "down@edges.local", "senha123");
@@ -468,7 +468,7 @@ public class EndpointEdgeTests
         }
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task Titulo_SemConexao_Retorna404()
     {
         var auth = await SignUpAsync("NoConn", "noconn@edges.local", "senha123");
@@ -494,7 +494,7 @@ public class EndpointEdgeTests
 
     // ---------- AuthEndpoints ----------
 
-    [Test, Order(16)]
+    [Test]
     public async Task Token_Invalido_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization =
@@ -504,7 +504,7 @@ public class EndpointEdgeTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task Token_Expirado_Retorna401()
     {
         var auth = await SignUpAsync("Expired", "expired@edges.local", "senha123");
@@ -531,7 +531,7 @@ public class EndpointEdgeTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(18)]
+    [Test]
     public async Task Token_UsuarioDeletado_Retorna401()
     {
         var auth = await SignUpAsync("Ghost", "ghost@edges.local", "senha123");
@@ -548,7 +548,7 @@ public class EndpointEdgeTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(19)]
+    [Test]
     public async Task Signup_PapelPending_NaoEmiteTokenESigninFalha()
     {
         UseToken(_adminToken);
@@ -578,7 +578,7 @@ public class EndpointEdgeTests
 
     // ---------- GroupEndpoints ----------
 
-    [Test, Order(20)]
+    [Test]
     public async Task Grupo_Inexistente_Operacoes_Retornam404()
     {
         UseToken(_adminToken);
@@ -601,7 +601,7 @@ public class EndpointEdgeTests
         });
     }
 
-    [Test, Order(21)]
+    [Test]
     public async Task Grupo_DeletePorNaoAdmin_Retorna403()
     {
         var comum = await SignUpAsync("Comum", "comum@edges.local", "senha123");
@@ -621,7 +621,7 @@ public class EndpointEdgeTests
 
     // ---------- ImageEndpoints ----------
 
-    [Test, Order(22)]
+    [Test]
     public async Task Imagens_ConfigIncompleta_Retorna501()
     {
         var auth = await SignUpAsync("Img", "img@edges.local", "senha123");
@@ -644,7 +644,7 @@ public class EndpointEdgeTests
         }
     }
 
-    [Test, Order(23)]
+    [Test]
     public async Task Imagens_PromptVazio_Retorna400()
     {
         var auth = await SignUpAsync("ImgEmpty", "imgempty@edges.local", "senha123");
@@ -689,7 +689,7 @@ public class EndpointEdgeTests
     private static BuiltinToolRegistry EmptyRegistry() =>
         new([], new ConfigurationBuilder().Build());
 
-    [Test, Order(24)]
+    [Test]
     public async Task Executor_ToolDesconhecida_OuSpecQuebrada_RetornaErro()
     {
         await using var db = CreateContext();
@@ -707,7 +707,7 @@ public class EndpointEdgeTests
         Assert.That(brokenSpec, Does.Contain("quebrada").And.Contain("habilitada"));
     }
 
-    [Test, Order(25)]
+    [Test]
     public async Task Executor_UrlInacessivel_OuCancelada_RetornaErro()
     {
         await using var db = CreateContext();
@@ -723,7 +723,7 @@ public class EndpointEdgeTests
         Assert.That(cancelled, Does.Contain("Erro ao executar tool 'minha_tool'"));
     }
 
-    [Test, Order(26)]
+    [Test]
     public async Task Executor_Respostas_TextoErroETruncamento()
     {
         await using var db = CreateContext();
@@ -746,7 +746,7 @@ public class EndpointEdgeTests
         Assert.That(big, Has.Length.EqualTo(4000));
     }
 
-    [Test, Order(27)]
+    [Test]
     public async Task Executor_LoadEnabled_FiltraVaziasDesabilitadasEAlheias()
     {
         await using var db = CreateContext();

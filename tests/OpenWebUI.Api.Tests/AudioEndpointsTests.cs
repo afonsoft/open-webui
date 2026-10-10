@@ -179,7 +179,7 @@ public class AudioEndpointsTests
         }
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Speech_SemProvider_Retorna501()
     {
         UseToken(_admin.Token);
@@ -190,7 +190,7 @@ public class AudioEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotImplemented));
     }
 
-    [Test, Order(2)]
+    [Test, DependsOnTest(nameof(Speech_SemProvider_Retorna501), AllowFailure = true)]
     public async Task Transcriptions_SemProvider_Retorna501()
     {
         UseToken(_admin.Token);
@@ -202,7 +202,7 @@ public class AudioEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotImplemented));
     }
 
-    [Test, Order(3)]
+    [Test, DependsOnTest(nameof(Transcriptions_SemProvider_Retorna501), AllowFailure = true)]
     public async Task Config_PersisteEMascaraChaves()
     {
         UseToken(_admin.Token);
@@ -231,7 +231,7 @@ public class AudioEndpointsTests
         });
     }
 
-    [Test, Order(4)]
+    [Test, DependsOnTest(nameof(Config_PersisteEMascaraChaves), AllowFailure = true)]
     public async Task Speech_ComProvider_RetornaAudio()
     {
         UseToken(_admin.Token);
@@ -245,7 +245,7 @@ public class AudioEndpointsTests
         Assert.That(await response.Content.ReadAsByteArrayAsync(), Is.EqualTo(FakeMp3));
     }
 
-    [Test, Order(5)]
+    [Test, DependsOnTest(nameof(Speech_ComProvider_RetornaAudio), AllowFailure = true)]
     public async Task Transcriptions_ComProvider_RetornaTexto()
     {
         UseToken(_admin.Token);
@@ -260,7 +260,7 @@ public class AudioEndpointsTests
         Assert.That(body.GetProperty("text").GetString(), Is.EqualTo("transcrição mockada"));
     }
 
-    [Test, Order(6)]
+    [Test, DependsOnTest(nameof(Transcriptions_ComProvider_RetornaTexto), AllowFailure = true)]
     public async Task Transcriptions_FormatoInvalido_Retorna400()
     {
         UseToken(_admin.Token);
@@ -272,7 +272,7 @@ public class AudioEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(7)]
+    [Test, DependsOnTest(nameof(Transcriptions_FormatoInvalido_Retorna400), AllowFailure = true)]
     public async Task VoicesEModels_PassthroughDoProvider()
     {
         UseToken(_admin.Token);
@@ -284,7 +284,7 @@ public class AudioEndpointsTests
         Assert.That(models.GetProperty("data").GetArrayLength(), Is.EqualTo(2));
     }
 
-    [Test, Order(8)]
+    [Test, DependsOnTest(nameof(VoicesEModels_PassthroughDoProvider), AllowFailure = true)]
     public async Task Capabilities_RefleteConfig()
     {
         UseToken(_admin.Token);
@@ -297,7 +297,7 @@ public class AudioEndpointsTests
         });
     }
 
-    [Test, Order(9)]
+    [Test, DependsOnTest(nameof(Capabilities_RefleteConfig), AllowFailure = true)]
     public async Task Config_UsuarioComum_NaoAcessa()
     {
         var user = await SignUpAsync("User Audio", "user@audio.local", "senha123");
@@ -313,7 +313,7 @@ public class AudioEndpointsTests
         });
     }
 
-    [Test, Order(10)]
+    [Test, DependsOnTest(nameof(Config_UsuarioComum_NaoAcessa), AllowFailure = true)]
     public async Task Whisper_SttExterno_Transcreve()
     {
         UseToken(_admin.Token);
@@ -333,7 +333,7 @@ public class AudioEndpointsTests
         Assert.That(body.GetProperty("text").GetString(), Is.EqualTo("transcrição mockada"));
     }
 
-    [Test, Order(11)]
+    [Test, DependsOnTest(nameof(Whisper_SttExterno_Transcreve), AllowFailure = true)]
     public async Task ElevenLabs_Tts_RetornaAudioComXiApiKey()
     {
         UseToken(_admin.Token);
@@ -358,7 +358,7 @@ public class AudioEndpointsTests
         Assert.That(voices.GetProperty("voices").GetArrayLength(), Is.EqualTo(2));
     }
 
-    [Test, Order(12)]
+    [Test, DependsOnTest(nameof(ElevenLabs_Tts_RetornaAudioComXiApiKey), AllowFailure = true)]
     public async Task Azure_Tts_EnviaSsmlEChaveDeAssinatura()
     {
         UseToken(_admin.Token);
@@ -381,7 +381,7 @@ public class AudioEndpointsTests
         });
     }
 
-    [Test, Order(13)]
+    [Test, DependsOnTest(nameof(Azure_Tts_EnviaSsmlEChaveDeAssinatura), AllowFailure = true)]
     public async Task Azure_SomenteRegiao_HabilitaTtsECapabilitiesMostramEngines()
     {
         UseToken(_admin.Token);
@@ -401,7 +401,7 @@ public class AudioEndpointsTests
         });
     }
 
-    [Test, Order(14)]
+    [Test, DependsOnTest(nameof(Azure_SomenteRegiao_HabilitaTtsECapabilitiesMostramEngines), AllowFailure = true)]
     public async Task Config_EngineInvalida_Retorna400()
     {
         UseToken(_admin.Token);

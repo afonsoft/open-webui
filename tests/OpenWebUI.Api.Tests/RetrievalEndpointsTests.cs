@@ -142,7 +142,7 @@ public class RetrievalEndpointsTests
         }
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task ProcessText_IndexaConteudo()
     {
         UseToken(_admin.Token);
@@ -157,7 +157,7 @@ public class RetrievalEndpointsTests
         Assert.That(body.GetProperty("fileId").GetString(), Is.Not.Empty);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ProcessUrl_ExtraiEIndexaHtml()
     {
         UseToken(_admin.Token);
@@ -171,7 +171,7 @@ public class RetrievalEndpointsTests
         Assert.That(body.GetProperty("chunks").GetInt32(), Is.GreaterThan(0));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ProcessUrl_FetchFalha_Retorna502()
     {
         UseToken(_admin.Token);
@@ -182,7 +182,7 @@ public class RetrievalEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadGateway));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task ProcessFile_ReindexaArquivoEnviado()
     {
         UseToken(_admin.Token);
@@ -208,7 +208,7 @@ public class RetrievalEndpointsTests
             .GetProperty("id").GetString()!;
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task WebSearch_SemEngine_Retorna503()
     {
         UseToken(_admin.Token);
@@ -223,7 +223,7 @@ public class RetrievalEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.ServiceUnavailable));
     }
 
-    [Test, Order(6)]
+    [Test, DependsOnTest(nameof(WebSearch_SemEngine_Retorna503), AllowFailure = true)]
     public async Task Config_GetEPersistencia_ComChaveMascarada()
     {
         UseToken(_admin.Token);
@@ -254,7 +254,7 @@ public class RetrievalEndpointsTests
         Assert.That(cfg.ToString(), Does.Not.Contain("segredo-brave-123"));
     }
 
-    [Test, Order(7)]
+    [Test, DependsOnTest(nameof(Config_GetEPersistencia_ComChaveMascarada), AllowFailure = true)]
     public async Task WebSearch_ComSearxng_RetornaEIndexa()
     {
         UseToken(_admin.Token);
@@ -275,7 +275,7 @@ public class RetrievalEndpointsTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Config_UsuarioComum_NaoAcessa()
     {
         var user = await SignUpAsync("User Retrieval", "user@retrieval.local", "senha123");
@@ -294,7 +294,7 @@ public class RetrievalEndpointsTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task ResetDb_LimpaChunksIndexados()
     {
         UseToken(_admin.Token);

@@ -124,7 +124,7 @@ public class ImageEndpointsTests
     private ImagesConfig MockConfig(bool enabled = true) => new(
         enabled, "openai", _mockBaseUrl, "sk-test", "gpt-image-1", "1024x1024", 30);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Config_SomenteAdmin_GravaEMascaraChave()
     {
         var user = await SignUpAsync("User", "user@images.local", "senha123");
@@ -145,7 +145,7 @@ public class ImageEndpointsTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Config_ChaveMascarada_PreservaChaveReal()
     {
         UseToken(_adminToken);
@@ -159,7 +159,7 @@ public class ImageEndpointsTests
         Assert.That(gen.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Generations_FeatureOff_Retorna501()
     {
         UseToken(_adminToken);
@@ -175,7 +175,7 @@ public class ImageEndpointsTests
         await _client.PostAsJsonAsync("/api/v1/images/config", MockConfig());
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Generations_SemAuth_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -184,7 +184,7 @@ public class ImageEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Generations_GeraESalvaArquivoComoOwner()
     {
         var user = await SignUpAsync("Maker", "maker@images.local", "senha123");

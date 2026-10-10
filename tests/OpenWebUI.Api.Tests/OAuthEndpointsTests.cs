@@ -243,7 +243,7 @@ public class OAuthEndpointsTests
 
     // ---- Login (GET /oauth/{provider}/login) ----
 
-    [Test, Order(1)]
+    [Test]
     public async Task Login_ProviderDesconhecido_Retorna404()
     {
         var response = await _client.GetAsync("/oauth/inexistente/login");
@@ -251,7 +251,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Login_ProviderSemCredenciais_Retorna404()
     {
         var response = await _client.GetAsync("/oauth/google/login");
@@ -259,7 +259,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Login_OidcConfigurado_RedirecionaParaAuthorize()
     {
         var response = await _client.GetAsync("/oauth/oidc/login");
@@ -278,7 +278,7 @@ public class OAuthEndpointsTests
         });
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Login_ProviderComCasingMaiusculo_Resolve()
     {
         var response = await _client.GetAsync("/oauth/OIDC/login");
@@ -288,7 +288,7 @@ public class OAuthEndpointsTests
             Does.StartWith($"{_mockBase}/authorize?"));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Login_Github_RedirecionaParaGithubCom()
     {
         var response = await _client.GetAsync("/oauth/github/login");
@@ -306,7 +306,7 @@ public class OAuthEndpointsTests
 
     // ---- Callback (GET /oauth/{provider}/callback) ----
 
-    [Test, Order(10)]
+    [Test]
     public async Task Callback_ProviderDesconhecido_Retorna404()
     {
         var response = await _client.GetAsync("/oauth/foo/callback?code=abc");
@@ -314,7 +314,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Callback_SemCode_Retorna404()
     {
         var response = await _client.GetAsync("/oauth/oidc/callback");
@@ -322,7 +322,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Callback_StateAusente_Retorna400()
     {
         var response = await CallbackAsync("abc", state: null);
@@ -330,7 +330,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Callback_StateMalformado_Retorna400()
     {
         var semAssinatura = await CallbackAsync("abc", "nonce-sem-ponto");
@@ -340,7 +340,7 @@ public class OAuthEndpointsTests
         Assert.That(assinaturaErrada.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Callback_TokenErroHttp_Retorna400()
     {
         _tokenStatus = 500;
@@ -353,7 +353,7 @@ public class OAuthEndpointsTests
             Does.Contain("Falha na autentica"));
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task Callback_TokenCorpoNaoObjeto_Retorna400()
     {
         _tokenBody = "[]";
@@ -363,7 +363,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task Callback_TokenSemAccessToken_Retorna400()
     {
         _tokenBody = """{"token_type":"Bearer"}""";
@@ -375,7 +375,7 @@ public class OAuthEndpointsTests
             Does.Contain("dados do usu"));
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task Callback_UserinfoErroHttp_Retorna400()
     {
         _userInfoStatus = 502;
@@ -386,7 +386,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(18)]
+    [Test]
     public async Task Callback_UserinfoSemSub_Retorna400()
     {
         _userInfoBody = """{"email":"x@y.z"}""";
@@ -396,7 +396,7 @@ public class OAuthEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(19)]
+    [Test]
     public async Task Callback_SubVazioOuEmailInvalido_Retorna400()
     {
         _userInfoBody = """{"sub":"","email":"a@b.c"}""";
@@ -410,7 +410,7 @@ public class OAuthEndpointsTests
             Does.Contain("e-mail verificado"));
     }
 
-    [Test, Order(20)]
+    [Test]
     public async Task Callback_UsuarioNovo_CriaContaERedirecionaToken()
     {
         _userInfoBody = """{"sub":"sub-novo","email":"novo@oauth.local","name":"Novo Oauth"}""";
@@ -433,7 +433,7 @@ public class OAuthEndpointsTests
         });
     }
 
-    [Test, Order(21)]
+    [Test]
     public async Task Callback_ContaJaVinculada_RelogaMesmoUsuario()
     {
         _userInfoBody = """{"sub":"sub-novo","email":"novo@oauth.local","name":"Novo Oauth"}""";
@@ -451,7 +451,7 @@ public class OAuthEndpointsTests
         Assert.That(count, Is.EqualTo(1));
     }
 
-    [Test, Order(22)]
+    [Test]
     public async Task Callback_EmailJaCadastrado_VinculaUsuarioExistente()
     {
         _userInfoBody = """{"sub":"sub-vinculo","email":"admin@oauth.local","name":"Admin"}""";
@@ -469,7 +469,7 @@ public class OAuthEndpointsTests
         Assert.That(account?.UserId, Is.EqualTo(_adminUserId));
     }
 
-    [Test, Order(23)]
+    [Test]
     public async Task Callback_UsuarioPending_RedirecionaErro()
     {
         UseToken(_adminToken);
@@ -492,7 +492,7 @@ public class OAuthEndpointsTests
 
     // ---- FetchUserInfoAsync/FetchGithubEmailAsync (GitHub via reflexão + mock) ----
 
-    [Test, Order(30)]
+    [Test]
     public async Task Github_Userinfo_UsaIdComoSubEFallbackDeEmail()
     {
         _ghUserBody = """{"id":4242,"login":"octo","email":null,"name":null}""";
@@ -520,7 +520,7 @@ public class OAuthEndpointsTests
         });
     }
 
-    [Test, Order(31)]
+    [Test]
     public async Task Github_EmailFallback_SemPrimarioVerificado_RetornaNull()
     {
         _ghUserBody = """{"id":1,"login":"x","email":null}""";
@@ -546,7 +546,7 @@ public class OAuthEndpointsTests
         });
     }
 
-    [Test, Order(32)]
+    [Test]
     public async Task Github_EmailFallback_ErroHttp_RetornaNull()
     {
         _emailsStatus = 500;
@@ -562,7 +562,7 @@ public class OAuthEndpointsTests
         Assert.That(email, Is.Null);
     }
 
-    [Test, Order(33)]
+    [Test]
     public async Task ExchangeCode_Sucesso_RetornaJson()
     {
         var config = new OAuthProviderConfig(
@@ -585,7 +585,7 @@ public class OAuthEndpointsTests
 
     // ---- JwtSecret / estado ----
 
-    [Test, Order(40)]
+    [Test]
     public async Task JwtSecret_SemEntry_RetornaVazio()
     {
         var dbPath = NewServiceDbPath();
@@ -615,7 +615,7 @@ public class OAuthEndpointsTests
 
     // ---- OAuthService.LinkOrCreateAsync ----
 
-    [Test, Order(50)]
+    [Test]
     public async Task Service_ContaExistente_RetornaMesmoUsuarioSemCriar()
     {
         var dbPath = NewServiceDbPath();
@@ -638,7 +638,7 @@ public class OAuthEndpointsTests
         TestInfra.DeleteDb(dbPath);
     }
 
-    [Test, Order(51)]
+    [Test]
     public async Task Service_EmailExistente_VinculaSemCriarUsuario()
     {
         var dbPath = NewServiceDbPath();
@@ -672,7 +672,7 @@ public class OAuthEndpointsTests
         TestInfra.DeleteDb(dbPath);
     }
 
-    [Test, Order(52)]
+    [Test]
     public async Task Service_PrimeiroUsuario_ViraAdmin()
     {
         var dbPath = NewServiceDbPath();
@@ -693,7 +693,7 @@ public class OAuthEndpointsTests
         TestInfra.DeleteDb(dbPath);
     }
 
-    [Test, Order(53)]
+    [Test]
     public async Task Service_PapelDefaultInvalido_ViraPending()
     {
         var dbPath = NewServiceDbPath();
