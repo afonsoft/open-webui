@@ -238,7 +238,7 @@ public class PassthroughTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Ollama_Tags_DevolveRespostaDoProvider()
     {
         UseToken(_adminToken);
@@ -251,7 +251,7 @@ public class PassthroughTests
         Assert.That(await version.Content.ReadAsStringAsync(), Does.Contain("0.0.0-mock"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Ollama_Chat_Post_RepassaBodyAoProvider()
     {
         UseToken(_adminToken);
@@ -261,7 +261,7 @@ public class PassthroughTests
         Assert.That(await response.Content.ReadAsStringAsync(), Does.Contain("ola do fake:1"));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task OpenAi_Models_EncaminhaKeyMascarada()
     {
         UseToken(_adminToken);
@@ -271,7 +271,7 @@ public class PassthroughTests
         Assert.That(_lastAuth, Is.EqualTo("Bearer test-key"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task OpenAi_ChatCompletions_PreservaSse()
     {
         UseToken(_adminToken);
@@ -287,7 +287,7 @@ public class PassthroughTests
         Assert.That(body, Does.Contain("data:").And.Contain("[DONE]"));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task SemProvider_503_EIndexForaDeFaixa_503()
     {
         UseToken(_adminToken);
@@ -308,7 +308,7 @@ public class PassthroughTests
         Assert.That(outOfRange.StatusCode, Is.EqualTo(HttpStatusCode.ServiceUnavailable));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task SemAuth_401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -319,7 +319,7 @@ public class PassthroughTests
         Assert.That(openai.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Ollama_Pull_RepassaStreamNdjson()
     {
         UseToken(_adminToken);
@@ -335,7 +335,7 @@ public class PassthroughTests
             .And.Contain("downloading").And.Contain("success"));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Ollama_CreateDeleteCopy_Proxied()
     {
         UseToken(_adminToken);
@@ -357,7 +357,7 @@ public class PassthroughTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Ollama_Blobs_RoundtripEDigestInvalido()
     {
         UseToken(_adminToken);
@@ -380,7 +380,7 @@ public class PassthroughTests
         Assert.That(invalid.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task OpenAi_AudioEImages_Passthrough()
     {
         UseToken(_adminToken);
@@ -400,7 +400,7 @@ public class PassthroughTests
         Assert.That(await images.Content.ReadAsStringAsync(), Does.Contain("b64_json"));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task ProviderMorto_Devolve502()
     {
         UseToken(_adminToken);

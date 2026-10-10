@@ -191,7 +191,7 @@ public class RetrievalEnginesTests
         return body.GetProperty("results").EnumerateArray().ToList();
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task GooglePse_RetornaResultados()
     {
         UseToken(_admin.Token);
@@ -212,7 +212,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Jina_RetornaResultados()
     {
         await SetEngineAsync(_cfg with
@@ -230,7 +230,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Exa_RetornaResultados()
     {
         await SetEngineAsync(_cfg with
@@ -248,7 +248,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Kagi_FiltraSomenteT0()
     {
         await SetEngineAsync(_cfg with
@@ -266,7 +266,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Perplexity_RetornaCitationsComoResultados()
     {
         await SetEngineAsync(_cfg with
@@ -284,7 +284,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task EngineSemChave_RetornaVazio()
     {
         // google_pse sem chave configurada → lista vazia (guard da implementação)
@@ -294,7 +294,7 @@ public class RetrievalEnginesTests
         Assert.That(results, Is.Empty);
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Config_RejeitaEngineInvalidoERerankInvalido()
     {
         var badEngine = await _client.PostAsJsonAsync("/api/v1/retrieval/config/update",
@@ -309,7 +309,7 @@ public class RetrievalEnginesTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Config_MascaraNovasChaves()
     {
         UseToken(_admin.Token);

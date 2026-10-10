@@ -75,7 +75,7 @@ public class WorkspaceEndpointsTests
     private static int ContarChatsDaPasta(JsonElement pasta) =>
         pasta.GetProperty("items").GetProperty("chats").GetArrayLength();
 
-    [Test, Order(1)]
+    [Test]
     public async Task Workspace_SemToken_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -93,7 +93,7 @@ public class WorkspaceEndpointsTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Pastas_CRUD_Completo()
     {
         var auth = await SignUpAsync("PastaCrud", "pastacrud@ws.local", "senha123");
@@ -126,7 +126,7 @@ public class WorkspaceEndpointsTests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Pastas_NomeVazio_UsaPadraoNovaPasta()
     {
         var auth = await SignUpAsync("PastaVazia", "pastavazia@ws.local", "senha123");
@@ -137,7 +137,7 @@ public class WorkspaceEndpointsTests
         Assert.That(pasta.Name, Is.EqualTo("Nova pasta"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Pastas_Lista_OrdenadaPorNome_EListaItensDaPasta()
     {
         var auth = await SignUpAsync("PastaItens", "pastaitens@ws.local", "senha123");
@@ -173,7 +173,7 @@ public class WorkspaceEndpointsTests
         Assert.That(ContarChatsDaPasta(zetaDepois), Is.EqualTo(0));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Pastas_Delete_DesvinculaChatsSemApagar()
     {
         var auth = await SignUpAsync("PastaDel", "pastadel@ws.local", "senha123");
@@ -194,7 +194,7 @@ public class WorkspaceEndpointsTests
         Assert.That(lista!.Any(c => c.Id == chat.Id), Is.True);
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Pastas_Owner_NaoAcessaPastaDeOutroUsuario()
     {
         var dono = await SignUpAsync("DonoPasta", "donopasta@ws.local", "senha123");
@@ -219,7 +219,7 @@ public class WorkspaceEndpointsTests
         Assert.That(lista, Is.Empty);
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Prompts_CRUD_Completo()
     {
         var auth = await SignUpAsync("PromptCrud", "promptcrud@ws.local", "senha123");
@@ -259,7 +259,7 @@ public class WorkspaceEndpointsTests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Prompts_Lista_OrdenadaPorComando()
     {
         var auth = await SignUpAsync("PromptOrd", "promptord@ws.local", "senha123");
@@ -278,7 +278,7 @@ public class WorkspaceEndpointsTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Prompts_ComandoVazioOuDuplicado_Retorna400()
     {
         var auth = await SignUpAsync("PromptVal", "promptval@ws.local", "senha123");
@@ -297,7 +297,7 @@ public class WorkspaceEndpointsTests
         Assert.That(duplicado.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task Prompts_Owner_NaoAcessaPromptDeOutroUsuario()
     {
         var dono = await SignUpAsync("DonoPrompt", "donoprompt@ws.local", "senha123");
@@ -328,7 +328,7 @@ public class WorkspaceEndpointsTests
         Assert.That(proprio.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Memorias_CRUD_Completo()
     {
         var auth = await SignUpAsync("MemCrud", "memcrud@ws.local", "senha123");
@@ -354,7 +354,7 @@ public class WorkspaceEndpointsTests
         Assert.That(listAfter, Is.Empty);
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Memorias_ConteudoVazio_Retorna400()
     {
         var auth = await SignUpAsync("MemVal", "memval@ws.local", "senha123");
@@ -365,7 +365,7 @@ public class WorkspaceEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Memorias_DeleteUser_ApagaSomenteDoProprioUsuario()
     {
         var dono = await SignUpAsync("DonoMem", "donomem@ws.local", "senha123");
@@ -390,7 +390,7 @@ public class WorkspaceEndpointsTests
         Assert.That(listDono![0].Content, Is.EqualTo("Memória do A"));
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Memorias_Owner_NaoAcessaMemoriaDeOutroUsuario()
     {
         var dono = await SignUpAsync("DonoMem2", "donomem2@ws.local", "senha123");
@@ -415,7 +415,7 @@ public class WorkspaceEndpointsTests
         Assert.That(list, Is.Empty);
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task Notas_CRUD_Completo()
     {
         var auth = await SignUpAsync("NotaCrud", "notacrud@ws.local", "senha123");
@@ -454,7 +454,7 @@ public class WorkspaceEndpointsTests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task Notas_TituloVazio_UsaPadraoNovaNota()
     {
         var auth = await SignUpAsync("NotaVazia", "notavazia@ws.local", "senha123");
@@ -467,7 +467,7 @@ public class WorkspaceEndpointsTests
         Assert.That(note.Title, Is.EqualTo("Nova nota"));
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task Notas_Owner_NaoAcessaNotaDeOutroUsuario()
     {
         var dono = await SignUpAsync("DonoNota", "dononota@ws.local", "senha123");

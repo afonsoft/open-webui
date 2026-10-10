@@ -160,7 +160,7 @@ public class ToolEndpointsTests
         return (await response.Content.ReadFromJsonAsync<ToolResponse>())!;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Crud_CriaListaAtualizaEDeleta()
     {
         var user = await SignUpAsync("User", "user@tools.local", "senha123");
@@ -193,7 +193,7 @@ public class ToolEndpointsTests
         Assert.That(after!.Count(t => t.Source != "builtin"), Is.EqualTo(0));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Create_SpecInvalida_Retorna400()
     {
         var user = await SignUpAsync("User2", "user2@tools.local", "senha123");
@@ -208,7 +208,7 @@ public class ToolEndpointsTests
         Assert.That(semNome.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task OutroUsuario_NaoEnxergaTool()
     {
         var dono = await SignUpAsync("Dono", "dono@tools.local", "senha123");
@@ -225,7 +225,7 @@ public class ToolEndpointsTests
         Assert.That(delete.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task ChatCompletions_ProviderPedeTool_ExecutaEDevolveResultado()
     {
         var user = await SignUpAsync("Loopy", "loopy@tools.local", "senha123");
@@ -251,7 +251,7 @@ public class ToolEndpointsTests
         });
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Chat_ToolIds_PersistePorChat()
     {
         var user = await SignUpAsync("Keep", "keep@tools.local", "senha123");

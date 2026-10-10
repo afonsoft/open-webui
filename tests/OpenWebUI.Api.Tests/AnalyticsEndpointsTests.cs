@@ -53,7 +53,7 @@ public class AnalyticsEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Analytics_UsuarioComum_Retorna403()
     {
         var user = await SignUpAsync("User", "user@analytics.local", "senha123");
@@ -63,7 +63,7 @@ public class AnalyticsEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Analytics_Admin_RetornaAgregacoes()
     {
         UseToken(_adminToken);
@@ -94,7 +94,7 @@ public class AnalyticsEndpointsTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Analytics_DiasZerados_VoltamComZero()
     {
         UseToken(_adminToken);

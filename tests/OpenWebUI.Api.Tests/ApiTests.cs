@@ -56,7 +56,7 @@ public class ApiTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Signup_PrimeiroUsuario_ViraAdmin()
     {
         // O admin já foi criado no OneTimeSetUp; valida o estado persistido.
@@ -73,7 +73,7 @@ public class ApiTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Signup_EmailDuplicado_RetornaErro()
     {
         var response = await _client.PostAsJsonAsync(
@@ -82,7 +82,7 @@ public class ApiTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Signup_SegundoUsuario_ViraUser()
     {
         var auth = await SignUpAsync("User", "user@test.local", "senha123");
@@ -90,7 +90,7 @@ public class ApiTests
         Assert.That(auth.User.Role, Is.EqualTo("user"));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Signin_SenhaErrada_RetornaErro()
     {
         var response = await _client.PostAsJsonAsync(
@@ -99,7 +99,7 @@ public class ApiTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Signin_CredenciaisValidas_RetornaToken()
     {
         var response = await _client.PostAsJsonAsync(
@@ -110,7 +110,7 @@ public class ApiTests
         Assert.That(auth.Token, Is.Not.Empty);
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Me_ComToken_RetornaUsuario()
     {
         var auth = await SignUpAsync("Me", "me@test.local", "senha123");
@@ -121,7 +121,7 @@ public class ApiTests
         Assert.That(user?.Email, Is.EqualTo("me@test.local"));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Chats_SemToken_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -130,7 +130,7 @@ public class ApiTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Chats_CicloCompleto_CriaListaAtualizaRemove()
     {
         var auth = await SignUpAsync("Chat", "chat@test.local", "senha123");
@@ -168,7 +168,7 @@ public class ApiTests
         Assert.That(listAfter, Is.Empty);
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Chats_Busca_FiltraPorTitulo()
     {
         var auth = await SignUpAsync("Busca", "busca@test.local", "senha123");
@@ -185,7 +185,7 @@ public class ApiTests
         Assert.That(filtered![0].Title, Is.EqualTo("Python ajuda"));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task Models_ComToken_RetornaListaVaziaSemProvedores()
     {
         var auth = await SignUpAsync("Models", "models@test.local", "senha123");
@@ -197,7 +197,7 @@ public class ApiTests
         Assert.That(result!.Data, Is.Not.Null);
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Version_SemAuth_RetornaVersao()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -206,7 +206,7 @@ public class ApiTests
         Assert.That(result?.Version, Does.Contain("dotnet"));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Connections_UsuarioComum_Retorna403()
     {
         var auth = await SignUpAsync("Comum", "comum@test.local", "senha123");
@@ -217,7 +217,7 @@ public class ApiTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Connections_Admin_LeEAtualiza()
     {
         var signin = await _client.PostAsJsonAsync(
@@ -245,7 +245,7 @@ public class ApiTests
         });
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Chats_PinArchiveShare_Funcionam()
     {
         var auth = await SignUpAsync("Pin", "pin@test.local", "senha123");
@@ -281,7 +281,7 @@ public class ApiTests
         Assert.That(normalList, Is.Empty);
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task Pastas_CriaMoveListaRemove()
     {
         var auth = await SignUpAsync("Folder", "folder@test.local", "senha123");
@@ -308,7 +308,7 @@ public class ApiTests
         Assert.That(inFolder, Has.Count.EqualTo(1));
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task Prompts_CRUD_Completo()
     {
         var auth = await SignUpAsync("Prompt", "prompt@test.local", "senha123");
@@ -327,7 +327,7 @@ public class ApiTests
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task MemoriasENotas_CRUD()
     {
         var auth = await SignUpAsync("Memo", "memo@test.local", "senha123");
@@ -347,7 +347,7 @@ public class ApiTests
         Assert.That(notes![0].Title, Is.EqualTo("Ideias"));
     }
 
-    [Test, Order(18)]
+    [Test]
     public async Task Avaliacao_FeedbackSalvaEDuplica()
     {
         var auth = await SignUpAsync("Eval", "eval@test.local", "senha123");
@@ -367,7 +367,7 @@ public class ApiTests
         Assert.That(list![0].Rating, Is.EqualTo(-1));
     }
 
-    [Test, Order(19)]
+    [Test]
     public async Task ApiKey_CriaUsaERevoga()
     {
         var auth = await SignUpAsync("Key", "key@test.local", "senha123");
@@ -392,7 +392,7 @@ public class ApiTests
         Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(20)]
+    [Test]
     public async Task ModelosPersonalizados_CRUD()
     {
         var auth = await SignUpAsync("CModel", "cmodel@test.local", "senha123");
@@ -414,7 +414,7 @@ public class ApiTests
         Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(21)]
+    [Test, DependsOnTest(nameof(Signup_SegundoUsuario_ViraUser), AllowFailure = true)]
     public async Task Admin_Usuarios_ListaEAtualiza()
     {
         var signin = await _client.PostAsJsonAsync(

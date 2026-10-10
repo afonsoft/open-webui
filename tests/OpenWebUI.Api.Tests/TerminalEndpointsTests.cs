@@ -172,7 +172,7 @@ public class TerminalEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Config_CrudAdmin_EListagemSemKey()
     {
         UseToken(_adminToken);
@@ -208,7 +208,7 @@ public class TerminalEndpointsTests
         UseToken(_adminToken);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Proxy_RepassaGetEPost_ComAuthDoServidor()
     {
         UseToken(_adminToken);
@@ -222,7 +222,7 @@ public class TerminalEndpointsTests
         Assert.That(auth.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Proxy_PathTraversalBloqueado_EServidorInexistente404()
     {
         UseToken(_adminToken);
@@ -236,7 +236,7 @@ public class TerminalEndpointsTests
         Assert.That(missing.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Proxy_ServidorFora_502()
     {
         UseToken(_adminToken);
@@ -246,7 +246,7 @@ public class TerminalEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadGateway));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task WebSocket_Tunnel_EcoaFramesBidirecional()
     {
         await _client.PostAsJsonAsync("/api/v1/terminals/config",

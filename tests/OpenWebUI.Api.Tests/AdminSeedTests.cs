@@ -40,7 +40,7 @@ public class AdminSeedTests
         }
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task SignIn_AdminSemeadoPorEnv_AutenticaComoAdmin()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/auths/signin",
@@ -54,7 +54,7 @@ public class AdminSeedTests
         Assert.That(auth.Token, Is.Not.Empty);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task SignUp_AposSeed_NaoViraAdmin()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/auths/signup",
@@ -66,7 +66,7 @@ public class AdminSeedTests
         Assert.That(auth.User.Role, Is.Not.EqualTo("admin"));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task SignIn_AdminSemeado_SenhaErrada_Retorna400()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/auths/signin",

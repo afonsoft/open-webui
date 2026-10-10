@@ -127,7 +127,7 @@ public class ModelEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task ApiModels_ComProviderMockado_ListaModeloDoOllama()
     {
         var user = await SignUpAsync("List", "list@models.local", "senha123");
@@ -140,7 +140,7 @@ public class ModelEndpointsTests
         Assert.That(baseModels!.Data.Any(m => m.Id == "fake:1"), Is.True);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ApiModels_SemToken_Retorna401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -152,7 +152,7 @@ public class ModelEndpointsTests
         Assert.That(workspaceModels.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Modelos_Create_SemNome_Retorna400()
     {
         var user = await SignUpAsync("Val", "val@models.local", "senha123");
@@ -164,7 +164,7 @@ public class ModelEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Modelos_CRUD_AtualizaToggleEDeleta()
     {
         var user = await SignUpAsync("Crud", "crud@models.local", "senha123");
@@ -225,7 +225,7 @@ public class ModelEndpointsTests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Modelos_OperacoesEmModeloAlheio_Retornam404()
     {
         var owner = await SignUpAsync("Owner", "owner@models.local", "senha123");
@@ -256,7 +256,7 @@ public class ModelEndpointsTests
         });
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Modelos_ImportCriaEExportLista()
     {
         var user = await SignUpAsync("Imp", "imp@models.local", "senha123");
@@ -279,7 +279,7 @@ public class ModelEndpointsTests
         Assert.That(imported.ParamsJson, Is.EqualTo("{\"temperature\":0.5}"));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Completion_ModeloCustomizado_UsaModeloBaseESystemPrompt()
     {
         var user = await SignUpAsync("Comp", "comp@models.local", "senha123");

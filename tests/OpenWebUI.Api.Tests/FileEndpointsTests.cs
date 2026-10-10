@@ -137,7 +137,7 @@ public class FileEndpointsTests
         return await _client.PostAsync("/api/v1/files/", content);
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Upload_Texto_SalvaEExtraiConteudo()
     {
         var user = await SignUpAsync("Up", "up@files.local", "senha123");
@@ -164,7 +164,7 @@ public class FileEndpointsTests
         Assert.That(content!.Content, Does.Contain("CONTEUDO_MARCADOR"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Upload_SemArquivo_Retorna400()
     {
         var user = await SignUpAsync("Empty", "empty@files.local", "senha123");
@@ -177,7 +177,7 @@ public class FileEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Upload_Binario_NaoExtraiTextoEServidoComoArquivo()
     {
         var user = await SignUpAsync("Bin", "bin@files.local", "senha123");
@@ -196,7 +196,7 @@ public class FileEndpointsTests
         Assert.That(downloaded, Is.EqualTo(bytes));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Files_Listagem_SoRetornaDoProprioUsuario()
     {
         var userA = await SignUpAsync("FA", "fa@files.local", "senha123");
@@ -213,7 +213,7 @@ public class FileEndpointsTests
         Assert.That(listB, Is.Empty);
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Files_Alheio_MetaConteudoEDelete_Retornam404()
     {
         var owner = await SignUpAsync("FOwner", "fowner@files.local", "senha123");
@@ -236,7 +236,7 @@ public class FileEndpointsTests
         });
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Files_Delete_RemoveRegistro()
     {
         var user = await SignUpAsync("Del", "del@files.local", "senha123");
@@ -254,7 +254,7 @@ public class FileEndpointsTests
         Assert.That(list!.Any(f => f.Id == file.Id), Is.False);
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Completion_ComFileIds_InjetaConteudoDoArquivo()
     {
         var user = await SignUpAsync("Ctx", "ctx@files.local", "senha123");
@@ -285,7 +285,7 @@ public class FileEndpointsTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Completion_FileIdAlheio_NaoInjetaConteudo()
     {
         var owner = await SignUpAsync("COwner", "cowner@files.local", "senha123");
@@ -361,7 +361,7 @@ public class EvaluationEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Feedback_RatingInvalido_Retorna400()
     {
         var user = await SignUpAsync("Eval1", "e1@eval.local", "senha123");
@@ -373,7 +373,7 @@ public class EvaluationEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Feedback_CriaBuscaAtualizaEDeletaPorId()
     {
         var user = await SignUpAsync("Eval2", "e2@eval.local", "senha123");
@@ -408,7 +408,7 @@ public class EvaluationEndpointsTests
         Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Feedbacks_User_ListaSomenteDoUsuario()
     {
         var userA = await SignUpAsync("Eval3A", "e3a@eval.local", "senha123");
@@ -433,7 +433,7 @@ public class EvaluationEndpointsTests
         Assert.That(listA, Has.Count.EqualTo(2));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Feedbacks_ListEExport_ExigemAdmin()
     {
         var user = await SignUpAsync("Eval4", "e4@eval.local", "senha123");
@@ -459,7 +459,7 @@ public class EvaluationEndpointsTests
         Assert.That(export!.Any(f => f.MessageId == "mx"), Is.True);
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Feedbacks_DeleteAll_RemoveApenasDoUsuario()
     {
         var userA = await SignUpAsync("Eval5A", "e5a@eval.local", "senha123");

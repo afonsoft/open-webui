@@ -51,7 +51,7 @@ public class ChannelMembersTests
         }
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task UpdateChannel_OwnerAtualiza_MembroComumForbid_NaoMembroNotFound()
     {
         var owner = await SignUpAsync("Owner1", "owner1@chmem.local", "senha123");
@@ -104,7 +104,7 @@ public class ChannelMembersTests
         });
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task DeleteChannel_SomenteAdminDoCanal_Remove()
     {
         var owner = await SignUpAsync("Owner2", "owner2@chmem.local", "senha123");
@@ -137,7 +137,7 @@ public class ChannelMembersTests
         Assert.That(delAgain.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task AddMembers_AdminAdicionaComPapel_Idempotente()
     {
         var owner = await SignUpAsync("Owner3", "owner3@chmem.local", "senha123");
@@ -191,7 +191,7 @@ public class ChannelMembersTests
         Assert.That(extraAdd.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task RemoveMember_AdminRemove_MembroSoSeRemove()
     {
         var owner = await SignUpAsync("Owner4", "owner4@chmem.local", "senha123");
@@ -233,7 +233,7 @@ public class ChannelMembersTests
             Is.EquivalentTo(new[] { owner.User.Id }));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task PostMessage_ValidacaoEConteudo()
     {
         var owner = await SignUpAsync("Owner5", "owner5@chmem.local", "senha123");
@@ -270,7 +270,7 @@ public class ChannelMembersTests
         Assert.That(page![0].Content, Is.EqualTo("Segunda mensagem"));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task PostMessage_MencaoModelo_RespondeComProvedorMock()
     {
         var owner = await SignUpAsync("Owner6", "owner6@chmem.local", "senha123");

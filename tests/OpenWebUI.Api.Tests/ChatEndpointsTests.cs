@@ -71,7 +71,7 @@ public class ChatEndpointsTests
             .Select((c, i) => new ChatMessageModel($"m{i + 1}", i % 2 == 0 ? "user" : "assistant", c, null, 100 + i))
             .ToList();
 
-    [Test, Order(1)]
+    [Test]
     public async Task Import_CriaChatsComMensagensETituloPadrao()
     {
         var auth = await SignUpAsync("Import", "import@chats.local", "senha123");
@@ -99,7 +99,7 @@ public class ChatEndpointsTests
         Assert.That(detalhe!.Messages, Has.Count.EqualTo(2));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Import_ListaVazia_RetornaSucessoSemCriarNada()
     {
         var auth = await SignUpAsync("ImportVazio", "importvazio@chats.local", "senha123");
@@ -113,7 +113,7 @@ public class ChatEndpointsTests
         Assert.That(list, Is.Empty);
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ExportAll_RetornaChatsComMensagensETimestamp()
     {
         var auth = await SignUpAsync("Export", "export@chats.local", "senha123");
@@ -137,7 +137,7 @@ public class ChatEndpointsTests
         Assert.That(primeiro.GetProperty("messages").GetArrayLength(), Is.EqualTo(2));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Clone_CopiaTituloTagsEMensagens()
     {
         var auth = await SignUpAsync("Clone", "clone@chats.local", "senha123");
@@ -166,7 +166,7 @@ public class ChatEndpointsTests
         Assert.That(depois!.Messages, Has.Count.EqualTo(3));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Clone_ChatInexistente_Retorna404()
     {
         var auth = await SignUpAsync("Clone404", "clone404@chats.local", "senha123");
@@ -177,7 +177,7 @@ public class ChatEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task UpdateMessage_EditaConteudo_ERetorna404ParaCasosInvalidos()
     {
         var auth = await SignUpAsync("Msg", "msg@chats.local", "senha123");
@@ -212,7 +212,7 @@ public class ChatEndpointsTests
         Assert.That(alheio.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task DeleteMessage_RemoveDaMensagemEmDiante()
     {
         var auth = await SignUpAsync("DelMsg", "delmsg@chats.local", "senha123");
@@ -233,7 +233,7 @@ public class ChatEndpointsTests
         Assert.That(chat404.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Tags_SetGetBuscaEClear_NormalizamDuplicatas()
     {
         var auth = await SignUpAsync("Tags", "tags@chats.local", "senha123");
@@ -278,7 +278,7 @@ public class ChatEndpointsTests
         Assert.That(nf.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Meta_EndpointNaoMapeado_Retorna405()
     {
         var auth = await SignUpAsync("Meta", "meta@chats.local", "senha123");
@@ -293,7 +293,7 @@ public class ChatEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task Archived_ListaEContagem_RefletemArquivamento()
     {
         var auth = await SignUpAsync("Arch", "arch@chats.local", "senha123");
@@ -323,7 +323,7 @@ public class ChatEndpointsTests
         Assert.That(archivedDepois, Is.Empty);
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task ArchiveAll_UnarchiveAll_OperamEmMassa()
     {
         var auth = await SignUpAsync("Bulk", "bulk@chats.local", "senha123");
@@ -348,7 +348,7 @@ public class ChatEndpointsTests
         Assert.That(restaurados, Has.Count.EqualTo(2));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Share_Unshare_ControlamAcessoPublico()
     {
         var auth = await SignUpAsync("Share", "share@chats.local", "senha123");
@@ -393,7 +393,7 @@ public class ChatEndpointsTests
         UseToken(auth.Token);
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Folder_AssociaListaIncluiERemove()
     {
         var auth = await SignUpAsync("Pasta", "pasta@chats.local", "senha123");
@@ -438,7 +438,7 @@ public class ChatEndpointsTests
         Assert.That(nf.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Search_RotaDedicada_FiltraPorTituloEConteudo()
     {
         var auth = await SignUpAsync("Search", "search@chats.local", "senha123");
@@ -462,7 +462,7 @@ public class ChatEndpointsTests
         Assert.That(semMatch, Is.Empty);
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task Pinned_GetPinned_ListaPinned_EDeleteAll()
     {
         var auth = await SignUpAsync("Pin2", "pin2@chats.local", "senha123");

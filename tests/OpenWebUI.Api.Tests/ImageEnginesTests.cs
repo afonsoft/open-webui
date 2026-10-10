@@ -164,7 +164,7 @@ public class ImageEnginesTests
         return (int)response.StatusCode;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Motor_Desconhecido_Rejeitado() // RF-001
     {
         UseToken(_admin.Token);
@@ -173,7 +173,7 @@ public class ImageEnginesTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Engines_Listadas_SomenteAdmin() // RF-004
     {
         UseToken(_admin.Token);
@@ -185,7 +185,7 @@ public class ImageEnginesTests
         Assert.That(forbidden.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task A1111_Txt2Img_GeraImagem() // RF-002
     {
         await SetEngineAsync("a1111", "{\"steps\":5}");
@@ -198,14 +198,14 @@ public class ImageEnginesTests
         Assert.That(test!.Ok, Is.True);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Gemini_Predict_GeraImagem() // RF-002
     {
         await SetEngineAsync("gemini");
         Assert.That(await GenerateAsync(), Is.EqualTo(200));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task ComfyUI_Workflow_GeraImagem() // RF-002
     {
         var workflow = "{\"3\":{\"inputs\":{\"text\":\"{prompt}\",\"seed\":{seed},\"steps\":{steps}},\"class_type\":\"KSampler\"}}";
@@ -213,14 +213,14 @@ public class ImageEnginesTests
         Assert.That(await GenerateAsync(), Is.EqualTo(200));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task ComfyUI_SemWorkflow_FalhaCom501() // RF-002
     {
         await SetEngineAsync("comfyui", "{}");
         Assert.That(await GenerateAsync(), Is.EqualTo(501));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Edit_EngineSemSuporte_501() // RF-003
     {
         await SetEngineAsync("gemini");
@@ -230,7 +230,7 @@ public class ImageEnginesTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotImplemented));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Edit_A1111_Img2Img_Ok() // RF-003
     {
         // gera uma imagem para ter um arquivo de origem

@@ -137,7 +137,7 @@ public class AutomationEdgeTests
         return (await response.Content.ReadFromJsonAsync<AutomationResponse>())!;
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Validacao_CamposObrigatorios_Retorna400()
     {
         var user = await SignUpAsync("Val1", "val1@edge.local", "senha123");
@@ -156,7 +156,7 @@ public class AutomationEdgeTests
         Assert.That(semModelo.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Validacao_ScheduleKindInvalido_Retorna400NoCreateENoUpdate()
     {
         var user = await SignUpAsync("Val2", "val2@edge.local", "senha123");
@@ -178,7 +178,7 @@ public class AutomationEdgeTests
         Assert.That(atual!.ScheduleKind, Is.EqualTo("interval"));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Validacao_IntervalAbaixoDoMinimo_Retorna400()
     {
         var user = await SignUpAsync("Val3", "val3@edge.local", "senha123");
@@ -193,7 +193,7 @@ public class AutomationEdgeTests
         }
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Validacao_DailySemHoraOuHoraInvalida_Retorna400()
     {
         var user = await SignUpAsync("Val4", "val4@edge.local", "senha123");
@@ -208,7 +208,7 @@ public class AutomationEdgeTests
         Assert.That(horaInvalida.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Validacao_WeeklySemDiaOuDiaForaDe0a6_Retorna400()
     {
         var user = await SignUpAsync("Val5", "val5@edge.local", "senha123");
@@ -223,7 +223,7 @@ public class AutomationEdgeTests
         }
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task SemToken_TodasAsRotas_Retornam401()
     {
         _client.DefaultRequestHeaders.Authorization = null;
@@ -250,7 +250,7 @@ public class AutomationEdgeTests
         });
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task TokenDeUsuarioRemovido_Handlers_Retornam401()
     {
         // JWT continua válido, mas o usuário foi removido do banco:
@@ -276,7 +276,7 @@ public class AutomationEdgeTests
         });
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task AutomacaoInexistente_Operacoes_Retornam404()
     {
         var user = await SignUpAsync("NotFound", "nf@edge.local", "senha123");
@@ -298,7 +298,7 @@ public class AutomationEdgeTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task AutomacaoDeOutroUsuario_TodasOperacoes_Retornam404()
     {
         var owner = await SignUpAsync("Owner", "owner@edge.local", "senha123");
@@ -330,7 +330,7 @@ public class AutomationEdgeTests
         Assert.That(list!.Any(a => a.Id == automation.Id), Is.False);
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task RunNow_AutomacaoDesabilitada_ExecutaSemReagendar()
     {
         var user = await SignUpAsync("Disabled", "disabled@edge.local", "senha123");
@@ -358,7 +358,7 @@ public class AutomationEdgeTests
         });
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Update_Parcial_PreservaEnabledEAplicaDefaults()
     {
         var user = await SignUpAsync("Partial", "partial@edge.local", "senha123");
@@ -394,7 +394,7 @@ public class AutomationEdgeTests
         });
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Calendario_RangeInvertidoOuInvalido()
     {
         var user = await SignUpAsync("Cal", "cal@edge.local", "senha123");
@@ -420,7 +420,7 @@ public class AutomationEdgeTests
         Assert.That(naoNumerico.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Calendario_RunsDeOutroUsuario_NaoAparecem()
     {
         var owner = await SignUpAsync("CalOwner", "calowner@edge.local", "senha123");
@@ -439,7 +439,7 @@ public class AutomationEdgeTests
         Assert.That(runs, Is.Empty);
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task ListRuns_AutomacaoSemExecucoes_RetornaListaVazia()
     {
         var user = await SignUpAsync("Empty", "empty@edge.local", "senha123");

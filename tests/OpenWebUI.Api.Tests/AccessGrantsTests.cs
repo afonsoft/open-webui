@@ -80,7 +80,7 @@ public class AccessGrantsTests
 
     private sealed record JsonElementShim(string Id);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Knowledge_SemGrant_NaoVazaExistencia()
     {
         var id = await CreateKnowledgeAsync(_admin.Token, "Secreta");
@@ -93,7 +93,7 @@ public class AccessGrantsTests
         Assert.That(list!.Any(k => k.Id == id), Is.False);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Knowledge_GrantLeitura_ListaELeMasNaoEscreve()
     {
         var id = await CreateKnowledgeAsync(_admin.Token, "Compartilhada");
@@ -115,7 +115,7 @@ public class AccessGrantsTests
         Assert.That(write.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Knowledge_GrantEscrita_PermiteUpdate()
     {
         var id = await CreateKnowledgeAsync(_admin.Token, "Editável");
@@ -129,7 +129,7 @@ public class AccessGrantsTests
         Assert.That(write.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Knowledge_AccessUpdate_SomenteOwnerOuAdmin()
     {
         var id = await CreateKnowledgeAsync(_user.Token, "DoUser");
@@ -150,7 +150,7 @@ public class AccessGrantsTests
         Assert.That(invalid.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Nota_GrantEstrela_QualquerAutenticadoLe()
     {
         var noteId = await CreateNoteAsync(_admin.Token, "Nota pública");
@@ -168,7 +168,7 @@ public class AccessGrantsTests
         Assert.That(del.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task Canal_GrantEstrela_LeMasNaoPosta()
     {
         UseToken(_admin.Token);
@@ -193,7 +193,7 @@ public class AccessGrantsTests
         Assert.That(post.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task Calendario_CrudEventos_RangeEBusca()
     {
         UseToken(_admin.Token);
@@ -222,7 +222,7 @@ public class AccessGrantsTests
         Assert.That(after!.Any(), Is.False);
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Calendario_GrantGrupo_MembroVeEventos()
     {
         // admin cria grupo com _user como membro

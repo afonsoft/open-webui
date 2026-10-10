@@ -121,7 +121,7 @@ public class NotificationEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task Webhook_CRUD_PorUsuario() // RF-001
     {
         UseToken(_user.Token);
@@ -140,7 +140,7 @@ public class NotificationEndpointsTests
         Assert.That(raw, Does.Not.Contain("secret").IgnoreCase);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Webhook_UrlInvalida_400() // RF-001
     {
         UseToken(_user.Token);
@@ -149,7 +149,7 @@ public class NotificationEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Webhook_Test_DisparaAssinado() // RF-003
     {
         UseToken(_user.Token);
@@ -170,7 +170,7 @@ public class NotificationEndpointsTests
         }
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task AdminWebhook_SomenteAdmin_EDisparaNoEvento() // RF-001/RF-002
     {
         UseToken(_user.Token);
@@ -184,7 +184,7 @@ public class NotificationEndpointsTests
         Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Dispatch_NaoQuebraFluxo_QuandoDestinoFora() // RF-002
     {
         // webhook apontando para porta fechada: signup pending não pode falhar

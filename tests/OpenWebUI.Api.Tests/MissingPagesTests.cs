@@ -56,7 +56,7 @@ public class MissingPagesTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task PostApiConfig_SomenteAdmin()
     {
         var user = await SignUpAsync("User", "user@pages.local", "senha123");
@@ -65,7 +65,7 @@ public class MissingPagesTests
         Assert.That(forbidden.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task PostApiConfig_PersisteFlagERefleteNoGet()
     {
         UseToken(_adminToken);
@@ -84,7 +84,7 @@ public class MissingPagesTests
         Assert.That(after!.Features.EnableMemories, Is.False);
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task FeedbacksList_SomenteAdmin_ComNomeDoUsuario()
     {
         var user = await SignUpAsync("Avaliador", "avaliador@pages.local", "senha123");

@@ -74,7 +74,7 @@ public class PermissionServiceTests
         return await new PermissionService(db).HasAsync(user, permission, ct);
     }
 
-    [Test, Order(1)]
+    [Test]
     public async Task Admin_SemGrupos_TemTodasPermissoes()
     {
         // Branch: user.Role == Admin → retorno imediato sem consultar grupos.
@@ -83,7 +83,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(admin, PermissionService.WorkspaceModels), Is.True);
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task Admin_MembroDeGrupoRestritivo_MantemTodasPermissoes()
     {
         // Branch: admin bypassa mesmo quando o grupo nega todas as flags.
@@ -99,7 +99,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task Usuario_SemGrupos_DefaultTrue()
     {
         // Branch: groups.Count == 0 → true (comportamento default preservado).
@@ -109,7 +109,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspaceFiles), Is.True);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task Usuario_Inexistente_SemMemberships_DefaultTrue()
     {
         // Branch: usuário não persistido → nenhum GroupMember → count 0 → true.
@@ -118,7 +118,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(fantasma, PermissionService.SharingPublicChats), Is.True);
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task Membro_GrupoCompleto_RetornaTrue()
     {
         // Branch: groups.Any(Applies) com JSON concedendo tudo.
@@ -134,7 +134,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(6)]
+    [Test]
     [TestCase(PermissionService.WorkspaceModels)]
     [TestCase(PermissionService.WorkspacePrompts)]
     [TestCase(PermissionService.WorkspaceKnowledge)]
@@ -153,7 +153,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, permission), Is.False);
     }
 
-    [Test, Order(7)]
+    [Test]
     [TestCase(PermissionService.WorkspaceModels)]
     [TestCase(PermissionService.WorkspacePrompts)]
     [TestCase(PermissionService.WorkspaceKnowledge)]
@@ -175,7 +175,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, permission), Is.True);
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task Membro_GruposMultiplos_UniaoConcede()
     {
         // Branch: união — um grupo nega, outro concede → Any retorna true.
@@ -189,7 +189,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspaceModels), Is.True);
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Membro_GruposMultiplos_TodosNegam_RetornaFalse()
     {
         // Branch: união — todos os grupos negam → Any retorna false.
@@ -207,7 +207,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(10)]
+    [Test]
     [TestCase("{json invalido")]
     [TestCase("")]
     [TestCase("null")]
@@ -222,7 +222,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspacePrompts), Is.False);
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task Membro_GrupoJsonQuebrado_ComOutroGrupoValido_UniaoTrue()
     {
         // Branch: JsonException em um grupo não impede a concessão por outro.
@@ -236,7 +236,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspacePrompts), Is.True);
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Membro_GrupoJsonObjetoVazio_DefaultsTrue()
     {
         // Branch: "{}" → seções null substituídas por defaults (todas as flags true).
@@ -253,7 +253,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task Membro_GrupoJsonSecoesNulas_MisturaDefaultsComNegacao()
     {
         // Branch: workspace preenchido com negação; sharing/chat null → defaults true.
@@ -272,7 +272,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(14)]
+    [Test]
     public async Task Membro_RoleAdminDentroDoGrupo_NaoElevaPermissoes()
     {
         // Branch: papel "admin" no vínculo não é herança — só o role global bypassa.
@@ -284,7 +284,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspaceFiles), Is.False);
     }
 
-    [Test, Order(15)]
+    [Test]
     public async Task UsuarioPendente_MembroDeGrupoRestritivo_RetornaFalse()
     {
         // Branch: role "pending" não tem bypass — segue a união dos grupos.
@@ -296,7 +296,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.ChatControls), Is.False);
     }
 
-    [Test, Order(16)]
+    [Test]
     public async Task Membro_PermissaoDesconhecida_RetornaTrue()
     {
         // Branch: switch default `_` → chaves fora do catálogo retornam true.
@@ -312,7 +312,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(17)]
+    [Test]
     public async Task Membro_GrupoInexistente_VinculoOrfaoIgnorado()
     {
         // Branch: m.Group! nulo — membro órfão (FK desligada) não contribui na união.
@@ -327,7 +327,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(NovoUsuario("u1", UserRoles.User), PermissionService.WorkspaceModels), Is.True);
     }
 
-    [Test, Order(18)]
+    [Test]
     public async Task TokenCancelado_PropagaOperationCanceled()
     {
         // Branch: CancellationToken cancelado propaga pela query EF.
@@ -339,7 +339,7 @@ public class PermissionServiceTests
             () => HasAsync(usuario, PermissionService.WorkspaceModels, cts.Token));
     }
 
-    [Test, Order(19)]
+    [Test]
     public async Task Override_Usuario_Permite_Onde_Grupo_Nega()
     {
         // SPEC permissions-granular: flag explícita do usuário vence a do grupo.
@@ -352,7 +352,7 @@ public class PermissionServiceTests
         Assert.That(await HasAsync(usuario, PermissionService.WorkspaceModels), Is.True);
     }
 
-    [Test, Order(20)]
+    [Test]
     public async Task Override_Usuario_Nega_Onde_Grupo_Permite()
     {
         var usuario = NovoUsuario("u1", UserRoles.User);
@@ -368,7 +368,7 @@ public class PermissionServiceTests
         });
     }
 
-    [Test, Order(21)]
+    [Test]
     public async Task Override_Usuario_NaoAfeta_OutroMembro()
     {
         // Override desliga a flag para um usuário sem afetar outro membro do grupo.

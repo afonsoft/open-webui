@@ -101,7 +101,7 @@ public class SamlTests
                 DateTimeOffset.UtcNow.AddYears(1));
 
     /// <summary>GET /saml/metadata retorna EntityDescriptor do SP.</summary>
-    [Test, Order(1)]
+    [Test]
     public async Task T01_Metadata_RetornaEntityDescriptor()
     {
         var response = await _anon.GetAsync("/saml/metadata");
@@ -116,7 +116,7 @@ public class SamlTests
     }
 
     /// <summary>GET /saml/login redireciona ao IdP com SAMLRequest encodado.</summary>
-    [Test, Order(2)]
+    [Test]
     public async Task T02_Login_RedirecionaAoIdp()
     {
         var response = await _anon.GetAsync("/saml/login");
@@ -130,7 +130,7 @@ public class SamlTests
     }
 
     /// <summary>Assertion assinada pelo IdP autentica e emite JWT (JIT user).</summary>
-    [Test, Order(3)]
+    [Test]
     public async Task T03_Acs_AssertionValida_CriaUsuarioEEmeiteJwt()
     {
         var samlResponse = BuildSignedResponse(
@@ -151,7 +151,7 @@ public class SamlTests
     }
 
     /// <summary>Assertion assinada por certificado desconhecido é rejeitada.</summary>
-    [Test, Order(4)]
+    [Test]
     public async Task T04_Acs_AssinaturaInvalida_Retorna401()
     {
         var samlResponse = BuildSignedResponse(
@@ -162,7 +162,7 @@ public class SamlTests
     }
 
     /// <summary>Assertion com issuer divergente do configurado é rejeitada.</summary>
-    [Test, Order(5)]
+    [Test]
     public async Task T05_Acs_IssuerDivergente_Retorna401()
     {
         var samlResponse = BuildSignedResponse(
@@ -173,7 +173,7 @@ public class SamlTests
     }
 
     /// <summary>Assertion com audience incorreta é rejeitada.</summary>
-    [Test, Order(6)]
+    [Test]
     public async Task T06_Acs_AudienceIncorreta_Retorna401()
     {
         var samlResponse = BuildSignedResponse(
@@ -184,7 +184,7 @@ public class SamlTests
     }
 
     /// <summary>SAML desabilitado → endpoints retornam 404.</summary>
-    [Test, Order(7)]
+    [Test]
     public async Task T07_Desabilitado_EndpointsRetornam404()
     {
         await _admin.PostAsJsonAsync("/api/v1/configs/saml",

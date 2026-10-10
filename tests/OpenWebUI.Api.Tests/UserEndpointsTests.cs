@@ -56,7 +56,7 @@ public class UserEndpointsTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task ListarUsuarios_Admin_RetornaListaComTotal()
     {
         await SignUpAsync("Listado", "listado@users.local", "senha123");
@@ -75,7 +75,7 @@ public class UserEndpointsTests
         Assert.That(emails, Does.Contain("listado@users.local"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ListarUsuarios_UsuarioComum_Retorna403()
     {
         var user = await SignUpAsync("Comum", "comum@users.local", "senha123");
@@ -86,7 +86,7 @@ public class UserEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ListarTodos_Admin_RetornaArrayDeUsuarios()
     {
         UseToken(_admin.Token);
@@ -97,7 +97,7 @@ public class UserEndpointsTests
         Assert.That(all!.Any(u => u.Email == "admin@users.local"), Is.True);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task BuscarUsuarios_FiltraPorNomeOuEmail()
     {
         await SignUpAsync("BuscaAlvo", "alvo.buscado@users.local", "senha123");
@@ -112,7 +112,7 @@ public class UserEndpointsTests
             Is.EqualTo("alvo.buscado@users.local"));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task GetUser_Admin_PorId_RetornaUsuario_IdInexistente_404()
     {
         var alvo = await SignUpAsync("Alvo", "alvo@users.local", "senha123");
@@ -125,7 +125,7 @@ public class UserEndpointsTests
         Assert.That(missing.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task UpdateUser_Admin_AtualizaNomeEImagem()
     {
         var alvo = await SignUpAsync("Editavel", "editavel@users.local", "senha123");
@@ -143,7 +143,7 @@ public class UserEndpointsTests
         });
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task UpdateUser_PromoveParaAdmin_NovoTokenTemAcessoAdmin()
     {
         var alvo = await SignUpAsync("Promovido", "promovido@users.local", "senha123");
@@ -165,7 +165,7 @@ public class UserEndpointsTests
         Assert.That(adminView.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task UpdateUser_UsuarioComum_Retorna403()
     {
         var alvo = await SignUpAsync("Vitima", "vitima@users.local", "senha123");
@@ -178,7 +178,7 @@ public class UserEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task DeleteUser_Admin_RemoveUsuarioQueNaoLogaMais()
     {
         var alvo = await SignUpAsync("Deletavel", "deletavel@users.local", "senha123");
@@ -196,7 +196,7 @@ public class UserEndpointsTests
         Assert.That(signin.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task DeleteUser_PropriaConta_Retorna400()
     {
         UseToken(_admin.Token);
@@ -206,7 +206,7 @@ public class UserEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
-    [Test, Order(11)]
+    [Test]
     public async Task DeleteUser_UsuarioComum_Retorna403()
     {
         var alvo = await SignUpAsync("AlvoDel", "alvodel@users.local", "senha123");
@@ -218,7 +218,7 @@ public class UserEndpointsTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(12)]
+    [Test]
     public async Task Permissoes_RetornaEstruturaPadrao()
     {
         var user = await SignUpAsync("Perms", "perms@users.local", "senha123");
@@ -234,7 +234,7 @@ public class UserEndpointsTests
         });
     }
 
-    [Test, Order(13)]
+    [Test]
     public async Task UserSettings_SalvaERecupera()
     {
         var user = await SignUpAsync("Settings", "settings@users.local", "senha123");

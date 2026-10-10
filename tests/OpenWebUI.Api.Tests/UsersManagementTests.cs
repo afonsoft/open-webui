@@ -54,7 +54,7 @@ public class UsersManagementTests
     private void UseToken(string token) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    [Test, Order(1)]
+    [Test]
     public async Task ListarUsuarios_ComBusca_FiltraPorNomeOuEmail()
     {
         await SignUpAsync("Zelda Pereira", "zelda@umgmt.local", "senha123");
@@ -69,7 +69,7 @@ public class UsersManagementTests
         Assert.That(users[0].GetProperty("email").GetString(), Is.EqualTo("zelda@umgmt.local"));
     }
 
-    [Test, Order(2)]
+    [Test]
     public async Task ListarUsuarios_ComFiltro_FiltraPorPapel()
     {
         UseToken(_admin.Token);
@@ -82,7 +82,7 @@ public class UsersManagementTests
         Assert.That(users.All(u => u.GetProperty("role").GetString() == "admin"), Is.True);
     }
 
-    [Test, Order(3)]
+    [Test]
     public async Task ListarUsuarios_ComOrdenacao_E_Paginacao()
     {
         UseToken(_admin.Token);
@@ -115,7 +115,7 @@ public class UsersManagementTests
         Assert.That(p1Ids.Intersect(p2Ids), Is.Empty);
     }
 
-    [Test, Order(4)]
+    [Test]
     public async Task ListarUsuarios_UsuarioComum_RetornaProibido()
     {
         var user = await SignUpAsync("Comum", "comum@umgmt.local", "senha123");
@@ -126,7 +126,7 @@ public class UsersManagementTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(5)]
+    [Test]
     public async Task AtivosSomenteAdmin_RetornaListaDeIds()
     {
         UseToken(_admin.Token);
@@ -139,7 +139,7 @@ public class UsersManagementTests
         Assert.That(forbidden.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    [Test, Order(6)]
+    [Test]
     public async Task AtualizarPapel_SomenteAdmin_IsoladoDeOutrosCampos()
     {
         var user = await SignUpAsync("Candidato", "candidato@umgmt.local", "senha123");
@@ -170,7 +170,7 @@ public class UsersManagementTests
         });
     }
 
-    [Test, Order(7)]
+    [Test]
     public async Task SessoesOAuth_ProprioOuAdmin()
     {
         var user = await SignUpAsync("OAuth User", "oauthuser@umgmt.local", "senha123");
@@ -191,7 +191,7 @@ public class UsersManagementTests
         Assert.That(asAdmin.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(8)]
+    [Test]
     public async Task PostUserSettings_Alias_PersistePreferencias()
     {
         var user = await SignUpAsync("Prefs", "prefs@umgmt.local", "senha123");
@@ -209,7 +209,7 @@ public class UsersManagementTests
         });
     }
 
-    [Test, Order(9)]
+    [Test]
     public async Task Signup_UsuarioRecebePermissoesDefault_Permissivas()
     {
         var user = await SignUpAsync("Perm Default", "permdef@umgmt.local", "senha123");
@@ -220,7 +220,7 @@ public class UsersManagementTests
         Assert.That(prompts.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
-    [Test, Order(10)]
+    [Test]
     public async Task ListarUsuarios_RetornaLastActiveAtComoUpdatedAt()
     {
         var user = await SignUpAsync("Ativo Campo", "ativocampo@umgmt.local", "senha123");
