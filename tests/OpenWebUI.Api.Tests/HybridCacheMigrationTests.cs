@@ -76,6 +76,29 @@ public class HybridCacheMigrationTests
     }
 
     [Test]
+    public async Task ConfigService_SetAsync_NullNaoCacheaEDevolveDefault()
+    {
+        // Dado: config "audio.config" com objeto válido, depois null no banco
+        await MigrateAsync();
+        var svc = new ConfigService(NewDb(), _cache);
+        var fallback = new AudioConfig("none", null, null, null, "none", null, null, null, null, null);
+        await svc.SetAsync<AudioConfig?>("audio.config",
+            new AudioConfig("openai", "http://x", "k", "m", "none", null, null, null, null, null));
+        Assert.That((await svc.GetAsync<AudioConfig?>("audio.config", null))!.SttEngine, Is.EqualTo("openai"));
+
+        // Quando: a config é resetada para null (caminho que 500ava o /api/config)
+        await svc.SetAsync<AudioConfig?>("audio.config", null);
+
+        // Então: leitura devolve o default, nunca null-cache
+        var v = await svc.GetAsync("audio.config", fallback);
+        Assert.That(v, Is.Not.Null.And.Property(nameof(AudioConfig.SttEngine)).EqualTo("none"));
+        // T e T? compartilham o slot: a leitura nullable vê o fallback já
+        // cacheado (mesmo comportamento do IMemoryCache antigo).
+        var vNul = await svc.GetAsync<AudioConfig?>("audio.config", null);
+        Assert.That(vNul, Is.Not.Null.And.Property(nameof(AudioConfig.SttEngine)).EqualTo("none"));
+    }
+
+    [Test]
     public async Task ConfigService_GetAsync_ConcorrenteCoalesceFactory()
     {
         // Dado: chave inexistente — N leituras concorrentes

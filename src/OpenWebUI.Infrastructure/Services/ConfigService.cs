@@ -28,12 +28,18 @@ public class ConfigService(AppDbContext db, HybridCache cache)
     /// <param name="defaultValue">Valor usado quando a chave não existe.</param>
     /// <param name="ct">Token de cancelamento.</param>
     public async Task<T> GetAsync<T>(string key, T defaultValue, CancellationToken ct = default)
-        => await cache.GetOrCreateAsync(
+    {
+        // O slot é compartilhado entre T e T? (mesma cache key): uma leitura
+        // nullable que cacheie null não pode vazar o null para a leitura
+        // não-nullable seguinte — o defaultValue sempre vence.
+        var result = await cache.GetOrCreateAsync(
             CacheKey<T>(key),
             async cancel => await GetFromDbAsync(key, defaultValue, cancel),
             CacheOptions,
             tags: ["config"],
             cancellationToken: ct);
+        return result is null ? defaultValue : result;
+    }
 
     private async Task<T> GetFromDbAsync<T>(string key, T defaultValue, CancellationToken ct)
     {
@@ -84,7 +90,17 @@ public class ConfigService(AppDbContext db, HybridCache cache)
         }
 
         await db.SaveChangesAsync(ct);
-        await cache.SetAsync(CacheKey<T>(key), value, CacheOptions, cancellationToken: ct);
+        // Valor null não pode ser cacheado: o GetOrCreateAsync devolveria o
+        // null "como hit" e engoliria o ?? defaultValue do factory (o
+        // TryGetValue antigo caía no branch do banco com `hit is T` = false).
+        if (value is null)
+        {
+            await cache.RemoveAsync(CacheKey<T>(key), ct);
+        }
+        else
+        {
+            await cache.SetAsync(CacheKey<T>(key), value, CacheOptions, cancellationToken: ct);
+        }
     }
 
     /// <summary>Obtém a configuração de conexões com provedores de IA.</summary>
