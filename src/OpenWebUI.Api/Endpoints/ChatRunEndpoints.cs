@@ -529,7 +529,7 @@ public static class ChatRunEndpoints
     private static ChatRunResponse ToResponse(ChatRun run) => new(
         run.Id, run.ChatId, run.Status, run.Model,
         run.PartialContent, run.Error,
-        run.CreatedAt, run.StartedAt, run.CompletedAt);
+        run.CreatedAt, run.StartedAt, run.CompletedAt, run.ParentRunId);
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 }

@@ -40,7 +40,20 @@ public sealed record ChatSummaryResponse(
     IReadOnlyList<string> Tags,
     long CreatedAt,
     long UpdatedAt,
-    bool Awaiting = false);
+    bool Awaiting = false,
+    string? ParentChatId = null,
+    int ChildrenCount = 0);
+
+/// <summary>Resumo de um chat filho (delegado) para a árvore pai↔filho.</summary>
+/// <param name="Id">Identificador do chat filho.</param>
+/// <param name="Title">Título exibido.</param>
+/// <param name="LastRunStatus">Status da run mais recente (null = sem runs).</param>
+/// <param name="CreatedAt">Criação (epoch seconds).</param>
+public sealed record ChatChildSummaryResponse(
+    string Id,
+    string Title,
+    string? LastRunStatus,
+    long CreatedAt);
 
 /// <summary>Contagem de chats aguardando ação do usuário (D2 attention-inbox).</summary>
 /// <param name="Count">Chats do usuário com aprovação/pergunta pendente.</param>
@@ -72,7 +85,9 @@ public sealed record ChatResponse(
     long CreatedAt,
     long UpdatedAt,
     string ApprovalPreset = "approve-mutations",
-    string Mode = "build");
+    string Mode = "build",
+    string? ParentChatId = null,
+    string? ParentTitle = null);
 
 /// <summary>Requisição para criar ou atualizar um chat.</summary>
 /// <param name="Title">Título do chat.</param>

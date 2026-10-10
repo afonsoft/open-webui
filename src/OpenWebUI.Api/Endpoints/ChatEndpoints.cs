@@ -42,6 +42,7 @@ public static class ChatEndpoints
 
         group.MapGet("/all", ListAllChatsAdminAsync);
         group.MapGet("/{id}", GetChatAsync);
+        group.MapGet("/{id}/children", ListChildrenAsync);
         group.MapPost("/{id}", UpdateChatAsync);
         group.MapPatch("/{id}", PatchChatAsync);
         group.MapDelete("/{id}", DeleteChatAsync);
@@ -123,7 +124,16 @@ public static class ChatEndpoints
             ? await ordered.Skip(Math.Max(0, skip)).Take(limit).ToListAsync(ct)
             : await ordered.ToListAsync(ct);
 
-        return Results.Ok(list.Select(c => ToSummary(c, awaiting.Contains(c.Id))).ToList());
+        // Contagem de filhos delegados por pai — uma query agrupada, sem N+1.
+        var childrenCounts = await db.Chats.AsNoTracking()
+            .Where(c => c.UserId == user.Id && c.ParentChatId != null)
+            .GroupBy(c => c.ParentChatId!)
+            .Select(g => new { ParentId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ParentId, x => x.Count, ct);
+
+        return Results.Ok(list.Select(c => ToSummary(
+                c, awaiting.Contains(c.Id), childrenCounts.GetValueOrDefault(c.Id)))
+            .ToList());
     }
 
     /// <summary>
@@ -313,7 +323,7 @@ public static class ChatEndpoints
 
         return Results.Ok(new
         {
-            chats = chats.Select(ToResponse).ToList(),
+            chats = chats.Select(c => ToResponse(c)).ToList(),
             exportedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         });
     }
@@ -385,7 +395,62 @@ public static class ChatEndpoints
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         var chat = await LoadChatAsync(id, user?.Id, db, ct);
-        return chat is null ? Results.NotFound() : Results.Ok(ToResponse(chat));
+        if (chat is null)
+        {
+            return Results.NotFound();
+        }
+
+        var parentTitle = chat.ParentChatId is { } pid
+            ? await db.Chats.AsNoTracking()
+                .Where(c => c.Id == pid && c.UserId == user!.Id)
+                .Select(c => c.Title)
+                .FirstOrDefaultAsync(ct)
+            : null;
+        return Results.Ok(ToResponse(chat, parentTitle));
+    }
+
+    /// <summary>
+    /// Filhos delegados do chat (SPEC-20261010-runs-hierarchy): criados por
+    /// <c>delegate_task</c> — árvore pai↔filho da sidebar/chat.
+    /// </summary>
+    private static async Task<IResult> ListChildrenAsync(
+        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var parent = await db.Chats.AsNoTracking()
+            .AnyAsync(c => c.Id == id && c.UserId == user.Id, ct);
+        if (!parent)
+        {
+            return Results.NotFound();
+        }
+
+        var children = await db.Chats.AsNoTracking()
+            .Where(c => c.ParentChatId == id && c.UserId == user.Id)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new { c.Id, c.Title, c.CreatedAt })
+            .ToListAsync(ct);
+
+        // Última run de cada filho — uma query agrupada.
+        var childIds = children.Select(c => c.Id).ToList();
+        var lastRuns = await db.ChatRuns.AsNoTracking()
+            .Where(r => childIds.Contains(r.ChatId))
+            .GroupBy(r => r.ChatId)
+            .Select(g => new
+            {
+                ChatId = g.Key,
+                Status = g.OrderByDescending(r => r.CreatedAt).Select(r => r.Status).FirstOrDefault(),
+            })
+            .ToDictionaryAsync(x => x.ChatId, x => x.Status, ct);
+
+        return Results.Ok(children
+            .Select(c => new ChatChildSummaryResponse(
+                c.Id, c.Title, lastRuns.GetValueOrDefault(c.Id), c.CreatedAt))
+            .ToList());
     }
 
     private static async Task<IResult> UpdateChatAsync(
@@ -921,7 +986,8 @@ public static class ChatEndpoints
             .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
     }
 
-    private static ChatSummaryResponse ToSummary(Chat chat, bool awaiting = false) => new(
+    private static ChatSummaryResponse ToSummary(
+        Chat chat, bool awaiting = false, int childrenCount = 0) => new(
         chat.Id,
         chat.Title,
         chat.Pinned,
@@ -929,9 +995,11 @@ public static class ChatEndpoints
         JsonSerializer.Deserialize<List<string>>(chat.TagsJson, JsonOptions) ?? [],
         chat.CreatedAt,
         chat.UpdatedAt,
-        awaiting);
+        awaiting,
+        chat.ParentChatId,
+        childrenCount);
 
-    private static ChatResponse ToResponse(Chat chat) => new(
+    private static ChatResponse ToResponse(Chat chat, string? parentTitle = null) => new(
         chat.Id,
         chat.Title,
         JsonSerializer.Deserialize<List<string>>(chat.ModelsJson, JsonOptions) ?? [],
@@ -951,7 +1019,9 @@ public static class ChatEndpoints
         chat.CreatedAt,
         chat.UpdatedAt,
         chat.ApprovalPreset,
-        chat.Mode);
+        chat.Mode,
+        chat.ParentChatId,
+        parentTitle);
 
     /// <summary>Filtro por tags.</summary>
     public sealed record TagQueryRequest(IReadOnlyList<string> Tags);

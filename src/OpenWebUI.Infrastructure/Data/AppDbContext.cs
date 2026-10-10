@@ -148,6 +148,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(c => new { c.UserId, c.UpdatedAt });
             entity.HasIndex(c => c.ShareId).IsUnique();
             entity.HasIndex(c => new { c.UserId, c.FolderId });
+            entity.HasIndex(c => c.ParentChatId);
             entity.HasMany(c => c.Messages)
                 .WithOne(m => m.Chat!)
                 .HasForeignKey(m => m.ChatId)
@@ -166,6 +167,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasKey(r => r.Id);
             entity.HasIndex(r => new { r.ChatId, r.Status });
             entity.HasIndex(r => new { r.UserId, r.CreatedAt });
+            entity.HasIndex(r => r.ParentRunId);
             entity.HasOne(r => r.Chat)
                 .WithMany()
                 .HasForeignKey(r => r.ChatId)

@@ -212,9 +212,25 @@ else
                 <div>
                     <div class="px-2.5 pb-1 text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">@L["sidebar.chats"]</div>
                     <div class="flex flex-col">
-                        <Virtualize Items="FilteredChats" Context="chat" OverscanCount="8">
+                        @* Agrupamento pai↔filho quebra o Virtualize — lista raiz
+                           + filhos indentados num único foreach. *@
+                        @foreach (var chat in FilteredChats)
+                        {
                             @ChatItem(chat)
-                        </Virtualize>
+                            @if (chat.ChildrenCount > 0 && _expandedParents.Contains(chat.Id))
+                            {
+                                var children = ChildrenOf(chat.Id);
+                                if (children.Count > 0)
+                                {
+                                    <div class="ml-3 pl-1 flex flex-col border-s border-gray-100 dark:border-gray-900">
+                                        @foreach (var child in children)
+                                        {
+                                            @ChatItem(child)
+                                        }
+                                    </div>
+                                }
+                            }
+                        }
                     </div>
                 </div>
             }
@@ -409,10 +425,23 @@ else
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Chats raiz visíveis (SPEC-20261010-runs-hierarchy): filhos delegados
+    /// não aparecem no topo — renderizam indentados sob o pai. Órfãos (pai
+    /// deletado/fora da lista) voltam pra raiz. Em busca, a lista fica flat.
+    /// </summary>
     private List<ChatSummaryResponse> FilteredChats =>
-        string.IsNullOrWhiteSpace(_query)
-            ? _chats
-            : _chats.Where(c => c.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)).ToList();
+        !string.IsNullOrWhiteSpace(_query)
+            ? _chats.Where(c => c.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)).ToList()
+            : _chats.Where(c => c.ParentChatId is null || !_chats.Any(p => p.Id == c.ParentChatId)).ToList();
+
+    /// <summary>Filhos delegados de um chat, em ordem de criação.</summary>
+    private List<ChatSummaryResponse> ChildrenOf(string parentId) =>
+        _chats.Where(c => c.ParentChatId == parentId)
+            .OrderBy(c => c.CreatedAt).ToList();
+
+    /// <summary>Ids dos grupos pai↔filho expandidos na sidebar.</summary>
+    private readonly HashSet<string> _expandedParents = [];
 
     /// <summary>Chats com run esperando ação do dono (D2) — o filtro "aguardando".</summary>
     private List<ChatSummaryResponse> AwaitingChats =>
@@ -605,7 +634,18 @@ else
     {
         var current = Nav.Uri.Contains($"/c/{chat.Id}");
         <div class="group relative px-1">
-            <a class="w-full flex items-center rounded-xl px-2.5 py-1.5 text-[0.8125rem] leading-5 truncate transition
+            @if (chat.ChildrenCount > 0)
+            {
+                <button class="absolute left-0.5 top-1/2 -translate-y-1/2 z-10 flex size-4 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                        title="@L["sidebar.children"]" aria-label="@L["sidebar.children"]"
+                        aria-expanded="@_expandedParents.Contains(chat.Id)"
+                        @onclick="() => ToggleChildren(chat.Id)" @onclick:stopPropagation @onclick:preventDefault>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                         class="size-3 transition-transform @(_expandedParents.Contains(chat.Id) ? "rotate-90" : "")"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                </button>
+            }
+            <a class="w-full flex items-center rounded-xl py-1.5 text-[0.8125rem] leading-5 truncate transition
+                      @(chat.ChildrenCount > 0 ? "pl-6 pr-2.5" : "px-2.5")
                       @(current
                           ? "bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100"
                           : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900")"
@@ -617,6 +657,11 @@ else
                     </span>
                 }
                 <span class="truncate flex-1">@chat.Title</span>
+                @if (chat.ParentChatId is not null)
+                {
+                    <span class="ml-1.5 shrink-0 rounded bg-gray-200 dark:bg-gray-800 px-1 text-[0.625rem] leading-4 text-gray-500 dark:text-gray-400"
+                          title="@L["sidebar.delegated"]">@L["sidebar.delegated_badge"]</span>
+                }
             </a>
             <button class="absolute right-2 top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer
                            @(current ? "flex" : "flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto focus-visible:pointer-events-auto pointer-coarse:pointer-events-auto")"
@@ -627,6 +672,14 @@ else
             </button>
         </div>
     };
+
+    private void ToggleChildren(string chatId)
+    {
+        if (!_expandedParents.Remove(chatId))
+        {
+            _expandedParents.Add(chatId);
+        }
+    }
 
     private void NewChat() => Nav.NavigateTo("/");
 

@@ -38,7 +38,8 @@ public sealed record ChatRunResponse(
     string? Error,
     long CreatedAt,
     long? StartedAt,
-    long? CompletedAt);
+    long? CompletedAt,
+    string? ParentRunId = null);
 
 /// <summary>
 /// Evento SSE <c>tool_call</c> (SPEC-20261007-chat-tool-streaming RF-001):

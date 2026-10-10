@@ -488,4 +488,41 @@ public class ChatEndpointsTests
         var list = await _client.GetFromJsonAsync<List<ChatSummaryResponse>>("/api/v1/chats/");
         Assert.That(list, Is.Empty);
     }
+
+    // ---- SPEC-20261010-runs-hierarchy: GET /{id}/children ----
+
+    [Test]
+    public async Task Children_ChatSemFilhos_RetornaListaVazia()
+    {
+        var auth = await SignUpAsync("Kids0", "kids0@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("Sem filhos", Mensagens("oi"));
+
+        var children = await _client.GetFromJsonAsync<List<ChatChildSummaryResponse>>(
+            $"/api/v1/chats/{chat.Id}/children");
+        Assert.That(children, Is.Not.Null.And.Empty);
+    }
+
+    [Test]
+    public async Task Children_ChatInexistente_404()
+    {
+        var auth = await SignUpAsync("Kids404", "kids404@chats.local", "senha123");
+        UseToken(auth.Token);
+
+        var res = await _client.GetAsync("/api/v1/chats/nao-existe/children");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task Children_ChatDeOutroUsuario_404()
+    {
+        var dono = await SignUpAsync("KidsA", "kidsa@chats.local", "senha123");
+        UseToken(dono.Token);
+        var chat = await CriarChatAsync("Privado", Mensagens("oi"));
+
+        var outro = await SignUpAsync("KidsB", "kidsb@chats.local", "senha123");
+        UseToken(outro.Token);
+        var res = await _client.GetAsync($"/api/v1/chats/{chat.Id}/children");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
 }

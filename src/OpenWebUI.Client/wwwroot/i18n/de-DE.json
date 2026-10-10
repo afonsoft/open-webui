@@ -847,5 +847,9 @@
   "ide.preview_hint": "Vorschau einer App auf einem localhost-Port des API-Hosts.",
   "chat.src_prompt": "prompt",
   "chat.src_skill": "skill",
-  "chat.src_command": "cmd"
+  "chat.src_command": "cmd",
+  "sidebar.children": "Teilaufgaben",
+  "sidebar.delegated": "Delegierter Chat",
+  "sidebar.delegated_badge": "delegiert",
+  "chat.parent": "Übergeordneter Chat"
 }

@@ -847,5 +847,9 @@
   "ide.preview_hint": "Preview an app running on a localhost port of the API host.",
   "chat.src_prompt": "prompt",
   "chat.src_skill": "skill",
-  "chat.src_command": "cmd"
+  "chat.src_command": "cmd",
+  "sidebar.children": "Subtasks",
+  "sidebar.delegated": "Delegated chat",
+  "sidebar.delegated_badge": "delegated",
+  "chat.parent": "Parent chat"
 }

@@ -1015,6 +1015,38 @@ public class ToolStreamingTests
             $"/api/v1/chats/{filho!.Id}/runs");
         Assert.That(runs, Has.Count.EqualTo(1));
         Assert.That(runs![0].Status, Is.EqualTo("completed"), runs[0].Error);
+
+        // Hierarquia (SPEC-20261010-runs-hierarchy): filho linkado ao pai
+        // nos dois sentidos — Chat.ParentChatId, ChatRun.ParentRunId e
+        // GET /{pai}/children listando a subtarefa com status da run.
+        var filhoDetalhe = await _client.GetFromJsonAsync<ChatResponse>(
+            $"/api/v1/chats/{filho.Id}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(filhoDetalhe!.ParentChatId, Is.EqualTo(chat.Id));
+            Assert.That(filhoDetalhe.ParentTitle, Is.EqualTo(chat.Title));
+            Assert.That(runs[0].ParentRunId, Is.EqualTo(run.Id));
+        });
+
+        var children = await _client.GetFromJsonAsync<List<ChatChildSummaryResponse>>(
+            $"/api/v1/chats/{chat.Id}/children");
+        Assert.That(children, Has.Count.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(children![0].Id, Is.EqualTo(filho.Id));
+            Assert.That(children[0].LastRunStatus, Is.EqualTo("completed"));
+        });
+
+        // O resumo do pai carrega childrenCount pra sidebar agrupar.
+        var summaries = await _client.GetFromJsonAsync<List<ChatSummaryResponse>>(
+            "/api/v1/chats/");
+        var paiResumo = summaries!.Single(c => c.Id == chat.Id);
+        var filhoResumo = summaries!.Single(c => c.Id == filho.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(paiResumo.ChildrenCount, Is.EqualTo(1));
+            Assert.That(filhoResumo.ParentChatId, Is.EqualTo(chat.Id));
+        });
     }
 
     // ---- browser_screenshot (RF-017) ----
