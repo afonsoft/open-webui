@@ -1,0 +1,120 @@
+@inject LocalizationService L
+
+@*
+    Feed de atividade da run (SPEC-20261010-chat-activity-feed): linhas
+    amigáveis por tool_call — "Pesquisando na web — release notes" — com
+    spinner enquanto roda, ✓/✕/marca âmbar no fim. Depois da run colapsa
+    em "N passos" expansível; cada linha abre os detalhes ricos do
+    ToolCallCard (args scrubbed, saída, imagem/vídeo) sob demanda.
+*@
+
+@if (Calls.Count > 0)
+{
+    <div class="flex flex-col gap-0.5 py-1.5" role="log" aria-live="polite" aria-relevant="additions">
+        @if (Collapsed)
+        {
+            <button type="button"
+                    class="flex items-center gap-1.5 self-start px-1 py-0.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
+                    aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                     stroke="currentColor" class="size-3 transition-transform @(_open ? "rotate-90" : "")" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+                @L.T("chat.worklog.steps", ("count", Calls.Count.ToString()))
+                @if (HasDenied)
+                {
+                    <span class="inline-block size-1.5 rounded-full bg-amber-500" aria-label="@L["chat.tool_denied"]"></span>
+                }
+                else if (HasError)
+                {
+                    <span class="inline-block size-1.5 rounded-full bg-red-500" aria-label="@L["chat.tool_error"]"></span>
+                }
+            </button>
+        }
+
+        @if (!Collapsed || _open)
+        {
+            @foreach (var t in Calls)
+            {
+                var info = ToolActivityMap.Map(t.Call.Name, t.Call.ArgsPreview);
+                var running = t.Result is null && Streaming;
+                <div class="flex flex-col">
+                    <button type="button"
+                            class="flex min-h-8 items-center gap-1.5 px-1 py-1 text-left text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+                            aria-expanded="@(_detailsFor == t.Call.Id ? "true" : "false")"
+                            @onclick="() => ToggleDetails(t)">
+                        @if (running)
+                        {
+                            <svg class="size-3 flex-none animate-spin text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                            </svg>
+                        }
+                        else if (t.Result?.Denied == true)
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3 flex-none text-amber-500" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd" />
+                            </svg>
+                        }
+                        else if (t.Result is { Ok: false })
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3 flex-none text-red-500" aria-hidden="true">
+                                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                            </svg>
+                        }
+                        else if (t.Result is not null)
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3 flex-none text-green-600 dark:text-green-400" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3 flex-none text-gray-300 dark:text-gray-600" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
+                            </svg>
+                        }
+                        <span class="truncate">@L[info.Key]</span>
+                        @if (info.Target is { } target)
+                        {
+                            <span class="truncate text-gray-400 dark:text-gray-500">— @target</span>
+                        }
+                    </button>
+                    @if (_detailsFor == t.Call.Id)
+                    {
+                        <ToolCallCard
+                            Name="@t.Call.Name"
+                            ArgsPreview="@t.Call.ArgsPreview"
+                            ResultPreview="@t.Result?.Preview"
+                            ImagePath="@t.Result?.ImagePath"
+                            VideoPath="@t.Result?.VideoPath"
+                            Result="@t.Result?.Result"
+                            Running="@running"
+                            Denied="@(t.Result?.Denied ?? false)"
+                            Ok="@(t.Result is null ? null : t.Result.Ok)" />
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Chamadas vivas ou persistidas da run (ordem de chegada).</summary>
+    [Parameter] public IReadOnlyList<ToolCallView> Calls { get; set; } = [];
+
+    /// <summary>True enquanto a run ainda transmite (spinner nas pendentes).</summary>
+    [Parameter] public bool Streaming { get; set; }
+
+    /// <summary>Colapsa para "N passos" expansível (fim de run / histórico).</summary>
+    [Parameter] public bool Collapsed { get; set; }
+
+    private bool _open;
+    private string? _detailsFor;
+
+    private bool HasError => Calls.Any(t => t.Result is { Ok: false, Denied: false });
+    private bool HasDenied => Calls.Any(t => t.Result is { Denied: true });
+
+    private void ToggleDetails(ToolCallView t) =>
+        _detailsFor = _detailsFor == t.Call.Id ? null : t.Call.Id;
+}
