@@ -290,60 +290,75 @@ public sealed class RoutineBuiltinTool(AppDbContext db, AutomationService automa
     {
         var kind = ReadString(args, "schedule_kind") ?? automation.ScheduleKind;
         automation.ScheduleKind = kind;
-        var now = DateTimeOffset.UtcNow;
-        switch (kind)
+        return kind switch
         {
-            case "once":
-                if (ReadLong(args, "run_at") is long runAt && runAt > 0)
-                {
-                    automation.NextRunAt = runAt;
-                }
-                else if (ReadLong(args, "in_minutes") is long inMin && inMin > 0)
-                {
-                    automation.NextRunAt = now.AddMinutes(inMin).ToUnixTimeSeconds();
-                }
-                else if (automation.NextRunAt is null || automation.NextRunAt <= now.ToUnixTimeSeconds())
-                {
-                    return "schedule_kind=once exige 'run_at' futuro ou 'in_minutes' >= 1.";
-                }
-                break;
-            case "interval":
-                if (ReadLong(args, "interval_minutes") is long interval && interval > 0)
-                {
-                    automation.IntervalMinutes = (int)interval;
-                }
-                automation.IntervalMinutes = Math.Max(1, automation.IntervalMinutes);
-                break;
-            case "daily" or "weekly":
-                if (ReadString(args, "time_of_day") is { } tod)
-                {
-                    if (!TimeOnly.TryParseExact(tod, "HH:mm", out _))
-                    {
-                        return "'time_of_day' deve estar no formato HH:mm (UTC).";
-                    }
-                    automation.TimeOfDay = tod;
-                }
-                if (string.IsNullOrEmpty(automation.TimeOfDay))
-                {
-                    return $"schedule_kind={kind} exige 'time_of_day' HH:mm (UTC).";
-                }
-                if (kind == "weekly" && ReadLong(args, "weekday") is { } dow)
-                {
-                    if (dow is < 0 or > 6)
-                    {
-                        return "'weekday' deve ser 0-6.";
-                    }
-                    automation.Weekday = (int)dow;
-                }
-                if (kind == "weekly" && automation.Weekday is null)
-                {
-                    return "schedule_kind=weekly exige 'weekday' 0-6.";
-                }
-                break;
-            default:
-                return "'schedule_kind' deve ser once|interval|daily|weekly.";
+            "once" => ApplyOnce(automation, args),
+            "interval" => ApplyInterval(automation, args),
+            "daily" => ApplyDailyWeekly(automation, args, weekly: false),
+            "weekly" => ApplyDailyWeekly(automation, args, weekly: true),
+            _ => "'schedule_kind' deve ser once|interval|daily|weekly.",
+        };
+    }
+
+    private static string? ApplyOnce(Automation automation, JsonElement args)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (ReadLong(args, "run_at") is long runAt && runAt > 0)
+        {
+            automation.NextRunAt = runAt;
+        }
+        else if (ReadLong(args, "in_minutes") is long inMin && inMin > 0)
+        {
+            automation.NextRunAt = now.AddMinutes(inMin).ToUnixTimeSeconds();
+        }
+        else if (automation.NextRunAt is null || automation.NextRunAt <= now.ToUnixTimeSeconds())
+        {
+            return "schedule_kind=once exige 'run_at' futuro ou 'in_minutes' >= 1.";
         }
         return null;
+    }
+
+    private static string? ApplyInterval(Automation automation, JsonElement args)
+    {
+        if (ReadLong(args, "interval_minutes") is long interval && interval > 0)
+        {
+            automation.IntervalMinutes = (int)interval;
+        }
+        automation.IntervalMinutes = Math.Max(1, automation.IntervalMinutes);
+        return null;
+    }
+
+    private static string? ApplyDailyWeekly(
+        Automation automation, JsonElement args, bool weekly)
+    {
+        if (ReadString(args, "time_of_day") is { } tod)
+        {
+            if (!TimeOnly.TryParseExact(tod, "HH:mm", out _))
+            {
+                return "'time_of_day' deve estar no formato HH:mm (UTC).";
+            }
+            automation.TimeOfDay = tod;
+        }
+        if (string.IsNullOrEmpty(automation.TimeOfDay))
+        {
+            return $"schedule_kind={automation.ScheduleKind} exige 'time_of_day' HH:mm (UTC).";
+        }
+        return weekly ? ApplyWeekday(automation, args) : null;
+    }
+
+    private static string? ApplyWeekday(Automation automation, JsonElement args)
+    {
+        if (ReadLong(args, "weekday") is { } dow)
+        {
+            if (dow is < 0 or > 6)
+            {
+                return "'weekday' deve ser 0-6.";
+            }
+            automation.Weekday = (int)dow;
+        }
+        return automation.Weekday is null
+            ? "schedule_kind=weekly exige 'weekday' 0-6."
+            : null;
     }
 
     /// <summary>Modelo da run corrente — default de 'model' no create.</summary>

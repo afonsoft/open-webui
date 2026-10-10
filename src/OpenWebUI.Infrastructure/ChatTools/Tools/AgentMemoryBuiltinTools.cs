@@ -196,20 +196,7 @@ public sealed class MemorySearchBuiltinTool(AppDbContext db, WorkspaceRepoServic
             repoSlug = binding?.Repo;
         }
 
-        var scoped = db.AgentMemories.AsNoTracking()
-            .Where(m => m.UserId == context.UserId);
-        scoped = scopeArg switch
-        {
-            "all" => scoped,
-            "global" => scoped.Where(m => m.Scope == "global"),
-            "repo" => repoSlug is not null
-                ? scoped.Where(m => m.Scope == "repo" && m.RepoSlug == repoSlug)
-                : scoped.Where(m => false),
-            _ => repoSlug is not null
-                ? scoped.Where(m => m.Scope == "global"
-                    || (m.Scope == "repo" && m.RepoSlug == repoSlug))
-                : scoped.Where(m => m.Scope == "global"),
-        };
+        var scoped = ScopedMemories(context.UserId, scopeArg, repoSlug);
         if (query.Length > 0)
         {
             scoped = scoped.Where(
@@ -234,6 +221,26 @@ public sealed class MemorySearchBuiltinTool(AppDbContext db, WorkspaceRepoServic
         return new BuiltinToolResult(
             $"{hits.Count} memória(s):\n" + string.Join("\n", lines),
             new { count = hits.Count });
+    }
+
+    /// <summary>Filtro de escopo do search: all/global/repo/(default=global+repo bound).</summary>
+    private IQueryable<AgentMemory> ScopedMemories(
+        string userId, string? scopeArg, string? repoSlug)
+    {
+        var scoped = db.AgentMemories.AsNoTracking()
+            .Where(m => m.UserId == userId);
+        return scopeArg switch
+        {
+            "all" => scoped,
+            "global" => scoped.Where(m => m.Scope == "global"),
+            "repo" => repoSlug is not null
+                ? scoped.Where(m => m.Scope == "repo" && m.RepoSlug == repoSlug)
+                : scoped.Where(m => false),
+            _ => repoSlug is not null
+                ? scoped.Where(m => m.Scope == "global"
+                    || (m.Scope == "repo" && m.RepoSlug == repoSlug))
+                : scoped.Where(m => m.Scope == "global"),
+        };
     }
 
     private static string Truncate(string value, int max) =>
