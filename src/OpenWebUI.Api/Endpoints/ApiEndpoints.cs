@@ -57,9 +57,9 @@ public static class ApiEndpoints
         if (!HttpMethods.IsGet(ctx.HttpContext.Request.Method)
             && ctx.HttpContext.Response.StatusCode < 400)
         {
-            await ctx.HttpContext.RequestServices
-                .GetRequiredService<HybridCache>()
-                .RemoveByTagAsync("models");
+            var cache = ctx.HttpContext.RequestServices.GetRequiredService<HybridCache>();
+            await cache.RemoveByTagAsync("models");
+            await cache.RemoveByTagAsync("providers");
         }
         return result;
     }
@@ -413,7 +413,7 @@ public static class ApiEndpoints
     /// </summary>
     private static async Task<IResult> GetConnectionCapabilitiesAsync(
         HttpContext http, ProviderCapabilityService capabilities,
-        string type, int index, CancellationToken ct)
+        HybridCache cache, string type, int index, CancellationToken ct)
     {
         if (!IsAdmin(http))
         {
@@ -424,21 +424,33 @@ public static class ApiEndpoints
             return Results.BadRequest(new { detail = "type deve ser openai|ollama." });
         }
 
-        try
-        {
-            var detected = await capabilities.DetectConnectionAsync(type, index, ct);
-            return Results.Ok(detected ?? new DetectedCapabilities([], [], [], [], [], null, 0));
-        }
-        catch (Exception)
-        {
-            // Provider fora do ar: devolve vazio — combos caem em texto livre.
-            return Results.Ok(new DetectedCapabilities([], [], [], [], [], null, 0));
-        }
+        var detected = await cache.GetOrCreateAsync(
+            $"caps:{type}:{index}",
+            async _ =>
+            {
+                try
+                {
+                    return await capabilities.DetectConnectionAsync(type, index, ct);
+                }
+                catch (Exception)
+                {
+                    // Provider fora do ar: devolve vazio — combos caem em texto livre.
+                    return null;
+                }
+            },
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromSeconds(60),
+                LocalCacheExpiration = TimeSpan.FromSeconds(60),
+            },
+            tags: ["providers"],
+            cancellationToken: ct);
+        return Results.Ok(detected ?? new DetectedCapabilities([], [], [], [], [], null, 0));
     }
 
     /// <summary>Lista modelos de uma conexão cadastrada (admin) — usado pelos combos da UI.</summary>
     private static async Task<IResult> ListConnectionModelsAsync(
-        HttpContext http, ProviderService providers,
+        HttpContext http, ProviderService providers, HybridCache cache,
         string type, int index, CancellationToken ct)
     {
         if (!IsAdmin(http))
@@ -446,7 +458,16 @@ public static class ApiEndpoints
             return Results.Forbid();
         }
 
-        var models = await providers.ListModelsForConnectionAsync(type, index, ct);
+        var models = await cache.GetOrCreateAsync(
+            $"connmodels:{type}:{index}",
+            async _ => await providers.ListModelsForConnectionAsync(type, index, ct),
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromSeconds(60),
+                LocalCacheExpiration = TimeSpan.FromSeconds(60),
+            },
+            tags: ["providers"],
+            cancellationToken: ct);
         return Results.Ok(new ModelListResponse(models));
     }
 

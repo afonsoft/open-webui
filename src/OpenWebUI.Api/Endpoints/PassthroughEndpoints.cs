@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Api.Endpoints;
@@ -13,7 +14,8 @@ public static class PassthroughEndpoints
     {
         var ollama = app.MapGroup("/ollama").RequireAuthorization();
         ollama.MapGet("/api/tags",
-            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/tags", null));
+            (HttpContext http, ProviderProxyService proxy, HybridCache cache) =>
+                Proxy(http, proxy, cache, "ollama", "api/tags", null));
         ollama.MapGet("/api/version",
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/version", null));
         ollama.MapPost("/api/show",
@@ -42,13 +44,15 @@ public static class PassthroughEndpoints
         // Variantes indexadas: /ollama/{idx}/api/* usa a conexão de índice idx.
         var ollamaIndexed = app.MapGroup("/ollama/{idx:int}").RequireAuthorization();
         ollamaIndexed.MapGet("/api/tags",
-            (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/tags", idx));
+            (HttpContext http, int idx, ProviderProxyService proxy, HybridCache cache) =>
+                Proxy(http, proxy, cache, "ollama", "api/tags", idx));
         ollamaIndexed.MapPost("/api/chat",
             (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "ollama", "api/chat", idx));
 
         var openai = app.MapGroup("/openai").RequireAuthorization();
         openai.MapGet("/models",
-            (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "models", null));
+            (HttpContext http, ProviderProxyService proxy, HybridCache cache) =>
+                Proxy(http, proxy, cache, "openai", "models", null));
         openai.MapPost("/chat/completions",
             (HttpContext http, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "chat/completions", null));
         openai.MapPost("/embeddings",
@@ -66,7 +70,8 @@ public static class PassthroughEndpoints
         openaiIndexed.MapPost("/images/generations",
             (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "images/generations", idx));
         openaiIndexed.MapGet("/models",
-            (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "models", idx));
+            (HttpContext http, int idx, ProviderProxyService proxy, HybridCache cache) =>
+                Proxy(http, proxy, cache, "openai", "models", idx));
         openaiIndexed.MapPost("/chat/completions",
             (HttpContext http, int idx, ProviderProxyService proxy) => Proxy(http, proxy, "openai", "chat/completions", idx));
     }
@@ -97,10 +102,53 @@ public static class PassthroughEndpoints
         return Proxy(http, proxy, "ollama", $"api/blobs/{digest}", null);
     }
 
+    /// <summary>TTL do cache de respostas de leitura do proxy (tags/models).</summary>
+    private static readonly TimeSpan ProxyCacheTtl = TimeSpan.FromSeconds(60);
+
+    /// <summary>Paths GET cujo conteúdo pode ser cacheado por conexão.</summary>
+    private static readonly HashSet<string> CacheablePaths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "api/tags", "models",
+    };
+
+    private static async Task<IResult> Proxy(
+        HttpContext http, ProviderProxyService proxy, string provider, string path, int? index) =>
+        await Proxy(http, proxy, null, provider, path, index);
+
     /// <summary>Lê o body inbound, delega ao serviço e converte o resultado em IResult.</summary>
     private static async Task<IResult> Proxy(
-        HttpContext http, ProviderProxyService proxy, string provider, string path, int? index)
+        HttpContext http, ProviderProxyService proxy, HybridCache? cache,
+        string provider, string path, int? index)
     {
+        var cacheable = cache is not null
+            && HttpMethods.IsGet(http.Request.Method)
+            && CacheablePaths.Contains(path);
+        if (cacheable)
+        {
+            try
+            {
+                var cached = await cache!.GetOrCreateAsync(
+                    $"proxy:{provider}:{path}:{index?.ToString() ?? ""}",
+                    async _ => await ForwardBufferedAsync(http, proxy, provider, path, index),
+                    new HybridCacheEntryOptions
+                    {
+                        Expiration = ProxyCacheTtl,
+                        LocalCacheExpiration = ProxyCacheTtl,
+                    },
+                    tags: ["providers"],
+                    cancellationToken: http.RequestAborted);
+                return new CachedResult(cached);
+            }
+            catch (ProxyFailureException ex)
+            {
+                // Falhas nunca entram no cache: um provider fora do ar não
+                // fica mascarado pelos 60s do TTL.
+                return ex.Response is not null
+                    ? new ProxiedResult(ex.Response)
+                    : Results.Problem(ex.Error, statusCode: ex.StatusCode);
+            }
+        }
+
         byte[]? body = null;
         if (http.Request.ContentLength is > 0 || http.Request.Headers.ContainsKey("Transfer-Encoding"))
         {
@@ -115,6 +163,52 @@ public static class PassthroughEndpoints
         return result.Response is null
             ? Results.Problem(result.Error, statusCode: result.StatusCode)
             : new ProxiedResult(result.Response);
+    }
+
+    /// <summary>Executa o forward e bufferiza a resposta; falhas viram exceção (não cacheadas).</summary>
+    private static async Task<CachedProxyResponse> ForwardBufferedAsync(
+        HttpContext http, ProviderProxyService proxy,
+        string provider, string path, int? index)
+    {
+        var result = await proxy.ForwardAsync(
+            HttpMethod.Get, provider, path, index,
+            null, null, http.Request.QueryString.Value, http.RequestAborted);
+        if (result.Response is null)
+        {
+            throw new ProxyFailureException(result.StatusCode, result.Error);
+        }
+        if ((int)result.Response.StatusCode >= 400)
+        {
+            throw new ProxyFailureException((int)result.Response.StatusCode, null, result.Response);
+        }
+
+        using var response = result.Response;
+        return new CachedProxyResponse(
+            (int)response.StatusCode,
+            response.Content.Headers.ContentType?.ToString(),
+            await response.Content.ReadAsByteArrayAsync(http.RequestAborted));
+    }
+
+    /// <summary>Falha do forward — carrega status/erro/resposta para replay sem cache.</summary>
+    private sealed class ProxyFailureException(int statusCode, string? error, HttpResponseMessage? response = null) : Exception
+    {
+        public int StatusCode { get; } = statusCode;
+        public string? Error { get; } = error;
+        public HttpResponseMessage? Response { get; } = response;
+    }
+
+    /// <summary>Resposta de proxy bufferizada para o HybridCache.</summary>
+    private sealed record CachedProxyResponse(int Status, string? ContentType, byte[] Body);
+
+    /// <summary>Result que replay uma resposta bufferizada do cache.</summary>
+    private sealed class CachedResult(CachedProxyResponse cached) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext context)
+        {
+            context.Response.StatusCode = cached.Status;
+            context.Response.ContentType = cached.ContentType ?? "application/octet-stream";
+            await context.Response.Body.WriteAsync(cached.Body, context.RequestAborted);
+        }
     }
 
     /// <summary>Headers hop-by-hop que não são repassados ao cliente.</summary>
