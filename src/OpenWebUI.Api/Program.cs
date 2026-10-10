@@ -94,6 +94,7 @@ builder.Services.AddScoped<IBuiltinChatTool, FileEditBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, ApplyPatchBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, TodoWriteBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, DelegateTaskBuiltinTool>();
+builder.Services.AddScoped<IBuiltinChatTool, RunResultBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, BrowserScreenshotBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nListWorkflowsBuiltinTool>();
 builder.Services.AddScoped<IBuiltinChatTool, N8nTriggerBuiltinTool>();
