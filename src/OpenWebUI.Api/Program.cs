@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.ChatTools;
@@ -353,7 +353,7 @@ static void UseApiKeyAuthentication(WebApplication app)
 static async Task<ClaimsIdentity?> ResolveApiKeyIdentityAsync(HttpContext context, string key)
 {
     var hash = AuthEndpoints.HashApiKey(key);
-    var memoryCache = context.RequestServices.GetRequiredService<IMemoryCache>();
+    var hybridCache = context.RequestServices.GetRequiredService<HybridCache>();
     // Flag lida fora do cache (ConfigService já cacheia) para que desligar
     // API keys passe a valer imediatamente para chaves já resolvidas.
     using (var flagScope = context.RequestServices.CreateScope())
@@ -365,14 +365,15 @@ static async Task<ClaimsIdentity?> ResolveApiKeyIdentityAsync(HttpContext contex
             return null;
         }
     }
-    // Cache de 2min: evita escopo DI + 2 queries ao SQLite por request.
+    // Cache de 2min (HybridCache — coalesces resoluções concorrentes da
+    // mesma chave): evita escopo DI + 2 queries ao SQLite por request.
     // Revogação/rotação evicta explicitamente em AuthEndpoints; o TTL curto
     // cobre mudanças de role (admin rebaixa usuário) fora desse caminho.
-    return await memoryCache.GetOrCreateAsync(
+    return await hybridCache.GetOrCreateAsync(
         ApiKeyAuthCache.CacheKey(hash),
-        async entry =>
+        async cancel =>
         {
-            entry.AbsoluteExpirationRelativeToNow = ApiKeyAuthCache.Ttl;
+            _ = cancel;
             using var scope = context.RequestServices.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var apiKey = await db.ApiKeys.AsNoTracking()
@@ -384,15 +385,23 @@ static async Task<ClaimsIdentity?> ResolveApiKeyIdentityAsync(HttpContext contex
             {
                 return null;
             }
-            return new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, user.Id),
-                new Claim(ClaimTypes.Name, user.Name),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role),
-            ], "ApiKey");
-        });
+            return new ApiKeyIdentity(user.Id, user.Name, user.Email, user.Role);
+        },
+        new HybridCacheEntryOptions
+        {
+            Expiration = ApiKeyAuthCache.Ttl,
+            LocalCacheExpiration = ApiKeyAuthCache.Ttl,
+        }) is { } cached
+        ? new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, cached.Id),
+            new Claim(ClaimTypes.Name, cached.Name),
+            new Claim(ClaimTypes.Email, cached.Email),
+            new Claim(ClaimTypes.Role, cached.Role),
+        ], "ApiKey")
+        : null;
 }
+
 
 /// <summary>
 /// Mapeia todos os endpoints na MESMA ordem original — a precedência de
@@ -629,3 +638,6 @@ static DbContextOptions<AppDbContext> CreateDbOptions(string connectionString)
 
 /// <summary>Ponto de entrada para testes de integração com WebApplicationFactory.</summary>
 public partial class Program;
+
+/// <summary>Identidade serializável do dono de uma API key (ClaimsIdentity não serializa no HybridCache).</summary>
+internal sealed record ApiKeyIdentity(string Id, string Name, string Email, string Role);

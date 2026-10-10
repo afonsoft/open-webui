@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
@@ -24,7 +24,7 @@ public class ProviderCapabilityTests
     private string _dbPath = null!;
     private AppDbContext _db = null!;
     private ConfigService _config = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
     private string _mockUrl = null!;
@@ -44,8 +44,8 @@ public class ProviderCapabilityTests
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
         // Cache no campo: um `using var` aqui morreria no fim do setup e o
-        // ConfigService ficaria preso a um MemoryCache descartado.
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        // ConfigService ficaria preso a um HybridCache descartado.
+        _cache = TestCache.Create();
         _config = new ConfigService(_db,
             _cache);
         _mockUrl = StartMock();
@@ -60,7 +60,7 @@ public class ProviderCapabilityTests
         await _db.ConfigEntries.ExecuteDeleteAsync();
         // ExecuteDelete bypassa o ConfigService — sem limpar, o cache de 10s
         // devolveria configs já apagadas do teste anterior.
-        _cache.Clear();
+        _cache = TestCache.Create();
         _db.ChangeTracker.Clear(); // delete em massa não desanexa entidades
         _config = new ConfigService(_db,
             _cache);
@@ -71,8 +71,7 @@ public class ProviderCapabilityTests
     {
         _mockCts.Cancel();
         _mock.Stop();
-        _cache.Dispose();
-        _db.Dispose();
+                _db.Dispose();
         if (File.Exists(_dbPath))
         {
             TestInfra.DeleteDb(_dbPath);

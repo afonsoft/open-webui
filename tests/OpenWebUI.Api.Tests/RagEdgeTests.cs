@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -14,26 +14,23 @@ namespace OpenWebUI.Api.Tests;
 public class RagEdgeTests
 {
     private string _dbPath = null!;
-    private MemoryCache _mc1 = null!;
-    private MemoryCache _mc2 = null!;
-    private MemoryCache _mc3 = null!;
+    private HybridCache _mc1 = null!;
+    private HybridCache _mc2 = null!;
+    private HybridCache _mc3 = null!;
 
     [SetUp]
     public void SetUp()
     {
         _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-rag-{Guid.NewGuid():N}.db");
-        _mc1 = new MemoryCache(new MemoryCacheOptions());
-        _mc2 = new MemoryCache(new MemoryCacheOptions());
-        _mc3 = new MemoryCache(new MemoryCacheOptions());
+        _mc1 = TestCache.Create();
+        _mc2 = TestCache.Create();
+        _mc3 = TestCache.Create();
     }
 
     [TearDown]
     public void TearDown()
     {
-        _mc1.Dispose();
-        _mc2.Dispose();
-        _mc3.Dispose();
-        if (File.Exists(_dbPath))
+                                if (File.Exists(_dbPath))
         {
             TestInfra.DeleteDb(_dbPath);
         }

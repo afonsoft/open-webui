@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using OpenWebUI.Domain;
@@ -70,7 +70,7 @@ public class DataPathsTests
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = TestCache.Create();
         var repos = new WorkspaceRepoService(
             new ConfigService(db, cache), new StubEnv(_root));
         var origin = CriarOrigem("main");

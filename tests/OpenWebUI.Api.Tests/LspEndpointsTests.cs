@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -79,7 +79,7 @@ public class LspEndpointsTests
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = TestCache.Create();
         var config = new ConfigService(db, cache);
         await config.SetAsync($"u:{userId}:workspace.repo",
             new WorkspaceRepoBinding("o/b", "main", "repos/o__b"));

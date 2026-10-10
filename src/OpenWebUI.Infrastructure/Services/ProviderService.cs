@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using OpenWebUI.Application.Contracts;
 
@@ -18,7 +18,7 @@ public class ProviderService(
     IHttpClientFactory httpClientFactory,
     ConfigService config,
     ILogger<ProviderService> logger,
-    IMemoryCache cache)
+    HybridCache cache)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -32,14 +32,16 @@ public class ProviderService(
     {
         var connections = await config.GetConnectionsAsync(ct);
         var cacheKey = $"provider-models:{ConnectionsFingerprint(connections)}";
-        if (cache.TryGetValue(cacheKey, out List<ModelInfo>? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var models = await FetchAllModelsAsync(connections, ct);
-        cache.Set(cacheKey, models, ModelsCacheTtl);
-        return models;
+        return await cache.GetOrCreateAsync(
+            cacheKey,
+            async cancel => await FetchAllModelsAsync(connections, cancel),
+            new HybridCacheEntryOptions
+            {
+                Expiration = ModelsCacheTtl,
+                LocalCacheExpiration = ModelsCacheTtl,
+            },
+            tags: ["providers"],
+            cancellationToken: ct);
     }
 
     private async Task<List<ModelInfo>> FetchAllModelsAsync(

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -27,7 +27,7 @@ public class LspBuiltinToolsTests
     private string _workdir = null!;
     private string _fake = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private WorkspaceRepoService _repos = null!;
     private LspService _lsp = null!;
@@ -44,7 +44,7 @@ public class LspBuiltinToolsTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _repos = new WorkspaceRepoService(_config, new StubEnv(_root));
         _lsp = new LspService(new LspOptions
@@ -63,8 +63,7 @@ public class LspBuiltinToolsTests
     {
         await _lsp.DisposeAsync();
         _db.Dispose();
-        _cache.Dispose();
-        try { Directory.Delete(_root, recursive: true); }
+                try { Directory.Delete(_root, recursive: true); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             TestContext.Progress.WriteLine($"cleanup best-effort: {ex.Message}");

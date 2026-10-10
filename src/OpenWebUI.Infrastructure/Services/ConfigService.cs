@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Application.Contracts;
@@ -8,7 +8,7 @@ using OpenWebUI.Application.Contracts;
 namespace OpenWebUI.Infrastructure.Services;
 
 /// <summary>Armazena e recupera configurações persistidas no banco (tabela chave-valor).</summary>
-public class ConfigService(AppDbContext db, IMemoryCache cache)
+public class ConfigService(AppDbContext db, HybridCache cache)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -16,22 +16,24 @@ public class ConfigService(AppDbContext db, IMemoryCache cache)
     // invalida/atualiza só o cache local da instância que escreveu).
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(10);
 
+    private static readonly HybridCacheEntryOptions CacheOptions = new()
+    {
+        Expiration = CacheTtl,
+        LocalCacheExpiration = CacheTtl,
+    };
+
     /// <summary>Obtém uma configuração desserializada ou o valor padrão.</summary>
     /// <typeparam name="T">Tipo do valor.</typeparam>
     /// <param name="key">Chave da configuração.</param>
     /// <param name="defaultValue">Valor usado quando a chave não existe.</param>
     /// <param name="ct">Token de cancelamento.</param>
     public async Task<T> GetAsync<T>(string key, T defaultValue, CancellationToken ct = default)
-    {
-        if (cache.TryGetValue(CacheKey<T>(key), out var hit) && hit is T typed)
-        {
-            return typed;
-        }
-
-        var value = await GetFromDbAsync(key, defaultValue, ct);
-        cache.Set(CacheKey<T>(key), value, CacheTtl);
-        return value;
-    }
+        => await cache.GetOrCreateAsync(
+            CacheKey<T>(key),
+            async cancel => await GetFromDbAsync(key, defaultValue, cancel),
+            CacheOptions,
+            tags: ["config"],
+            cancellationToken: ct);
 
     private async Task<T> GetFromDbAsync<T>(string key, T defaultValue, CancellationToken ct)
     {
@@ -82,7 +84,7 @@ public class ConfigService(AppDbContext db, IMemoryCache cache)
         }
 
         await db.SaveChangesAsync(ct);
-        cache.Set(CacheKey<T>(key), value, CacheTtl);
+        await cache.SetAsync(CacheKey<T>(key), value, CacheOptions, cancellationToken: ct);
     }
 
     /// <summary>Obtém a configuração de conexões com provedores de IA.</summary>

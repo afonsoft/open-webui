@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenWebUI.Application.Contracts;
@@ -25,7 +25,7 @@ public class ImageAndBrowserToolsTests
     private string _workspace = null!;
     private string _uploadDir = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private ImageGenerationService _images = null!;
@@ -40,7 +40,7 @@ public class ImageAndBrowserToolsTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_workspace, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         var factory = new ImageEngineFactory(new StubFactory(_handler));
@@ -52,8 +52,7 @@ public class ImageAndBrowserToolsTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
-        _handler.Dispose();
+                _handler.Dispose();
         try { Directory.Delete(_workspace, true); }
         catch (IOException) { /* best effort */ }
         catch (UnauthorizedAccessException) { /* best effort */ }

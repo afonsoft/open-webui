@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
@@ -15,6 +16,12 @@ public static class McpEndpoints
     private const string Masked = "********";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    private static readonly HybridCacheEntryOptions ListCacheOptions = new()
+    {
+        Expiration = TimeSpan.FromSeconds(60),
+        LocalCacheExpiration = TimeSpan.FromSeconds(60),
+    };
+
     /// <summary>Mapeia o grupo /api/v1/mcp/servers (admin).</summary>
     public static void MapMcpEndpoints(this WebApplication app)
     {
@@ -28,7 +35,7 @@ public static class McpEndpoints
     }
 
     private static async Task<IResult> ListAsync(
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -36,13 +43,18 @@ public static class McpEndpoints
             return Results.Forbid();
         }
 
-        var servers = await db.McpServers.AsNoTracking().OrderBy(s => s.Name).ToListAsync(ct);
+        // 60s: lista de servidores muda raramente e é consultada por
+        // painel + resolução de tools a cada mensagem de chat.
+        var servers = await cache.GetOrCreateAsync(
+            "mcp-servers:list",
+            async cancel => await db.McpServers.AsNoTracking().OrderBy(s => s.Name).ToListAsync(cancel),
+            ListCacheOptions, tags: ["mcp"], cancellationToken: ct);
         return Results.Ok(servers.Select(ToResponse));
     }
 
     private static async Task<IResult> CreateAsync(
         [FromBody] McpServerUpsertRequest request,
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -77,7 +89,7 @@ public static class McpEndpoints
 
     private static async Task<IResult> UpdateAsync(
         string id, [FromBody] McpServerUpsertRequest request,
-        HttpContext http, AppDbContext db, CancellationToken ct)
+        HttpContext http, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -132,11 +144,12 @@ public static class McpEndpoints
         }
 
         await db.SaveChangesAsync(ct);
+        await cache.RemoveByTagAsync("mcp", ct);
         return Results.Ok(ToResponse(server));
     }
 
     private static async Task<IResult> DeleteAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -155,12 +168,13 @@ public static class McpEndpoints
         db.Tools.RemoveRange(virtualTools);
         db.McpServers.Remove(server);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveByTagAsync("mcp", ct);
         return Results.Ok(new { status = true });
     }
 
     private static async Task<IResult> RefreshAsync(
         string id, HttpContext http, AppDbContext db,
-        McpClientService mcp, CancellationToken ct)
+        McpClientService mcp, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -176,6 +190,7 @@ public static class McpEndpoints
         try
         {
             var count = await mcp.RefreshToolsAsync(server, ct);
+            await cache.RemoveByTagAsync("mcp", ct);
             return Results.Ok(new { status = true, tools = count });
         }
         catch (InvalidOperationException ex)
@@ -185,7 +200,7 @@ public static class McpEndpoints
     }
 
     private static async Task<IResult> ListToolsAsync(
-        string id, HttpContext http, AppDbContext db, CancellationToken ct)
+        string id, HttpContext http, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var user = await RequireAdminAsync(http, db, ct);
         if (user is null)
@@ -198,13 +213,19 @@ public static class McpEndpoints
             return Results.NotFound(new { detail = "Servidor MCP não encontrado." });
         }
 
-        var tools = await db.Tools.AsNoTracking()
-            .Where(t => t.UserId == null
-                && t.Url.StartsWith($"{McpClientService.VirtualUrlPrefix}{id}/"))
-            .OrderBy(t => t.Name)
-            .ToListAsync(ct);
-        return Results.Ok(tools.Select(t => new McpToolResponse(
-            t.Id, t.Name, ToolExecutor.FunctionName(t) ?? t.Name, t.Description, t.Enabled)));
+        // Cache 60s do resultado (o mesmo TTL do refresh do cliente MCP);
+        // mutações de server/tool invalidam pela tag "mcp".
+        var tools = await cache.GetOrCreateAsync(
+            $"mcp-tools-list:{id}",
+            async cancel => await db.Tools.AsNoTracking()
+                .Where(t => t.UserId == null
+                    && t.Url.StartsWith($"{McpClientService.VirtualUrlPrefix}{id}/"))
+                .OrderBy(t => t.Name)
+                .Select(t => new McpToolResponse(
+                    t.Id, t.Name, ToolExecutor.FunctionName(t) ?? t.Name, t.Description, t.Enabled))
+                .ToListAsync(cancel),
+            ListCacheOptions, tags: ["mcp"], cancellationToken: ct);
+        return Results.Ok(tools);
     }
 
     /// <summary>Valida o registro: transport, comando (stdio) ou url http(s) sem IP de metadata.</summary>

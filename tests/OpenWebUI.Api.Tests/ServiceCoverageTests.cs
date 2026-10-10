@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using OpenWebUI.Application.Contracts;
@@ -55,9 +55,7 @@ public class ServiceCoverageTests
 
     private ConfigService NewConfig()
     {
-        var cache = new MemoryCache(new MemoryCacheOptions());
-        _owned.Add(cache);
-        return new ConfigService(NewDb(), cache);
+        return new ConfigService(NewDb(), TestCache.Create());
     }
 
     private async Task SeedConfigAsync(string key, object value)
@@ -446,7 +444,7 @@ public class ServiceCoverageTests
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         var svc = new ProviderService(new StubFactory(handler), NewConfig(),
             NullLogger<ProviderService>.Instance, mc1);
 

@@ -1,6 +1,8 @@
 # Open WebUI (.NET)
 
-**The Open WebUI experience rewritten in .NET 10 — a single self-contained container**: Blazor WebAssembly UI + ASP.NET Core backend + SQLite, with chat, RAG, tools, channels, notes and admin — faithful to the upstream `open-webui/open-webui` layout and features, no Python or Node required at runtime.
+![Open WebUI (.NET)](https://raw.githubusercontent.com/afonsoft/open-webui/main/src/OpenWebUI.Client/wwwroot/assets/icons/icon-512.png)
+
+**The Open WebUI experience rewritten in .NET 10 — a single self-contained container**: Blazor WebAssembly UI + ASP.NET Core backend + SQLite, with chat, RAG, tools, channels, notes, admin **and a full coding-agent platform** — faithful to the upstream `open-webui/open-webui` layout and features, extended with parallel sub-agents, durable agent memory and a workspace/IDE, no Python or Node required at runtime.
 
 ## Quick start
 
@@ -21,10 +23,13 @@ The same image is also on GHCR: `docker pull ghcr.io/afonsoft/open-webui`.
 ## What you get
 
 - **Chat** — streaming completions (OpenAI-compatible `/api/chat/completions`), Ollama + OpenAI-compatible providers, multi-model, arena mode, regenerate/edit/versions.
+- **Coding-agent platform** — background agent runs with mid-run steering, `delegate_task` sub-agents in parallel worktrees (depth ≤ 3), checkpoints & revert, Plan/Build modes, durable `memory_save`/`memory_search` with 6h auto-distill.
+- **Workspace / IDE** — repo binding (GitHub), file explorer, editor, integrated terminal (PTY) and browser tool, LSP-driven code intelligence.
 - **Tools & MCP** — workspace tools (HTTP or Python code), MCP tool servers with discovery + `tools/call`, model filters (inlet/outlet), pipelines proxying.
 - **RAG / Knowledge** — files and collections, `#` references, embeddings (Ollama or OpenAI-compatible), web search integration.
-- **Realtime collab** — channels and collaborative notes over SignalR.
+- **Realtime collab** — channels and collaborative notes over SignalR; approvals/notifications pushed live.
 - **Admin** — users/groups/RBAC, connections, models, functions, skills, evals, analytics, automations, i18n (en/pt-BR and more), PWA installable.
+- **Performance** — `HybridCache` (stampede-safe L1) on hot paths: provider model lists, config reads, API-key auth resolution, MCP server/tool lookups.
 - **Ops built-in** — EF Core migrations at startup, non-root image, healthcheck, SQLite in a volume.
 
 ## Ports & volumes

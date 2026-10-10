@@ -20,7 +20,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME:-afonsoft}"
 DOCKERHUB_REPO="${DOCKERHUB_REPO:-open-webui}"
 OVERVIEW_FILE="${OVERVIEW_FILE:-$REPO_ROOT/docs/dockerhub/overview.md}"
-SHORT_DESCRIPTION="${SHORT_DESCRIPTION:-Open WebUI reescrito em .NET 10 — Blazor WASM + ASP.NET Core, um único container.}"
+SHORT_DESCRIPTION="${SHORT_DESCRIPTION:-Open WebUI em .NET 10 — Blazor WASM + ASP.NET Core + plataforma de agentes, um container.}"
 
 : "${DOCKERHUB_TOKEN:?Defina DOCKERHUB_TOKEN com um PAT do Docker Hub (escopo Read/Write/Delete)}"
 [[ -f "$OVERVIEW_FILE" ]] || { echo "overview não encontrado: $OVERVIEW_FILE" >&2; exit 1; }

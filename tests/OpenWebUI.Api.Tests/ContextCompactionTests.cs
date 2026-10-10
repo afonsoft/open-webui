@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using OpenWebUI.Application.Contracts;
@@ -81,7 +81,7 @@ public class ContextCompactionTests
     public async Task ApplyAsync_ComKvDevolveResumoMaisTail()
     {
         await using var db = NewDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        var config = new ConfigService(db, TestCache.Create());
         await config.SetAsync("chat:c1:compaction",
             new { cutoff = 2, summary = "RESUMO ANTIGO" });
         var svc = NewService(db, new FakeSummarizer("x"));
@@ -97,7 +97,7 @@ public class ContextCompactionTests
     public async Task ApplyAsync_CutoffForaDoRangeDevolveInteiro()
     {
         await using var db = NewDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        var config = new ConfigService(db, TestCache.Create());
         await config.SetAsync("chat:c1:compaction",
             new { cutoff = 10, summary = "s" });
         var svc = NewService(db, new FakeSummarizer("x"));
@@ -123,7 +123,7 @@ public class ContextCompactionTests
         db.Users.Add(new User { Id = "u1", Name = "U1", Email = "u1@t.local", Role = "user" });
         db.Chats.Add(new Chat { Id = "c1", UserId = "u1", Title = "t" });
         await db.SaveChangesAsync();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        var config = new ConfigService(db, TestCache.Create());
         // Limiar baixo pra forçar compactação com poucas msgs.
         await config.SetAsync("compaction:threshold", 10);
         await config.SetAsync("compaction:tail_messages", 2);
@@ -158,7 +158,7 @@ public class ContextCompactionTests
     public async Task MaybeCompact_SummarizerNullNaoQuebra()
     {
         await using var db = NewDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        var config = new ConfigService(db, TestCache.Create());
         await config.SetAsync("compaction:threshold", 10);
         var svc = NewService(db, new FakeSummarizer(null), config);
         Assert.That(await svc.MaybeCompactAsync("c1", Msgs(10, 5), "m", CancellationToken.None),
@@ -169,7 +169,7 @@ public class ContextCompactionTests
     public async Task MaybeCompact_SummarizerLancaRunSegue()
     {
         await using var db = NewDb();
-        var config = new ConfigService(db, new MemoryCache(new MemoryCacheOptions()));
+        var config = new ConfigService(db, TestCache.Create());
         await config.SetAsync("compaction:threshold", 10);
         var svc = NewService(db, new ThrowingSummarizer(), config);
         Assert.That(await svc.MaybeCompactAsync("c1", Msgs(10, 5), "m", CancellationToken.None),
@@ -179,7 +179,7 @@ public class ContextCompactionTests
     private static ContextCompactionService NewService(
         AppDbContext db, IContextSummarizer summarizer, ConfigService? config = null) =>
         new(db,
-            config ?? new ConfigService(db, new MemoryCache(new MemoryCacheOptions())),
+            config ?? new ConfigService(db, TestCache.Create()),
             summarizer, NullLogger<ContextCompactionService>.Instance);
 
     private sealed class FakeSummarizer(string? result) : IContextSummarizer

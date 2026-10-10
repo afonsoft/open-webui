@@ -7,7 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -145,7 +145,7 @@ public class McpClientServiceBackfillTests
         try
         {
             await using var db = NewDb(dbPath);
-            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var cache = TestCache.Create();
             var svc = new McpClientService(db, cache);
 
             var server = new McpServer { Name = "srv-off", Enabled = false };
@@ -169,7 +169,7 @@ public class McpClientServiceBackfillTests
         try
         {
             await using var db = NewDb(dbPath);
-            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var cache = TestCache.Create();
             var svc = new McpClientService(db, cache);
 
             // Porta 1 fechada → HttpRequestException → mensagem de erro.
@@ -196,7 +196,7 @@ public class McpClientServiceBackfillTests
         try
         {
             await using var db = NewDb(dbPath);
-            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var cache = TestCache.Create();
             var svc = new McpClientService(db, cache);
 
             var server = new McpServer

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 
 namespace OpenWebUI.Infrastructure.Services;
 
@@ -18,11 +18,11 @@ public static class ApiKeyAuthCache
     public static string CacheKey(string keyHash) => Prefix + keyHash;
 
     /// <summary>Remove entradas em cache para os hashes informados (rotação/revogação).</summary>
-    public static void Evict(IMemoryCache cache, IEnumerable<string> keyHashes)
+    public static async Task EvictAsync(HybridCache cache, IEnumerable<string> keyHashes)
     {
         foreach (var hash in keyHashes)
         {
-            cache.Remove(CacheKey(hash));
+            await cache.RemoveAsync(CacheKey(hash));
         }
     }
 }

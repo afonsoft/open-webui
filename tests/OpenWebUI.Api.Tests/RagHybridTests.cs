@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
@@ -17,23 +17,21 @@ namespace OpenWebUI.Api.Tests;
 public class RagHybridTests
 {
     private string _dbPath = null!;
-    private MemoryCache _mc1 = null!;
-    private MemoryCache _mc2 = null!;
+    private HybridCache _mc1 = null!;
+    private HybridCache _mc2 = null!;
 
     [SetUp]
     public void SetUp()
     {
         _dbPath = Path.Join(Path.GetTempPath(), $"openwebui-hybrid-{Guid.NewGuid():N}.db");
-        _mc1 = new MemoryCache(new MemoryCacheOptions());
-        _mc2 = new MemoryCache(new MemoryCacheOptions());
+        _mc1 = TestCache.Create();
+        _mc2 = TestCache.Create();
     }
 
     [TearDown]
     public void TearDown()
     {
-        _mc1.Dispose();
-        _mc2.Dispose();
-        if (File.Exists(_dbPath))
+                        if (File.Exists(_dbPath))
         {
             TestInfra.DeleteDb(_dbPath);
         }
@@ -138,7 +136,7 @@ public class RagHybridTests
             Chunk("f1", 1, "zebra girafa zebra girafa", [0f, 1f]));
         await db.SaveChangesAsync();
 
-        using var mcl1 = new MemoryCache(new MemoryCacheOptions());
+        var mcl1 = TestCache.Create();
         var config = new ConfigService(db, mcl1);
         await config.SetAsync("retrieval.config",
             RetrievalConfig.Default with { Hybrid = true, HybridWeight = 0, TopK = 1 });
@@ -177,7 +175,7 @@ public class RagHybridTests
             Chunk("f1", 1, "beta", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        using var mcl2 = new MemoryCache(new MemoryCacheOptions());
+        var mcl2 = TestCache.Create();
         var config = new ConfigService(db, mcl2);
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {
@@ -205,7 +203,7 @@ public class RagHybridTests
             Chunk("f1", 1, "alfa beta gama", [0.9f, 0.1f]));
         await db.SaveChangesAsync();
 
-        using var mcl3 = new MemoryCache(new MemoryCacheOptions());
+        var mcl3 = TestCache.Create();
         var config = new ConfigService(db, mcl3);
         await config.SetAsync("retrieval.config", RetrievalConfig.Default with
         {

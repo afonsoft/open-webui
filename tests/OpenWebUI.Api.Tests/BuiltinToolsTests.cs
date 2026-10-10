@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -48,7 +48,7 @@ public class BuiltinToolsTests
         services.AddDbContext<AppDbContext>(
             o => o.UseSqlite($"Data Source={_dbPath}"));
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddHybridCache();
         services.AddSingleton<IHostEnvironment>(new StubEnvLocal(root));
         services.AddScoped<ConfigService>();
         services.AddScoped<WorkspaceRepoService>();
@@ -475,7 +475,7 @@ public class BuiltinToolsTests
         var registry = new BuiltinToolRegistry(
             [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
             new ConfigurationBuilder().Build());
-        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var mc3 = TestCache.Create();
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new ConfigurationBuilder().Build()),
             new McpClientService(db, mc3),
@@ -505,7 +505,7 @@ public class BuiltinToolsTests
         var registry = new BuiltinToolRegistry(
             [new FetchUrlBuiltinTool(new StubHttpClientFactory())],
             new ConfigurationBuilder().Build());
-        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var mc2 = TestCache.Create();
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new ConfigurationBuilder().Build()),
             new McpClientService(db, mc2),
@@ -599,8 +599,7 @@ public class BuiltinToolsTests
 
     private GenerateImageBuiltinTool NewImageTool()
     {
-        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
-            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var cache = TestCache.Create();
         var svc = new ImageGenerationService(
             new ImageEngineFactory(new StubHttpClientFactory()),
             new ConfigService(NewDb(), cache), NewDb());
@@ -624,8 +623,7 @@ public class BuiltinToolsTests
     [Test]
     public async Task WebSearch_ArgsObrigatoriosESemEngine()
     {
-        using var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
-            new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var cache = TestCache.Create();
         var db = NewDb();
         // engine=none explícito: o default passou a ser duckduckgo.
         db.ConfigEntries.Add(new ConfigEntry
@@ -816,7 +814,7 @@ public class BuiltinToolsTests
         await db.SaveChangesAsync();
 
         var ddgJson = "{\"RelatedTopics\":[{\"Text\":\"Resultado um\",\"FirstURL\":\"https://ex.com\"}]}";
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         var tool = new WebSearchBuiltinTool(new WebSearchService(
             new StubHttpClientFactory(new FakeHandler(HttpStatusCode.OK, ddgJson, "application/json")),
             new ConfigService(NewDb(), mc1)));

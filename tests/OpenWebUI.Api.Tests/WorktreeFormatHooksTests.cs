@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -27,7 +27,7 @@ public class WorktreeFormatHooksTests
 {
     private string _root = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private WorkspaceRepoService _repos = null!;
 
@@ -39,7 +39,7 @@ public class WorktreeFormatHooksTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _repos = new WorkspaceRepoService(_config, new StubEnv(_root));
     }
@@ -48,8 +48,7 @@ public class WorktreeFormatHooksTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
-        try { Directory.Delete(_root, recursive: true); }
+                try { Directory.Delete(_root, recursive: true); }
         catch (IOException) { /* best effort */ }
         catch (UnauthorizedAccessException) { /* best effort */ }
     }
