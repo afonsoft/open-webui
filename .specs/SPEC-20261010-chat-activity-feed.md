@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-chat-activity-feed` |
 | Ticket | `[A DEFINIR — create-issues after approval]` |
-| Status | `Approved` |
+| Status | `Done` |
 | Priority | `high` |
 | Depends on | — (SPEC-20261007-chat-tool-streaming, SPEC-20261007-chat-agent-ux delivered) |
 
