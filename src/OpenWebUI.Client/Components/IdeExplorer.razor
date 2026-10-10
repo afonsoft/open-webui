@@ -32,7 +32,11 @@
                          OnAction="@(t => PromptAsync(t.Item1, t.Item2))" />
             }
         </CascadingValue>
-        @if (_roots.Count == 0)
+        @if (_loadFailed && _roots.Count == 0)
+        {
+            <OfflineRetry OnRetry="RefreshAsync" />
+        }
+        else if (_roots.Count == 0)
         {
             <div class="px-3 py-2 text-xs text-gray-400">@L["ide.empty_tree"]</div>
         }
@@ -53,6 +57,7 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private List<IdeTreeEntry> _roots = [];
+    private bool _loadFailed;
 
     /// <summary>Nó de tree com filhos carregados sob demanda.</summary>
     public sealed class IdeTreeEntry
@@ -75,8 +80,18 @@
     /// <summary>Recarrega a raiz (raiz+2 níveis — lazy nos filhos expandidos).</summary>
     public async Task RefreshAsync()
     {
-        var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3);
-        _roots = tree?.Entries.Select(ToEntry).ToList() ?? [];
+        try
+        {
+            var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3);
+            _roots = tree?.Entries.Select(ToEntry).ToList() ?? [];
+            _loadFailed = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: tree vazia + retry em vez da blazor-error-ui.
+            _loadFailed = true;
+            Console.Error.WriteLine($"[IdeExplorer] refresh falhou: {ex.Message}");
+        }
     }
 
     private static IdeTreeEntry ToEntry(WorkspaceFileEntryResponse e) => new()
@@ -91,8 +106,16 @@
         if (node.Expanded && node.Children is null && !node.Loading)
         {
             node.Loading = true;
-            var tree = await Api.GetWorkspaceTreeAsync(path: node.Path, depth: 1);
-            node.Children = tree?.Entries.Select(ToEntry).ToList() ?? [];
+            try
+            {
+                var tree = await Api.GetWorkspaceTreeAsync(path: node.Path, depth: 1);
+                node.Children = tree?.Entries.Select(ToEntry).ToList() ?? [];
+            }
+            catch (HttpRequestException ex)
+            {
+                // Offline: nó fica sem filhos; nova expansão retenta.
+                Console.Error.WriteLine($"[IdeExplorer] expand falhou: {ex.Message}");
+            }
             node.Loading = false;
         }
     }

@@ -12,7 +12,11 @@
         <button class="auth-submit page-new" @onclick="NewAutomation">@L["automations.new"]</button>
     </div>
 
-    @if (_items is null)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadItemsAsync" />
+    }
+    else if (_items is null)
     {
         <div class="sidebar-empty">@L["common.loading"]</div>
     }
@@ -181,10 +185,25 @@
     private bool _fEnabled = true;
     private string? _formError;
 
-    protected override async Task OnInitializedAsync()
+    private bool _loadFailed;
+
+    protected override async Task OnInitializedAsync() => await LoadItemsAsync();
+
+    private async Task LoadItemsAsync()
     {
-        _models = await Api.GetModelsAsync();
-        _items = await Api.GetAutomationsAsync();
+        _loadFailed = false;
+        try
+        {
+            _models = await Api.GetModelsAsync();
+            _items = await Api.GetAutomationsAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            _items = [];
+            Console.Error.WriteLine($"[Automations] carga falhou: {ex.Message}");
+            return;
+        }
         if (_models.Count > 0)
         {
             _fModel = _models[0].Id;

@@ -231,6 +231,57 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
         | ForwardedHeaders.XForwardedHost,
 });
 
+// Content-Security-Policy própria (SPEC-20261010-app-csp-header): antes a app
+// não emitia CSP nenhum e herdava um report-only frouxo do proxy de produção
+// (script-src unsafe-inline/eval, connect-src 'none') que só gerava ruído de
+// violação para o service worker e as chamadas de API. A política abaixo é a
+// que o boot WASM realmente precisa:
+//  - 'unsafe-inline' cobre os scripts inline do index.html (tema + registro
+//    do service worker); um nonce fica para uma iteração futura.
+//  - 'wasm-unsafe-eval'/'unsafe-eval' cobrem o WebAssembly.instantiate do
+//    dotnet.wasm e o eval do runner JS de codeexec (browsers antigos sem a
+//    keyword wasm-* caem para 'unsafe-eval').
+//  - https://cdn.jsdelivr.net cobre o importScripts do Pyodide em
+//    js/py-worker.js (o worker herda o script-src do documento).
+//  - worker-src blob: cobre new Worker(URL.createObjectURL(...)) do codeexec.
+//  - connect-src https: cobre chamadas a provedores/CDN client-side
+//    (ex.: pacotes Pyodide), wss: o SignalR /ws e data:/blob: os fallbacks
+//    b64→Response do boot e object URLs geradas pelo cliente.
+// Aplica-se só a documentos HTML: o proxy de port preview (/preview/{port})
+// deve repassar o payload do upstream intacto — um CSP nosso ali quebraria
+// apps terceiros que consomem CDNs externos.
+const string ContentSecurityPolicy =
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net; " +
+    "worker-src 'self' blob:; " +
+    "connect-src 'self' https: wss: data: blob:; " +
+    "img-src 'self' data: blob: https:; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "font-src 'self' data:; " +
+    "frame-src 'self' https:; " +
+    "media-src 'self' blob: data:";
+
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isHtml =
+            context.Response.ContentType?.StartsWith(
+                "text/html", StringComparison.OrdinalIgnoreCase) == true;
+        if (isHtml
+            && !path.StartsWith("/preview/", StringComparison.OrdinalIgnoreCase)
+            && !context.Response.Headers.ContainsKey("Content-Security-Policy"))
+        {
+            context.Response.Headers["Content-Security-Policy"] = ContentSecurityPolicy;
+        }
+
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
+
 // Serve os static web assets com fingerprinting e resolve os placeholders
 // #[.{fingerprint}] do index.html (UseStaticFiles não faz essa substituição).
 app.MapStaticAssets();

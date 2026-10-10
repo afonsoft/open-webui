@@ -1,5 +1,7 @@
 {
   "common.loading": "Loading…",
+  "common.offline_load": "Échec du chargement — vous êtes peut-être hors ligne.",
+  "common.retry": "Réessayer",
   "common.save": "Enregistrer",
   "common.edit": "✏️ Edit",
   "common.delete": "Supprimer",

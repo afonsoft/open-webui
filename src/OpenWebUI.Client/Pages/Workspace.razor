@@ -25,6 +25,11 @@
         <a href="/workspace/skills" class="modal-tab @(Section == "skills" ? "active" : "")" role="tab" aria-selected="@(Section == "skills")">@L["workspace.skills"]</a>
     </div>
 
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadAllAsync" />
+    }
+
     <div class="card-row mb-3">
         <div class="card-main">
             <div class="card-title">@L["ide.title"]</div>
@@ -272,6 +277,7 @@
     private string? _knowledgeStatus;
     private List<ToolResponse> _tools = [];
     private List<SkillResponse> _skills = [];
+    private bool _loadFailed;
     private string? _skillEditId;
     private string _skillName = "";
     private string _skillDesc = "";
@@ -293,11 +299,26 @@
         // Mesma instância serve /workspace/{seção}: sem escutar LocationChanged
         // a troca de aba atualiza a URL mas não re-renderiza o conteúdo.
         Nav.LocationChanged += OnLocationChanged;
-        _prompts = await Api.GetPromptsAsync();
-        _models = await Api.GetCustomModelsAsync();
-        _files = await Api.GetFilesAsync();
-        _knowledge = await Api.GetKnowledgeAsync();
-        _skills = await Api.GetSkillsAsync() ?? [];
+        await LoadAllAsync();
+    }
+
+    /// <summary>Fetches de init — offline vira retry manual, não error UI.</summary>
+    private async Task LoadAllAsync()
+    {
+        _loadFailed = false;
+        try
+        {
+            _prompts = await Api.GetPromptsAsync();
+            _models = await Api.GetCustomModelsAsync();
+            _files = await Api.GetFilesAsync();
+            _knowledge = await Api.GetKnowledgeAsync();
+            _skills = await Api.GetSkillsAsync() ?? [];
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[Workspace] carga falhou: {ex.Message}");
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>

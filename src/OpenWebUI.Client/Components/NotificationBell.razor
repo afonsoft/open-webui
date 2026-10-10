@@ -39,7 +39,7 @@
 
             @if (_items.Count == 0)
             {
-                <div class="px-3 py-6 text-center text-xs text-gray-400 dark:text-gray-500">@L["notifications.empty"]</div>
+                <div class="px-3 py-6 text-center text-xs text-gray-400 dark:text-gray-500">@L[_offline ? "common.offline_load" : "notifications.empty"]</div>
             }
             else
             {
@@ -97,6 +97,7 @@
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
 
     private bool _open;
+    private bool _offline;
     private int _unread;
     private List<NotificationItemResponse> _items = [];
     private ElementReference _trigger;
@@ -142,14 +143,25 @@
 
     private async Task RefreshAsync()
     {
-        var page = await Api.GetNotificationsAsync(pageSize: 20);
-        if (page is null)
+        try
         {
-            return;
-        }
+            var page = await Api.GetNotificationsAsync(pageSize: 20);
+            if (page is null)
+            {
+                return;
+            }
 
-        _items = page.Items;
-        _unread = page.Unread;
+            _items = page.Items;
+            _unread = page.Unread;
+            _offline = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline/SW: badge vazio e o poll retenta sozinho — nunca
+            // propagar para a blazor-error-ui.
+            _offline = true;
+            Console.Error.WriteLine($"[NotificationBell] refresh falhou: {ex.Message}");
+        }
     }
 
     private async Task OpenAsync(NotificationItemResponse item)

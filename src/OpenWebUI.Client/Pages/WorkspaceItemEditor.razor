@@ -14,7 +14,11 @@
         <a class="msg-action" href="/workspace/@Kind">← @L["common.back"]</a>
     </div>
 
-    @if (_notFound)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadAsync" />
+    }
+    else if (_notFound)
     {
         <div class="sidebar-empty">@L["common.not_found"]</div>
     }
@@ -257,9 +261,29 @@
     private ModelEntryResponse? _model;
     private ToolResponse? _tool;
 
-    protected override async Task OnParametersSetAsync()
+    private bool _loadFailed;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
     {
         _loading = true;
+        _loadFailed = false;
+        try
+        {
+            await LoadCoreAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: editor não abre — retry manual, não error UI.
+            _loadFailed = true;
+            Console.Error.WriteLine($"[WorkspaceItemEditor] carga falhou: {ex.Message}");
+        }
+        _loading = false;
+    }
+
+    private async Task LoadCoreAsync()
+    {
         _notFound = false;
         _error = null;
         Kind ??= "prompts";
@@ -307,8 +331,6 @@
         {
             _files = await Api.GetFilesAsync();
         }
-
-        _loading = false;
     }
 
     private async Task SaveAsync()

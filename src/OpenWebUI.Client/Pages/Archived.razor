@@ -9,7 +9,11 @@
 
 <div class="page">
     <h1 class="page-title" tabindex="-1">@L["archived.title"]</h1>
-    @if (_chats is null)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadChatsAsync" />
+    }
+    else if (_chats is null)
     {
         <div class="sidebar-empty">@L["common.loading"]</div>
     }
@@ -39,10 +43,23 @@
 
 @code {
     private List<ChatSummaryResponse>? _chats;
+    private bool _loadFailed;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadChatsAsync();
+
+    private async Task LoadChatsAsync()
     {
-        _chats = await Api.GetArchivedChatsAsync();
+        _loadFailed = false;
+        try
+        {
+            _chats = await Api.GetArchivedChatsAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            _chats = [];
+            Console.Error.WriteLine($"[Archived] carga falhou: {ex.Message}");
+        }
     }
 
     private async Task UnarchiveAsync(ChatSummaryResponse chat)

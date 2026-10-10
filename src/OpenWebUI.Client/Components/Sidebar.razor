@@ -191,7 +191,17 @@ else
                 }
             }
 
-            @if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
+            @if (_loadFailed && FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0 && _channels.Count == 0)
+            {
+                @* Offline: casca/nav continuam; hint + retry manual (o reload
+                   também volta a rodar via eventos/poll). *@
+                <div class="px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600 flex items-center gap-2"
+                     data-offline-fallback>
+                    <span>@L["common.offline_load"]</span>
+                    <button class="text-blue-500 hover:text-blue-600 cursor-pointer" @onclick="LoadAsync">@L["common.retry"]</button>
+                </div>
+            }
+            else if (FilteredChats.Count == 0 && _pinned.Count == 0 && _folders.Count == 0)
             {
                 <div class="px-3 text-[0.8125rem] text-gray-400 dark:text-gray-600">
                     @(string.IsNullOrEmpty(_query) ? L["sidebar.empty"] : L["sidebar.no_results"])
@@ -386,6 +396,7 @@ else
     private bool _copied;
     private bool _collapsed;
     private bool _userMenuOpen;
+    private bool _loadFailed;
 
     private record ThemeOption(string Value, string Label, string Icon);
 
@@ -530,16 +541,27 @@ else
 
     private async Task LoadAsync()
     {
-        // Chamadas independentes em paralelo (antes: 4 sequenciais por recarga).
-        var chatsTask = Api.GetChatsAsync();
-        var pinnedTask = Api.GetPinnedChatsAsync();
-        var foldersTask = Api.GetFoldersAsync();
-        var channelsTask = Api.GetChannelsAsync();
-        await Task.WhenAll(chatsTask, pinnedTask, foldersTask, channelsTask);
-        _chats = chatsTask.Result;
-        _pinned = pinnedTask.Result;
-        _folders = foldersTask.Result;
-        _channels = channelsTask.Result;
+        try
+        {
+            // Chamadas independentes em paralelo (antes: 4 sequenciais por recarga).
+            var chatsTask = Api.GetChatsAsync();
+            var pinnedTask = Api.GetPinnedChatsAsync();
+            var foldersTask = Api.GetFoldersAsync();
+            var channelsTask = Api.GetChannelsAsync();
+            await Task.WhenAll(chatsTask, pinnedTask, foldersTask, channelsTask);
+            _chats = chatsTask.Result;
+            _pinned = pinnedTask.Result;
+            _folders = foldersTask.Result;
+            _channels = channelsTask.Result;
+            _loadFailed = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline/SW: mantém a nav/casca renderizando com listas vazias
+            // (ou o último dado) — nunca propagar para a blazor-error-ui.
+            _loadFailed = true;
+            Console.Error.WriteLine($"[Sidebar] carga falhou: {ex.Message}");
+        }
     }
 
     private async Task CreateDmAsync()

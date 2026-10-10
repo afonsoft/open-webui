@@ -57,7 +57,11 @@
 
         <div class="flex-1 overflow-y-auto scrollbar-hidden">
             <div class="mx-auto w-full max-w-4xl px-4 pb-6">
-                @if (_channel is null && _loaded)
+                @if (_loadFailed)
+                {
+                    <OfflineRetry OnRetry="LoadChannelAsync" />
+                }
+                else if (_channel is null && _loaded)
                 {
                     <div class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
                         @L["channel.not_found"]
@@ -221,6 +225,7 @@
     private string? _typing;
     private string _draft = string.Empty;
     private bool _loaded;
+    private bool _loadFailed;
     private string? _lastId;
     private bool _showPinned;
     private ChannelMessageResponse? _thread;
@@ -239,22 +244,36 @@
     }
 
     /// <inheritdoc />
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await LoadChannelAsync();
+
+    private async Task LoadChannelAsync()
     {
-        if (_lastId == Id)
+        if (_lastId == Id && _loaded)
         {
             return;
         }
         _lastId = Id;
         _loaded = false;
+        _loadFailed = false;
         _messages = [];
         _seen.Clear();
         _online = [];
         _typing = null;
         _thread = null;
 
-        _channel = await Api.GetChannelAsync(Id);
-        _messages = await Api.GetChannelMessagesAsync(Id);
+        try
+        {
+            _channel = await Api.GetChannelAsync(Id);
+            _messages = await Api.GetChannelMessagesAsync(Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: shell do canal renderiza + retry manual.
+            _loadFailed = true;
+            _loaded = true;
+            Console.Error.WriteLine($"[ChannelPage] carga falhou: {ex.Message}");
+            return;
+        }
         foreach (var m in _messages)
         {
             _seen.Add(m.Id);
