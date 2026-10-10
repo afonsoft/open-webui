@@ -332,7 +332,8 @@ async def scenario_rps(
 
     weights = [
         ("list_chats", 3), ("get_chat", 2), ("enqueue", 4),
-        ("runs_active", 1), ("models", 1), ("runs_list", 1), ("chat_create", 1),
+        ("runs_active", 1), ("models", 2), ("runs_list", 1), ("chat_create", 1),
+        ("mcp_servers", 1), ("config_admin", 1),
     ]
     names, probs = zip(*weights)
     deadline = time.time() + args.duration
@@ -368,6 +369,15 @@ async def scenario_rps(
                 await api.req(session, "get_chat", "GET", f"/api/v1/chats/{cid}", token)
             elif kind == "models":
                 await api.req(session, "models", "GET", "/api/models", token)
+            elif kind == "mcp_servers":
+                # HybridCache: lista de servidores MCP (60s, tag "mcp").
+                await api.req(
+                    session, "mcp_servers", "GET", "/api/v1/mcp/servers", token)
+            elif kind == "config_admin":
+                # ConfigService via HybridCache (10s, tag "config").
+                await api.req(
+                    session, "config_admin", "GET",
+                    "/api/v1/auths/admin/config", token)
             elif kind == "runs_list":
                 await api.req(session, "runs_list", "GET", "/api/v1/chats/runs", token)
             elif kind == "runs_active":

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -135,7 +135,7 @@ public class GroupAndSsoTests
     public async Task OAuth_VinculaOuCriaUsuario()
     {
         await using var db = CreateContext();
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         var oauth = new OAuthService(db, new ConfigService(db, mc1));
 
         var linked = await oauth.LinkOrCreateAsync(

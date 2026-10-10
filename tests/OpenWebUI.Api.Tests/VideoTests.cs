@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.ChatTools.Tools;
@@ -99,7 +99,7 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var mc3 = TestCache.Create();
         var config = new ConfigService(db, mc3);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
@@ -168,7 +168,7 @@ public class VideoTests
         });
 
         var db = NewIsolatedDb();
-        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var mc2 = TestCache.Create();
         var config = new ConfigService(db, mc2);
         var service = new VideoGenerationService(
             new VideoEngineFactory(new StubFactory(handler)), config, db);
@@ -249,7 +249,7 @@ public class VideoTests
     private VideoGenerationService NewVideoService()
     {
         var db = NewIsolatedDb();
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         return new VideoGenerationService(
             new VideoEngineFactory(new StubFactory()),
             new ConfigService(db, mc1), db);

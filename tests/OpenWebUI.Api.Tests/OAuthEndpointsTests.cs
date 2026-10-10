@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -210,7 +210,7 @@ public class OAuthEndpointsTests
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
         // Sem `using`: o serviço retornado usa o cache além do fim do método.
-        var mc4 = new MemoryCache(new MemoryCacheOptions());
+        var mc4 = TestCache.Create();
         return new OAuthService(db, new ConfigService(db, mc4));
     }
 
@@ -622,7 +622,7 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        using var mc3 = new MemoryCache(new MemoryCacheOptions());
+        var mc3 = TestCache.Create();
         var service = new OAuthService(db, new ConfigService(db, mc3));
 
         var first = await service.LinkOrCreateAsync("oidc", "sub-1", "a@b.c", "A");
@@ -652,7 +652,7 @@ public class OAuthEndpointsTests
         };
         db.Users.Add(existente);
         await db.SaveChangesAsync();
-        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var mc2 = TestCache.Create();
         var service = new OAuthService(db, new ConfigService(db, mc2));
 
         var link = await service.LinkOrCreateAsync(" OIDC ", "sub-9", " exist@b.c ", null);
@@ -700,7 +700,7 @@ public class OAuthEndpointsTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(db);
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         var config = new ConfigService(db, mc1);
         await config.SetAsync("admin.config",
             AdminConfig.Default with { DefaultUserRole = "convidado" });

@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Application.Contracts;
 
 namespace OpenWebUI.Infrastructure.Services;
@@ -15,12 +15,14 @@ namespace OpenWebUI.Infrastructure.Services;
 /// antes de persistir.
 /// </summary>
 public sealed class GitHubService(
-    IHttpClientFactory httpFactory, ConfigService config, IMemoryCache? cache = null)
+    IHttpClientFactory httpFactory, ConfigService config, HybridCache? cache = null)
 {
     /// <summary>Nome do <see cref="HttpClient"/> registrado no Program.cs.</summary>
     public const string HttpClientName = "github";
 
     private const string ApiBase = "https://api.github.com";
+
+    private static readonly TimeSpan PullsCacheTtl = TimeSpan.FromSeconds(60);
 
     private static string TokenKey(string userId) => $"u:{userId}:github.token";
     private static string LoginKey(string userId) => $"u:{userId}:github.login";
@@ -141,12 +143,23 @@ public sealed class GitHubService(
         }
 
         var cacheKey = $"github:pulls:{userId}:{owner}/{repo}";
-        if (cache?.TryGetValue(cacheKey, out WorkspacePullsResponse? cached) == true
-            && cached is not null)
-        {
-            return cached;
-        }
+        var pulls = cache is null
+            ? await FetchPullsAsync(userId, owner, repo, token, ct)
+            : await cache.GetOrCreateAsync(
+                cacheKey,
+                async cancel => await FetchPullsAsync(userId, owner, repo, token, cancel),
+                new HybridCacheEntryOptions
+                {
+                    Expiration = PullsCacheTtl,
+                    LocalCacheExpiration = PullsCacheTtl,
+                },
+                tags: ["github"],
+                cancellationToken: ct);
+        return pulls;
 
+        async Task<WorkspacePullsResponse?> FetchPullsAsync(
+            string uid, string o, string r, string tk, CancellationToken cancel)
+        {
         try
         {
             var (status, doc) = await SendStatusAsync(token, HttpMethod.Get,
@@ -170,14 +183,13 @@ public sealed class GitHubService(
                 return new WorkspacePullsResponse(false, true, []);
             }
 
-            var response = new WorkspacePullsResponse(
+            return new WorkspacePullsResponse(
                 true, false, mapped.Select(p => p!).ToList());
-            cache?.Set(cacheKey, response, TimeSpan.FromSeconds(60));
-            return response;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             return null;
+        }
         }
     }
 

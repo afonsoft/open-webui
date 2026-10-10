@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -36,7 +37,7 @@ public class MaintenanceServicesTests
         services.AddDbContext<AppDbContext>(
             o => o.UseSqlite($"Data Source={_dbPath}"));
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddHybridCache();
         services.AddSingleton<IHostEnvironment>(new StubEnvLocal(_root));
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddSingleton<IHttpClientFactory>(

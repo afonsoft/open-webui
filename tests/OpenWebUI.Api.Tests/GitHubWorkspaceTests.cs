@@ -7,7 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using OpenWebUI.Api.Completions;
@@ -30,7 +30,7 @@ public class GitHubWorkspaceTests
 {
     private string _root = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private GitHubStub _github = null!;
     private GitHubService _svc = null!;
@@ -44,7 +44,7 @@ public class GitHubWorkspaceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_root, "t.db")}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _github = new GitHubStub();
         _svc = new GitHubService(new StubFactory(_github), _config);
@@ -55,7 +55,6 @@ public class GitHubWorkspaceTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
         _github.Dispose();
         try { Directory.Delete(_root, recursive: true); }
         catch (IOException) { /* best effort */ }
@@ -494,7 +493,7 @@ public class GitHubWorkspaceTests
         Assert.Multiple(() =>
         {
             Assert.That(first!.Pulls, Has.Count.EqualTo(2));
-            Assert.That(second, Is.SameAs(first), "60s cache devolve a mesma resposta");
+            Assert.That(second!.Pulls, Is.EqualTo(first!.Pulls), "60s cache devolve a mesma resposta");
             Assert.That(_github.RequestCount, Is.EqualTo(afterFirst));
             Assert.That(afterFirst, Is.GreaterThan(before));
         });
@@ -717,7 +716,7 @@ public class GitHubWorkspaceTests
     {
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = TestCache.Create();
         await new ConfigService(db, cache).SetAsync(key, value, default);
     }
 

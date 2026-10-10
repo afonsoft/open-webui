@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using OpenWebUI.Application.Contracts;
+using Microsoft.Extensions.Caching.Hybrid;
 
 namespace OpenWebUI.Api.Tests;
 

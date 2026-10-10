@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.ChatTools;
@@ -274,7 +274,7 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
-        using var mc2 = new MemoryCache(new MemoryCacheOptions());
+        var mc2 = TestCache.Create();
         var executor = new ToolExecutor(db, new StubHttpClientFactory(),
             new PythonToolExecutor(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()),
             new McpClientService(db, mc2), EmptyRegistry());
@@ -300,7 +300,7 @@ public class McpTests
         await RefreshAsync(server.Id);
 
         await using var db = CreateContext();
-        using var mc1 = new MemoryCache(new MemoryCacheOptions());
+        var mc1 = TestCache.Create();
         var mcp = new McpClientService(db, mc1);
         var tools = await db.Tools.Where(t => (t.Url ?? "").StartsWith($"mcp://{server.Id}/")).ToListAsync();
 

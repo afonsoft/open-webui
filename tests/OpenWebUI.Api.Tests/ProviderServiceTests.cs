@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using System.ComponentModel;
 using System.Collections.Concurrent;
 using System.Net;
@@ -19,7 +19,7 @@ public class ProviderServiceTests
 {
     private string _dbPath = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private HttpListener _mock = null!;
     private CancellationTokenSource _mockCts = null!;
@@ -53,7 +53,7 @@ public class ProviderServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={_dbPath}").Options);
         await DatabaseMigrator.MigrateAsync(_db);
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _mockUrl = StartMock();
     }
@@ -71,8 +71,7 @@ public class ProviderServiceTests
     {
         _mockCts.Cancel();
         _mock.Stop();
-        _cache.Dispose();
-        _db.Dispose();
+                _db.Dispose();
         if (File.Exists(_dbPath))
         {
             TestInfra.DeleteDb(_dbPath);
@@ -85,7 +84,7 @@ public class ProviderServiceTests
             // Cache novo por serviço: o cache de modelos (TTL 60s) é chaveado
             // pelo fingerprint das conexões — compartilhar entre testes faz um
             // teste ler a resposta em cache de outro.
-            new MemoryCache(new MemoryCacheOptions()));
+            TestCache.Create());
 
     private Task SetConnectionsAsync(
         IReadOnlyList<string> ollama, IReadOnlyList<string> openAi, IReadOnlyList<string> keys) =>

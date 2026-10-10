@@ -118,8 +118,7 @@ public class ToolExecutor(
 
         if (McpClientService.ParseVirtualUrl(tool.Url) is { } mcpTarget)
         {
-            var server = await db.McpServers.AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == mcpTarget.ServerId, ct);
+            var server = await mcp.GetServerAsync(mcpTarget.ServerId, ct);
             return new(server is null
                 ? $"Erro: servidor MCP da tool '{functionName}' não existe mais."
                 : await mcp.CallToolAsync(server, mcpTarget.ToolName, argumentsJson, ct));

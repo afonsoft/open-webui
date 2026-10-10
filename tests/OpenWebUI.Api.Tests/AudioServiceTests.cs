@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.ChatTools.Tools;
@@ -20,7 +20,7 @@ namespace OpenWebUI.Api.Tests;
 public class AudioServiceTests
 {
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private AudioService _svc = null!;
@@ -32,7 +32,7 @@ public class AudioServiceTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new AudioService(new StubFactory(_handler), _config);
@@ -42,8 +42,7 @@ public class AudioServiceTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
-        _handler.Dispose();
+                _handler.Dispose();
     }
 
     private static AudioConfig Cfg(

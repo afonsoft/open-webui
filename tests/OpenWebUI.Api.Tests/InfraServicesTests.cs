@@ -503,7 +503,12 @@ public class InfraServicesTests
             Assert.That(OAuthProviderCatalog.Resolve("inexistente"), Is.Null);
 
             // O catálogo aparece na configuração pública da API.
-            var appConfig = await _client.GetFromJsonAsync<AppConfigResponse>("/api/config");
+            var resp = await _client.GetAsync("/api/config");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Assert.Fail($"GET /api/config -> {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync()}");
+            }
+            var appConfig = await resp.Content.ReadFromJsonAsync<AppConfigResponse>();
             Assert.That(appConfig!.OAuthProviders, Does.Contain("google"));
         }
         finally

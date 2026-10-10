@@ -16,6 +16,7 @@ using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
+using Microsoft.Extensions.Caching.Hybrid;
 
 namespace OpenWebUI.Api.Tests;
 
@@ -23,7 +24,7 @@ namespace OpenWebUI.Api.Tests;
 [TestFixture, IsolateEnvironment]
 public class EndpointEdgeTests
 {
-    private readonly MemoryCache mc1 = new(new MemoryCacheOptions());
+    private readonly HybridCache mc1 = TestCache.Create();
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
     private HttpListener _mock = null!;
@@ -61,7 +62,6 @@ public class EndpointEdgeTests
         _mock.Stop();
         _client.Dispose();
         _factory.Dispose();
-        mc1.Dispose();
         if (File.Exists(_dbPath))
         {
             TestInfra.DeleteDb(_dbPath);

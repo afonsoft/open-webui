@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using ModelContextProtocol.Client;
 using OpenWebUI.Domain;
 using McpTool = ModelContextProtocol.Client.McpClientTool;
@@ -23,7 +23,7 @@ namespace OpenWebUI.Infrastructure.Services;
 /// </summary>
 public partial class McpClientService(
     AppDbContext db,
-    IMemoryCache cache)
+    HybridCache cache)
 {
 
     /// <summary>Prefixo interno de URL das tools virtuais MCP.</summary>
@@ -31,6 +31,12 @@ public partial class McpClientService(
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ToolsCacheTtl = TimeSpan.FromSeconds(60);
+
+    private static readonly HybridCacheEntryOptions CacheOptions = new()
+    {
+        Expiration = ToolsCacheTtl,
+        LocalCacheExpiration = ToolsCacheTtl,
+    };
     private const int MaxOutputChars = 4000;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -80,8 +86,9 @@ public partial class McpClientService(
             server.UpdatedAt = now;
             await db.SaveChangesAsync(timeout.Token);
 
-            cache.Set(ToolsCacheKey(server.Id),
-                virtualTools.Select(t => (t.Name, t.Description)).ToList(), ToolsCacheTtl);
+            await cache.SetAsync(ToolsCacheKey(server.Id),
+                virtualTools.Select(t => new McpToolDescriptor(t.Name, t.Description)).ToList(), CacheOptions,
+                tags: ["mcp"], cancellationToken: timeout.Token);
             return virtualTools.Count;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -288,6 +295,26 @@ public partial class McpClientService(
         }
     }
 
+    /// <summary>
+    /// Obtém um servidor MCP por id com cache de 30s (hot path do
+    /// <c>tools/call</c> — evita query ao SQLite por execução de tool).
+    /// Invalidado pela tag "mcp" em qualquer mutação de servidor.
+    /// </summary>
+    /// <param name="serverId">Id do servidor MCP.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    public Task<McpServer?> GetServerAsync(string serverId, CancellationToken ct = default)
+        => cache.GetOrCreateAsync(
+            $"mcp-server:{serverId}",
+            async cancel => await db.McpServers.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == serverId, cancel),
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromSeconds(30),
+                LocalCacheExpiration = TimeSpan.FromSeconds(30),
+            },
+            tags: ["mcp"],
+            cancellationToken: ct).AsTask();
+
     private static string ToolsCacheKey(string serverId) => $"mcp-tools:{serverId}";
 
     private static string Slug(string value)
@@ -299,3 +326,6 @@ public partial class McpClientService(
     [GeneratedRegex("[^a-zA-Z0-9_-]+")]
     private static partial Regex SlugRegex();
 }
+
+/// <summary>Descrição serializável de uma tool MCP para o HybridCache (tuplas não serializam).</summary>
+public sealed record McpToolDescriptor(string Name, string Description);

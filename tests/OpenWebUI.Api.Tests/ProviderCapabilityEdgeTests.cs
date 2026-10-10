@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.Data;
@@ -18,7 +18,7 @@ namespace OpenWebUI.Api.Tests;
 public class ProviderCapabilityEdgeTests
 {
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private ProviderCapabilityService _svc = null!;
@@ -30,7 +30,7 @@ public class ProviderCapabilityEdgeTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={path}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new ProviderCapabilityService(new StubFactory(_handler), _config,
@@ -41,8 +41,7 @@ public class ProviderCapabilityEdgeTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
-        _handler.Dispose();
+                _handler.Dispose();
     }
 
     private Task SetConnections(string[] ollama, string[] openai, string[] keys) =>

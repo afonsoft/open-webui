@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.ChatTools.Tools;
@@ -21,7 +21,7 @@ public class N8nToolsTests
 {
     private string _workspace = null!;
     private AppDbContext _db = null!;
-    private MemoryCache _cache = null!;
+    private HybridCache _cache = null!;
     private ConfigService _config = null!;
     private RoutingHandler _handler = null!;
     private N8nService _svc = null!;
@@ -35,7 +35,7 @@ public class N8nToolsTests
         _db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={dbPath}").Options);
         DatabaseMigrator.MigrateAsync(_db).GetAwaiter().GetResult();
-        _cache = new MemoryCache(new MemoryCacheOptions());
+        _cache = TestCache.Create();
         _config = new ConfigService(_db, _cache);
         _handler = new RoutingHandler();
         _svc = new N8nService(new StubFactory(_handler), _config,
@@ -46,8 +46,7 @@ public class N8nToolsTests
     public void TearDown()
     {
         _db.Dispose();
-        _cache.Dispose();
-        _handler.Dispose();
+                _handler.Dispose();
         try { Directory.Delete(_workspace, true); }
         catch (IOException) { /* best effort */ }
         catch (UnauthorizedAccessException) { /* best effort */ }
@@ -80,7 +79,7 @@ public class N8nToolsTests
         });
 
         // env como fallback quando kv está vazio.
-        using var cache1 = new MemoryCache(new MemoryCacheOptions());
+        var cache1 = TestCache.Create();
         var env = new N8nService(new StubFactory(_handler),
             new ConfigService(_db, cache1),
             new ConfigurationBuilder()
@@ -94,7 +93,7 @@ public class N8nToolsTests
         using var db2 = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlite($"Data Source={Path.Join(_workspace, "t2.db")}").Options);
         DatabaseMigrator.MigrateAsync(db2).GetAwaiter().GetResult();
-        using var cache2 = new MemoryCache(new MemoryCacheOptions());
+        var cache2 = TestCache.Create();
         env = new N8nService(new StubFactory(_handler),
             new ConfigService(db2, cache2),
             new ConfigurationBuilder()

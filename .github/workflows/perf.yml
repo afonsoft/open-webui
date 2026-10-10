@@ -171,6 +171,17 @@ jobs:
               print(f"subagent children spawned: {spawned}")
               if spawned < 1:
                   print("::error::cenário subagents rodou mas nenhum filho spawnou"); sys.exit(1)
+          # endpoints servidos por HybridCache — p95 alto indica cache quebrado
+          max_p95 = float(os.environ.get("MAX_CACHED_P95_MS", "1500"))
+          for grp in ("models", "mcp_servers", "config_admin"):
+              lat = sorted(s["ms"] for s in samples if s["group"] == grp)
+              if not lat:
+                  continue
+              p95 = lat[min(len(lat) - 1, int(round(0.95 * (len(lat) - 1))))]
+              print(f"{grp}: n={len(lat)} p95={p95:.1f}ms (max {max_p95:.0f})")
+              if p95 > max_p95:
+                  print(f"::error::{grp} p95 {p95:.1f}ms > {max_p95:.0f}ms — cache pode estar quebrado")
+                  sys.exit(1)
           print("perf gate OK")
           PY
 
