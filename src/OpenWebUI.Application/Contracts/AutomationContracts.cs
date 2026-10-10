@@ -16,10 +16,12 @@ public sealed record AutomationResponse(
     long UpdatedAt);
 
 /// <summary>Criação/atualização de automação.</summary>
-/// <param name="ScheduleKind">interval | daily | weekly.</param>
+/// <param name="ScheduleKind">interval | daily | weekly | once.</param>
 /// <param name="IntervalMinutes">Minutos entre execuções (kind=interval, mín. 1).</param>
 /// <param name="TimeOfDay">"HH:mm" em UTC (kind=daily/weekly).</param>
 /// <param name="Weekday">0-6 domingo..sábado em UTC (kind=weekly).</param>
+/// <param name="RunAt">Execução única em epoch seconds UTC (kind=once).</param>
+/// <param name="InMinutes">Execução única daqui a N minutos (kind=once, alternativa a RunAt).</param>
 public sealed record AutomationUpsertRequest(
     string Name,
     string Prompt,
@@ -28,7 +30,9 @@ public sealed record AutomationUpsertRequest(
     int? IntervalMinutes,
     string? TimeOfDay,
     int? Weekday,
-    bool? Enabled);
+    bool? Enabled,
+    long? RunAt = null,
+    int? InMinutes = null);
 
 /// <summary>Execução registrada de uma automação.</summary>
 public sealed record AutomationRunResponse(

@@ -19,6 +19,11 @@ public static class AutomationSchedule
             "interval" => utc.AddMinutes(Math.Max(1, automation.IntervalMinutes)).ToUnixTimeSeconds(),
             "daily" => NextDaily(utc, automation.TimeOfDay),
             "weekly" => NextWeekly(utc, automation.Weekday ?? 0, automation.TimeOfDay),
+            // Execução única (reminder): mantém o horário já armazenado enquanto
+            // futuro; depois de disparar, devolve null e nunca reagenda.
+            "once" => automation.NextRunAt is long at && at > utc.ToUnixTimeSeconds()
+                ? at
+                : null,
             _ => null,
         };
     }
@@ -125,6 +130,13 @@ public class AutomationService(AppDbContext db, ProviderService providers, Notif
         run.FinishedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         db.AutomationRuns.Add(run);
         await db.SaveChangesAsync(ct);
+        // Lembrete (once) precisa aparecer pro usuário — o chat criado
+        // silenciosamente não basta.
+        if (run.Status == "ok" && automation.ScheduleKind == "once")
+        {
+            await notifications.DispatchAsync("automation.reminder",
+                new { automation.Id, automation.Name, chatId = run.ChatId }, automation.UserId, ct);
+        }
         if (run.Status == "failed")
         {
             await notifications.DispatchAsync("automation.failed",

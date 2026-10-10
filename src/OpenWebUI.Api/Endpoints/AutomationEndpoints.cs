@@ -9,7 +9,7 @@ namespace OpenWebUI.Api.Endpoints;
 /// <summary>Endpoints de automações (prompts agendados), espelhando o upstream.</summary>
 public static class AutomationEndpoints
 {
-    private static readonly HashSet<string> Kinds = ["interval", "daily", "weekly"];
+    private static readonly HashSet<string> Kinds = ["interval", "daily", "weekly", "once"];
 
     /// <summary>Mapeia as rotas de automações.</summary>
     public static RouteGroupBuilder MapAutomationEndpoints(this IEndpointRouteBuilder app)
@@ -38,9 +38,12 @@ public static class AutomationEndpoints
         if (string.IsNullOrWhiteSpace(r.Name)) return "Nome obrigatório.";
         if (string.IsNullOrWhiteSpace(r.Prompt)) return "Prompt obrigatório.";
         if (string.IsNullOrWhiteSpace(r.ModelId)) return "Modelo obrigatório.";
-        if (!Kinds.Contains(r.ScheduleKind)) return "ScheduleKind deve ser interval, daily ou weekly.";
+        if (!Kinds.Contains(r.ScheduleKind)) return "ScheduleKind deve ser interval, daily, weekly ou once.";
         if (r.ScheduleKind == "interval" && (r.IntervalMinutes ?? 0) < 1)
             return "Intervalo mínimo é 1 minuto.";
+        if (r.ScheduleKind == "once" &&
+            r.RunAt is null or <= 0 && (r.InMinutes ?? 0) < 1)
+            return "Once exige RunAt (epoch futuro) ou InMinutes >= 1.";
         if (r.ScheduleKind is "daily" or "weekly" &&
             !TimeOnly.TryParseExact(r.TimeOfDay, "HH:mm", out _))
             return "TimeOfDay deve estar no formato HH:mm.";
@@ -60,6 +63,12 @@ public static class AutomationEndpoints
         a.Weekday = r.Weekday;
         a.Enabled = r.Enabled ?? a.Enabled;
         a.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (a.ScheduleKind == "once")
+        {
+            a.NextRunAt = r.RunAt is > 0
+                ? r.RunAt
+                : DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, r.InMinutes ?? 1)).ToUnixTimeSeconds();
+        }
     }
 
     private static async Task<IResult> ListAsync(
