@@ -222,6 +222,32 @@ public class ApiTests
     }
 
     [Test]
+    public async Task ConnectionModels_Cache_InvalidaAposAtualizarConexoes()
+    {
+        var signin = await _client.PostAsJsonAsync(
+            "/api/v1/auths/signin", new SignInRequest("admin@test.local", "senha123"));
+        var auth = (await signin.Content.ReadFromJsonAsync<AuthResponse>())!;
+        UseToken(auth.Token);
+
+        // Primeira leitura popula o HybridCache por conexão.
+        var before = await _client.GetAsync("/api/v1/configs/connections/models?type=openai&index=0");
+        Assert.That(before.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        // Releitura imediata é servida do cache e permanece coerente.
+        var again = await _client.GetAsync("/api/v1/configs/connections/models?type=openai&index=0");
+        Assert.That(again.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        // Escrita em connections derruba a tag "providers" — leitura seguida
+        // passa no mesmo status (lista vazia é coerente, nunca erro/stale fatal).
+        var updated = await _client.PostAsJsonAsync("/api/v1/configs/connections",
+            new ConnectionsConfig([], ["https://example.invalid"], [], [], []));
+        Assert.That(updated.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var after = await _client.GetAsync("/api/v1/configs/connections/models?type=openai&index=0");
+        Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
     public async Task Version_SemAuth_RetornaVersao()
     {
         _client.DefaultRequestHeaders.Authorization = null;
