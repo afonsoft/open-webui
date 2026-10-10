@@ -20,6 +20,7 @@
   "sidebar.channels": "Canaux",
   "sidebar.create_channel": "Create channel",
   "sidebar.pinned": "Épinglé",
+  "sidebar.runs": "Exécutions actives",
   "sidebar.chats": "Conversations",
   "sidebar.attention": "En attente de vous",
   "sidebar.attention_aria": "{{count}} discussions en attente de votre action",

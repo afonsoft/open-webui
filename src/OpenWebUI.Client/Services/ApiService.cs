@@ -607,6 +607,13 @@ public class ApiService(HttpClient http, AuthService auth)
         SendAsync<WorkspaceGitResponse>(
             HttpMethod.Get, $"/api/v1/chats/{chatId}/runs/{runId}/diff");
 
+    /// <summary>
+    /// Lista consolidada das runs do usuário (console de runs paralelas —
+    /// SPEC-20261010-parallel-runs-console): status + chat + hierarquia.
+    /// </summary>
+    public async Task<List<ParallelRunResponse>> GetRunsConsoleAsync() =>
+        await SendAsync<List<ParallelRunResponse>>(HttpMethod.Get, "/api/v1/chats/runs") ?? [];
+
     /// <summary>Lê a feature flag do terminal PTY (off por default).</summary>
     public async Task<bool> GetTerminalEnabledAsync()
     {
