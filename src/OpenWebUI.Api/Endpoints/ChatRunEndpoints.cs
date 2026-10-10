@@ -21,6 +21,7 @@ public static class ChatRunEndpoints
     /// <summary>Mapeia as rotas de runs dentro do grupo de chats.</summary>
     public static void MapChatRunEndpoints(RouteGroupBuilder group)
     {
+        group.MapGet("/runs", ListAllRunsAsync);
         group.MapPost("/{id}/messages", EnqueueMessageAsync);
         group.MapGet("/{id}/runs", ListRunsAsync);
         group.MapGet("/{id}/runs/active", GetActiveRunAsync);
@@ -129,6 +130,34 @@ public static class ChatRunEndpoints
             .Take(20)
             .ToListAsync(ct);
         return Results.Ok(runs.Select(ToResponse));
+    }
+
+    /// <summary>
+    /// Lista consolidada das runs do usuário (SPEC-20261010-parallel-runs-console):
+    /// todas as chats em uma visão só — status, chat, vínculo pai/filha
+    /// (sub-agents) — pro console de runs paralelas da sidebar.
+    /// </summary>
+    private static async Task<IResult> ListAllRunsAsync(
+        HttpContext http, AppDbContext db, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var rows = await db.ChatRuns.AsNoTracking()
+            .Where(r => r.UserId == user.Id)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(50)
+            .Join(db.Chats.AsNoTracking(),
+                r => r.ChatId, c => c.Id,
+                (r, c) => new ParallelRunResponse(
+                    r.Id, r.ChatId, c.Title, r.Status, r.Model,
+                    r.CreatedAt, r.StartedAt, r.CompletedAt,
+                    r.ParentRunId, c.ParentChatId))
+            .ToListAsync(ct);
+        return Results.Ok(rows);
     }
 
     /// <summary>Retorna a run ativa (queued/running) do chat, ou null.</summary>
@@ -514,7 +543,7 @@ public static class ChatRunEndpoints
 
         // Com repo vinculado o snapshot sai do checkout do repo; numa run
         // isolada (Workspace:RunIsolation=worktree, E16 S9) sai do worktree.
-        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, id, ct);
         var isolated = worktrees.ResolveIsolated(user.Id, runId);
         var workdir = isolated ?? mainWorkdir;
         var info = await git.GetInfoAsync(workdir, ct);

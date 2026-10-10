@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
@@ -32,7 +33,7 @@ public static class WorkspaceTestRunEndpoints
 
     /// <summary>Inicia o test run; 404 sem binding, 422 sem manifesto ou comando negado.</summary>
     private static async Task<IResult> StartAsync(
-        TestRunStartRequest request,
+        TestRunStartRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db,
         WorkspaceRepoService repos, ChatJobService jobs, CancellationToken ct)
     {
@@ -42,12 +43,18 @@ public static class WorkspaceTestRunEndpoints
             return Results.Unauthorized();
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound(new { detail = "Chat não encontrado." });
+        }
+
+        var binding = (await repos.ResolveBindingAsync(user.Id, chatId, ct)).Binding;
         if (binding is null)
         {
             return Results.NotFound(new { detail = "Nenhum repositório vinculado.", bound = false });
         }
-        var workdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var workdir = await repos.ResolveWorkdirAsync(user.Id, chatId, ct);
 
         var command = TestCommandDetector.Detect(workdir, binding.TestCommand);
         if (command is null)
@@ -77,7 +84,7 @@ public static class WorkspaceTestRunEndpoints
 
         var job = await jobs.StartAsync(
             command,
-            new BuiltinToolContext(user.Id, null, null, workdir, workdir),
+            new BuiltinToolContext(user.Id, chatId, null, workdir, workdir),
             ct);
         return Results.Ok(new TestRunStartResponse(job.Id, command, false, null));
     }
@@ -115,7 +122,7 @@ public static class WorkspaceTestRunEndpoints
 
     /// <summary>Define ou limpa o TestCommand customizado do binding (override do manifesto).</summary>
     private static async Task<IResult> SetTestCommandAsync(
-        TestCommandRequest request,
+        TestCommandRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db,
         WorkspaceRepoService repos, CancellationToken ct)
     {
@@ -125,13 +132,20 @@ public static class WorkspaceTestRunEndpoints
             return Results.Unauthorized();
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return Results.NotFound(new { detail = "Chat não encontrado." });
+        }
+
+        var (binding, source) = await repos.ResolveBindingAsync(user.Id, chatId, ct);
         if (binding is null)
         {
             return Results.NotFound(new { detail = "Nenhum repositório vinculado.", bound = false });
         }
 
-        await repos.SetTestCommandAsync(user.Id, request.TestCommand, ct);
+        await repos.SetTestCommandAsync(
+            user.Id, source == "chat" ? chatId : null, request.TestCommand, ct);
         return Results.Ok(new StatusResponse(true));
     }
 }

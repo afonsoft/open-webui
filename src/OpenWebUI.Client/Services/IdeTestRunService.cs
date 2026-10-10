@@ -37,6 +37,9 @@ public sealed class IdeTestRunService(ApiService api)
     public bool Running => Starting || Run?.State == "running";
 
     /// <summary>Dispara quando qualquer propriedade muda (painéis fazem StateHasChanged).</summary>
+    /// <summary>Chat cujo binding resolve o workdir do run (SPEC-20261010-workspace-chatid-scope); null = binding global.</summary>
+    public string? ChatId { get; set; }
+
     public event Action? Changed;
 
     /// <summary>Inicia o run; <paramref name="confirmed"/> confirma o comando pendente.</summary>
@@ -58,7 +61,7 @@ public sealed class IdeTestRunService(ApiService api)
         Changed?.Invoke();
         try
         {
-            var result = await api.StartTestRunAsync(confirmed);
+            var result = await api.StartTestRunAsync(confirmed, ChatId);
             if (result.Body is { RequiresApproval: true } gated)
             {
                 PendingCommand = gated.Command;

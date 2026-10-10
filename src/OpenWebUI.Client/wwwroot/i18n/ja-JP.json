@@ -20,6 +20,7 @@
   "sidebar.channels": "チャンネル",
   "sidebar.create_channel": "Create channel",
   "sidebar.pinned": "ピン留めされています",
+  "sidebar.runs": "実行中のラン",
   "sidebar.chats": "チャット",
   "sidebar.attention": "あなたの対応待ち",
   "sidebar.attention_aria": "{{count}} 件のチャットがあなたの入力を待っています",

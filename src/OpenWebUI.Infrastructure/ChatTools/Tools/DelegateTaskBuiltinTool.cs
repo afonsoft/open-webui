@@ -78,6 +78,18 @@ public sealed class DelegateTaskBuiltinTool(
             "wait": {
               "type": "boolean",
               "description": "true (default): block until the child finishes. false: return childRunId immediately — collect later with builtin_run_result."
+            },
+            "repo": {
+              "type": "string",
+              "description": "Optional 'owner/repo' slug — bind the child chat to this repo instead of inheriting the parent's binding (sub-agent on another repository)."
+            },
+            "branch": {
+              "type": "string",
+              "description": "Optional branch for 'repo' (default 'main')."
+            },
+            "clone_url": {
+              "type": "string",
+              "description": "Optional clone URL override for 'repo' (default https://github.com/<repo>.git)."
             }
           },
           "required": ["prompt"]
@@ -200,6 +212,40 @@ public sealed class DelegateTaskBuiltinTool(
             await scope.ServiceProvider
                 .GetRequiredService<WorkspaceRepoService>()
                 .SetChatBindingAsync(childChat.Id, parentBinding, ct);
+        }
+
+        // SPEC-20261010-delegate-repo-target: `repo` explicita sobrescreve a
+        // herança — o chat filho é vinculado ao repo alvo (checkout
+        // compartilhado por slug). Falha no prepare → run filha marcada
+        // failed, sem enfileirar.
+        if (ReadString(args, "repo", 200) is { Length: > 0 } targetRepo)
+        {
+            var targetBranch = ReadString(args, "branch", 200);
+            if (string.IsNullOrWhiteSpace(targetBranch))
+            {
+                targetBranch = "main";
+            }
+            var cloneUrl = ReadString(args, "clone_url", 2000);
+            if (string.IsNullOrWhiteSpace(cloneUrl))
+            {
+                cloneUrl = $"https://github.com/{targetRepo.Trim()}.git";
+            }
+            var repos = scope.ServiceProvider
+                .GetRequiredService<WorkspaceRepoService>();
+            var token = await scope.ServiceProvider
+                .GetRequiredService<GitHubService>()
+                .GetTokenAsync(context.UserId, ct);
+            var (repoBinding, repoError) = await repos.OpenChatAsync(
+                context.UserId, childChat.Id, targetRepo.Trim(),
+                targetBranch.Trim(), cloneUrl, token, ct);
+            if (repoBinding is null)
+            {
+                childRun.Status = ChatRunStatus.Failed;
+                childRun.Error = repoError;
+                await db.SaveChangesAsync(ct);
+                return new BuiltinToolResult(
+                    $"Falha ao preparar o repo '{targetRepo}' para a subtarefa: {repoError}");
+            }
         }
 
         dispatcher.Enqueue(childRun.Id);

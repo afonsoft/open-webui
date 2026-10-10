@@ -160,6 +160,39 @@ public class ChatRunEndpointsTests
     }
 
     [Test]
+    public async Task RunsConsole_ListaConsolidadaDeTodasAsRunsDoUsuario()
+    {
+        // GET /api/v1/chats/runs devolve as runs de TODOS os chats do
+        // usuário numa visão só (SPEC-20261010-parallel-runs-console) —
+        // título do chat + status, isolado por usuário.
+        var auth = await SignUpAsync("RC", "rc@runs.local");
+        UseToken(auth.Token);
+        var c1 = await CriarChatAsync([]);
+        var c2 = await CriarChatAsync([]);
+        var r1 = await EnfileirarAsync(c1.Id, "a");
+        var r2 = await EnfileirarAsync(c2.Id, "b");
+
+        var runs = await _client.GetFromJsonAsync<List<ParallelRunResponse>>(
+            "/api/v1/chats/runs");
+        Assert.That(runs, Is.Not.Null);
+        var mine = runs!.Where(r => r.Id == r1.Id || r.Id == r2.Id).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(mine, Has.Count.EqualTo(2), "faltou run na lista consolidada");
+            Assert.That(mine.All(r => r.ChatTitle == "Chat runs"), Is.True);
+            Assert.That(mine.Any(r => r.ChatId == c1.Id && r.Id == r1.Id), Is.True);
+            Assert.That(mine.Any(r => r.ChatId == c2.Id && r.Id == r2.Id), Is.True);
+        });
+
+        // Isolamento: outro usuário não vê as runs do primeiro.
+        var outro = await SignUpAsync("RC2", "rc2@runs.local");
+        UseToken(outro.Token);
+        var runsOutro = await _client.GetFromJsonAsync<List<ParallelRunResponse>>(
+            "/api/v1/chats/runs");
+        Assert.That(runsOutro!.Any(r => r.Id == r1.Id || r.Id == r2.Id), Is.False);
+    }
+
+    [Test]
     public async Task Enqueue_PersisteMensagemDoUsuarioEDespachaRun()
     {
         var auth = await SignUpAsync("RunA", "runa@runs.local");

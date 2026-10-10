@@ -42,6 +42,23 @@ public sealed record ChatRunResponse(
     string? ParentRunId = null);
 
 /// <summary>
+/// Item da lista consolidada de runs do usuário
+/// (<c>GET /api/v1/chats/runs</c>, SPEC-20261010-parallel-runs-console):
+/// a run + título do chat + vínculos de hierarquia pra árvore de sub-agents.
+/// </summary>
+public sealed record ParallelRunResponse(
+    string Id,
+    string ChatId,
+    string ChatTitle,
+    string Status,
+    string Model,
+    long CreatedAt,
+    long? StartedAt,
+    long? CompletedAt,
+    string? ParentRunId = null,
+    string? ParentChatId = null);
+
+/// <summary>
 /// Evento SSE <c>tool_call</c> (SPEC-20261007-chat-tool-streaming RF-001):
 /// emitido antes de executar a tool; <paramref name="ArgsPreview"/> é o JSON
 /// de argumentos truncado e higienizado (sem secrets).

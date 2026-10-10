@@ -45,7 +45,7 @@
             case "changes":
                 @* Checkpoints do workdir (S6): Revert por snapshot. *@
                 <div class="p-2 pb-0">
-                    <CheckpointList Checkpoints="Checkpoints" OnReverted="OnChanged" />
+                    <CheckpointList Checkpoints="Checkpoints" ChatId="ChatId" OnReverted="OnChanged" />
                 </div>
                 @if (Git is null)
                 {
@@ -100,7 +100,7 @@
 
             case "pulls":
                 @* PRs abertos do repo vinculado + rollup de checks (D1). *@
-                <WorkspacePullsPanel />
+                <WorkspacePullsPanel ChatId="ChatId" />
                 break;
 
             case "tests":
@@ -159,6 +159,9 @@
 
     /// <summary>Callback pós-kill — página recarrega jobs.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Chat cujo binding resolve o workspace (null = global).</summary>
+    [Parameter] public string? ChatId { get; set; }
 
     private ElementReference _tabList;
     private string _tab = "chat";

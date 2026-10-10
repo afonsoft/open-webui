@@ -472,29 +472,156 @@ public class WorkspaceFileEndpointsTests
         }
     }
 
+
+    // ---------- SPEC-20261010-workspace-chatid-scope: ?chatId= ----------
+
+    /// <summary>Binding do chat tem precedência sobre o global: tree e git
+    /// com <c>?chatId=</c> veem o workdir do chat, sem o parâmetro veem o global.</summary>
+    [Test]
+    public async Task Tree_Git_ChatId_UsaBindingDoChat()
+    {
+        using var ctx = await NewAppAsync(bound: true);
+        File.WriteAllText(Path.Join(ctx.Workdir!, "marcador-global.txt"), "g");
+
+        var chatId = await CriarChatAsync(ctx.Client);
+        var chatDir = Path.Join(_apiDir, "data", "workspaces", ctx.UserId, "repos/chat__repo");
+        Directory.CreateDirectory(Path.Join(chatDir, ".git"));
+        File.WriteAllText(Path.Join(chatDir, "marcador-chat.txt"), "c");
+        await SeedChatBindingAsync(ctx.DbPath, chatId, "chat/repo", "repos/chat__repo");
+
+        var treeChat = await ctx.Client.GetFromJsonAsync<JsonElement>(
+            $"/api/v1/workspace/repo/tree?chatId={chatId}");
+        var namesChat = treeChat.GetProperty("entries")
+            .EnumerateArray().Select(e => e.GetProperty("name").GetString()).ToList();
+        Assert.That(namesChat, Does.Contain("marcador-chat.txt"));
+        Assert.That(namesChat, Does.Not.Contain("marcador-global.txt"));
+
+        var treeGlobal = await ctx.Client.GetFromJsonAsync<JsonElement>(
+            "/api/v1/workspace/repo/tree");
+        var namesGlobal = treeGlobal.GetProperty("entries")
+            .EnumerateArray().Select(e => e.GetProperty("name").GetString()).ToList();
+        Assert.That(namesGlobal, Does.Contain("marcador-global.txt"));
+
+        var gitChat = await ctx.Client.GetAsync(
+            $"/api/v1/workspace/repo/git?chatId={chatId}");
+        Assert.That(gitChat.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    /// <summary>chatId de outro usuário → 404 (mesmo com binding válido lá).</summary>
+    [Test]
+    public async Task Tree_ChatIdDeOutroUsuario_404()
+    {
+        using var ctx = await NewAppAsync(bound: true);
+
+        // libera signup direto pra role "user" (default pode ser "pending")
+        var cfg = await ctx.Client.PostAsJsonAsync("/api/v1/auths/admin/config",
+            AdminConfig.Default with { DefaultUserRole = "user" });
+        Assert.That(cfg.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        // segundo usuário no mesmo banco, com chat próprio
+        var client2 = ctx.Factory.CreateClient();
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var signup = await client2.PostAsJsonAsync(
+            "/api/v1/auths/signup", new SignUpRequest($"WF{tag}", $"wf{tag}@wf.local", "senha123"));
+        Assert.That(signup.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        client2.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", (await signup.Content.ReadFromJsonAsync<AuthResponse>())!.Token);
+        var chatIdOutro = await CriarChatAsync(client2);
+
+        var res = await ctx.Client.GetAsync(
+            $"/api/v1/workspace/repo/tree?chatId={chatIdOutro}");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+
+        var skills = await ctx.Client.GetAsync(
+            $"/api/v1/workspace/repo/skills?chatId={chatIdOutro}");
+        Assert.That(skills.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    /// <summary>chatId inexistente → 404.</summary>
+    [Test]
+    public async Task Tree_ChatIdInexistente_404()
+    {
+        using var ctx = await NewAppAsync(bound: true);
+        var res = await ctx.Client.GetAsync(
+            "/api/v1/workspace/repo/tree?chatId=chat-nao-existe");
+        Assert.That(res.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    /// <summary>PUT test-command com chatId escreve na chave do chat e
+    /// preserva o binding global.</summary>
+    [Test]
+    public async Task TestCommand_ChatId_EscreveNaChaveDoChat()
+    {
+        using var ctx = await NewAppAsync(bound: true);
+        var chatId = await CriarChatAsync(ctx.Client);
+        await SeedChatBindingAsync(ctx.DbPath, chatId, "chat/repo", "repos/chat__repo");
+
+        var put = await ctx.Client.PutAsJsonAsync(
+            $"/api/v1/workspace/repo/test-command?chatId={chatId}",
+            new TestCommandRequest("dotnet test"));
+        Assert.That(put.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={ctx.DbPath}").Options);
+        var chatKv = await db.ConfigEntries.AsNoTracking()
+            .SingleAsync(e => e.Key == $"chat:{chatId}:workspace.repo");
+        var chatBinding = JsonSerializer.Deserialize<WorkspaceRepoBinding>(chatKv.ValueJson, JsonInsensitive)!;
+        Assert.That(chatBinding.TestCommand, Is.EqualTo("dotnet test"));
+
+        var userKv = await db.ConfigEntries.AsNoTracking()
+            .SingleAsync(e => e.Key == $"u:{ctx.UserId}:workspace.repo");
+        var userBinding = JsonSerializer.Deserialize<WorkspaceRepoBinding>(userKv.ValueJson, JsonInsensitive)!;
+        Assert.That(userBinding.TestCommand, Is.Null);
+    }
+
+    private static readonly JsonSerializerOptions JsonInsensitive =
+        new() { PropertyNameCaseInsensitive = true };
+
+    private async Task<string> CriarChatAsync(HttpClient client)
+    {
+        var created = await client.PostAsJsonAsync(
+            "/api/v1/chats/", new ChatUpsertRequest("chat-scope", ["llama3"], []));
+        Assert.That(created.StatusCode, Is.EqualTo(HttpStatusCode.OK),
+            await created.Content.ReadAsStringAsync());
+        return (await created.Content.ReadFromJsonAsync<ChatResponse>())!.Id;
+    }
+
+    /// <summary>Semeia o kv <c>chat:{id}:workspace.repo</c> direto no SQLite.</summary>
+    private static async Task SeedChatBindingAsync(
+        string dbPath, string chatId, string repo, string dir)
+    {
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite($"Data Source={dbPath}").Options);
+        var json = JsonSerializer.Serialize(new WorkspaceRepoBinding(repo, "main", dir));
+        db.ConfigEntries.Add(new ConfigEntry { Key = $"chat:{chatId}:workspace.repo", ValueJson = json });
+        await db.SaveChangesAsync();
+    }
+
     // ---------- fixture helpers ----------
+
 
     private sealed class Ctx : IDisposable
     {
-        private readonly WebApplicationFactory<Program> _factory;
-
         public Ctx(WebApplicationFactory<Program> factory, HttpClient client,
-            string? workdir, string userId)
+            string? workdir, string userId, string dbPath)
         {
-            _factory = factory;
+            Factory = factory;
             Client = client;
             Workdir = workdir;
             UserId = userId;
+            DbPath = dbPath;
         }
 
+        public WebApplicationFactory<Program> Factory { get; }
         public HttpClient Client { get; }
         public string? Workdir { get; }
         public string UserId { get; }
+        public string DbPath { get; }
 
         public void Dispose()
         {
             Client.Dispose();
-            _factory.Dispose();
+            Factory.Dispose();
             CleanupBoundWorkspace(UserId);
         }
     }
@@ -506,7 +633,7 @@ public class WorkspaceFileEndpointsTests
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", $"Data Source={dbPath}");
         var factory = new WebApplicationFactory<Program>();
         var (client, workdir, uid) = await SignUpAndBindAsync(factory, dbPath, bound);
-        return new Ctx(factory, client, workdir, uid);
+        return new Ctx(factory, client, workdir, uid, dbPath);
     }
 
     private async Task<(HttpClient Client, string? Workdir, string UserId)> SignUpAndBindAsync(

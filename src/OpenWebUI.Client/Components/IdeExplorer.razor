@@ -56,6 +56,9 @@
     /// <summary>Callback pós-ação (rename/delete/create) — pai recarrega git/tree.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
 
+    /// <summary>Chat cujo binding resolve o workdir (null = global).</summary>
+    [Parameter] public string? ChatId { get; set; }
+
     private List<IdeTreeEntry> _roots = [];
     private bool _loadFailed;
 
@@ -82,7 +85,7 @@
     {
         try
         {
-            var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3);
+            var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3, chatId: ChatId);
             _roots = tree?.Entries.Select(ToEntry).ToList() ?? [];
             _loadFailed = false;
         }
@@ -108,7 +111,7 @@
             node.Loading = true;
             try
             {
-                var tree = await Api.GetWorkspaceTreeAsync(path: node.Path, depth: 1);
+                var tree = await Api.GetWorkspaceTreeAsync(path: node.Path, depth: 1, chatId: ChatId);
                 node.Children = tree?.Entries.Select(ToEntry).ToList() ?? [];
             }
             catch (HttpRequestException ex)
@@ -140,7 +143,7 @@
                     }
                     if (action == FileAction.NewFolder)
                     {
-                        await Api.WorkspaceMkdirAsync(path);
+                        await Api.WorkspaceMkdirAsync(path, ChatId);
                     }
                     else
                     {
@@ -156,7 +159,7 @@
                     {
                         return;
                     }
-                    await Api.WorkspaceRenameAsync(name, to);
+                    await Api.WorkspaceRenameAsync(name, to, ChatId);
                     break;
                 }
             case FileAction.Delete:
@@ -167,7 +170,7 @@
                     {
                         return;
                     }
-                    await Api.WorkspaceDeleteAsync(name);
+                    await Api.WorkspaceDeleteAsync(name, ChatId);
                     break;
                 }
         }
