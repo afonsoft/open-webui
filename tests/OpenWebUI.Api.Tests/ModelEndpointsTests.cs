@@ -153,6 +153,66 @@ public class ModelEndpointsTests
     }
 
     [Test]
+    public async Task ApiModels_DisabledModels_FiltraSomenteParaOUsuario()
+    {
+        var alice = await SignUpAsync("Alice", "alice@models.local", "senha123");
+        UseToken(alice.Token);
+        var save = await _client.PostAsJsonAsync("/api/v1/users/user/settings/update",
+            new JsonObject { ["disabledModels"] = new JsonArray("OLLAMA:fake:1", "ollama:gone") });
+        Assert.That(save.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var mine = await _client.GetFromJsonAsync<ModelListResponse>("/api/models");
+        // case-insensitive no par {provider}:{id}; entrada obsoleta ("gone") é ignorada.
+        Assert.That(mine!.Data.Any(m => m.Id == "fake:1"), Is.False);
+
+        var bob = await SignUpAsync("Bob", "bob@models.local", "senha123");
+        UseToken(bob.Token);
+        var theirs = await _client.GetFromJsonAsync<ModelListResponse>("/api/models");
+        Assert.That(theirs!.Data.Any(m => m.Id == "fake:1"), Is.True);
+    }
+
+    [Test]
+    public async Task ModelosAll_CatalogoCompleto_ComFlagPorUsuario()
+    {
+        var alice = await SignUpAsync("Carol", "carol@models.local", "senha123");
+        UseToken(alice.Token);
+        await _client.PostAsJsonAsync("/api/v1/users/user/settings/update",
+            new JsonObject { ["disabledModels"] = new JsonArray("ollama:fake:1") });
+
+        // usuário comum (não admin) recebe 200 com a própria flag.
+        var catalog = await _client.GetFromJsonAsync<CatalogModelListResponse>("/api/v1/models/all");
+        var fake = catalog!.Data.Single(m => m.Id == "fake:1");
+        Assert.Multiple(() =>
+        {
+            Assert.That(fake.Provider, Is.EqualTo("ollama"));
+            Assert.That(fake.Enabled, Is.False);
+        });
+
+        var dave = await SignUpAsync("Dave", "dave@models.local", "senha123");
+        UseToken(dave.Token);
+        var other = await _client.GetFromJsonAsync<CatalogModelListResponse>("/api/v1/models/all");
+        Assert.That(other!.Data.Single(m => m.Id == "fake:1").Enabled, Is.True);
+    }
+
+    [Test]
+    public async Task Settings_DisabledModels_RoundTrip()
+    {
+        var user = await SignUpAsync("Erin", "erin@models.local", "senha123");
+        UseToken(user.Token);
+        await _client.PostAsJsonAsync("/api/v1/users/user/settings/update",
+            new JsonObject { ["ui"] = new JsonObject { ["theme"] = "dark" },
+                ["disabledModels"] = new JsonArray("openai:gpt-x") });
+
+        var doc = await _client.GetFromJsonAsync<JsonObject>("/api/v1/users/user/settings");
+        var disabled = doc!["disabledModels"]!.AsArray().Select(e => e!.GetValue<string>()).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(disabled, Is.EqualTo(new[] { "openai:gpt-x" }));
+            Assert.That(doc["ui"]!["theme"]!.GetValue<string>(), Is.EqualTo("dark"));
+        });
+    }
+
+    [Test]
     public async Task Modelos_Create_SemNome_Retorna400()
     {
         var user = await SignUpAsync("Val", "val@models.local", "senha123");
