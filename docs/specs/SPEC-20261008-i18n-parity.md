@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-i18n-parity` |
 | Ticket | [#188](https://github.com/afonsoft/open-webui/issues/188) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -139,3 +139,9 @@ N/A — client-only.
 ## Open Questions / Pending Ambiguity
 
 - Translation quality for 6 locales (recommend machine draft + terminology reuse; human review optional per org).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/196 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/188
+- Epic: https://github.com/afonsoft/open-webui/issues/182

@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-a11y-motion-status` |
 | Ticket | [#187](https://github.com/afonsoft/open-webui/issues/187) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -128,3 +128,9 @@ N/A — client-only.
 ## Open Questions / Pending Ambiguity
 
 - Whether `thinking.gif` removal affects brand/parity with upstream (recommend CSS indicator — matches modern upstream style).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/195 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/187
+- Epic: https://github.com/afonsoft/open-webui/issues/182

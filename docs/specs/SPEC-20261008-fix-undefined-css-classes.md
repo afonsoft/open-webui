@@ -10,7 +10,7 @@
 | Repository | `/home/ubuntu/repos/open-webui` |
 | Branch | `feature/devin-20261008-fix-undefined-css-classes` |
 | Ticket | [#183](https://github.com/afonsoft/open-webui/issues/183) (Epic [#182](https://github.com/afonsoft/open-webui/issues/182)) |
-| Status | `Approved` |
+| Status | `Completed` |
 
 ## 1. User Story
 
@@ -116,3 +116,9 @@ N/A — client-only.
 ## Open Questions / Pending Ambiguity
 
 - `.toggle`: real switch component vs. `.check` checkbox — recommend switch (matches the SAML/SCIM intent + upstream style).
+
+## Delivered
+
+- PR: https://github.com/afonsoft/open-webui/pull/191 (merged)
+- Issue: https://github.com/afonsoft/open-webui/issues/183
+- Epic: https://github.com/afonsoft/open-webui/issues/182
