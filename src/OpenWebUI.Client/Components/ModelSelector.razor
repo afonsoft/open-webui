@@ -136,7 +136,8 @@
         await _trigger.FocusAsync();
     }
 
-    private static string ProviderLabel(string provider) => provider switch
+    /// <summary>Label amigável do provider (reuso: aba Models das settings).</summary>
+    internal static string ProviderLabel(string provider) => provider switch
     {
         "ollama" => "Ollama",
         "openai" => "OpenAI",

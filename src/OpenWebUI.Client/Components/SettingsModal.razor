@@ -22,6 +22,7 @@
                     <button class="modal-tab @(_tab == "memories" ? "active" : "")" role="tab" aria-selected="@(_tab == "memories")" @onclick='() => _tab = "memories"'>@L["settings.memories"]</button>
                     <button class="modal-tab @(_tab == "notifications" ? "active" : "")" role="tab" aria-selected="@(_tab == "notifications")" @onclick='() => SelectTab("notifications")'>@L["settings.notifications"]</button>
                     <button class="modal-tab @(_tab == "github" ? "active" : "")" role="tab" aria-selected="@(_tab == "github")" @onclick='() => SelectTab("github")'>@L["settings.github"]</button>
+                    <button class="modal-tab @(_tab == "models" ? "active" : "")" role="tab" aria-selected="@(_tab == "models")" @onclick='() => SelectTab("models")'>@L["settings.models"]</button>
                     @if (Auth.CurrentUser?.Role == "admin")
                     {
                         <button class="modal-tab @(_tab == "connections" ? "active" : "")" role="tab" aria-selected="@(_tab == "connections")" @onclick='() => _tab = "connections"'>@L["settings.connections"]</button>
@@ -328,6 +329,73 @@
                         }
                     }
                 }
+                else if (_tab == "models")
+                {
+                    @if (_modelCatalog is null)
+                    {
+                        <div>@L["common.loading"]</div>
+                    }
+                    else if (_modelCatalog.Count == 0)
+                    {
+                        <div class="field-note">@L["models.none"]</div>
+                    }
+                    else
+                    {
+                        <div class="flex gap-2 mb-3">
+                            <input class="input flex-1" @bind="_modelSearch" @bind:event="oninput"
+                                   placeholder="@L["settings.models_search"]" aria-label="@L["settings.models_search"]" />
+                            <button class="button-sm flex-none" @onclick="LoadModelCatalogAsync"
+                                    aria-label="@L["common.retry"]">↻</button>
+                        </div>
+                        @if (_modelsMessage is not null)
+                        {
+                            <div class="field-note">@_modelsMessage</div>
+                        }
+                        @foreach (var group in ModelGroups())
+                        {
+                            var enabledCount = group.Count(m => ModelEnabled(m));
+                            <div class="field">
+                                <div class="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                                    <div class="field-label">@ModelSelector.ProviderLabel(group.Key)
+                                        <span class="text-gray-400 font-normal">@enabledCount/@group.Count()</span>
+                                    </div>
+                                    <div class="flex gap-2 flex-none">
+                                        <button class="button-sm" disabled="@_modelsSaving"
+                                                @onclick="() => SetProviderEnabledAsync(group.Key, true)">@L["models.enable_all"]</button>
+                                        <button class="button-sm" disabled="@_modelsSaving"
+                                                @onclick="() => SetProviderEnabledAsync(group.Key, false)">@L["models.disable_all"]</button>
+                                    </div>
+                                </div>
+                                @foreach (var model in group)
+                                {
+                                    var key = $"{model.Provider}:{model.Id}";
+                                    var on = ModelEnabled(model);
+                                    <div class="flex items-center justify-between gap-2 min-h-11">
+                                        <div class="min-w-0">
+                                            <div class="text-sm truncate">@model.Name</div>
+                                            @if (!string.Equals(model.Name, model.Id, StringComparison.Ordinal))
+                                            {
+                                                <div class="text-xs text-gray-400 truncate">@model.Id</div>
+                                            }
+                                        </div>
+                                        <button type="button" role="switch" aria-checked="@(on ? "true" : "false")"
+                                                aria-label="@model.Name" disabled="@_modelsSaving"
+                                                class="flex h-11 w-14 flex-none items-center justify-center cursor-pointer disabled:opacity-50"
+                                                @onclick="() => ToggleModelAsync(model)">
+                                            <span class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors @(on ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-700")">
+                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform @(on ? "translate-x-6" : "translate-x-1")"></span>
+                                            </span>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (!ModelGroups().Any())
+                        {
+                            <div class="field-note">@L["models.none"]</div>
+                        }
+                    }
+                }
                 else if (_tab == "admin")
                 {
                     @if (!_adminLoaded)
@@ -532,6 +600,10 @@
             _ghLogin = gh?.Login;
             _ghMessage = null;
         }
+        if (tab == "models")
+        {
+            await LoadModelCatalogAsync();
+        }
         if (tab == "notifications")
         {
             _notifyChatDone = await ChatNotify.GetPrefAsync(
@@ -613,6 +685,91 @@
         {
             _ghConfigured = false;
             _ghLogin = null;
+        }
+    }
+
+    // ── Models tab (visibilidade por usuário, SPEC model-visibility) ──
+    private List<CatalogModel>? _modelCatalog;
+    private Dictionary<string, object> _modelsSettings = [];
+    private HashSet<string> _disabledModels = new(StringComparer.OrdinalIgnoreCase);
+    private string _modelSearch = string.Empty;
+    private string? _modelsMessage;
+    private bool _modelsSaving;
+
+    /// <summary>Modelo habilitado quando a chave provider:id não está no
+    /// conjunto de desabilitados (default = habilitado).</summary>
+    private bool ModelEnabled(CatalogModel model) =>
+        !_disabledModels.Contains($"{model.Provider}:{model.Id}");
+
+    /// <summary>Grupos por provider respeitando o filtro de busca (nome/id).</summary>
+    private IEnumerable<IGrouping<string, CatalogModel>> ModelGroups() =>
+        (_modelCatalog ?? [])
+            .Where(m => string.IsNullOrWhiteSpace(_modelSearch)
+                || m.Name.Contains(_modelSearch, StringComparison.OrdinalIgnoreCase)
+                || m.Id.Contains(_modelSearch, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(m => m.Provider);
+
+    /// <summary>Carrega catálogo + settings do usuário (aba Models).</summary>
+    private async Task LoadModelCatalogAsync()
+    {
+        _modelsMessage = null;
+        try
+        {
+            _modelCatalog = await Api.GetAllModelsAsync();
+            _modelsSettings = await Api.GetUserSettingsAsync() ?? [];
+            _disabledModels = _modelCatalog
+                .Where(m => !m.Enabled)
+                .Select(m => $"{m.Provider}:{m.Id}")
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (HttpRequestException)
+        {
+            _modelCatalog = [];
+            _modelsMessage = L["settings.models_load_error"];
+        }
+    }
+
+    /// <summary>Alterna um modelo e persiste disabledModels de imediato.</summary>
+    private async Task ToggleModelAsync(CatalogModel model)
+    {
+        var key = $"{model.Provider}:{model.Id}";
+        if (!_disabledModels.Remove(key))
+        {
+            _disabledModels.Add(key);
+        }
+        await SaveDisabledModelsAsync();
+    }
+
+    /// <summary>Habilita/desabilita todos os modelos de um provider.</summary>
+    private async Task SetProviderEnabledAsync(string provider, bool enabled)
+    {
+        foreach (var model in (_modelCatalog ?? []).Where(m => m.Provider == provider))
+        {
+            var key = $"{model.Provider}:{model.Id}";
+            if (enabled)
+            {
+                _disabledModels.Remove(key);
+            }
+            else
+            {
+                _disabledModels.Add(key);
+            }
+        }
+        await SaveDisabledModelsAsync();
+    }
+
+    /// <summary>Mescla disabledModels no documento de settings e salva
+    /// (full-replace no servidor — demais chaves são preservadas).</summary>
+    private async Task SaveDisabledModelsAsync()
+    {
+        _modelsSaving = true;
+        _modelsMessage = null;
+        _modelsSettings["disabledModels"] = _disabledModels.ToArray();
+        var saved = await Api.UpdateUserSettingsAsync(_modelsSettings);
+        _modelsSaving = false;
+        if (!saved)
+        {
+            _modelsMessage = L["settings.models_save_error"];
         }
     }
 

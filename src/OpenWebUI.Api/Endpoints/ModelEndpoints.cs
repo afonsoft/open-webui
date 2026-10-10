@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.Services;
@@ -23,6 +24,7 @@ public static class ModelEndpoints
         // workspace.models gateia só a gestão no workspace.
         group.MapGet("/", ListModelsAsync);
         group.MapGet("/list", ListModelsAsync);
+        group.MapGet("/all", ListCatalogAsync);
         group.MapPost("/create", CreateModelAsync)
             .RequirePermission(PermissionService.WorkspaceModels);
         group.MapGet("/model", GetModelByQueryAsync);
@@ -40,6 +42,27 @@ public static class ModelEndpoints
             .RequirePermission(PermissionService.WorkspaceModels);
 
         return group;
+    }
+
+    /// <summary>Catálogo completo de modelos com a flag de visibilidade do
+    /// usuário chamador — alimenta a aba Models das settings (qualquer role).</summary>
+    private static async Task<IResult> ListCatalogAsync(
+        HttpContext http, ProviderService providers, AppDbContext db,
+        PipelineClientService pipelines, HybridCache cache, CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var response = await ApiEndpoints.GetCachedModelListAsync(
+            user, providers, db, pipelines, cache, ct);
+        var disabled = ApiEndpoints.ParseDisabledModels(user.SettingsJson);
+        var data = response.Data.Select(m => new CatalogModel(
+            m.Id, m.Name, m.Provider, m.OwnedBy,
+            !disabled.Contains($"{m.Provider}:{m.Id}"))).ToList();
+        return Results.Ok(new CatalogModelListResponse(data));
     }
 
     private static async Task<IResult> ListModelsAsync(

@@ -152,9 +152,28 @@ public static class ApiEndpoints
         PipelineClientService pipelines, HybridCache cache, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
-        var response = await cache.GetOrCreateAsync(
-            $"models:list:{user!.Id}",
-            async _ => await BuildModelListAsync(user!, providers, db, pipelines, ct),
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var response = await GetCachedModelListAsync(user, providers, db, pipelines, cache, ct);
+        var disabled = ParseDisabledModels(user.SettingsJson);
+        var models = disabled.Count == 0
+            ? response.Data
+            : response.Data.Where(m =>
+                !disabled.Contains($"{m.Provider}:{m.Id}")).ToList();
+        return Results.Ok(new ModelListResponse(models));
+    }
+
+    /// <summary>Lista agregada de modelos do usuário cacheada por 60s
+    /// (sem o filtro de visibilidade — aplicado por request).</summary>
+    internal static async Task<ModelListResponse> GetCachedModelListAsync(
+        User user, ProviderService providers, AppDbContext db,
+        PipelineClientService pipelines, HybridCache cache, CancellationToken ct)
+        => await cache.GetOrCreateAsync(
+            $"models:list:{user.Id}",
+            async _ => await BuildModelListAsync(user, providers, db, pipelines, ct),
             new HybridCacheEntryOptions
             {
                 Expiration = TimeSpan.FromSeconds(60),
@@ -162,10 +181,41 @@ public static class ApiEndpoints
             },
             tags: ["models", $"models:{user.Id}"],
             cancellationToken: ct);
-        return Results.Ok(response);
+
+    /// <summary>Conjunto de modelos desabilitados do usuário
+    /// (<c>disabledModels: ["{provider}:{id}"]</c> em SettingsJson; default = nenhum).
+    /// Comparação case-insensitive; entradas obsoletas são ignoradas.</summary>
+    internal static HashSet<string> ParseDisabledModels(string? settingsJson)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(settingsJson))
+        {
+            return set;
+        }
+        try
+        {
+            using var doc = JsonDocument.Parse(settingsJson);
+            if (doc.RootElement.TryGetProperty("disabledModels", out var arr)
+                && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String
+                        && item.GetString() is { } entry && entry.Contains(':'))
+                    {
+                        set.Add(entry);
+                    }
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Settings corrompido não deve derrubar a listagem — trata como vazio.
+        }
+        return set;
     }
 
-    private static async Task<ModelListResponse> BuildModelListAsync(
+    internal static async Task<ModelListResponse> BuildModelListAsync(
         User user, ProviderService providers, AppDbContext db,
         PipelineClientService pipelines, CancellationToken ct)
     {

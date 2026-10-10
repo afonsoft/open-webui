@@ -11,6 +11,16 @@ public sealed record ModelInfo(string Id, string Name, string Provider, string? 
 /// <param name="Data">Modelos de todos os provedores configurados.</param>
 public sealed record ModelListResponse(IReadOnlyList<ModelInfo> Data);
 
+/// <summary>Modelo do catálogo completo com a flag de visibilidade do
+/// usuário chamador (GET /api/v1/models/all — aba Models das settings).</summary>
+/// <param name="Enabled">False quando o usuário desabilitou <c>{provider}:{id}</c>.</param>
+public sealed record CatalogModel(
+    string Id, string Name, string Provider, string? OwnedBy, bool Enabled);
+
+/// <summary>Resposta de GET /api/v1/models/all.</summary>
+/// <param name="Data">Todos os modelos conhecidos, com flag por usuário.</param>
+public sealed record CatalogModelListResponse(IReadOnlyList<CatalogModel> Data);
+
 /// <summary>Mensagem enviada ao endpoint de chat completion.</summary>
 /// <param name="Role">Papel: system, user ou assistant.</param>
 /// <param name="Content">Conteúdo textual.</param>

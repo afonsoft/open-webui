@@ -213,6 +213,14 @@ public class ApiService(HttpClient http, AuthService auth)
     public async Task<List<ModelEntryResponse>> GetCustomModelsAsync() =>
         await SendAsync<List<ModelEntryResponse>>(HttpMethod.Get, "/api/v1/models/") ?? [];
 
+    /// <summary>Catálogo completo com a flag de visibilidade por usuário
+    /// (GET /api/v1/models/all — aba Models das settings).</summary>
+    public async Task<List<CatalogModel>> GetAllModelsAsync()
+    {
+        var result = await SendAsync<CatalogModelListResponse>(HttpMethod.Get, "/api/v1/models/all");
+        return result?.Data.ToList() ?? [];
+    }
+
     /// <summary>Cria um modelo personalizado.</summary>
     public Task<ModelEntryResponse?> CreateCustomModelAsync(ModelEntryUpsertRequest request) =>
         SendAsync<ModelEntryResponse>(HttpMethod.Post, "/api/v1/models/create", request);
