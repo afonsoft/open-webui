@@ -1,0 +1,152 @@
+# Open WebUI — .NET (Edição Agente de Código)
+
+Migração do [Open WebUI](https://github.com/open-webui/open-webui) para
+**.NET 10 · C# 14 · Blazor WebAssembly** (SvelteKit + FastAPI → ASP.NET Core + Blazor),
+fiel ao layout e à configuração do original — **estendida numa plataforma completa de
+agente de codificação** no espírito do [opencode](https://github.com/sst/opencode):
+sessões vinculadas a repositório, sub-agentes em worktrees paralelas, steer no meio
+da run, memória durável, rotinas agendadas e pipeline de revisão em worktree.
+
+[![CI Build & Test](https://github.com/afonsoft/open-webui/actions/workflows/ci-build-test.yml/badge.svg)](https://github.com/afonsoft/open-webui/actions/workflows/ci-build-test.yml)
+[![Code Quality](https://github.com/afonsoft/open-webui/actions/workflows/code-quality.yml/badge.svg)](https://github.com/afonsoft/open-webui/actions/workflows/code-quality.yml)
+[![Security Scan](https://github.com/afonsoft/open-webui/actions/workflows/security-scan.yml/badge.svg)](https://github.com/afonsoft/open-webui/actions/workflows/security-scan.yml)
+[![Accessibility Audit](https://github.com/afonsoft/open-webui/actions/workflows/a11y-audit.yml/badge.svg)](https://github.com/afonsoft/open-webui/actions/workflows/a11y-audit.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=afonsoft_open-webui&metric=alert_status)](https://sonarcloud.io/project/overview?id=afonsoft_open-webui)
+
+> **English version:** [README.md](README.md)
+
+## Open WebUI (original) vs opencode vs este fork
+
+| Capacidade | Open WebUI (FastAPI/Svelte) | opencode | **Este fork (.NET/Blazor)** |
+|---|---|---|---|
+| Chat + streaming, multi-provider | ✅ Ollama/OpenAI/RAG/pipelines | ✅ qualquer LLM via gateway | ✅ paridade + OmniRoute-friendly |
+| Repo/workspace por sessão | ❌ workspace único | ✅ por projeto | ✅ **binding por chat** (chat → usuário → nenhum) |
+| Sub-agentes / sessões paralelas | ❌ | ✅ task tool + sessions | ✅ `delegate_task` async, depth ≤3, isolado em worktree |
+| Revisão antes do merge | ❌ | ✅ orquestrador revisa diffs | ✅ `worktree_diff`/`worktree_merge` + auto-merge opt-in |
+| Steer/queue no meio da run | ❌ | ✅ steer/queue durável | ✅ `POST …/runs/{id}/steer` (modos steer + queue) |
+| Memória durável do agente | ❌ | ✅ tools de memória + auto-sync | ✅ `memory_save`/`memory_search` + auto-destilação 6h |
+| Rotinas / lembretes | ❌ | ✅ routine tool + scheduler | ✅ tools `routine`/`reminder` + agenda `once` |
+| Tool de lista de tarefas | ❌ | ✅ todo write | ✅ `todo_write` com ids estáveis |
+| Compactação de contexto | ❌ | ✅ auto-resumo | ✅ resumo via LLM + cutoff em kv |
+| Árvore pai/filho de runs | ❌ | ✅ árvore de sessions | ✅ árvore na sidebar + badge "delegado" + marcadores no pai |
+| Console de runs paralelas | ❌ | ✅ | ✅ seção "Runs ativas" na sidebar (`GET /chats/runs`) |
+| Run sobrevive fechar o browser | parcial | ✅ | ✅ runs server-side + resume por `Last-Event-ID` |
+
+## Screenshots
+
+| Sub-agentes delegados em paralelo | Árvore de sessões + marcadores |
+|---|---|
+| ![delegate_task criando duas runs filhas](docs/screenshots/delegate-parallel.png) | ![marcadores no pai + árvore](docs/screenshots/parent-notify.png) |
+
+| Console de runs ativas | Sub-sessão com link pro pai + aprovação |
+|---|---|
+| ![runs ativas na sidebar](docs/screenshots/runs-parallel.png) | ![card de aprovação no chat filho](docs/screenshots/subsession-approval.png) |
+
+| Binding de repo por chat | Rotinas e lembretes |
+|---|---|
+| ![seletor de repositório do workspace](docs/screenshots/repo-binding-picker.png) | ![página de automações](docs/screenshots/automations.png) |
+
+| Chat (claro/escuro) | Painel Workspace | Terminal PTY |
+|---|---|---|
+| ![chat](docs/screenshots/chat-light.png) | ![workspace](docs/screenshots/workspace-panel.png) | ![terminal](docs/screenshots/terminal.png) |
+
+## Recursos de agente (novos — camada aditiva sobre a paridade upstream)
+
+- **`delegate_task`** — cria chat filho + run server-side: `wait:false` retorna
+  `childRunId` na hora, `wait:true` (padrão) bloqueia até 300s; parâmetros `repo`
+  e `persona` (uma Skill do workspace como system prompt); profundidade ≤ 3;
+  cada sub-agente roda na sua própria **git worktree** — workers paralelos nunca colidem.
+- **`run_result` / `worktree_diff` / `worktree_merge`** — colhe resultados assíncronos,
+  revisa o diff do filho e faz merge explícito (ou `auto_merge` opt-in).
+- **Steer e queue** — `POST /api/v1/chats/{id}/runs/{runId}/steer` injeta mensagem
+  do usuário numa run viva (`steer` = próxima fronteira de turno, `queue` = quando ociosa).
+- **Memória do agente** — `memory_save`/`memory_search` (escopo projeto + global),
+  bloco `<agent_memory>` injetado automaticamente; scheduler de 6h destila fatos
+  duráveis em memórias `auto:*` com watermark e opt-out por usuário.
+- **Rotinas e lembretes** — tool `routine` (list/create/update/delete/run_now,
+  `once`/`interval`/`daily`/`weekly`) e `reminder` (dispara notificação
+  `automation.reminder`) sobre o engine de Automações embutido.
+- **Compactação de contexto** — quando o histórico cresce, o pipeline resume os
+  turnos antigos pelo modelo configurado e mantém um cutoff em kv por chat.
+- **Retenção** — expurgo diário (runs de automação >90d, notificações >60d, steers
+  de runs terminais >30d) + prune de worktrees órfãs + WAL checkpoint + VACUUM semanal.
+- **Hierarquia de chats** — `ParentChatId`/`ParentRunId`, `GET /chats/{id}/children`,
+  árvore aninhada na sidebar, marcadores de conclusão postados no chat pai.
+
+Detalhes por funcionalidade (com screenshots): [docs/pt/RECURSOS-AGENTE.md](docs/pt/RECURSOS-AGENTE.md) · [docs/en/AGENT-FEATURES.md](docs/en/AGENT-FEATURES.md)
+
+## Recursos clássicos (paridade upstream)
+
+- **Chat** com streaming SSE (Ollama / OpenAI-compat), anexos, 👍/👎,
+  edição, regeneração, título/follow-ups/tags gerados por LLM
+- **Runs desacopladas** — a resposta roda no servidor; fechar/recarregar a aba não
+  interrompe; ao reabrir, o cliente reanexa com replay por `Last-Event-ID`
+- **Notificações** — toast in-app, Notification API e Web Push (VAPID)
+- **Streaming de tools + gate de aprovação** — `tool_call`/`tool_result` no SSE,
+  presets de aprovação por conversa (readonly/aprovar/sempre/**auto por risco**
+  LOW-MED-HIGH), negar com instrução pro modelo corrigir a rota
+- **Tools builtin** — `shell_exec` + jobs em background, `file_*` (list/read/grep/
+  glob/write/edit com diff), `code_interpreter`, `fetch_url`, `web_search`,
+  `generate_image`/`generate_video`, `browser_screenshot`, `ask_user`,
+  `n8n_list_workflows`/`n8n_trigger`, `todo_write`, `skill`, `lsp_*`, `plan_exit`
+- **Painel Workspace** — Tasks, Changes (diff git), Jobs, MCPs, Terminal (PTY) e
+  Info da run; redimensionador arrastável; tela cheia em `/ide`
+- **Modos Plan/Build** + modos de permissão; **checkpoints e revert**;
+  **pause/resume** de runs; slash commands vindos das skills do repo
+- **RAG, Knowledge, Arena, Canais/Notas/Calendário, Admin (usuários, conexões,
+  servidores MCP, integrações), i18n em 8 locales, shell PWA offline**
+
+## Início rápido
+
+```bash
+dotnet restore OpenWebUI.slnx
+dotnet build OpenWebUI.slnx --configuration Release
+dotnet run --project src/OpenWebUI.Api   # http://localhost:8080
+```
+
+Docker (`:3032 → :8080`):
+
+```bash
+docker compose up -d --build
+# ou a imagem publicada
+docker run -p 3032:8080 ghcr.io/afonsoft/open-webui:latest
+```
+
+Guia completo de deploy: [docs/pt/DEPLOY-DOCKER.md](docs/pt/DEPLOY-DOCKER.md) ·
+[docs/en/DEPLOY-DOCKER.md](docs/en/DEPLOY-DOCKER.md)
+
+## Testes
+
+```bash
+dotnet test OpenWebUI.slnx   # 1200+ testes de API + testes de cliente (NUnit)
+```
+
+Gate de cobertura via Coverlet + ratchet (`.ci/coverage-baseline.txt` só sobe).
+
+## Qualidade e CI
+
+| Workflow | O que cobre |
+|---|---|
+| `ci-build-test.yml` | Build Release, todos os testes + gate de cobertura, payload WASM, freshness do tailwind, build Docker, ratchet do baseline |
+| `a11y-audit.yml` | axe-core (Playwright) mobile+desktop |
+| `code-quality.yml` | Qodana + [SonarCloud](https://sonarcloud.io/project/overview?id=afonsoft_open-webui) |
+| `security-scan.yml` | CodeQL (C#+JS), Trivy, GitGuardian, Snyk |
+| `release.yml` | Tag `vX.Y.Z` → imagem GHCR + Docker Hub |
+
+## Documentação
+
+- [docs/pt/RECURSOS-AGENTE.md](docs/pt/RECURSOS-AGENTE.md) — detalhes do modo agente (PT-BR)
+- [docs/en/AGENT-FEATURES.md](docs/en/AGENT-FEATURES.md) — agent platform details (EN)
+- [docs/MIGRACAO-DOTNET.md](docs/MIGRACAO-DOTNET.md) — mapa de paridade upstream → .NET
+- [docs/architecture/architecture.md](docs/architecture/architecture.md) — arquitetura (Mermaid)
+- [docs/analise-fork-alltomatos-opencode.md](docs/analise-fork-alltomatos-opencode.md) — análise do fork do opencode que guiou o roadmap de agente
+- `.specs/` — SPECs em andamento; `docs/specs/` — SPECs entregues
+- [CHANGELOG.md](CHANGELOG.md)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=afonsoft/open-webui&type=date&legend=bottom-right)](https://www.star-history.com/?repos=afonsoft%2Fopen-webui&type=date&legend=bottom-right)
+
+## Licença
+
+BSD-3-Clause — ver [LICENSE](LICENSE).
