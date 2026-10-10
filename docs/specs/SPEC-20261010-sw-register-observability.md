@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-sw-register-observability` |
 | Ticket | `GAP-obs-sw-register` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` |
 | Depends on | — |
 
@@ -35,3 +35,7 @@
 
 1. Edit the inline register call in `index.html`.
 2. Extend `PwaTests` string guard.
+
+## Delivered
+
+- PR #287 (df3f5ae) — index.html loga sucesso/falha do SW register; PwaTests cobre o AC.

@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-nunit-orderattr-migration` |
 | Ticket | `GAP-tests-nunit-order` |
-| Status | `Approved` |
+| Status | `Completed` |
 | Priority | `low` |
 | Depends on | — |
 
@@ -35,3 +35,7 @@
 
 1. List fixtures using `[Order]`; decide per-fixture drop-vs-DependsOnTest.
 2. Apply mechanical replacement; full suite run.
+
+## Delivered
+
+- PR #290 (c15ad86) — 0 usos de [Order], 31 DependsOnTest; zero warnings CS0618.
