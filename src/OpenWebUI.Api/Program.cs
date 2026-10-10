@@ -8,6 +8,7 @@ using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.Data;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.ChatTools.Tools;
+using OpenWebUI.Api;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Api.Runs;
 using OpenWebUI.Api.Notifications;
@@ -639,5 +640,8 @@ static DbContextOptions<AppDbContext> CreateDbOptions(string connectionString)
 /// <summary>Ponto de entrada para testes de integração com WebApplicationFactory.</summary>
 public partial class Program;
 
-/// <summary>Identidade serializável do dono de uma API key (ClaimsIdentity não serializa no HybridCache).</summary>
-internal sealed record ApiKeyIdentity(string Id, string Name, string Email, string Role);
+namespace OpenWebUI.Api
+{
+    /// <summary>Identidade serializável do dono de uma API key (ClaimsIdentity não serializa no HybridCache).</summary>
+    internal sealed record ApiKeyIdentity(string Id, string Name, string Email, string Role);
+}

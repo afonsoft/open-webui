@@ -14,12 +14,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  axe:
-    name: axe-core (mobile 375px + desktop)
+  audit:
+    name: ${{ matrix.check.run_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - run_name: "axe-core (mobile 375px + desktop)"
+            script: "audit.js"
+            artifact: "a11y-report"
+            report_paths: ".ci/a11y/a11y-report.json"
+          - run_name: "Usabilidade + visual smoke (mobile 375px + desktop)"
+            script: "usability.js"
+            artifact: "usability-report"
+            report_paths: ".ci/a11y/usability-report.json\n.ci/a11y/screenshots/usability/"
 
     steps:
       - name: Checkout Code
@@ -52,7 +64,7 @@ jobs:
 
       - name: Install audit deps
         working-directory: .ci/a11y
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
@@ -62,7 +74,8 @@ jobs:
 
       - name: Install Chromium
         working-directory: .ci/a11y
-        run: npx playwright install --with-deps chromium
+        # bin local do package-lock (pin) — evita npx baixar pacote arbitrário
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Start app (seeded admin)
         env:
@@ -81,99 +94,18 @@ jobs:
           done
           echo "::error::app não subiu em 90s"; cat "$GITHUB_WORKSPACE/app.log"; exit 1
 
-      - name: Run axe audit
+      - name: Run ${{ matrix.check.script }}
         working-directory: .ci/a11y
         env:
           AUDIT_BASE_URL: http://127.0.0.1:5099
           AUDIT_ADMIN_EMAIL: admin@ci.local
           AUDIT_ADMIN_PASSWORD: ci-admin-password-123
-        run: node audit.js
+        run: node ${{ matrix.check.script }}
 
-      - name: Upload axe report
+      - name: Upload ${{ matrix.check.artifact }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
         if: always()
         with:
-          name: a11y-report
-          path: .ci/a11y/a11y-report.json
-          if-no-files-found: ignore
-
-  usability:
-    name: Usabilidade + visual smoke (mobile 375px + desktop)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68   # v6.0.0
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Cache NuGet Packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Publish App (Release)
-        run: dotnet publish src/OpenWebUI.Api --configuration Release -o ./app-out
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020   # v7.0.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: .ci/a11y/package-lock.json
-
-      - name: Install audit deps
-        working-directory: .ci/a11y
-        run: npm ci
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('.ci/a11y/package-lock.json') }}
-
-      - name: Install Chromium
-        working-directory: .ci/a11y
-        run: npx playwright install --with-deps chromium
-
-      - name: Start app (seeded admin)
-        env:
-          ASPNETCORE_URLS: http://127.0.0.1:5099
-          ADMIN_EMAIL: admin@ci.local
-          ADMIN_PASSWORD: ci-admin-password-123
-          ADMIN_NAME: CI Admin
-        run: |
-          cd app-out
-          nohup dotnet OpenWebUI.Api.dll > "$GITHUB_WORKSPACE/app.log" 2>&1 &
-          for i in $(seq 1 90); do
-            curl -sf http://127.0.0.1:5099/health > /dev/null && exit 0
-            sleep 1
-          done
-          echo "::error::app não subiu em 90s"; cat "$GITHUB_WORKSPACE/app.log"; exit 1
-
-      - name: Run usability + visual smoke
-        working-directory: .ci/a11y
-        env:
-          AUDIT_BASE_URL: http://127.0.0.1:5099
-          AUDIT_ADMIN_EMAIL: admin@ci.local
-          AUDIT_ADMIN_PASSWORD: ci-admin-password-123
-        run: node usability.js
-
-      - name: Upload usability report + screenshots
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7
-        if: always()
-        with:
-          name: usability-report
-          path: |
-            .ci/a11y/usability-report.json
-            .ci/a11y/screenshots/usability/
+          name: ${{ matrix.check.artifact }}
+          path: ${{ matrix.check.report_paths }}
           if-no-files-found: ignore

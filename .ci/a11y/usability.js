@@ -3,8 +3,8 @@
 // branco, overflow horizontal no mobile e foco de teclado inalcançável.
 // Tap targets < 24x24px (WCAG 2.5.8) viram warnings com contagem.
 const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const BASE = process.env.AUDIT_BASE_URL || 'http://127.0.0.1:5099';
 const EMAIL = process.env.AUDIT_ADMIN_EMAIL || 'admin@ci.local';
@@ -69,14 +69,7 @@ async function checkPage(page, name, vp) {
   await page.locator('body').click({ position: { x: 5, y: 5 }, timeout: 5000 }).catch(() => {});
   let reached = false;
   for (let i = 0; i < 15 && !reached; i++) {
-    await page.keyboard.press('Tab');
-    reached = await page.evaluate(() => {
-      const el = document.activeElement;
-      if (!el || el === document.body) return false;
-      const t = el.tagName;
-      if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(t)) return true;
-      return el.getAttribute('tabindex') !== null && el.getAttribute('tabindex') !== '-1';
-    });
+    reached = await pressTabAndCheckFocus(page);
   }
   if (!reached) {
     failures.push(`${ctx}: Tab não alcançou nenhum elemento interativo em 15 pressionamentos`);
@@ -91,42 +84,65 @@ async function checkPage(page, name, vp) {
   }
 }
 
-(async () => {
+// Um Tab + inspeção do foco num único await sequencial (a ordem é o teste).
+async function pressTabAndCheckFocus(page) {
+  await page.keyboard.press('Tab');
+  return page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    const t = el.tagName;
+    if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(t)) return true;
+    return el.getAttribute('tabindex') !== null && el.getAttribute('tabindex') !== '-1';
+  });
+}
+
+// Navega para uma página e roda os checks — um await por página no loop.
+async function visitAndCheck(page, p, vp) {
+  await page.goto(BASE + p.path, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#main-content', { timeout: 60000 });
+  await page.waitForTimeout(1500);
+  await checkPage(page, p.name, vp);
+}
+
+// Auth (mesmo fluxo do audit.js — labels sem `for`, pill único no card) e
+// checks em todas as páginas deste viewport.
+async function runViewport(browser, vp) {
+  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+  const page = await context.newPage();
+  page.on('console', m => {
+    if (m.type() === 'error') consoleErrors.push(`${vp.name}: ${m.text().slice(0, 200)}`);
+  });
+  page.on('pageerror', e => consoleErrors.push(`${vp.name} pageerror: ${String(e).slice(0, 200)}`));
+
+  await page.goto(BASE + '/auth', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('input[type="email"]', { timeout: 60000 });
+  await page.waitForTimeout(1000);
+  await checkPage(page, 'auth', vp);
+
+  await page.locator('input[type="email"]').first().fill(EMAIL);
+  await page.locator('input[type="password"]').first().fill(PASSWORD);
+  await page.locator('input[type="password"]').first().press('Tab');
+  await page.locator('button.w-full.rounded-full').first().click();
+  await page.waitForFunction(() => !location.pathname.includes('auth'), null, { timeout: 30000 });
+  await page.waitForSelector('#main-content', { timeout: 60000 });
+  await page.waitForLoadState('networkidle');
+
+  for (const p of PAGES) {
+    await visitAndCheck(page, p, vp);
+  }
+  await context.close();
+}
+
+async function main() {
   fs.mkdirSync(SHOTS, { recursive: true });
   const browser = await chromium.launch();
-
-  for (const vp of VIEWPORTS) {
-    const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
-    const page = await context.newPage();
-    page.on('console', m => {
-      if (m.type() === 'error') consoleErrors.push(`${vp.name}: ${m.text().slice(0, 200)}`);
-    });
-    page.on('pageerror', e => consoleErrors.push(`${vp.name} pageerror: ${String(e).slice(0, 200)}`));
-
-    // Auth (mesmo fluxo do audit.js — labels sem `for`, pill único no card)
-    await page.goto(BASE + '/auth', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('input[type="email"]', { timeout: 60000 });
-    await page.waitForTimeout(1000);
-    await checkPage(page, 'auth', vp);
-
-    await page.locator('input[type="email"]').first().fill(EMAIL);
-    await page.locator('input[type="password"]').first().fill(PASSWORD);
-    await page.locator('input[type="password"]').first().press('Tab');
-    await page.locator('button.w-full.rounded-full').first().click();
-    await page.waitForFunction(() => !location.pathname.includes('auth'), null, { timeout: 30000 });
-    await page.waitForSelector('#main-content', { timeout: 60000 });
-    await page.waitForLoadState('networkidle');
-
-    for (const p of PAGES) {
-      await page.goto(BASE + p.path, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('#main-content', { timeout: 60000 });
-      await page.waitForTimeout(1500);
-      await checkPage(page, p.name, vp);
+  try {
+    for (const vp of VIEWPORTS) {
+      await runViewport(browser, vp);
     }
-    await context.close();
+  } finally {
+    await browser.close();
   }
-
-  await browser.close();
 
   const report = { failures, warnings, consoleErrors };
   fs.writeFileSync('usability-report.json', JSON.stringify(report, null, 2));
@@ -138,4 +154,9 @@ async function checkPage(page, name, vp) {
     if (consoleErrors.length) console.error(`::error::${consoleErrors.length} erro(s) de console no browser`);
     process.exit(1);
   }
-})();
+}
+
+main().catch(err => {
+  console.error(`::error::usability harness falhou: ${err.stack || err}`);
+  process.exit(1);
+});
