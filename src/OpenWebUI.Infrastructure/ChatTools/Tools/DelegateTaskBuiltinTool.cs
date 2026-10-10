@@ -90,6 +90,10 @@ public sealed class DelegateTaskBuiltinTool(
             "clone_url": {
               "type": "string",
               "description": "Optional clone URL override for 'repo' (default https://github.com/<repo>.git)."
+            },
+            "persona": {
+              "type": "string",
+              "description": "Optional persona: name or id of an active workspace Skill whose instructions become the sub-agent's system prompt (e.g. 'reviewer', 'tester')."
             }
           },
           "required": ["prompt"]
@@ -118,6 +122,25 @@ public sealed class DelegateTaskBuiltinTool(
 
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // SPEC-20261010-delegate-persona: persona = slug (Name ou Id) de uma
+        // Skill ativa do usuário — o conteúdo vira system prompt do filho.
+        Skill? personaSkill = null;
+        if (ReadString(args, "persona", 200) is { Length: > 0 } persona)
+        {
+            personaSkill = await db.Skills.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == context.UserId && s.IsActive
+                    && (s.Name == persona || s.Id == persona), ct);
+            if (personaSkill is null)
+            {
+                var available = await db.Skills.AsNoTracking()
+                    .Where(s => s.UserId == context.UserId && s.IsActive)
+                    .Select(s => s.Name).ToListAsync(ct);
+                return new BuiltinToolResult(
+                    $"Persona '{persona}' não encontrada. Skills ativas: "
+                    + (available.Count == 0 ? "(nenhuma)" : string.Join(", ", available)));
+            }
+        }
 
         var parentRun = context.RunId is { } parentId
             ? await db.ChatRuns.AsNoTracking()
@@ -175,19 +198,35 @@ public sealed class DelegateTaskBuiltinTool(
             CreatedAt = now,
             UpdatedAt = now,
         };
+        if (personaSkill is not null)
+        {
+            childChat.Messages.Add(new ChatMessage
+            {
+                ChatId = childChat.Id,
+                Role = "system",
+                Content = personaSkill.Content,
+                Position = 0,
+                Timestamp = now,
+            });
+        }
         childChat.Messages.Add(new ChatMessage
         {
             ChatId = childChat.Id,
             Role = "user",
             Content = fullPrompt,
-            Position = 0,
+            Position = personaSkill is null ? 0 : 1,
             Timestamp = now,
         });
         db.Chats.Add(childChat);
 
         var childRequest = new ChatCompletionRequest(
             parentRun.Model,
-            [new ChatCompletionMessage("user", fullPrompt)],
+            [
+                .. personaSkill is null
+                    ? Array.Empty<ChatCompletionMessage>()
+                    : new[] { new ChatCompletionMessage("system", personaSkill.Content) },
+                new ChatCompletionMessage("user", fullPrompt),
+            ],
             Stream: true,
             ToolIds: childToolIds);
         var childRun = new ChatRun

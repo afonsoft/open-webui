@@ -1073,6 +1073,92 @@ public class BuiltinToolsTests
         Assert.That(filha.Status, Is.EqualTo(ChatRunStatus.Failed));
     }
 
+    // ---------------- delegate_task persona (SPEC-20261010-delegate-persona) ----------------
+
+    [Test]
+    public async Task Delegate_Persona_InjetaSystemPromptDaSkillNoFilho()
+    {
+        using (var seedDb = NewDb())
+        {
+            seedDb.Skills.Add(new Skill
+            {
+                UserId = "u1", Name = "reviewer",
+                Content = "Você é um reviewer rigoroso.", IsActive = true,
+            });
+            seedDb.ChatRuns.Add(new ChatRun
+            {
+                Id = "r1", ChatId = "c1", UserId = "u1", Model = "m/x",
+                Status = ChatRunStatus.Running,
+                RequestJson = JsonSerializer.Serialize(
+                    new ChatCompletionRequest("m/x",
+                        [new ChatCompletionMessage("user", "delegue")],
+                        Stream: true, ToolIds: ["builtin:delegate_task"])),
+                CreatedAt = 1,
+            });
+            seedDb.SaveChanges();
+        }
+
+        var tool = new DelegateTaskBuiltinTool(
+            _provider.GetRequiredService<IServiceScopeFactory>(), _fakeDispatcher);
+        var res = await tool.ExecuteAsync(
+            Args("""{"prompt":"revise o diff","wait":false,"persona":"reviewer"}"""),
+            Ctx(), default);
+
+        Assert.That(res.Refused, Is.False, res.Text);
+        using var scope = _provider.CreateScope();
+        var db2 = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var filha = db2.ChatRuns.Single(r => r.ParentRunId == "r1");
+        var req = JsonSerializer.Deserialize<ChatCompletionRequest>(
+            filha.RequestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(req.Messages[0].Role, Is.EqualTo("system"));
+            Assert.That(req.Messages[0].Content,
+                Is.EqualTo("Você é um reviewer rigoroso."));
+            Assert.That(req.Messages[1].Role, Is.EqualTo("user"));
+        });
+        var sysMsg = db2.ChatMessages.Single(
+            m => m.ChatId == filha.ChatId && m.Role == "system");
+        Assert.That(sysMsg.Position, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task Delegate_PersonaInexistente_ErroListaDisponiveis()
+    {
+        using (var seedDb = NewDb())
+        {
+            seedDb.Skills.Add(new Skill
+            {
+                UserId = "u1", Name = "tester", Content = "c", IsActive = true,
+            });
+            seedDb.ChatRuns.Add(new ChatRun
+            {
+                Id = "r1", ChatId = "c1", UserId = "u1", Model = "m/x",
+                Status = ChatRunStatus.Running,
+                RequestJson = JsonSerializer.Serialize(
+                    new ChatCompletionRequest("m/x",
+                        [new ChatCompletionMessage("user", "delegue")],
+                        Stream: true, ToolIds: ["builtin:delegate_task"])),
+                CreatedAt = 1,
+            });
+            seedDb.SaveChanges();
+        }
+
+        var tool = new DelegateTaskBuiltinTool(
+            _provider.GetRequiredService<IServiceScopeFactory>(), _fakeDispatcher);
+        var res = await tool.ExecuteAsync(
+            Args("""{"prompt":"x","wait":false,"persona":"fantasma"}"""),
+            Ctx(), default);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(res.Text, Does.Contain("fantasma"));
+            Assert.That(res.Text, Does.Contain("tester"));
+            Assert.That(_fakeDispatcher.Enqueued, Is.Empty);
+            Assert.That(res.Refused, Is.False);
+        });
+    }
+
     private static string CriarOrigemGit(string branch)
     {
         var origin = Path.Join(Path.GetTempPath(), $"owui-origin-{Guid.NewGuid():N}");
