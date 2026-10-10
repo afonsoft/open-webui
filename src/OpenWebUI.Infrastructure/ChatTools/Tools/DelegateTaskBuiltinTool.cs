@@ -125,6 +125,7 @@ public sealed class DelegateTaskBuiltinTool(
         {
             UserId = context.UserId,
             Title = $"delegado: {title}",
+            ParentChatId = context.ChatId,
             ModelsJson = JsonSerializer.Serialize(new[] { parentRun.Model }),
             ToolIdsJson = JsonSerializer.Serialize(childToolIds ?? []),
             ApprovalPreset = preset,
@@ -152,6 +153,7 @@ public sealed class DelegateTaskBuiltinTool(
             UserId = context.UserId,
             Model = parentRun.Model,
             RequestJson = JsonSerializer.Serialize(childRequest, JsonOptions),
+            ParentRunId = parentRun.Id,
             CreatedAt = now,
         };
         db.ChatRuns.Add(childRun);

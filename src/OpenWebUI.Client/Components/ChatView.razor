@@ -38,6 +38,14 @@
                                 @_statusLabel
                             </span>
                         }
+                        @if (_parentChatId is { } parentId)
+                        {
+                            <a class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                               href="/c/@parentId" title="@L["chat.parent"]" aria-label="@L["chat.parent"]">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" /></svg>
+                                <span class="max-w-24 truncate">@(_parentTitle ?? L["chat.parent"])</span>
+                            </a>
+                        }
                         @if (_git is { Git: true } g)
                         {
                             <button class="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-750 bg-gray-50 dark:bg-gray-850 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 cursor-pointer"
@@ -702,6 +710,8 @@
     private bool _videoGenEnabled;
     private bool _webSearch;
     private string? _loadedChatId;
+    private string? _parentChatId;
+    private string? _parentTitle;
     private string _chatTitle = "New Chat";
     private string? _model;
     private string _input = string.Empty;
@@ -1028,6 +1038,8 @@
         {
             _loadedChatId = null;
             _chatTitle = "New Chat";
+            _parentChatId = null;
+            _parentTitle = null;
             _messages.Clear();
             // Chat novo: só as tools genéricas vêm selecionadas por padrão.
             _toolIds = DefaultToolIds();
@@ -1064,6 +1076,8 @@
             _loadedChatId = chat.Id;
             await Realtime.JoinChatAsync(chat.Id);
             _chatTitle = chat.Title;
+            _parentChatId = chat.ParentChatId;
+            _parentTitle = chat.ParentTitle;
             // Chat sem ToolIds persistidos (legado/nunca tocado): default genérico.
             _toolIds = chat.ToolIds.Count > 0
                 ? chat.ToolIds.ToHashSet()

@@ -847,5 +847,9 @@
   "ide.preview_hint": "APIホストのlocalhostポートで動くアプリをプレビュー。",
   "chat.src_prompt": "prompt",
   "chat.src_skill": "skill",
-  "chat.src_command": "cmd"
+  "chat.src_command": "cmd",
+  "sidebar.children": "サブタスク",
+  "sidebar.delegated": "チャット",
+  "sidebar.delegated_badge": "",
+  "chat.parent": "チャット"
 }

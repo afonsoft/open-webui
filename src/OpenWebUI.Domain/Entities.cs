@@ -127,6 +127,12 @@ public class Chat
     /// <summary>Id da pasta que contém o chat, quando organizado em pastas.</summary>
     public string? FolderId { get; set; }
 
+    /// <summary>
+    /// Chat pai quando este chat foi criado por <c>delegate_task</c>
+    /// (SPEC-20261010-runs-hierarchy); <see langword="null"/> = chat raiz.
+    /// </summary>
+    public string? ParentChatId { get; set; }
+
     /// <summary>Ids das tools habilitadas neste chat, serializados como JSON.</summary>
     public string ToolIdsJson { get; set; } = "[]";
 
@@ -262,6 +268,12 @@ public class ChatRun
 
     /// <summary>Erro final, quando <see cref="ChatRunStatus.Failed"/>.</summary>
     public string? Error { get; set; }
+
+    /// <summary>
+    /// Run pai quando esta run foi spawnada por <c>delegate_task</c>
+    /// (SPEC-20261010-runs-hierarchy); <see langword="null"/> = run raiz.
+    /// </summary>
+    public string? ParentRunId { get; set; }
 
     /// <summary>Criação (epoch seconds).</summary>
     public long CreatedAt { get; set; }

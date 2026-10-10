@@ -847,5 +847,9 @@
   "ide.preview_hint": "预览 API 主机 localhost 端口上运行的应用。",
   "chat.src_prompt": "prompt",
   "chat.src_skill": "skill",
-  "chat.src_command": "cmd"
+  "chat.src_command": "cmd",
+  "sidebar.children": "",
+  "sidebar.delegated": "",
+  "sidebar.delegated_badge": "",
+  "chat.parent": ""
 }
