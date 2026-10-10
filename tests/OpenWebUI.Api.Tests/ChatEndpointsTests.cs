@@ -3,8 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using OpenWebUI.Api.Endpoints;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Infrastructure.Services;
 
 namespace OpenWebUI.Api.Tests;
 
@@ -572,6 +574,38 @@ public class ChatEndpointsTests
         Assert.That(
             (await _client.GetAsync($"/api/v1/chats/{chat.Id}/workspace-repo"))
                 .StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task WorkspaceRepo_BindingPorChat_GetSourceChat_EPutLimpa()
+    {
+        var auth = await SignUpAsync("RepoSeed", "reposeed@chats.local", "senha123");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync("com binding", Mensagens("oi"));
+
+        // Binding por chat seedado direto no kv (clone real é nível de serviço).
+        using var scope = _factory.Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<ConfigService>();
+        await config.SetAsync(
+            $"chat:{chat.Id}:workspace.repo",
+            new WorkspaceRepoBinding("a/b", "main", "repos/a__b", null, null),
+            default);
+
+        var resp = await _client.GetFromJsonAsync<ChatWorkspaceRepoResponse>(
+            $"/api/v1/chats/{chat.Id}/workspace-repo");
+        Assert.Multiple(() =>
+        {
+            Assert.That(resp!.Source, Is.EqualTo("chat"));
+            Assert.That(resp.Binding!.Repo, Is.EqualTo("a/b"));
+        });
+
+        // PUT vazio limpa o binding do chat → cai no fallback (none aqui).
+        var put = await _client.PutAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/workspace-repo",
+            new WorkspaceRepoOpenRequest(null, null));
+        Assert.That(put.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var body = await put.Content.ReadFromJsonAsync<ChatWorkspaceRepoResponse>();
+        Assert.That(body!.Source, Is.EqualTo("none"));
     }
 
     [Test]
