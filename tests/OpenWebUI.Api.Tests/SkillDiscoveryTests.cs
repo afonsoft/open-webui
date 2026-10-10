@@ -188,4 +188,152 @@ public class SkillDiscoveryTests
     {
         Assert.That(SkillDiscoveryService.LoadProjectInstructions(_dir), Is.Null);
     }
+
+
+    [Test]
+    public void Scan_LimiteDeItens_CortaEmMaxItems()
+    {
+        for (var i = 0; i < SkillDiscoveryService.MaxItems + 3; i++)
+        {
+            WriteFile($".claude/skills/s{i:D3}/SKILL.md", $"skill numero {i}");
+        }
+        var scan = _svc.Scan(_dir);
+        Assert.That(scan.Skills, Has.Count.EqualTo(SkillDiscoveryService.MaxItems));
+    }
+
+    [Test]
+    public void Scan_SkillSemPermissao_Ignorada()
+    {
+        var path = WriteFile(".claude/skills/secret/SKILL.md", "nao pode ler");
+        File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Normal);
+        File.SetUnixFileMode(path, UnixFileMode.None);
+        var scan = _svc.Scan(_dir);
+        Assert.That(scan.Skills, Is.Empty);
+    }
+
+    [Test]
+    public void Scan_SubdirSemPermissao_IgnoradoSemFalhar()
+    {
+        WriteFile(".claude/skills/ok/SKILL.md", "skill boa");
+        var locked = Path.Join(_dir, ".claude", "skills", "locked");
+        Directory.CreateDirectory(locked);
+        WriteFile(".claude/skills/locked/SKILL.md", "skill trancada");
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var scan = _svc.Scan(_dir);
+            Assert.That(scan.Skills.Select(s => s.Name), Is.EqualTo(new[] { "ok" }));
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Test]
+    public void Scan_CommandNomeVazio_Ignorado()
+    {
+        // ".md" sem basename → GetFileNameWithoutExtension == "" → entrada nula.
+        WriteFile(".claude/commands/.md", "conteudo sem nome");
+        var scan = _svc.Scan(_dir);
+        Assert.That(scan.Commands, Is.Empty);
+    }
+
+    [Test]
+    public void Scan_FrontmatterSemFechamento_UsaCorpoInteiro()
+    {
+        WriteFile(".claude/skills/aberta/SKILL.md",
+            "---\nname: aberta\ndescription: sem fim\nmais texto");
+        var s = _svc.Scan(_dir).Skills[0];
+        // Sem "\n---" de fechamento: frontmatter ignorado, nome cai no dir.
+        Assert.That(s.Name, Is.EqualTo("aberta"));
+    }
+
+    [Test]
+    public void Scan_FenceNaPrimeiraLinhaMasNaoSo_Fallback()
+    {
+        WriteFile(".claude/skills/fence/SKILL.md",
+            "---x\nname: fence\n---\ncorpo");
+        var s = _svc.Scan(_dir).Skills[0];
+        Assert.That(s.Name, Is.EqualTo("fence"));
+    }
+
+    [Test]
+    public void Scan_FrontmatterLinhaSemDoisPontos_Ignorada()
+    {
+        WriteFile(".claude/skills/colon/SKILL.md",
+            "---\nlinha sem dois pontos\nname: colon\n---\ncorpo");
+        var s = _svc.Scan(_dir).Skills[0];
+        Assert.That(s.Name, Is.EqualTo("colon"));
+    }
+
+    [Test]
+    public void Instructions_BudgetEsgotado_PulaCursorRules()
+    {
+        WriteFile("AGENTS.md", new string('a', SkillDiscoveryService.MaxInstructionsBytes));
+        WriteFile(".cursor/rules/r1.md", "regra um");
+        var text = SkillDiscoveryService.LoadProjectInstructions(_dir);
+        Assert.Multiple(() =>
+        {
+            Assert.That(text, Is.Not.Null);
+            Assert.That(text, Does.Not.Contain("regra um"));
+        });
+    }
+
+    [Test]
+    public void Instructions_ArquivoSemPermissao_Ignorado()
+    {
+        var p = WriteFile("AGENTS.md", "instrucoes secretas");
+        File.SetUnixFileMode(p, UnixFileMode.None);
+        try
+        {
+            Assert.That(SkillDiscoveryService.LoadProjectInstructions(_dir), Is.Null);
+        }
+        finally
+        {
+            File.SetUnixFileMode(p, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
+    [Test]
+    public void Instructions_BudgetInsuficientePraCriarNada()
+    {
+        // AGENTS deixa budget residual (9) menor que rel.Length+16 (35) →
+        // AppendFile do cursor rules com take <= 0.
+        var take = SkillDiscoveryService.MaxInstructionsBytes - 26 - 9;
+        WriteFile("AGENTS.md", new string('a', take));
+        WriteFile(".cursor/rules/r1.md", "regra um");
+        var text = SkillDiscoveryService.LoadProjectInstructions(_dir);
+        Assert.Multiple(() =>
+        {
+            Assert.That(text, Does.Contain("AGENTS.md"));
+            Assert.That(text, Does.Not.Contain("regra um"));
+        });
+    }
+
+    [Test]
+    public void Instructions_ArquivoTruncadoMarcaReticencias()
+    {
+        // Residual 36 → take = 36 - ".cursor/rules/r1.md"(19) - 16 = 1 char.
+        var take = SkillDiscoveryService.MaxInstructionsBytes - 26 - 36;
+        WriteFile("AGENTS.md", new string('a', take));
+        WriteFile(".cursor/rules/r1.md", "regra um");
+        var text = SkillDiscoveryService.LoadProjectInstructions(_dir);
+        Assert.Multiple(() =>
+        {
+            Assert.That(text, Does.Contain(".cursor/rules/r1.md"));
+            Assert.That(text, Does.Contain("[…truncated]"));
+            Assert.That(text, Does.Not.Contain("regra um"));
+        });
+    }
+
+    [Test]
+    public void FirstLine_LinhaLonga_Trunca160()
+    {
+        var big = new string('x', 200);
+        WriteFile(".claude/skills/long/SKILL.md", big);
+        var s = _svc.Scan(_dir).Skills[0];
+        Assert.That(s.Description, Has.Length.EqualTo(160));
+    }
 }

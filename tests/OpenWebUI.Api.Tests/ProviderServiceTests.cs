@@ -951,4 +951,26 @@ public class ProviderServiceTests
         Assert.That(content, Is.EqualTo("ok ollama"));
         Assert.That(_requests.Any(r => r.Path == "/api/chat"), Is.True);
     }
+
+
+    [Test]
+    public async Task StreamGoogle_TextoPuro_ChunksFormatoOpenAi()
+    {
+        _routes["/models/g1:streamGenerateContent"] = (200,
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"oi\"}]}}]}\n\n" +
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\" la\"}]}}]}\n\n" +
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[]}}]}\n\n", 0);
+        await SetProvidersAsync(new ProviderConnection("google", _mockUrl, "gk"));
+
+        var lines = await DrainAsync(NewService().StreamCompletionAsync(
+            Req("g1", connection: "google")));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(lines.Count, Is.EqualTo(3));
+            Assert.That(lines[0], Does.Contain("\"delta\":{\"content\":\"oi\"}"));
+            Assert.That(lines[1], Does.Contain("\"content\":\" la\""));
+            Assert.That(lines[2], Is.EqualTo("data: [DONE]"));
+        });
+    }
 }

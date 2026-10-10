@@ -291,4 +291,53 @@ public class LspEndpointsTests
         Assert.That((await ReadJsonAsync(response)).GetProperty("hover").ValueKind,
             Is.EqualTo(JsonValueKind.Null));
     }
+
+
+    [Test]
+    public async Task Doc_ChangeComTexto_ServidorAusente_SyncedFalseComDetail()
+    {
+        var user = await SignUpAsync($"doc7-{Guid.NewGuid():N}@t.local");
+        UseToken(user.Token);
+        await BindRepoAsync(user.User.Id);
+        var workdir = WorkdirOf(user.User.Id);
+        Directory.CreateDirectory(workdir);
+        await File.WriteAllTextAsync(Path.Join(workdir, "a.py"), "x=1\n");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/workspace/lsp/doc",
+            new { path = "a.py", kind = "change", text = "x=2\n" });
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var json = await ReadJsonAsync(response);
+        Assert.That(json.GetProperty("synced").GetBoolean(), Is.False,
+            "servidor não sobe no agente → degrade synced:false");
+    }
+
+    [Test]
+    public async Task Hover_PathForaDoJail_400()
+    {
+        var user = await SignUpAsync($"hv-{Guid.NewGuid():N}@t.local");
+        UseToken(user.Token);
+        await BindRepoAsync(user.User.Id);
+        var response = await _client.GetAsync(
+            "/api/v1/workspace/lsp/hover?path=../fora.py&line=1&col=1");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Diagnostics_ChatIdDeOutroUsuario_404()
+    {
+        var dono = await SignUpAsync($"own-{Guid.NewGuid():N}@t.local");
+        UseToken(dono.Token);
+        var chat = await _client.PostAsJsonAsync("/api/v1/chats/new",
+            new { chat = new { } });
+        Assert.That(chat.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        var chatId = (await ReadJsonAsync(chat)).GetProperty("id").GetString();
+
+        var outro = await SignUpAsync($"oth-{Guid.NewGuid():N}@t.local");
+        UseToken(outro.Token);
+        await BindRepoAsync(outro.User.Id);
+        var response = await _client.GetAsync(
+            $"/api/v1/workspace/lsp/diagnostics?chatId={chatId}");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
 }
