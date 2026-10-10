@@ -61,7 +61,7 @@
         {
             _loadFailed = true;
             _notes = [];
-            Console.Error.WriteLine($"[Notes] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Notes] carga falhou: {ex.Message}");
         }
     }
 

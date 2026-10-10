@@ -317,7 +317,7 @@
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[Workspace] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Workspace] carga falhou: {ex.Message}");
         }
     }
 

@@ -160,7 +160,7 @@
             // Offline/SW: badge vazio e o poll retenta sozinho — nunca
             // propagar para a blazor-error-ui.
             _offline = true;
-            Console.Error.WriteLine($"[NotificationBell] refresh falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[NotificationBell] refresh falhou: {ex.Message}");
         }
     }
 

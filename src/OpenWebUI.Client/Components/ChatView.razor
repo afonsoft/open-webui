@@ -848,7 +848,7 @@
         {
             // Offline/SW: chat renderiza degradado (sem prompts/tools/modelos)
             // em vez de cair na blazor-error-ui.
-            Console.Error.WriteLine($"[ChatView] init falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[ChatView] init falhou: {ex.Message}");
         }
 
         // OnParametersSetAsync pode rodar antes das tools carregarem —
@@ -1066,7 +1066,7 @@
             // não a blazor-error-ui.
             _loading = false;
             _error = L["common.offline_load"];
-            Console.Error.WriteLine($"[ChatView] carga do chat falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[ChatView] carga do chat falhou: {ex.Message}");
             return;
         }
         try
@@ -1364,7 +1364,7 @@
         var text = _input;
         // Debounce: antes cada keystroke fazia uma escrita no localStorage
         // via interop; agora só grava ~400ms após a última tecla.
-        _draftCts?.Cancel();
+        if (_draftCts is not null) { await _draftCts.CancelAsync(); }
         _draftCts = new CancellationTokenSource();
         var ct = _draftCts.Token;
         try

@@ -273,7 +273,7 @@
         {
             // Offline: grade renderiza vazia + retry manual.
             _loadFailed = true;
-            Console.Error.WriteLine($"[Calendar] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Calendar] carga falhou: {ex.Message}");
         }
         _loading = false;
     }

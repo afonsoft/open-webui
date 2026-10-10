@@ -277,7 +277,7 @@
         {
             // Offline: editor não abre — retry manual, não error UI.
             _loadFailed = true;
-            Console.Error.WriteLine($"[WorkspaceItemEditor] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspaceItemEditor] carga falhou: {ex.Message}");
         }
         _loading = false;
     }

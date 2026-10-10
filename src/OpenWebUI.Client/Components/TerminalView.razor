@@ -87,7 +87,7 @@ else
             // Offline: painel degradado com retry manual, não a error UI.
             _enabled = true;
             _loadError = true;
-            Console.Error.WriteLine($"[TerminalView] init falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[TerminalView] init falhou: {ex.Message}");
             return;
         }
         if (_enabled == true)
@@ -135,7 +135,7 @@ else
         {
             // Offline: mantém a lista anterior; o poll/refresh retenta.
             _loadError = _sessions.Count == 0;
-            Console.Error.WriteLine($"[TerminalView] refresh falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[TerminalView] refresh falhou: {ex.Message}");
             return;
         }
         _loadError = false;
@@ -218,7 +218,7 @@ else
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        _pollCts?.Cancel();
+        if (_pollCts is not null) { await _pollCts.CancelAsync(); }
         _pollCts?.Dispose();
         foreach (var session in _sessions)
         {

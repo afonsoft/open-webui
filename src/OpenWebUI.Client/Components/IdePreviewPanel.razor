@@ -91,7 +91,7 @@ else
         catch (HttpRequestException ex)
         {
             _initFailed = true;
-            Console.Error.WriteLine($"[IdePreviewPanel] init falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[IdePreviewPanel] init falhou: {ex.Message}");
         }
     }
 

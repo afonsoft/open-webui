@@ -271,7 +271,7 @@
             // Offline: shell do canal renderiza + retry manual.
             _loadFailed = true;
             _loaded = true;
-            Console.Error.WriteLine($"[ChannelPage] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[ChannelPage] carga falhou: {ex.Message}");
             return;
         }
         foreach (var m in _messages)

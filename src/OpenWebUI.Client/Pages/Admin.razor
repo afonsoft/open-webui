@@ -1748,7 +1748,7 @@
         catch (HttpRequestException ex)
         {
             _loadFailed = true;
-            Console.Error.WriteLine($"[Admin] carga falhou: {ex.Message}");
+            await Console.Error.WriteLineAsync($"[Admin] carga falhou: {ex.Message}");
         }
     }
 
