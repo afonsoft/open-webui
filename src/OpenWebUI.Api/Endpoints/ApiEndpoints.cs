@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using OpenWebUI.Domain;
 using OpenWebUI.Infrastructure.ChatTools;
 using OpenWebUI.Infrastructure.Data;
@@ -36,12 +37,31 @@ public static class ApiEndpoints
 
         var configs = app.MapGroup("/api/v1/configs").RequireAuthorization();
         configs.MapGet("/connections", GetConnectionsAsync);
-        configs.MapPost("/connections", UpdateConnectionsAsync);
+        configs.MapPost("/connections", UpdateConnectionsAsync)
+            .AddEndpointFilter(InvalidateModelListCacheAsync);
         configs.MapGet("/capabilities", GetCapabilitiesAsync);
         configs.MapGet("/connections/models", ListConnectionModelsAsync);
         configs.MapGet("/connections/capabilities", GetConnectionCapabilitiesAsync);
         configs.MapGet("/export", ExportConfigAsync);
         configs.MapPost("/import", ImportConfigAsync);
+    }
+
+    /// <summary>
+    /// Invalida o cache HybridCache da lista agregada de modelos (tag "models")
+    /// após uma mutação bem-sucedida — aplicado nos grupos de models/connections.
+    /// </summary>
+    internal static async ValueTask<object?> InvalidateModelListCacheAsync(
+        EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
+    {
+        var result = await next(ctx);
+        if (!HttpMethods.IsGet(ctx.HttpContext.Request.Method)
+            && ctx.HttpContext.Response.StatusCode < 400)
+        {
+            await ctx.HttpContext.RequestServices
+                .GetRequiredService<HybridCache>()
+                .RemoveByTagAsync("models");
+        }
+        return result;
     }
 
     /// <summary>
@@ -129,19 +149,36 @@ public static class ApiEndpoints
 
     private static async Task<IResult> ListAllModelsAsync(
         HttpContext http, ProviderService providers, AppDbContext db,
-        PipelineClientService pipelines, CancellationToken ct)
+        PipelineClientService pipelines, HybridCache cache, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        var response = await cache.GetOrCreateAsync(
+            $"models:list:{user!.Id}",
+            async _ => await BuildModelListAsync(user!, providers, db, pipelines, ct),
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromSeconds(60),
+                LocalCacheExpiration = TimeSpan.FromSeconds(60),
+            },
+            tags: ["models", $"models:{user.Id}"],
+            cancellationToken: ct);
+        return Results.Ok(response);
+    }
+
+    private static async Task<ModelListResponse> BuildModelListAsync(
+        User user, ProviderService providers, AppDbContext db,
+        PipelineClientService pipelines, CancellationToken ct)
+    {
         var models = await providers.ListModelsAsync(ct);
 
         // Inclui modelos personalizados ativos do workspace (do usuário + públicos).
         var custom = await db.ModelEntries.AsNoTracking()
-            .Where(m => m.IsActive && (m.UserId == user!.Id || m.UserId == "public"))
+            .Where(m => m.IsActive && (m.UserId == user.Id || m.UserId == "public"))
             .ToListAsync(ct);
 
         foreach (var entry in custom)
         {
-            if (await ModelEndpoints.HasModelAccessAsync(user!, entry, db, ct))
+            if (await ModelEndpoints.HasModelAccessAsync(user, entry, db, ct))
             {
                 models.Add(new ModelInfo(entry.Id, entry.Name, "custom", "openwebui"));
             }
@@ -159,7 +196,7 @@ public static class ApiEndpoints
             }
         }
 
-        return Results.Ok(new ModelListResponse(models));
+        return new ModelListResponse(models);
     }
 
     private static async Task ChatCompletionsAsync(

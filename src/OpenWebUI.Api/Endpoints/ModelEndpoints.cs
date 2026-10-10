@@ -15,7 +15,9 @@ public static class ModelEndpoints
     /// <summary>Mapeia as rotas de modelos do workspace.</summary>
     public static RouteGroupBuilder MapModelEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/models").RequireAuthorization();
+        var group = app.MapGroup("/api/v1/models")
+            .RequireAuthorization()
+            .AddEndpointFilter(ApiEndpoints.InvalidateModelListCacheAsync);
 
         // Leitura fica aberta (chat precisa listar modelos para todos os usuários);
         // workspace.models gateia só a gestão no workspace.

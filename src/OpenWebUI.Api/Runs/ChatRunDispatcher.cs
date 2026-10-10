@@ -24,9 +24,10 @@ public sealed class ChatRunDispatcher(
     ChatJobService jobs,
     ChatRunPauses pauses,
     WorktreeService worktrees,
+    IConfiguration configuration,
     ILogger<ChatRunDispatcher> logger) : BackgroundService, IChatRunDispatcher
 {
-    /// <summary>Máximo de runs executando em paralelo.</summary>
+    /// <summary>Máximo padrão de runs executando em paralelo (override via ChatRuns:MaxConcurrent).</summary>
     public const int MaxConcurrent = 4;
 
     private readonly System.Threading.Channels.Channel<string> _queue =
@@ -64,7 +65,7 @@ public sealed class ChatRunDispatcher(
         // (E16 S9 RF-005 — spec worktree-format-hooks).
         await worktrees.PruneOrphansAsync(stoppingToken);
 
-        var workers = Enumerable.Range(0, MaxConcurrent)
+        var workers = Enumerable.Range(0, configuration.GetValue("ChatRuns:MaxConcurrent", MaxConcurrent))
             .Select(_ => WorkerAsync(stoppingToken))
             .ToArray();
         await Task.WhenAll(workers);
