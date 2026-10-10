@@ -33,6 +33,7 @@ public sealed class ChatRunExecutor(
     ChatRunApprovals approvals,
     ChatRunPauses pauses,
     CheckpointService checkpoints,
+    ContextCompactionService compaction,
     IWebHostEnvironment env,
     ILogger<ChatRunExecutor> logger)
 {
@@ -110,6 +111,18 @@ public sealed class ChatRunExecutor(
                 await FinishAsync(run, string.Empty, ct);
                 broadcaster.Publish(run.Id, "data: [DONE]");
                 return;
+            }
+
+            // Compactação de contexto (SPEC-20261010-context-compaction): aplica
+            // o resumo persistido, compacta o head se o histórico estourou o
+            // limiar e re-aplica — a janela ao modelo sai [resumo] + tail.
+            await compaction.MaybeCompactAsync(
+                run.ChatId, request.Messages, request.Model, ct);
+            var compacted = await compaction.ApplyAsync(
+                run.ChatId, request.Messages, ct);
+            if (compacted.Count != request.Messages.Count)
+            {
+                request = request with { Messages = compacted };
             }
 
             // Modo do agente do chat (SPEC-20261009 RF-001): plan/build

@@ -66,6 +66,8 @@ builder.Services.AddSingleton<IChatRunDispatcher>(
     sp => sp.GetRequiredService<ChatRunDispatcher>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRunDispatcher>());
 builder.Services.AddScoped<ChatRunExecutor>();
+builder.Services.AddScoped<ContextCompactionService>();
+builder.Services.AddScoped<IContextSummarizer, LlmContextSummarizer>();
 
 // Notificações de run (SPEC-20261007-chat-notifications): SignalR para abas
 // conectadas + Web Push quando nenhuma aba está conectada.
