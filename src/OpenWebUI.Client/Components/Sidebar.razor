@@ -95,7 +95,7 @@ else
                         </div>
                         <input type="text" placeholder="@L["sidebar.search"]"
                                aria-label="@L["sidebar.search"]"
-                               class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0"
+                               class="flex-1 bg-transparent outline-none text-[0.8125rem] leading-5 placeholder:text-gray-400 dark:placeholder:text-gray-600 min-w-0 min-h-6"
                                @bind="_query" @bind:event="oninput" />
                     </div>
                 </div>
@@ -105,9 +105,9 @@ else
                 <div class="px-2.5 pb-1 w-full flex items-center justify-between text-[0.75rem] leading-5 font-normal text-gray-500 dark:text-gray-500">
                     <span>@L["sidebar.channels"]</span>
                     <span>
-                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 min-w-6 min-h-6 cursor-pointer"
                                 title="@L["sidebar.new_dm"]" aria-label="@L["sidebar.new_dm"]" @onclick="CreateDmAsync">@@</button>
-                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-1 cursor-pointer"
+                        <button class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 min-w-6 min-h-6 cursor-pointer"
                                 title="@L["sidebar.create_channel"]" aria-label="@L["sidebar.create_channel"]" @onclick="CreateChannelAsync">+</button>
                     </span>
                 </div>
