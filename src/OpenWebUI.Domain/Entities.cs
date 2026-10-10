@@ -1227,6 +1227,38 @@ public class Skill
     public long UpdatedAt { get; set; }
 }
 
+/// <summary>Memória do agente (SPEC-20261010-agent-memory): notas duráveis
+/// que o agente salva via <c>builtin:memory_save</c> e recupera via
+/// <c>builtin:memory_search</c>. Escopo <c>global</c> (vale para todos os
+/// chats do usuário) ou <c>repo</c> (vinculada ao slug do repo — só entra
+/// no prompt de chats bound àquele repo).</summary>
+public class AgentMemory
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dono da memória.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Escopo: <c>global</c> ou <c>repo</c>.</summary>
+    public string Scope { get; set; } = "global";
+
+    /// <summary>Slug do repo (owner/repo) quando Scope=repo; null em global.</summary>
+    public string? RepoSlug { get; set; }
+
+    /// <summary>Título curto (chave de upsert por user+scope+repo).</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Conteúdo lembrado.</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long CreatedAt { get; set; }
+
+    /// <summary>Última atualização (epoch seconds).</summary>
+    public long UpdatedAt { get; set; }
+}
+
 /// <summary>Function do ecossistema de plugins — registro com manifest; a
 /// execução é delegada a pipelines externos (nenhum código arbitrário roda
 /// no servidor .NET).</summary>

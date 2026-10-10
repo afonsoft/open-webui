@@ -115,6 +115,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     /// <summary>Skills do workspace.</summary>
     public DbSet<Skill> Skills => Set<Skill>();
+    public DbSet<AgentMemory> AgentMemories => Set<AgentMemory>();
 
     /// <summary>Functions do ecossistema de plugins.</summary>
     public DbSet<Function> Functions => Set<Function>();
@@ -175,6 +176,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(r => r.ChatId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AgentMemory>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.HasIndex(m => new { m.UserId, m.Scope });
+            entity.HasIndex(m => new { m.UserId, m.RepoSlug });
         });
 
         modelBuilder.Entity<ChatRunSteer>(entity =>
