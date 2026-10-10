@@ -144,10 +144,10 @@ public sealed class GitHubService(
 
         var cacheKey = $"github:pulls:{userId}:{owner}/{repo}";
         var pulls = cache is null
-            ? await FetchPullsAsync(userId, owner, repo, token, ct)
+            ? await FetchPullsAsync(ct)
             : await cache.GetOrCreateAsync(
                 cacheKey,
-                async cancel => await FetchPullsAsync(userId, owner, repo, token, cancel),
+                async cancel => await FetchPullsAsync(cancel),
                 new HybridCacheEntryOptions
                 {
                     Expiration = PullsCacheTtl,
@@ -157,13 +157,12 @@ public sealed class GitHubService(
                 cancellationToken: ct);
         return pulls;
 
-        async Task<WorkspacePullsResponse?> FetchPullsAsync(
-            string uid, string o, string r, string tk, CancellationToken cancel)
+        async Task<WorkspacePullsResponse?> FetchPullsAsync(CancellationToken cancel)
         {
         try
         {
             var (status, doc) = await SendStatusAsync(token, HttpMethod.Get,
-                $"{ApiBase}/repos/{owner}/{repo}/pulls?state=open&per_page=30", ct);
+                $"{ApiBase}/repos/{owner}/{repo}/pulls?state=open&per_page=30", cancel);
             if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
                 return new WorkspacePullsResponse(false, true, []);
@@ -174,7 +173,7 @@ public sealed class GitHubService(
             }
 
             var tasks = doc.RootElement.EnumerateArray()
-                .Select(pr => MapPullAsync(token, owner, repo, pr, ct))
+                .Select(pr => MapPullAsync(token, owner, repo, pr, cancel))
                 .ToList();
             var mapped = await Task.WhenAll(tasks);
             // Auth recusada no caminho dos checks (token revogado) → needsToken.

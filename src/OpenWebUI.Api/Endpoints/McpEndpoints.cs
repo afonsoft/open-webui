@@ -84,6 +84,7 @@ public static class McpEndpoints
         };
         db.McpServers.Add(server);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveByTagAsync("mcp", ct);
         return Results.Ok(ToResponse(server));
     }
 
