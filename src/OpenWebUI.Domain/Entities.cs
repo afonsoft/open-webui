@@ -285,6 +285,36 @@ public class ChatRun
     public long? CompletedAt { get; set; }
 }
 
+/// <summary>
+/// Mensagem durável de steer/queue para uma run viva
+/// (SPEC-20261010-steer-queue): <c>steer</c> é injetada na próxima fronteira
+/// de rodada do tool loop; <c>queue</c> só é promovida quando a run ficaria
+/// ociosa. Promovida vira mensagem <c>user</c> no chat e entra no histórico.
+/// </summary>
+public class ChatRunSteer
+{
+    /// <summary>Identificador único (GUID).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Run alvo.</summary>
+    public string RunId { get; set; } = string.Empty;
+
+    /// <summary>Chat da run (desnormalizado pra consulta/limpeza).</summary>
+    public string ChatId { get; set; } = string.Empty;
+
+    /// <summary>Texto do usuário.</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Modo: <c>steer</c> (próxima fronteira) ou <c>queue</c> (ao ficar ociosa).</summary>
+    public string Mode { get; set; } = "steer";
+
+    /// <summary>Estado: <c>pending</c> ou <c>promoted</c>.</summary>
+    public string Status { get; set; } = "pending";
+
+    /// <summary>Criação (epoch seconds).</summary>
+    public long Timestamp { get; set; }
+}
+
 /// <summary>Status possíveis de um job de background de chat.</summary>
 public static class ChatJobStatus
 {

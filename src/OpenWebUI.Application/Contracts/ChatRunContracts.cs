@@ -19,6 +19,11 @@ public sealed record EnqueueChatRunRequest(
     bool? WebSearch = null,
     IReadOnlyList<string>? MentionPaths = null);
 
+/// <summary>Payload do POST de steer/queue numa run viva (SPEC-20261010-steer-queue).</summary>
+/// <param name="Message">Texto injetado como mensagem do usuário na run.</param>
+/// <param name="Mode"><c>steer</c> (default — próxima fronteira de rodada) ou <c>queue</c> (só quando a run ficaria ociosa).</param>
+public sealed record SteerRunRequest(string? Message, string? Mode = null);
+
 /// <summary>Estado serializável de uma run desacoplada de chat.</summary>
 /// <param name="Id">Identificador da run.</param>
 /// <param name="ChatId">Chat ao qual a run pertence.</param>

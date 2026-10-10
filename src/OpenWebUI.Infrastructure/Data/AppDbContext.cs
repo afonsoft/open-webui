@@ -21,6 +21,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     /// <summary>Runs de chat desacopladas (SPEC-20261007-chat-detached-runs).</summary>
     public DbSet<ChatRun> ChatRuns => Set<ChatRun>();
 
+    /// <summary>Inbox durável de steer/queue das runs (SPEC-20261010-steer-queue).</summary>
+    public DbSet<ChatRunSteer> ChatRunSteers => Set<ChatRunSteer>();
+
     /// <summary>Jobs de background spawnados pelo chat (SPEC-20261007-chat-agent-tools).</summary>
     public DbSet<ChatJob> ChatJobs => Set<ChatJob>();
 
@@ -172,6 +175,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(r => r.ChatId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChatRunSteer>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.HasIndex(s => new { s.RunId, s.Status });
+            entity.HasIndex(s => s.ChatId);
         });
 
         modelBuilder.Entity<ChatJob>(entity =>
