@@ -1,5 +1,7 @@
 {
   "common.loading": "Loading…",
+  "common.offline_load": "読み込めませんでした — オフラインの可能性があります。",
+  "common.retry": "再試行",
   "common.save": "保存",
   "common.edit": "✏️ Edit",
   "common.delete": "削除",

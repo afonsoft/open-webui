@@ -56,6 +56,7 @@
 
     private const string ModelKey = "webui.model";
     private List<ModelInfo>? _models;
+    private bool _loadFailed;
     private bool _open;
     private bool _focusMenu;
     private ElementReference _trigger;
@@ -64,9 +65,25 @@
     private string SelectedName =>
         _models?.FirstOrDefault(m => m.Id == Value)?.Name ?? L["models.select"];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadModelsAsync();
+
+    /// <summary>Busca a lista de modelos — offline vira lista vazia com
+    /// retry ao reabrir o menu (nunca propaga pra error UI).</summary>
+    private async Task LoadModelsAsync()
     {
-        _models = await Api.GetModelsAsync();
+        try
+        {
+            _models = await Api.GetModelsAsync();
+            _loadFailed = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            _models = [];
+            Console.Error.WriteLine($"[ModelSelector] carga falhou: {ex.Message}");
+            return;
+        }
+
         var saved = await Storage.GetAsync(ModelKey);
         var selected = _models.Any(m => m.Id == saved)
             ? saved
@@ -94,6 +111,11 @@
         if (_open)
         {
             _focusMenu = true;
+            if (_loadFailed)
+            {
+                // Retry manual: voltou a rede, recarrega sem reload da página.
+                _ = LoadModelsAsync();
+            }
         }
     }
 

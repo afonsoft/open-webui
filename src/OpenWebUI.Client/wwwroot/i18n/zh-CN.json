@@ -1,5 +1,7 @@
 {
   "common.loading": "Loading…",
+  "common.offline_load": "无法加载 — 您可能处于离线状态。",
+  "common.retry": "重试",
   "common.save": "保存",
   "common.edit": "✏️ Edit",
   "common.delete": "删除",

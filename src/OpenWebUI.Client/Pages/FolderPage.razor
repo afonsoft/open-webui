@@ -11,7 +11,11 @@
         <a class="msg-action" href="/">← @L["common.back"]</a>
     </div>
 
-    @if (_notFound)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="LoadAsync" />
+    }
+    else if (_notFound)
     {
         <div class="sidebar-empty">@L["common.not_found"]</div>
     }
@@ -44,16 +48,28 @@
     private FolderResponse? _folder;
     private List<ChatSummaryResponse>? _chats;
     private bool _notFound;
+    private bool _loadFailed;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _loadFailed = false;
         if (FolderId is null) { _notFound = true; return; }
-        _folder = await Api.GetFolderAsync(FolderId);
-        if (_folder is null)
+        try
         {
-            _notFound = true;
-            return;
+            _folder = await Api.GetFolderAsync(FolderId);
+            if (_folder is null)
+            {
+                _notFound = true;
+                return;
+            }
+            _chats = await Api.GetFolderChatsAsync(FolderId);
         }
-        _chats = await Api.GetFolderChatsAsync(FolderId);
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[FolderPage] carga falhou: {ex.Message}");
+        }
     }
 }

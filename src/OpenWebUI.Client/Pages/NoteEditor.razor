@@ -16,7 +16,11 @@
         <a class="msg-action" href="/notes">← @L["common.back"]</a>
     </div>
 
-    @if (_notFound)
+    @if (_loadFailed)
+    {
+        <OfflineRetry OnRetry="ReloadNoteAsync" />
+    }
+    else if (_notFound)
     {
         <div class="sidebar-empty">@L["common.not_found"]</div>
     }
@@ -80,6 +84,7 @@
 
     private bool _loading = true;
     private bool _notFound;
+    private bool _loadFailed;
     private string _name = "";
     private string _content = "";
     private string? _error;
@@ -93,26 +98,38 @@
 
     private sealed record RemoteCursor(string Name, string Color, int Position);
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnParametersSetAsync() => await ReloadNoteAsync();
+
+    private async Task ReloadNoteAsync()
     {
         _loading = true;
         _notFound = false;
+        _loadFailed = false;
         if (Id is not null)
         {
-            var note = await Api.GetNoteAsync(Id);
-            if (note is null)
+            try
             {
-                _notFound = true;
+                var note = await Api.GetNoteAsync(Id);
+                if (note is null)
+                {
+                    _notFound = true;
+                }
+                else
+                {
+                    _name = note.Title;
+                    _content = note.Content;
+                    _version = note.UpdatedAt;
+                }
             }
-            else
+            catch (HttpRequestException ex)
             {
-                _name = note.Title;
-                _content = note.Content;
-                _version = note.UpdatedAt;
+                // Offline: editor não abre — retry manual, não error UI.
+                _loadFailed = true;
+                Console.Error.WriteLine($"[NoteEditor] carga falhou: {ex.Message}");
             }
         }
         _loading = false;
-        if (Id is not null && !_notFound)
+        if (Id is not null && !_notFound && !_loadFailed)
         {
             await StartCollabAsync(Id);
         }

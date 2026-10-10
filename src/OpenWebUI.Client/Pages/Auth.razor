@@ -141,8 +141,15 @@
             return;
         }
 
-        var config = await Api.GetAppConfigAsync();
-        _oauthProviders = config?.OAuthProviders ?? [];
+        try
+        {
+            var config = await Api.GetAppConfigAsync();
+            _oauthProviders = config?.OAuthProviders ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            // Offline: form de login continua; só os botões OAuth somem.
+        }
     }
 
     private void LoginOAuth(string provider) =>

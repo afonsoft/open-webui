@@ -7,7 +7,11 @@
    proxy do host da API. 502/504/sem-resposta = app fora do ar; qualquer
    outro status prova que algo escuta na porta e o iframe pode abrir. *@
 
-@if (_enabled is null)
+@if (_initFailed)
+{
+    <OfflineRetry OnRetry="LoadEnabledAsync" />
+}
+else if (_enabled is null)
 {
     <div class="sidebar-empty">@L["common.loading"]</div>
 }
@@ -67,14 +71,29 @@ else
 
 @code {
     private bool? _enabled;
+    private bool _initFailed;
     private string? _portInput;
     private string? _previewUrl;
     private string? _error;
     private int _frameKey;
 
     /// <inheritdoc/>
-    protected override async Task OnInitializedAsync() =>
-        _enabled = await Api.GetPreviewEnabledAsync();
+    protected override async Task OnInitializedAsync() => await LoadEnabledAsync();
+
+    /// <summary>Flag do preview — falha de rede vira retry, não error UI.</summary>
+    private async Task LoadEnabledAsync()
+    {
+        _initFailed = false;
+        try
+        {
+            _enabled = await Api.GetPreviewEnabledAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _initFailed = true;
+            Console.Error.WriteLine($"[IdePreviewPanel] init falhou: {ex.Message}");
+        }
+    }
 
     private Task OnPortKeyDown(KeyboardEventArgs e) =>
         e.Key == "Enter" ? OpenAsync() : Task.CompletedTask;

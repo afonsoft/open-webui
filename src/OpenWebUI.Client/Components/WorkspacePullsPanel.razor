@@ -34,6 +34,12 @@
     {
         <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_no_repo"]</div>
     }
+    else if (_loadFailed && _pulls is null)
+    {
+        @* Offline: refresh manual no topo serve de retry; o poll de ~60s
+           também retenta sozinho. *@
+        <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500" data-offline-fallback>@L["common.offline_load"]</div>
+    }
     else if (_pulls is { NeedsToken: true })
     {
         <div class="px-2 py-6 text-center text-[0.6875rem] text-gray-400 dark:text-gray-500">@L["chat.pulls_needs_token"]</div>
@@ -85,6 +91,7 @@
 @code {
     private WorkspacePullsResponse? _pulls;
     private bool _noRepo;
+    private bool _loadFailed;
     private bool _loading;
     private readonly CancellationTokenSource _pollCts = new();
 
@@ -126,6 +133,13 @@
             }
             _noRepo = false;
             _pulls = await Api.GetWorkspacePullsAsync();
+            _loadFailed = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: mantém o último dado / empty state honesto.
+            _loadFailed = true;
+            Console.Error.WriteLine($"[WorkspacePullsPanel] carga falhou: {ex.Message}");
         }
         finally
         {

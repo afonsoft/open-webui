@@ -10,7 +10,7 @@
 | Repository | `afonsoft/open-webui` |
 | Branch | `feature/devin-20261010-offline-init-resilience` |
 | Ticket | `GAP-impl-offline-init` |
-| Status | `Approved` |
+| Status | `In implementation` |
 | Priority | `medium` |
 | Depends on | SPEC-20261009-notification-feed (delivered) |
 

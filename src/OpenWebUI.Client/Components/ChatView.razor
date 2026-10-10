@@ -802,37 +802,47 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Chamadas independentes em paralelo (antes: ~6 sequenciais no boot).
-        var promptsTask = Api.GetPromptsAsync();
-        var toolsTask = Api.GetToolsAsync();
-        var modelsTask = Api.GetModelsConfigAsync();
-        var configTask = Api.GetAppConfigCachedAsync();
-        var storedTask = StoredWebSearchAsync();
-        var repoTask = Api.GetWorkspaceRepoAsync();
-        await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask, repoTask);
+        try
+        {
+            // Chamadas independentes em paralelo (antes: ~6 sequenciais no boot).
+            var promptsTask = Api.GetPromptsAsync();
+            var toolsTask = Api.GetToolsAsync();
+            var modelsTask = Api.GetModelsConfigAsync();
+            var configTask = Api.GetAppConfigCachedAsync();
+            var storedTask = StoredWebSearchAsync();
+            var repoTask = Api.GetWorkspaceRepoAsync();
+            await Task.WhenAll(promptsTask, toolsTask, modelsTask, configTask, storedTask, repoTask);
 
-        _prompts = promptsTask.Result;
-        _tools = toolsTask.Result;
-        _suggestions = modelsTask.Result?.PromptSuggestions ?? [];
+            _prompts = promptsTask.Result;
+            _tools = toolsTask.Result;
+            _suggestions = modelsTask.Result?.PromptSuggestions ?? [];
+            _repo = repoTask.Result;
+            if (_repo?.Repo is not null)
+            {
+                _repoSkills = await Api.GetRepoSkillsAsync();
+                _repoCommands = await Api.GetRepoCommandsAsync();
+            }
+            var features = configTask.Result?.Features;
+            _webSearchAvailable = features?.EnableWebSearch ?? false;
+            _imageGenEnabled = features?.EnableImageGeneration ?? false;
+            _videoGenEnabled = features?.EnableVideoGeneration ?? false;
+            // Busca web desligada por padrão (o usuário habilita no ícone);
+            // a escolha explícita do usuário (localStorage) tem precedência.
+            _webSearch = storedTask.Result == "true" && _webSearchAvailable;
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline/SW: chat renderiza degradado (sem prompts/tools/modelos)
+            // em vez de cair na blazor-error-ui.
+            Console.Error.WriteLine($"[ChatView] init falhou: {ex.Message}");
+        }
+
         // OnParametersSetAsync pode rodar antes das tools carregarem —
         // garante o default "genéricas ligadas" num chat novo.
         if (ChatId is null && _toolIds.Count == 0)
         {
             _toolIds = DefaultToolIds();
         }
-        _repo = repoTask.Result;
-        if (_repo?.Repo is not null)
-        {
-            _repoSkills = await Api.GetRepoSkillsAsync();
-            _repoCommands = await Api.GetRepoCommandsAsync();
-        }
-        var features = configTask.Result?.Features;
-        _webSearchAvailable = features?.EnableWebSearch ?? false;
-        _imageGenEnabled = features?.EnableImageGeneration ?? false;
-        _videoGenEnabled = features?.EnableVideoGeneration ?? false;
-        // Busca web desligada por padrão (o usuário habilita no ícone);
-        // a escolha explícita do usuário (localStorage) tem precedência.
-        _webSearch = storedTask.Result == "true" && _webSearchAvailable;
 
         Realtime.OnChatMessageUpdated += HandleChatMessageUpdated;
         Realtime.OnChatMessageDeleted += HandleChatMessageDeleted;
@@ -1029,9 +1039,22 @@
         }
 
         _loading = true;
+        ChatResponse? chat;
         try
         {
-            var chat = await Api.GetChatAsync(ChatId);
+            chat = await Api.GetChatAsync(ChatId);
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: o chat não abre — erro honesto na área de mensagens,
+            // não a blazor-error-ui.
+            _loading = false;
+            _error = L["common.offline_load"];
+            Console.Error.WriteLine($"[ChatView] carga do chat falhou: {ex.Message}");
+            return;
+        }
+        try
+        {
             if (chat is null)
             {
                 Nav.NavigateTo("/", replace: true);

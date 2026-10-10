@@ -54,6 +54,11 @@
 
         <div class="flex-1 min-w-0">
 
+        @if (_loadFailed)
+        {
+            <OfflineRetry OnRetry="LoadAdminDataAsync" />
+        }
+
         @if (_tab == "users")
         {
             if (_users is null)
@@ -1720,6 +1725,7 @@
     private int TotalChats => _analytics?.Series.Chats.Sum(d => d.Count) ?? 0;
 
     private bool IsAdmin => Auth.CurrentUser?.Role == "admin";
+    private bool _loadFailed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1728,6 +1734,26 @@
             return;
         }
 
+        await LoadAdminDataAsync();
+    }
+
+    /// <summary>Init do admin — offline vira retry manual, não error UI.</summary>
+    private async Task LoadAdminDataAsync()
+    {
+        _loadFailed = false;
+        try
+        {
+            await LoadAdminDataCoreAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadFailed = true;
+            Console.Error.WriteLine($"[Admin] carga falhou: {ex.Message}");
+        }
+    }
+
+    private async Task LoadAdminDataCoreAsync()
+    {
         await ReloadUsersAsync();
         _groups = await Api.GetGroupsAsync();
         _analytics = await Api.GetAnalyticsAsync(30);

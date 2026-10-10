@@ -78,7 +78,18 @@ else
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
-        _enabled = await Api.GetTerminalEnabledAsync();
+        try
+        {
+            _enabled = await Api.GetTerminalEnabledAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: painel degradado com retry manual, não a error UI.
+            _enabled = true;
+            _loadError = true;
+            Console.Error.WriteLine($"[TerminalView] init falhou: {ex.Message}");
+            return;
+        }
         if (_enabled == true)
         {
             await RefreshAsync();
@@ -116,7 +127,18 @@ else
 
     private async Task RefreshAsync()
     {
-        _sessions = await Api.GetTerminalSessionsAsync();
+        try
+        {
+            _sessions = await Api.GetTerminalSessionsAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // Offline: mantém a lista anterior; o poll/refresh retenta.
+            _loadError = _sessions.Count == 0;
+            Console.Error.WriteLine($"[TerminalView] refresh falhou: {ex.Message}");
+            return;
+        }
+        _loadError = false;
         _active ??= _sessions.FirstOrDefault(s => s.IsRunning)?.Id ?? _sessions.FirstOrDefault()?.Id;
         if (_active is not null && _sessions.All(s => s.Id != _active))
         {
