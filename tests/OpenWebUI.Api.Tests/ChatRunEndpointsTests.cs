@@ -2,7 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using OpenWebUI.Application.Contracts;
+using OpenWebUI.Application.Interfaces;
+using OpenWebUI.Domain;
+using OpenWebUI.Infrastructure.Data;
 
 namespace OpenWebUI.Api.Tests;
 
@@ -101,6 +105,59 @@ public class ChatRunEndpointsTests
         return null!;
     }
 
+
+    [Test]
+    public async Task SubRun_Terminal_AnexaMarcadorNoChatPai()
+    {
+        // Run filha (ParentRunId) ao chegar em status terminal anexa uma
+        // mensagem "Subtarefa concluída" no chat pai
+        // (SPEC-20261010-subrun-parent-notify).
+        var auth = await SignUpAsync("PN", "pn@runs.local");
+        UseToken(auth.Token);
+        var pai = await CriarChatAsync([]);
+        var filho = await CriarChatAsync([]);
+
+        string childRunId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var parentRun = new ChatRun
+            {
+                ChatId = pai.Id, UserId = auth.User.Id, Model = "llama3",
+                RequestJson = "{}", Status = ChatRunStatus.Completed,
+                CreatedAt = 1, CompletedAt = 2,
+            };
+            var childRun = new ChatRun
+            {
+                ChatId = filho.Id, UserId = auth.User.Id, Model = "llama3",
+                RequestJson = "{}", ParentRunId = parentRun.Id, CreatedAt = 3,
+            };
+            db.ChatRuns.AddRange(parentRun, childRun);
+            db.SaveChanges();
+            childRunId = childRun.Id;
+            scope.ServiceProvider.GetRequiredService<IChatRunDispatcher>()
+                .Enqueue(childRunId);
+        }
+
+        // A run filha executa (request vazio → failed rápido) e a notificação
+        // ao pai sai no término — polling até o marcador aparecer.
+        var limite = DateTime.UtcNow.AddSeconds(60);
+        ChatResponse? detalhe = null;
+        while (DateTime.UtcNow < limite)
+        {
+            detalhe = await _client.GetFromJsonAsync<ChatResponse>(
+                $"/api/v1/chats/{pai.Id}");
+            if (detalhe!.Messages.Any(m =>
+                    m.Content.Contains("Subtarefa concluída")))
+            {
+                break;
+            }
+            await Task.Delay(300);
+        }
+        Assert.That(detalhe!.Messages.Any(m =>
+                m.Content.Contains("Subtarefa concluída")), Is.True,
+            "chat pai sem marcador de sub-session concluída");
+    }
 
     [Test]
     public async Task RunsConsole_ListaConsolidadaDeTodasAsRunsDoUsuario()

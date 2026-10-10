@@ -217,6 +217,7 @@ public sealed class ChatRunDispatcher(
         var finished = new ChatRunFinished(
             run.Id, run.ChatId, run.UserId, run.Model,
             run.Status, run.Error, run.PartialContent);
+        await NotifyParentChatAsync(services, run);
         foreach (var notifier in services.GetServices<IChatRunNotifier>())
         {
             try
@@ -228,6 +229,67 @@ public sealed class ChatRunDispatcher(
                 logger.LogWarning(ex, "Notifier {Type} falhou para run {RunId}.",
                     notifier.GetType().Name, run.Id);
             }
+        }
+    }
+
+    /// <summary>
+    /// SPEC-20261010-subrun-parent-notify: run filha (com
+    /// <see cref="ChatRun.ParentRunId"/>) ao chegar num status terminal
+    /// anexa uma mensagem marcador no chat PAI — "sub-session X concluiu"
+    /// fica visível no transcript e entra no contexto das próximas runs do
+    /// pai (o resultado completo segue consultável via builtin:run_result).
+    /// Best-effort: falha nunca derruba o término da run.
+    /// </summary>
+    private async Task NotifyParentChatAsync(IServiceProvider services, ChatRun run)
+    {
+        if (run.ParentRunId is null)
+        {
+            return;
+        }
+        try
+        {
+            var db = services.GetRequiredService<AppDbContext>();
+            var parentChatId = await db.ChatRuns.AsNoTracking()
+                .Where(r => r.Id == run.ParentRunId)
+                .Select(r => r.ChatId)
+                .FirstOrDefaultAsync(CancellationToken.None);
+            if (parentChatId is null)
+            {
+                return;
+            }
+            var childTitle = await db.Chats.AsNoTracking()
+                .Where(c => c.Id == run.ChatId)
+                .Select(c => c.Title)
+                .FirstOrDefaultAsync(CancellationToken.None);
+
+            var parentChat = await db.Chats.Include(c => c.Messages)
+                .FirstOrDefaultAsync(c => c.Id == parentChatId, CancellationToken.None);
+            if (parentChat is null)
+            {
+                return;
+            }
+
+            var position = parentChat.Messages.Count == 0
+                ? 0
+                : parentChat.Messages.Max(m => m.Position) + 1;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            parentChat.Messages.Add(new ChatMessage
+            {
+                ChatId = parentChat.Id,
+                Role = "assistant",
+                Content = $"> Subtarefa concluída ({run.Status}): "
+                    + $"{childTitle ?? run.ChatId} — run {run.Id}. "
+                    + "Resultado completo via builtin:run_result.",
+                Position = position,
+                Timestamp = now,
+            });
+            parentChat.UpdatedAt = now;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Falha ao notificar chat pai da run filha {RunId}.", run.Id);
         }
     }
 }

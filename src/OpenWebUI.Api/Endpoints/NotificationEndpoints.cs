@@ -199,7 +199,16 @@ public static class NotificationEndpoints
         if (existing is null) return Results.NotFound();
 
         db.ChatPushSubscriptions.Remove(existing);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Já removida por outro caminho (ex.: o WebPushChatRunNotifier
+            // pruneou a subscription morta entre o SELECT e o DELETE).
+            return Results.NotFound();
+        }
         return Results.Ok(new { subscribed = false });
     }
 
