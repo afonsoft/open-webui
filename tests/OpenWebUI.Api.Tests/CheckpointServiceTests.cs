@@ -387,6 +387,85 @@ public class CheckpointServiceTests
         Assert.That(File.ReadAllText(Path.Join(workdir, "readme.md")), Is.EqualTo("oi\n"));
     }
 
+    [Test]
+    public async Task Detail_ViaEndpoint_DevolveArquivosEDiff()
+    {
+        RequireGit();
+        var auth = await SignUpAsync("CPDT", "cpdt@cp.local");
+        UseToken(auth.Token);
+        var workdir = await BindRepoAsync(auth.User.Id);
+
+        var c0 = await FactoryCheckpoints().SnapshotAsync(
+            workdir, "r1", 0, CancellationToken.None);
+        Assert.That(c0, Is.Not.Null);
+        File.WriteAllText(Path.Join(workdir, "readme.md"), "mudou\n");
+
+        var detail = await _client.GetFromJsonAsync<WorkspaceCheckpointDetailResponse>(
+            $"/api/v1/workspace/repo/checkpoints/{c0.Hash}");
+        Assert.That(detail, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(detail!.Hash, Is.EqualTo(c0.Hash));
+            Assert.That(detail.Files, Does.Contain("readme.md"));
+            Assert.That(detail.Diff, Is.Not.Null.And.Contains("mudou"));
+        });
+    }
+
+    [Test]
+    public async Task Detail_HashInexistente_404()
+    {
+        RequireGit();
+        var auth = await SignUpAsync("CPD4", "cpd4@cp.local");
+        UseToken(auth.Token);
+        await BindRepoAsync(auth.User.Id);
+
+        var response = await _client.GetAsync(
+            "/api/v1/workspace/repo/checkpoints/0000000000000000000000000000000000000000");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    // ---------------- Caminhos nulos do serviço ----------------
+
+    [Test]
+    public async Task Snapshot_DesabilitadoOuWorkdirInexistente_DevolveNull()
+    {
+        var off = Service(new Dictionary<string, string?>
+        {
+            ["Checkpoints:Enabled"] = "false",
+        });
+        var dir = NewWorkdir();
+        try
+        {
+            Assert.That(await off.SnapshotAsync(
+                dir, "r1", 0, CancellationToken.None), Is.Null);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+
+        var svc = Service();
+        var ghost = Path.Join(Path.GetTempPath(), "nao-existe-" + Guid.NewGuid().ToString("N"));
+        Assert.That(await svc.SnapshotAsync(
+            ghost, "r1", 0, CancellationToken.None), Is.Null);
+    }
+
+    [Test]
+    public async Task Diff_WorkdirSemGit_DevolveNull()
+    {
+        var dir = NewWorkdir(); // sem .git → fallback, sem diff unificado
+        try
+        {
+            var svc = Service();
+            Assert.That(await svc.DiffAsync(
+                dir, "qualquer-hash", CancellationToken.None), Is.Null);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     // ---------------- helpers ----------------
 
     private CheckpointService FactoryCheckpoints() =>

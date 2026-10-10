@@ -196,6 +196,17 @@ public class LspBuiltinToolsTests
     }
 
     [Test]
+    public async Task References_Fake_DevolveLocalizacao()
+    {
+        await BindAsync();
+        await File.WriteAllTextAsync(Path.Join(_workdir, "a.py"), "x=1\n");
+        var tool = new LspReferencesBuiltinTool(_lsp, _repos);
+        var result = await tool.ExecuteAsync(
+            Args("{\"path\":\"a.py\",\"line\":1,\"col\":1}"), Ctx(), default);
+        Assert.That(result.Text, Does.Contain("a.py:1"));
+    }
+
+    [Test]
     public async Task WorkspaceSymbols_ResultNull_NenhumSimbolo()
     {
         await BindAsync();
@@ -256,6 +267,11 @@ public class LspBuiltinToolsTests
             elif method == "textDocument/hover":
                 send({"jsonrpc": "2.0", "id": mid,
                       "result": {"contents": {"kind": "plaintext", "value": "sym docs"}}})
+            elif method == "textDocument/references":
+                send({"jsonrpc": "2.0", "id": mid, "result": [
+                    {"uri": msg["params"]["textDocument"]["uri"],
+                     "range": {"start": {"line": 0, "character": 0},
+                               "end": {"line": 0, "character": 1}}}]})
             elif mid is not None:
                 send({"jsonrpc": "2.0", "id": mid, "result": None})
         """;

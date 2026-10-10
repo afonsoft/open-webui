@@ -316,6 +316,37 @@ public class LspClientTests
             Throws.InstanceOf<TimeoutException>());
     }
 
+    [Test]
+    public async Task DidChange_didSave_didClose_ciclo_de_documento()
+    {
+        await using var client = Client();
+        await client.EnsureRunningAsync(CancellationToken.None);
+
+        var file = Path.Join(_workdir, "b.py");
+        await File.WriteAllTextAsync(file, "x=1\n");
+        await client.DidOpenAsync(file, "x=1\n", CancellationToken.None);
+        Assert.That(await client.AwaitDiagnosticsAsync(
+            file, TimeSpan.FromSeconds(8), CancellationToken.None), Is.True);
+
+        // Ciclo full-sync: v2 → save → close (diagnostics saem do snapshot).
+        await client.DidChangeAsync(file, "x=2\n", CancellationToken.None);
+        await client.DidSaveAsync(file, CancellationToken.None);
+        await client.DidCloseAsync(file);
+        Assert.That(client.DiagnosticsSnapshot()
+            .ContainsKey(LspClient.UriForPath(file)), Is.False);
+
+        // didChange em arquivo não aberto cai no ramo didOpen.
+        var other = Path.Join(_workdir, "c.py");
+        await File.WriteAllTextAsync(other, "y=1\n");
+        await client.DidChangeAsync(other, "y=1\n", CancellationToken.None);
+        Assert.That(await client.AwaitDiagnosticsAsync(
+            other, TimeSpan.FromSeconds(8), CancellationToken.None), Is.True);
+
+        // didClose com servidor parado é no-op (early return).
+        await client.DisposeAsync();
+        await client.DidCloseAsync(other);
+    }
+
     /// <summary>Servidor fake: LSP mínimo para os testes (didOpen→publishDiagnostics).</summary>
     private const string FakeServer = """
         import sys, json, os
@@ -468,6 +499,83 @@ public class LspServiceTests
         Assert.That(diags, Is.Empty);
         Assert.That(running, Is.False);
     }
+
+    [Test]
+    public async Task Ciclo_de_documento_e_request_com_servidor_rodando()
+    {
+        var fake = Path.Join(_workdir, "fake-lsp.py");
+        await File.WriteAllTextAsync(fake, FakeServerMini);
+        await using var lsp = Service(new LspOptions
+        {
+            RequestTimeoutSeconds = 10,
+            ShutdownTimeoutSeconds = 4,
+            Servers = new Dictionary<string, LspServerSpec>
+            {
+                ["python"] = new LspServerSpec("python3", [fake]),
+            },
+        });
+
+        var file = Path.Join(_workdir, "a.py");
+        await File.WriteAllTextAsync(file, "x=1\n");
+
+        var client = await lsp.OpenDocumentAsync(_workdir, file, "x=1\n", CancellationToken.None);
+        Assert.That(client, Is.Not.Null);
+        await lsp.ChangeDocumentAsync(_workdir, file, "x=2\n", CancellationToken.None);
+        await File.WriteAllTextAsync(file, "x=3\n");
+        await lsp.SaveDocumentAsync(_workdir, file, CancellationToken.None);
+        await lsp.NotifyFileWrittenAsync(_workdir, file, CancellationToken.None);
+        await lsp.NotifyFileSavedAsync(_workdir, file, CancellationToken.None);
+
+        var res = await lsp.RequestAsync(_workdir, file, "textDocument/documentSymbol",
+            new { textDocument = new { uri = "file:///x" } }, CancellationToken.None);
+        Assert.That(res.ValueKind, Is.EqualTo(JsonValueKind.Array));
+
+        await lsp.CloseDocumentAsync(_workdir, file, CancellationToken.None);
+        Assert.That(lsp.Diagnostics(_workdir, file, out _), Is.Empty);
+    }
+
+    /// <summary>Fake mínimo: didOpen→diagnostics vazio; requests → lista com 1 símbolo.</summary>
+    private const string FakeServerMini = """
+        import sys, json
+        inp, out = sys.stdin.buffer, sys.stdout.buffer
+        def send(obj):
+            b = json.dumps(obj).encode()
+            out.write(b"Content-Length: %d\r\n\r\n" % len(b) + b)
+            out.flush()
+        def read():
+            n = 0
+            while True:
+                line = inp.readline()
+                if not line:
+                    return None
+                line = line.strip()
+                if not line:
+                    break
+                if line.lower().startswith(b"content-length:"):
+                    n = int(line.split(b":")[1])
+            return inp.read(n)
+        while True:
+            raw = read()
+            if raw is None:
+                break
+            msg = json.loads(raw)
+            mid, method = msg.get("id"), msg.get("method")
+            if method == "initialize":
+                send({"jsonrpc": "2.0", "id": mid, "result": {"capabilities": {}}})
+            elif method == "shutdown":
+                send({"jsonrpc": "2.0", "id": mid, "result": None})
+            elif method == "exit":
+                sys.exit(0)
+            elif method == "textDocument/didOpen":
+                send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+                      "params": {"uri": msg["params"]["textDocument"]["uri"], "diagnostics": []}})
+            elif mid is not None:
+                send({"jsonrpc": "2.0", "id": mid, "result": [{"name": "s", "kind": 12,
+                    "range": {"start": {"line": 0, "character": 0},
+                              "end": {"line": 0, "character": 1}},
+                    "selectionRange": {"start": {"line": 0, "character": 0},
+                                       "end": {"line": 0, "character": 1}}}]})
+        """;
 }
 
 [TestFixture, IsolateEnvironment]
@@ -554,4 +662,18 @@ public class LspResponseTests
         start = new { line = sl, character = sc },
         end = new { line = el, character = ec },
     };
+
+    [Test]
+    public void Records_de_contrato_lsp_e_hover_instanciam()
+    {
+        var hover = new LspHoverInfo("doc", 1, 2, 1, 5);
+        Assert.Multiple(() =>
+        {
+            Assert.That(hover.Contents, Is.EqualTo("doc"));
+            Assert.That(hover.EndCol, Is.EqualTo(5));
+        });
+        var item = new OpenWebUI.Application.Contracts.LspDiagnosticItem(
+            "a.py", 0, 1, 0, 3, 2, null, "fake", "msg");
+        Assert.That(item.Path, Is.EqualTo("a.py"));
+    }
 }
