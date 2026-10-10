@@ -853,6 +853,89 @@ public class ProviderServiceTests
     }
 
     [Test]
+    public async Task CompleteGoogle_Payload_ModelRolesEFunctionResponse()
+    {
+        _routes["/models/gemini-2.0-flash:generateContent"] = (200,
+            "{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"certo\"}," +
+            "{\"functionCall\":{\"name\":\"get_time\",\"args\":{\"tz\":\"UTC\"}}}]}}]}", 0);
+        await SetProvidersAsync(new ProviderConnection("google", _mockUrl, "gk"));
+
+        var toolCalls = "[{\"id\":\"c1\",\"type\":\"function\",\"function\":" +
+            "{\"name\":\"get_time\",\"arguments\":\"{\\\"tz\\\":\\\"UTC\\\"}\"}}]";
+        var tools = new[] { JsonDocument.Parse(
+            "{\"type\":\"function\",\"function\":{\"name\":\"get_time\",\"description\":\"hora\"," +
+            "\"parameters\":{\"type\":\"object\",\"properties\":{\"tz\":{\"type\":\"string\"}}}}}").RootElement };
+        var request = new ChatCompletionRequest(
+            "gemini-2.0-flash",
+            [
+                new ChatCompletionMessage("system", "seja breve"),
+                new ChatCompletionMessage("user", "horas?"),
+                new ChatCompletionMessage("assistant", "", ToolCallsJson: toolCalls),
+                new ChatCompletionMessage("tool", "12:00", ToolCallId: "c1"),
+            ],
+            Stream: false,
+            Connection: "google",
+            Tools: tools,
+            Params: new Dictionary<string, object> { ["max_tokens"] = 64 });
+
+        var result = await NewService().CompleteWithToolsAsync(request);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Content, Is.EqualTo("certo"));
+            Assert.That(result.ToolCalls, Has.Count.EqualTo(1));
+            Assert.That(result.ToolCalls[0].Name, Is.EqualTo("get_time"));
+            Assert.That(result.ToolCalls[0].ArgumentsJson, Is.EqualTo("{\"tz\":\"UTC\"}"));
+        });
+
+        var req = _requests.Single(r => r.Path == "/models/gemini-2.0-flash:generateContent");
+        Assert.That(req.XGoogApiKey, Is.EqualTo("gk"));
+        var body = JsonNode.Parse(req.Body)!;
+        var contents = body["contents"]!.AsArray();
+        Assert.Multiple(() =>
+        {
+            Assert.That(body["systemInstruction"]!["parts"]![0]!["text"]!.GetValue<string>(),
+                Is.EqualTo("seja breve"));
+            Assert.That(contents.Select(c => c!["role"]!.GetValue<string>()),
+                Is.EqualTo(new[] { "user", "model", "user" }));
+            Assert.That(contents[1]!["parts"]!.AsArray()[0]!["functionCall"]!["name"]!.GetValue<string>(),
+                Is.EqualTo("get_time"));
+            // functionResponse resolve o nome pelo id registrado nos tool_calls.
+            Assert.That(contents[2]!["parts"]!.AsArray()[0]!["functionResponse"]!["name"]!.GetValue<string>(),
+                Is.EqualTo("get_time"));
+            Assert.That(contents[2]!["parts"]!.AsArray()[0]!["functionResponse"]!["response"]!["result"]!.GetValue<string>(),
+                Is.EqualTo("12:00"));
+            Assert.That(body["tools"]!.AsArray()[0]!["functionDeclarations"]!.AsArray()[0]!["name"]!.GetValue<string>(),
+                Is.EqualTo("get_time"));
+            Assert.That(body["generationConfig"]!["maxOutputTokens"]!.GetValue<int>(), Is.EqualTo(64));
+        });
+    }
+
+    [Test]
+    public async Task StreamGoogle_TextoEFunctionCall()
+    {
+        _routes["/models/g1:streamGenerateContent"] = (200,
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"vou\"}]}}]}\n\n" +
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\" ver\"}]}}]}\n\n" +
+            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"functionCall\":{\"name\":\"f\",\"args\":{\"a\":1}}}]}}]}\n\n", 0);
+        await SetProvidersAsync(new ProviderConnection("google", _mockUrl, "gk"));
+
+        var deltas = new List<string>();
+        var result = await NewService().CompleteWithToolsStreamingAsync(
+            Req("g1", connection: "google"),
+            (d, _) => { deltas.Add(d); return Task.CompletedTask; });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Content, Is.EqualTo("vou ver"));
+            Assert.That(deltas, Is.EqualTo(new[] { "vou", " ver" }));
+            Assert.That(result.ToolCalls, Has.Count.EqualTo(1));
+            Assert.That(result.ToolCalls[0].Name, Is.EqualTo("f"));
+            Assert.That(result.ToolCalls[0].ArgumentsJson, Is.EqualTo("{\"a\":1}"));
+        });
+    }
+
+    [Test]
     public async Task Resolve_AutoResolve_ModeloOllama_GanhaDeOpenAi()
     {
         // Mesmo id exposto por ollama e anthropic: precedência ollama primeiro.
