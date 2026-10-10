@@ -334,6 +334,7 @@ public class ProviderService(
             "ollama" => await CompleteOllamaAsync(request, connections, ct),
             "openai" => await CompleteOpenAiAsync(request, connections, ct),
             "anthropic" => await CompleteAnthropicAsync(request, connections, ct),
+            "google" => await CompleteGoogleAsync(request, connections, ct),
             _ => throw new InvalidOperationException(
                 $"Nenhuma conexão configurada atende ao modelo '{request.Model}'."),
         };
@@ -357,6 +358,7 @@ public class ProviderService(
             "ollama" => StreamOllamaAsync(request, connections, ct),
             "openai" => StreamOpenAiAsync(request, connections, ct),
             "anthropic" => StreamAnthropicAsync(request, connections, ct),
+            "google" => StreamGoogleAsync(request, connections, ct),
             _ => throw new InvalidOperationException(
                 $"Nenhuma conexão configurada atende ao modelo '{request.Model}'."),
         };
@@ -389,8 +391,7 @@ public class ProviderService(
 
         if (provider is ProviderTypes.Google)
         {
-            throw new InvalidOperationException(
-                $"Adaptador de chat para '{provider}' ainda não implementado.");
+            return await CompleteGoogleWithToolsAsync(request, connections, ct);
         }
 
         if (openAi)
@@ -480,16 +481,11 @@ public class ProviderService(
 
         try
         {
-            if (provider is ProviderTypes.Google)
-            {
-                throw new InvalidOperationException(
-                    $"Adaptador de chat para '{provider}' ainda não implementado.");
-            }
-
             return provider switch
             {
                 "openai" => await StreamOpenAiToolsAsync(request, connections, payload, onDelta, ct),
                 "anthropic" => await StreamAnthropicToolsAsync(request, connections, onDelta, ct),
+                "google" => await StreamGoogleToolsAsync(request, connections, onDelta, ct),
                 _ => await StreamOllamaToolsAsync(request, connections, payload, onDelta, ct),
             };
         }
@@ -1200,6 +1196,381 @@ public class ProviderService(
                         ["arguments"] = args,
                     },
                 });
+            }
+        }
+
+        return new ProviderCompletion(content.ToString(), calls, callsJson.ToJsonString());
+    }
+
+    // ---------------- Google AI Studio (Gemini API) ----------------
+
+    private static HttpRequestMessage NewGoogleRequest(
+        ProviderConnection connection, string model, bool stream, JsonObject payload)
+    {
+        var action = stream ? "streamGenerateContent" : "generateContent";
+        var url = $"{TrimSlash(connection.BaseUrl)}/models/" +
+            $"{Uri.EscapeDataString(model)}:{action}";
+        if (stream)
+        {
+            url += "?alt=sse";
+        }
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(
+                payload.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        if (!string.IsNullOrEmpty(connection.ApiKey))
+        {
+            httpRequest.Headers.Add("x-goog-api-key", connection.ApiKey);
+        }
+        return httpRequest;
+    }
+
+    /// <summary>
+    /// Converte a conversa OpenAI-shaped para o formato Gemini: <c>system</c> vira
+    /// <c>systemInstruction</c>, assistant vira role <c>model</c>, tool_calls viram
+    /// partes <c>functionCall</c>, tool results viram <c>functionResponse</c>
+    /// (agrupados num turno user) e tools viram <c>functionDeclarations</c>.
+    /// </summary>
+    private static JsonObject BuildGooglePayload(ChatCompletionRequest request)
+    {
+        var system = new List<string>();
+        var contents = new List<JsonObject>();
+        var toolNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in request.Messages)
+        {
+            if (m.Role == "system")
+            {
+                if (!string.IsNullOrWhiteSpace(m.Content))
+                {
+                    system.Add(m.Content);
+                }
+                continue;
+            }
+
+            if (m.ToolCallId is not null || m.Role == "tool")
+            {
+                var part = new JsonObject
+                {
+                    ["functionResponse"] = new JsonObject
+                    {
+                        ["name"] = toolNames.TryGetValue(m.ToolCallId ?? "", out var n)
+                            ? n
+                            : m.ToolCallId ?? "tool",
+                        ["response"] = new JsonObject
+                        {
+                            ["result"] = m.Content,
+                        },
+                    },
+                };
+                if (contents.Count > 0
+                    && contents[^1]["role"]?.GetValue<string>() == "user"
+                    && contents[^1]["parts"] is JsonArray prevParts
+                    && prevParts.All(p => p?["functionResponse"] is not null))
+                {
+                    prevParts.Add(part);
+                }
+                else
+                {
+                    contents.Add(new JsonObject
+                    {
+                        ["role"] = "user",
+                        ["parts"] = new JsonArray(part),
+                    });
+                }
+                continue;
+            }
+
+            if (m.Role == "assistant")
+            {
+                var parts = new JsonArray();
+                if (!string.IsNullOrEmpty(m.Content))
+                {
+                    parts.Add(new JsonObject { ["text"] = m.Content });
+                }
+                if (m.ToolCallsJson is not null)
+                {
+                    foreach (var call in JsonNode.Parse(m.ToolCallsJson)!.AsArray())
+                    {
+                        var name = call?["function"]?["name"]?.GetValue<string>();
+                        if (name is null)
+                        {
+                            continue;
+                        }
+                        var id = call?["id"]?.GetValue<string>();
+                        if (id is not null)
+                        {
+                            toolNames[id] = name;
+                        }
+                        var argsRaw = call?["function"]?["arguments"];
+                        JsonNode? args;
+                        try
+                        {
+                            args = argsRaw is JsonValue s
+                                ? JsonNode.Parse(s.GetValue<string>())
+                                : argsRaw?.DeepClone();
+                        }
+                        catch (Exception)
+                        {
+                            args = new JsonObject();
+                        }
+                        parts.Add(new JsonObject
+                        {
+                            ["functionCall"] = new JsonObject
+                            {
+                                ["name"] = name,
+                                ["args"] = args ?? new JsonObject(),
+                            },
+                        });
+                    }
+                }
+                contents.Add(new JsonObject { ["role"] = "model", ["parts"] = parts });
+                continue;
+            }
+
+            contents.Add(new JsonObject
+            {
+                ["role"] = "user",
+                ["parts"] = new JsonArray(new JsonObject { ["text"] = m.Content }),
+            });
+        }
+
+        var payload = new JsonObject
+        {
+            ["contents"] = new JsonArray(contents.Cast<JsonNode>().ToArray()),
+        };
+        if (system.Count > 0)
+        {
+            payload["systemInstruction"] = new JsonObject
+            {
+                ["parts"] = new JsonArray(
+                    new JsonObject { ["text"] = string.Join("\n", system) }),
+            };
+        }
+
+        if (request.Tools is { Count: > 0 })
+        {
+            var declarations = new JsonArray();
+            foreach (var tool in request.Tools)
+            {
+                var fn = JsonNode.Parse(tool.GetRawText())?["function"];
+                var name = fn?["name"]?.GetValue<string>();
+                if (name is null)
+                {
+                    continue;
+                }
+                declarations.Add(new JsonObject
+                {
+                    ["name"] = name,
+                    ["description"] = fn?["description"]?.GetValue<string>(),
+                    ["parameters"] = fn?["parameters"]?.DeepClone()
+                        ?? new JsonObject { ["type"] = "object" },
+                });
+            }
+            if (declarations.Count > 0)
+            {
+                payload["tools"] = new JsonArray(
+                    new JsonObject { ["functionDeclarations"] = declarations });
+            }
+        }
+
+        if (request.Params is { Count: > 0 })
+        {
+            var config = new JsonObject();
+            foreach (var (key, value) in request.Params)
+            {
+                switch (key)
+                {
+                    case "temperature":
+                        config["temperature"] = ToJsonNode(value);
+                        break;
+                    case "top_p":
+                        config["topP"] = ToJsonNode(value);
+                        break;
+                    case "top_k":
+                        config["topK"] = ToJsonNode(value);
+                        break;
+                    case "max_tokens":
+                    case "max_completion_tokens":
+                        config["maxOutputTokens"] = ToJsonNode(value);
+                        break;
+                    case "stop":
+                        config["stopSequences"] = value is string s
+                            ? new JsonArray(s)
+                            : ToJsonNode(value);
+                        break;
+                }
+            }
+            if (config.Count > 0)
+            {
+                payload["generationConfig"] = config;
+            }
+        }
+
+        return payload;
+    }
+
+    /// <summary>Parseia candidates[].content.parts: text + functionCall normalizados.</summary>
+    private static ProviderCompletion ParseGoogleResponse(JsonNode? json)
+    {
+        var content = new StringBuilder();
+        var calls = new List<ProviderToolCall>();
+        var callsJson = new JsonArray();
+        var parts = json?["candidates"] is JsonArray { Count: > 0 } c
+            ? c[0]?["content"]?["parts"]?.AsArray()
+            : null;
+        foreach (var part in parts ?? [])
+        {
+            if (part?["text"] is { } text)
+            {
+                content.Append(text.GetValue<string>());
+            }
+            else if (part?["functionCall"] is { } call)
+            {
+                var id = Guid.NewGuid().ToString("N");
+                var name = call["name"]?.GetValue<string>() ?? string.Empty;
+                var args = call["args"]?.ToJsonString() ?? "{}";
+                calls.Add(new ProviderToolCall(id, name, args));
+                callsJson.Add(new JsonObject
+                {
+                    ["id"] = id,
+                    ["type"] = "function",
+                    ["function"] = new JsonObject
+                    {
+                        ["name"] = name,
+                        ["arguments"] = args,
+                    },
+                });
+            }
+        }
+        return new ProviderCompletion(content.ToString(), calls, callsJson.ToJsonString());
+    }
+
+    private async Task<string> CompleteGoogleAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "google");
+        var payload = BuildGooglePayload(request);
+        using var httpRequest = NewGoogleRequest(connection, request.Model, stream: false, payload);
+        using var response = await httpClientFactory.CreateClient().SendAsync(httpRequest, ct);
+        response.EnsureSuccessStatusCode();
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return ParseGoogleResponse(json).Content;
+    }
+
+    private async Task<ProviderCompletion> CompleteGoogleWithToolsAsync(
+        ChatCompletionRequest request, ConnectionsConfig connections, CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "google");
+        var payload = BuildGooglePayload(request);
+        using var httpRequest = NewGoogleRequest(connection, request.Model, stream: false, payload);
+        using var response = await httpClientFactory.CreateClient().SendAsync(httpRequest, ct);
+        response.EnsureSuccessStatusCode();
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+        return ParseGoogleResponse(json);
+    }
+
+    /// <summary>Stream simples: text parts de cada chunk viram linhas <c>data:</c> OpenAI.</summary>
+    private async IAsyncEnumerable<string> StreamGoogleAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "google");
+        var payload = BuildGooglePayload(request);
+        using var httpRequest = NewGoogleRequest(connection, request.Model, stream: true, payload);
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        await foreach (var (_, data) in ReadSseEventsAsync(reader, ct))
+        {
+            var parts = data?["candidates"] is JsonArray { Count: > 0 } c
+                ? c[0]?["content"]?["parts"]?.AsArray()
+                : null;
+            foreach (var part in parts ?? [])
+            {
+                var text = part?["text"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    var chunk = new JsonObject
+                    {
+                        ["object"] = "chat.completion.chunk",
+                        ["choices"] = new JsonArray(new JsonObject
+                        {
+                            ["index"] = 0,
+                            ["delta"] = new JsonObject { ["content"] = text },
+                        }),
+                    };
+                    yield return $"data: {chunk.ToJsonString()}";
+                }
+            }
+        }
+        yield return "data: [DONE]";
+    }
+
+    /// <summary>
+    /// Round streamed Gemini: chunks trazem parts com text (deltas) ou
+    /// functionCall (completo num chunk — Gemini não fragmenta args).
+    /// </summary>
+    private async Task<ProviderCompletion> StreamGoogleToolsAsync(
+        ChatCompletionRequest request,
+        ConnectionsConfig connections,
+        Func<string, CancellationToken, Task>? onDelta,
+        CancellationToken ct)
+    {
+        var connection = FindTypedConnection(connections, "google");
+        var payload = BuildGooglePayload(request);
+        using var httpRequest = NewGoogleRequest(connection, request.Model, stream: true, payload);
+        using var response = await httpClientFactory.CreateClient()
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+
+        var content = new StringBuilder();
+        var calls = new List<ProviderToolCall>();
+        var callsJson = new JsonArray();
+
+        await foreach (var (_, data) in ReadSseEventsAsync(reader, ct))
+        {
+            var parts = data?["candidates"] is JsonArray { Count: > 0 } c
+                ? c[0]?["content"]?["parts"]?.AsArray()
+                : null;
+            foreach (var part in parts ?? [])
+            {
+                if (part?["text"] is { } textNode)
+                {
+                    var text = textNode.GetValue<string>();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        content.Append(text);
+                        if (onDelta is not null)
+                        {
+                            await onDelta(text, ct);
+                        }
+                    }
+                }
+                else if (part?["functionCall"] is { } call)
+                {
+                    var id = Guid.NewGuid().ToString("N");
+                    var name = call["name"]?.GetValue<string>() ?? string.Empty;
+                    var args = call["args"]?.ToJsonString() ?? "{}";
+                    calls.Add(new ProviderToolCall(id, name, args));
+                    callsJson.Add(new JsonObject
+                    {
+                        ["id"] = id,
+                        ["type"] = "function",
+                        ["function"] = new JsonObject
+                        {
+                            ["name"] = name,
+                            ["arguments"] = args,
+                        },
+                    });
+                }
             }
         }
 
