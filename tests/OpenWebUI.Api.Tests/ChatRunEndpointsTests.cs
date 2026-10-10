@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Application.Interfaces;
@@ -331,5 +332,79 @@ public class ChatRunEndpointsTests
         var response = await _client.GetAsync($"/api/v1/chats/{chat.Id}/runs/active");
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
         Assert.That(await response.Content.ReadAsStringAsync(), Is.Empty.Or.EqualTo("null"));
+    }
+
+    [Test]
+    public async Task Steer_RunViva_PersisteInboxDuravel()
+    {
+        // SPEC-20261010-steer-queue: POST em run viva grava linha pending.
+        var auth = await SignUpAsync("SteerA", "steera@runs.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync(
+            [new ChatMessageModel("m1", "user", "oi", null, 100)]);
+        var run = await EnfileirarAsync(chat.Id, null);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/steer",
+            new SteerRunRequest("também faz X", "steer"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Accepted),
+            await response.Content.ReadAsStringAsync());
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.ChatRunSteers
+            .Where(s => s.RunId == run.Id)
+            .SingleOrDefaultAsync();
+        Assert.That(row, Is.Not.Null);
+        Assert.That(row!.Mode, Is.EqualTo("steer"));
+        Assert.That(row.Content, Is.EqualTo("também faz X"));
+    }
+
+    [Test]
+    public async Task Steer_RunFinalizada_Conflict()
+    {
+        var auth = await SignUpAsync("SteerB", "steerb@runs.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync(
+            [new ChatMessageModel("m1", "user", "oi", null, 100)]);
+        var run = await EnfileirarAsync(chat.Id, null);
+        await AguardarFinalAsync(chat.Id, run.Id);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/steer",
+            new SteerRunRequest("tarde demais"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+    }
+
+    [Test]
+    public async Task Steer_MensagemVazia_BadRequest()
+    {
+        var auth = await SignUpAsync("SteerC", "steerc@runs.local");
+        UseToken(auth.Token);
+        var chat = await CriarChatAsync(
+            [new ChatMessageModel("m1", "user", "oi", null, 100)]);
+        var run = await EnfileirarAsync(chat.Id, null);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/steer",
+            new SteerRunRequest("   "));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Steer_RunDeOutroUsuario_NotFound()
+    {
+        var dono = await SignUpAsync("SteerD1", "steerd1@runs.local");
+        UseToken(dono.Token);
+        var chat = await CriarChatAsync(
+            [new ChatMessageModel("m1", "user", "oi", null, 100)]);
+        var run = await EnfileirarAsync(chat.Id, null);
+
+        var outro = await SignUpAsync("SteerD2", "steerd2@runs.local");
+        UseToken(outro.Token);
+        var response = await _client.PostAsJsonAsync(
+            $"/api/v1/chats/{chat.Id}/runs/{run.Id}/steer",
+            new SteerRunRequest("alheio"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 }

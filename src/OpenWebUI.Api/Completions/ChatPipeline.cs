@@ -342,7 +342,15 @@ public static class ChatPipeline
         /// plan_exit aprovado promove a build já na próxima rodada. Null
         /// anuncia <c>request.Tools</c> como está.
         /// </summary>
-        Func<CancellationToken, Task<IReadOnlyList<JsonElement>?>>? AnnounceToolsAsync = null);
+        Func<CancellationToken, Task<IReadOnlyList<JsonElement>?>>? AnnounceToolsAsync = null,
+        /// <summary>
+        /// Fronteira de rodada (SPEC-20261010-steer-queue): chamado no topo de
+        /// cada round com <paramref name="queuedOnly"/> = false (promove
+        /// steers pendentes) e quando a run ficaria ociosa com true (promove
+        /// queued). Mensagens retornadas são injetadas no histórico e zeram o
+        /// teto de rounds — o turno recomeça a contagem.
+        /// </summary>
+        Func<bool, CancellationToken, Task<IReadOnlyList<ChatCompletionMessage>>>? OnRoundBoundaryAsync = null);
 
     /// <summary>
     /// Loop de tool calling: chama o modelo com tools até resposta final
@@ -365,6 +373,17 @@ public static class ChatPipeline
 
         for (var round = 0; round < maxRounds; round++)
         {
+            if (callbacks?.OnRoundBoundaryAsync is not null)
+            {
+                var steered = await callbacks.OnRoundBoundaryAsync(false, ct);
+                if (steered.Count > 0)
+                {
+                    messages.AddRange(steered);
+                    // Steer zera o teto: o turno recomeça do input novo.
+                    round = -1;
+                    continue;
+                }
+            }
             if (callbacks?.OnPhaseAsync is not null)
             {
                 await callbacks.OnPhaseAsync("generating", null, ct);
@@ -373,6 +392,17 @@ public static class ChatPipeline
                 providers, effective with { Messages = messages }, callbacks, ct);
             if (step.ToolCalls.Count == 0)
             {
+                // Antes de ficar ociosa, promove mensagens queued (SPEC-20261010).
+                if (callbacks?.OnRoundBoundaryAsync is not null)
+                {
+                    var queued = await callbacks.OnRoundBoundaryAsync(true, ct);
+                    if (queued.Count > 0)
+                    {
+                        messages.AddRange(queued);
+                        round = -1;
+                        continue;
+                    }
+                }
                 return new ToolLoopOutcome(step.Content, toolMessages);
             }
 

@@ -194,6 +194,10 @@ public sealed class ChatRunExecutor(
                             .Select(tool => JsonSerializer.Deserialize<JsonElement>(tool.SpecJson))
                             .ToList();
                     },
+                    // Steer/queue (SPEC-20261010): steer na fronteira de
+                    // rodada; queued só quando a run ficaria ociosa.
+                    OnRoundBoundaryAsync: (queuedOnly, t) =>
+                        PollSteerAsync(run, queuedOnly, t),
                     OnResultAsync: async (call, output, result, denied, t) =>
                     {
                         await PublishToolResultAsync(run, call, output, result, denied);
@@ -294,6 +298,62 @@ public sealed class ChatRunExecutor(
         broadcaster.Publish(run.Id,
             $"event: status\ndata: {JsonSerializer.Serialize(new RunPhaseEvent(phase, label), JsonOptions)}");
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Promove mensagens de steer/queue pendentes (SPEC-20261010-steer-queue):
+    /// marca a linha, anexa <c>ChatMessage</c> user ao chat (visível no
+    /// transcript), publica evento <c>steer</c> no SSE e devolve o payload pra
+    /// injeção no histórico do loop. <paramref name="queuedOnly"/> = true só
+    /// promove o modo queue (run ficaria ociosa); false só steer.
+    /// </summary>
+    private async Task<IReadOnlyList<ChatCompletionMessage>> PollSteerAsync(
+        ChatRun run, bool queuedOnly, CancellationToken ct)
+    {
+        var mode = queuedOnly ? "queue" : "steer";
+        List<ChatRunSteer> pending;
+        try
+        {
+            pending = await db.ChatRunSteers
+                .Where(s => s.RunId == run.Id && s.Status == "pending" && s.Mode == mode)
+                .OrderBy(s => s.Timestamp)
+                .ToListAsync(ct);
+        }
+        catch (Exception)
+        {
+            // Tabela pode não existir em base antiga mid-deploy — não quebra a run.
+            return [];
+        }
+        if (pending.Count == 0)
+        {
+            return [];
+        }
+
+        var chat = await db.Chats.Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.Id == run.ChatId, ct);
+        var promoted = new List<ChatCompletionMessage>(pending.Count);
+        foreach (var steer in pending)
+        {
+            steer.Status = "promoted";
+            promoted.Add(new ChatCompletionMessage("user", steer.Content));
+            if (chat is not null)
+            {
+                var pos = chat.Messages.Count == 0 ? 0 : chat.Messages.Max(m => m.Position) + 1;
+                chat.Messages.Add(new ChatMessage
+                {
+                    ChatId = chat.Id, Role = "user", Content = steer.Content,
+                    Position = pos, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                });
+            }
+            broadcaster.Publish(run.Id,
+                $"event: steer\ndata: {JsonSerializer.Serialize(new { mode = steer.Mode, content = steer.Content }, JsonOptions)}");
+        }
+        if (chat is not null)
+        {
+            chat.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+        await db.SaveChangesAsync(CancellationToken.None);
+        return promoted;
     }
 
     /// <summary>Publica o evento <c>tool_call</c> com preview higienizado dos args.</summary>

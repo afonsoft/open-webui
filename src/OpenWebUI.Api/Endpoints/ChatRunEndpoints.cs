@@ -31,6 +31,7 @@ public static class ChatRunEndpoints
         group.MapPost("/{id}/runs/{runId}/pause", PauseRunAsync);
         group.MapPost("/{id}/runs/{runId}/resume", ResumeRunAsync);
         group.MapPost("/{id}/runs/{runId}/approvals/{callId}", DecideApprovalAsync);
+        group.MapPost("/{id}/runs/{runId}/steer", SteerRunAsync);
         group.MapGet("/{id}/runs/{runId}/diff", GetRunDiffAsync);
     }
 
@@ -338,6 +339,54 @@ public static class ChatRunEndpoints
         }
 
         return Results.Conflict(new { detail = $"Run já finalizada ({run.Status})." });
+    }
+
+    /// <summary>
+    /// Injeta uma mensagem durável na run viva (SPEC-20261010-steer-queue):
+    /// <c>mode=steer</c> (default) é promovida na próxima fronteira de rodada
+    /// do tool loop; <c>mode=queue</c> só quando a run ficaria ociosa. 202 —
+    /// a promoção é assíncrona pelo executor.
+    /// </summary>
+    private static async Task<IResult> SteerRunAsync(
+        string id,
+        string runId,
+        SteerRunRequest request,
+        HttpContext http,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await AuthEndpoints.FindUserAsync(http, db, ct);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            return Results.BadRequest(new { detail = "Mensagem vazia." });
+        }
+        var mode = request.Mode is "queue" ? "queue" : "steer";
+
+        var run = await db.ChatRuns
+            .FirstOrDefaultAsync(
+                r => r.Id == runId && r.ChatId == id && r.UserId == user.Id, ct);
+        if (run is null)
+        {
+            return Results.NotFound(new { detail = "Run não encontrada." });
+        }
+        if (run.Status is not (ChatRunStatus.Queued or ChatRunStatus.Running
+            or ChatRunStatus.Paused))
+        {
+            return Results.Conflict(new { detail = $"Run já finalizada ({run.Status})." });
+        }
+
+        db.ChatRunSteers.Add(new ChatRunSteer
+        {
+            RunId = run.Id, ChatId = id, Content = request.Message.Trim(),
+            Mode = mode, Status = "pending",
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        });
+        await db.SaveChangesAsync(ct);
+        return Results.Accepted();
     }
 
     /// <summary>
