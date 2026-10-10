@@ -64,17 +64,17 @@ else
 
         <div class="relative flex flex-1 min-h-0">
             <aside class="lg:block @(_explorerOpen ? "" : "max-lg:hidden") w-56 shrink-0 border-r border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
-                <IdeExplorer @ref="_explorer" Branch="@_git?.Branch"
+                <IdeExplorer @ref="_explorer" Branch="@_git?.Branch" ChatId="ChatId"
                              DirtyCount="@(_git?.Files.Count ?? 0)"
                              OnOpenFile="OnOpenFileAsync" OnChanged="RefreshSideAsync" />
             </aside>
 
             <main class="min-w-0 flex-1">
-                <IdeEditor @ref="_editor" Dark="_dark" OnSaved="RefreshSideAsync" />
+                <IdeEditor @ref="_editor" Dark="_dark" ChatId="ChatId" OnSaved="RefreshSideAsync" />
             </main>
 
             <aside class="lg:block @(_panelOpen ? "" : "max-lg:hidden") w-72 shrink-0 border-l border-gray-200 dark:border-gray-800 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-30 max-lg:bg-white max-lg:dark:bg-gray-950">
-                <IdeRightPanel Git="_git" Jobs="_jobs" Checkpoints="_checkpoints"
+                <IdeRightPanel Git="_git" Jobs="_jobs" Checkpoints="_checkpoints" ChatId="ChatId"
                                ActiveFile="@_activePath" OnChanged="RefreshSideAsync" />
             </aside>
         </div>
@@ -89,6 +89,9 @@ else
     private WorkspaceGitResponse? _git;
     private List<ChatJobResponse> _jobs = [];
     private IReadOnlyList<WorkspaceCheckpointItem> _checkpoints = [];
+    /// <summary>Chat cujo binding resolve o workspace da IDE (?chatId= — SPEC-20261010-workspace-chatid-scope).</summary>
+    [Parameter, SupplyParameterFromQuery] public string? ChatId { get; set; }
+
     private IdeExplorer? _explorer;
     private IdeEditor? _editor;
     private string? _activePath;
@@ -109,7 +112,11 @@ else
             _enabled = await Api.GetIdeEnabledAsync();
             if (_enabled)
             {
-                _repo = await Api.GetWorkspaceRepoAsync();
+                // ?chatId= → binding efetivo do chat (chat → user → none).
+                _repo = ChatId is null
+                    ? await Api.GetWorkspaceRepoAsync()
+                    : (await Api.GetChatWorkspaceRepoAsync(ChatId))?.Binding;
+                TestRun.ChatId = ChatId;
             }
             _loadFailed = false;
         }
@@ -159,9 +166,9 @@ else
     {
         try
         {
-            _git = await Api.GetWorkspaceGitAsync();
+            _git = await Api.GetWorkspaceGitAsync(ChatId);
             _jobs = await Api.GetJobsAsync(all: true);
-            _checkpoints = await Api.GetCheckpointsAsync();
+            _checkpoints = await Api.GetCheckpointsAsync(ChatId);
         }
         catch (HttpRequestException ex)
         {

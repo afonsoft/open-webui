@@ -89,6 +89,9 @@
 </div>
 
 @code {
+    /// <summary>Chat cujo binding resolve o repo (null = global).</summary>
+    [Parameter] public string? ChatId { get; set; }
+
     private WorkspacePullsResponse? _pulls;
     private bool _noRepo;
     private bool _loadFailed;
@@ -132,7 +135,7 @@
                 return;
             }
             _noRepo = false;
-            _pulls = await Api.GetWorkspacePullsAsync();
+            _pulls = await Api.GetWorkspacePullsAsync(ChatId);
             _loadFailed = false;
         }
         catch (HttpRequestException ex)

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Infrastructure.ChatTools;
@@ -39,7 +40,7 @@ public static class WorkspaceFileEndpoints
 
     /// <summary>Guard comum: usuário autenticado + repo vinculado → workdir.</summary>
     private static async Task<(string? UserId, string? Workdir, IResult? Reject)> BoundWorkdirAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos, CancellationToken ct)
+        HttpContext http, AppDbContext db, WorkspaceRepoService repos, string? chatId, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -47,13 +48,21 @@ public static class WorkspaceFileEndpoints
             return (null, null, Results.Unauthorized());
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
-        if (binding is null)
+        // chatId opcional (SPEC-20261010-workspace-chatid-scope): só vale se o
+        // chat é do usuário; senão 404 como toda rota de chat.
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return (null, null, Results.NotFound(new { detail = "Chat não encontrado." }));
+        }
+
+        var binding = await repos.ResolveBindingAsync(user.Id, chatId, ct);
+        if (binding.Binding is null)
         {
             return (null, null, Unbound());
         }
 
-        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, ct), null);
+        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, chatId, ct), null);
     }
 
     private static IResult Unbound() =>
@@ -67,10 +76,10 @@ public static class WorkspaceFileEndpoints
     /// <summary>Snapshot git do workdir (S2: aba Changes do /ide — mesma
     /// carga de <c>GET /chats/{id}/runs/{runId}/diff</c>, sem run).</summary>
     private static async Task<IResult> GitAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         WorkspaceGitService git, CancellationToken ct)
     {
-        var (_, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -88,10 +97,10 @@ public static class WorkspaceFileEndpoints
     // ---------- GET /tree ----------
 
     private static async Task<IResult> TreeAsync(
-        string? path, int? depth, string? cursor,
+        string? path, int? depth, string? cursor, string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos, CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -186,11 +195,11 @@ public static class WorkspaceFileEndpoints
     // ---------- GET /file ----------
 
     private static async Task<IResult> ReadAsync(
-        string? path, int? startLine, int? maxLines,
+        string? path, int? startLine, int? maxLines, string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos, HttpResponse response,
         CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -239,12 +248,12 @@ public static class WorkspaceFileEndpoints
     // ---------- PUT /file ----------
 
     private static async Task<IResult> WriteAsync(
-        WorkspaceFileWriteRequest request,
+        WorkspaceFileWriteRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         OpenWebUI.Infrastructure.Lsp.LspService lsp,
         ILogger<Program> logger, CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -299,11 +308,11 @@ public static class WorkspaceFileEndpoints
     // ---------- POST /mkdir ----------
 
     private static async Task<IResult> MkdirAsync(
-        WorkspaceFileMkdirRequest request,
+        WorkspaceFileMkdirRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         ILogger<Program> logger, CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -329,11 +338,11 @@ public static class WorkspaceFileEndpoints
     // ---------- POST /rename ----------
 
     private static async Task<IResult> RenameAsync(
-        WorkspaceFileRenameRequest request,
+        WorkspaceFileRenameRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         ILogger<Program> logger, CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -392,11 +401,11 @@ public static class WorkspaceFileEndpoints
     // ---------- POST /delete ----------
 
     private static async Task<IResult> DeleteAsync(
-        WorkspaceFileDeleteRequest request,
+        WorkspaceFileDeleteRequest request, [FromQuery] string? chatId,
         HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         ILogger<Program> logger, CancellationToken ct)
     {
-        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (uid, w, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;

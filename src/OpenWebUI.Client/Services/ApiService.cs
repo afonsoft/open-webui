@@ -936,53 +936,60 @@ public class ApiService(HttpClient http, AuthService auth)
 
     /// <summary>Tree lazy do workdir; null em erro/404 (sem repo vinculado).</summary>
     public Task<WorkspaceFileTreeResponse?> GetWorkspaceTreeAsync(
-        string? path = null, int? depth = null, string? cursor = null)
+        string? path = null, int? depth = null, string? cursor = null, string? chatId = null)
     {
         var q = "?path=" + Uri.EscapeDataString(path ?? "")
             + (depth is null ? "" : $"&depth={depth}")
-            + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
+            + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}")
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId));
         return SendAsync<WorkspaceFileTreeResponse>(HttpMethod.Get,
             $"/api/v1/workspace/repo/tree{q}");
     }
 
     /// <summary>Catálogo de skills do repo vinculado; vazio sem repo/erro.</summary>
-    public async Task<List<RepoSkillItemResponse>> GetRepoSkillsAsync() =>
+    public async Task<List<RepoSkillItemResponse>> GetRepoSkillsAsync(string? chatId = null) =>
         await SendAsync<List<RepoSkillItemResponse>>(HttpMethod.Get,
-            "/api/v1/workspace/repo/skills") ?? [];
+            "/api/v1/workspace/repo/skills"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId))) ?? [];
 
     /// <summary>Corpo de uma skill do repo; null quando não existe.</summary>
-    public Task<RepoSkillDetailResponse?> GetRepoSkillAsync(string name) =>
+    public Task<RepoSkillDetailResponse?> GetRepoSkillAsync(string name, string? chatId = null) =>
         SendAsync<RepoSkillDetailResponse>(HttpMethod.Get,
-            $"/api/v1/workspace/repo/skills/{Uri.EscapeDataString(name)}");
+            $"/api/v1/workspace/repo/skills/{Uri.EscapeDataString(name)}"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>Catálogo de commands markdown do repo vinculado.</summary>
-    public async Task<List<RepoCommandItemResponse>> GetRepoCommandsAsync() =>
+    public async Task<List<RepoCommandItemResponse>> GetRepoCommandsAsync(string? chatId = null) =>
         await SendAsync<List<RepoCommandItemResponse>>(HttpMethod.Get,
-            "/api/v1/workspace/repo/commands") ?? [];
+            "/api/v1/workspace/repo/commands"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId))) ?? [];
 
     /// <summary>Corpo (template) de um command do repo; null quando não existe.</summary>
-    public Task<RepoCommandDetailResponse?> GetRepoCommandAsync(string name) =>
+    public Task<RepoCommandDetailResponse?> GetRepoCommandAsync(string name, string? chatId = null) =>
         SendAsync<RepoCommandDetailResponse>(HttpMethod.Get,
-            $"/api/v1/workspace/repo/commands/{Uri.EscapeDataString(name)}");
+            $"/api/v1/workspace/repo/commands/{Uri.EscapeDataString(name)}"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>Lê um arquivo do workdir (fatia de linhas); null em 404/binário/grande.</summary>
     public Task<WorkspaceFileReadResponse?> GetWorkspaceFileAsync(
-        string path, int? startLine = null, int? maxLines = null)
+        string path, int? startLine = null, int? maxLines = null, string? chatId = null)
     {
         var q = "?path=" + Uri.EscapeDataString(path)
             + (startLine is null ? "" : $"&startLine={startLine}")
-            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+            + (maxLines is null ? "" : $"&maxLines={maxLines}")
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId));
         return SendAsync<WorkspaceFileReadResponse>(HttpMethod.Get,
             $"/api/v1/workspace/repo/file{q}");
     }
 
     /// <summary>Leitura com status — a IDE distingue 404, binário(415) e grande(413).</summary>
     public async Task<IdeFileResult> GetWorkspaceFileStatusAsync(
-        string path, int? startLine = null, int? maxLines = null)
+        string path, int? startLine = null, int? maxLines = null, string? chatId = null)
     {
         var q = "?path=" + Uri.EscapeDataString(path)
             + (startLine is null ? "" : $"&startLine={startLine}")
-            + (maxLines is null ? "" : $"&maxLines={maxLines}");
+            + (maxLines is null ? "" : $"&maxLines={maxLines}")
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId));
         using var request = auth.CreateRequest(HttpMethod.Get,
             $"/api/v1/workspace/repo/file{q}");
         using var response = await http.SendAsync(request);
@@ -997,9 +1004,10 @@ public class ApiService(HttpClient http, AuthService auth)
 
     /// <summary>Grava arquivo com If-Match opcional; 409 devolve o etag atual para o dialog.</summary>
     public async Task<IdeSaveResult> PutWorkspaceFileAsync(
-        string path, string content, string? ifMatch = null)
+        string path, string content, string? ifMatch = null, string? chatId = null)
     {
-        using var request = auth.CreateRequest(HttpMethod.Put, "/api/v1/workspace/repo/file");
+        using var request = auth.CreateRequest(HttpMethod.Put, "/api/v1/workspace/repo/file"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
         request.Content = JsonContent.Create(
             new WorkspaceFileWriteRequest(path, content), options: JsonOptions);
         if (!string.IsNullOrEmpty(ifMatch))
@@ -1022,51 +1030,59 @@ public class ApiService(HttpClient http, AuthService auth)
     }
 
     /// <summary>Cria diretório (recursivo) no workdir.</summary>
-    public Task<bool> WorkspaceMkdirAsync(string path) =>
-        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/mkdir",
+    public Task<bool> WorkspaceMkdirAsync(string path, string? chatId = null) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/mkdir"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)),
             new WorkspaceFileMkdirRequest(path));
 
     /// <summary>Renomeia/move dentro do workdir; false em 404/409.</summary>
-    public Task<bool> WorkspaceRenameAsync(string from, string to) =>
-        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/rename",
+    public Task<bool> WorkspaceRenameAsync(string from, string to, string? chatId = null) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/rename"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)),
             new WorkspaceFileRenameRequest(from, to));
 
     /// <summary>Remove arquivo ou diretório (recursivo) do workdir.</summary>
-    public Task<bool> WorkspaceDeleteAsync(string path) =>
-        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/delete",
+    public Task<bool> WorkspaceDeleteAsync(string path, string? chatId = null) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/repo/delete"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)),
             new WorkspaceFileDeleteRequest(path));
 
     /// <summary>Snapshot git do workdir (aba Changes do /ide); null em falha/404.</summary>
-    public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync() =>
-        SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git");
+    public Task<WorkspaceGitResponse?> GetWorkspaceGitAsync(string? chatId = null) =>
+        SendAsync<WorkspaceGitResponse>(HttpMethod.Get, "/api/v1/workspace/repo/git"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>PRs abertos do repo vinculado (SPEC-20261009-pr-ci-panel); null em 404/erro.</summary>
-    public Task<WorkspacePullsResponse?> GetWorkspacePullsAsync() =>
-        SendAsync<WorkspacePullsResponse>(HttpMethod.Get, "/api/v1/workspace/repo/pulls");
+    public Task<WorkspacePullsResponse?> GetWorkspacePullsAsync(string? chatId = null) =>
+        SendAsync<WorkspacePullsResponse>(HttpMethod.Get, "/api/v1/workspace/repo/pulls"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
 
     // ---------------- Checkpoints do workdir (S6) ----------------
 
     /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>
-    public async Task<IReadOnlyList<WorkspaceCheckpointItem>> GetCheckpointsAsync() =>
+    public async Task<IReadOnlyList<WorkspaceCheckpointItem>> GetCheckpointsAsync(string? chatId = null) =>
         await SendAsync<List<WorkspaceCheckpointItem>>(
-            HttpMethod.Get, "/api/v1/workspace/repo/checkpoints") ?? [];
+            HttpMethod.Get, "/api/v1/workspace/repo/checkpoints"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId))) ?? [];
 
     /// <summary>Detalhe do checkpoint: arquivos cobertos + diff de preview.</summary>
-    public Task<WorkspaceCheckpointDetailResponse?> GetCheckpointAsync(string hash) =>
+    public Task<WorkspaceCheckpointDetailResponse?> GetCheckpointAsync(string hash, string? chatId = null) =>
         SendAsync<WorkspaceCheckpointDetailResponse>(
             HttpMethod.Get,
-            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}");
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>
     /// Reverte o workdir ao checkpoint. Devolve o resultado (reverted/
     /// conflicts) ou <c>(null, 409)</c> quando há run ativa no workspace.
     /// </summary>
     public async Task<(WorkspaceCheckpointRevertResponse? Result, int Status)> RevertCheckpointAsync(
-        string hash, bool force = false)
+        string hash, bool force = false, string? chatId = null)
     {
         using var request = auth.CreateRequest(
             HttpMethod.Post,
-            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}/revert");
+            $"/api/v1/workspace/repo/checkpoints/{Uri.EscapeDataString(hash)}/revert"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
         request.Content = JsonContent.Create(
             new WorkspaceCheckpointRevertRequest(force), options: JsonOptions);
         using var response = await http.SendAsync(request);
@@ -1112,25 +1128,29 @@ public class ApiService(HttpClient http, AuthService auth)
     // --------- LSP do editor (SPEC-20261009-lsp-diagnostics, E16 S8) ---------
 
     /// <summary>Status LSP do arquivo (linguagem/estado do servidor); null em erro.</summary>
-    public Task<LspStatusResponse?> GetLspStatusAsync(string? path) =>
+    public Task<LspStatusResponse?> GetLspStatusAsync(string? path, string? chatId = null) =>
         SendAsync<LspStatusResponse>(HttpMethod.Get,
-            $"/api/v1/workspace/lsp/status?path={Uri.EscapeDataString(path ?? "")}");
+            $"/api/v1/workspace/lsp/status?path={Uri.EscapeDataString(path ?? "")}"
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>Sync do documento: kind open|change|close (didOpen/didChange/didClose).</summary>
-    public Task<bool> PostLspDocAsync(string path, string kind, string? text) =>
-        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/lsp/doc",
+    public Task<bool> PostLspDocAsync(string path, string kind, string? text, string? chatId = null) =>
+        SendStatusAsync(HttpMethod.Post, "/api/v1/workspace/lsp/doc"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)),
             new LspDocSyncRequest(path, kind, text));
 
     /// <summary>Diagnostics do arquivo (ou workdir sem path); null em erro.</summary>
-    public Task<LspDiagnosticsResponse?> GetLspDiagnosticsAsync(string? path) =>
+    public Task<LspDiagnosticsResponse?> GetLspDiagnosticsAsync(string? path, string? chatId = null) =>
         SendAsync<LspDiagnosticsResponse>(HttpMethod.Get,
-            $"/api/v1/workspace/lsp/diagnostics?path={Uri.EscapeDataString(path ?? "")}");
+            $"/api/v1/workspace/lsp/diagnostics?path={Uri.EscapeDataString(path ?? "")}"
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId)));
 
     /// <summary>Hover na posição (1-based); null quando servidor não responde.</summary>
-    public async Task<string?> GetLspHoverAsync(string path, int line, int col)
+    public async Task<string?> GetLspHoverAsync(string path, int line, int col, string? chatId = null)
     {
         var node = await SendAsync<JsonObject>(HttpMethod.Get,
-            $"/api/v1/workspace/lsp/hover?path={Uri.EscapeDataString(path)}&line={line}&col={col}");
+            $"/api/v1/workspace/lsp/hover?path={Uri.EscapeDataString(path)}&line={line}&col={col}"
+            + (chatId is null ? "" : "&chatId=" + Uri.EscapeDataString(chatId)));
         return node?["hover"]?.GetValue<string>();
     }
 
@@ -1150,9 +1170,10 @@ public class ApiService(HttpClient http, AuthService auth)
     /// Inicia um test run do repo vinculado (RF-003). <paramref name="confirmed"/>
     /// confirma comandos WorkspaceWrite depois do cartão de aprovação.
     /// </summary>
-    public async Task<IdeTestRunStartResult> StartTestRunAsync(bool confirmed = false)
+    public async Task<IdeTestRunStartResult> StartTestRunAsync(bool confirmed = false, string? chatId = null)
     {
-        using var request = auth.CreateRequest(HttpMethod.Post, "/api/v1/workspace/repo/test-run");
+        using var request = auth.CreateRequest(HttpMethod.Post, "/api/v1/workspace/repo/test-run"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)));
         request.Content = JsonContent.Create(new TestRunStartRequest(confirmed), options: JsonOptions);
         using var response = await http.SendAsync(request);
         var node = await response.Content.ReadFromJsonAsync<JsonObject>(JsonOptions);
@@ -1173,8 +1194,9 @@ public class ApiService(HttpClient http, AuthService auth)
             $"/api/v1/workspace/repo/test-run/{jobId}");
 
     /// <summary>Define/limpa o TestCommand customizado do binding (override do manifesto).</summary>
-    public Task<bool> SetTestCommandAsync(string? command) =>
-        SendStatusAsync(HttpMethod.Put, "/api/v1/workspace/repo/test-command",
+    public Task<bool> SetTestCommandAsync(string? command, string? chatId = null) =>
+        SendStatusAsync(HttpMethod.Put, "/api/v1/workspace/repo/test-command"
+            + (chatId is null ? "" : "?chatId=" + Uri.EscapeDataString(chatId)),
             new TestCommandRequest(command));
 
     // ---------------- Internos ----------------

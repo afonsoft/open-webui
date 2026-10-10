@@ -217,6 +217,27 @@ public sealed class WorkspaceRepoService(ConfigService config, IHostEnvironment 
     }
 
     /// <summary>
+    /// Igual a <see cref="SetTestCommandAsync(string, string?, CancellationToken)"/>
+    /// mas resolve o binding efetivo do chat (SPEC-20261010-workspace-chatid-scope):
+    /// escreve na chave <c>chat:{id}</c> quando a origem é o chat, senão na do usuário.
+    /// </summary>
+    public async Task SetTestCommandAsync(
+        string userId, string? chatId, string? testCommand, CancellationToken ct)
+    {
+        var (binding, source) = await ResolveBindingAsync(userId, chatId, ct);
+        if (binding is null)
+        {
+            return;
+        }
+        var updated = binding with
+        {
+            TestCommand = string.IsNullOrWhiteSpace(testCommand) ? null : testCommand.Trim(),
+        };
+        await config.SetAsync(
+            source == "chat" ? ChatBindingKey(chatId!) : BindingKey(userId), updated, ct);
+    }
+
+    /// <summary>
     /// Define ou limpa o format hook por-repo do binding
     /// (override do global <c>Format:Command</c> — SPEC-20261009-worktree-format-hooks RF-004).
     /// </summary>

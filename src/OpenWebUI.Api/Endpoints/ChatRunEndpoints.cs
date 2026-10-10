@@ -514,7 +514,7 @@ public static class ChatRunEndpoints
 
         // Com repo vinculado o snapshot sai do checkout do repo; numa run
         // isolada (Workspace:RunIsolation=worktree, E16 S9) sai do worktree.
-        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, ct);
+        var mainWorkdir = await repos.ResolveWorkdirAsync(user.Id, id, ct);
         var isolated = worktrees.ResolveIsolated(user.Id, runId);
         var workdir = isolated ?? mainWorkdir;
         var info = await git.GetInfoAsync(workdir, ct);

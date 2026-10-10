@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenWebUI.Application.Contracts;
 using OpenWebUI.Domain;
@@ -33,7 +34,7 @@ public static class CheckpointEndpoints
 
     /// <summary>Guard comum: usuário autenticado + repo vinculado → workdir.</summary>
     private static async Task<(string? UserId, string? Workdir, IResult? Reject)> BoundWorkdirAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos, CancellationToken ct)
+        HttpContext http, AppDbContext db, WorkspaceRepoService repos, string? chatId, CancellationToken ct)
     {
         var user = await AuthEndpoints.FindUserAsync(http, db, ct);
         if (user is null)
@@ -41,24 +42,30 @@ public static class CheckpointEndpoints
             return (null, null, Results.Unauthorized());
         }
 
-        var binding = await repos.GetBindingAsync(user.Id, ct);
-        if (binding is null)
+        if (chatId is not null
+            && !await db.Chats.AsNoTracking().AnyAsync(c => c.Id == chatId && c.UserId == user.Id, ct))
+        {
+            return (null, null, Results.NotFound(new { detail = "Chat não encontrado." }));
+        }
+
+        var binding = await repos.ResolveBindingAsync(user.Id, chatId, ct);
+        if (binding.Binding is null)
         {
             return (null, null, Results.NotFound(
                 new { detail = "Nenhum repositório vinculado.", bound = false }));
         }
 
-        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, ct), null);
+        return (user.Id, await repos.ResolveWorkdirAsync(user.Id, chatId, ct), null);
     }
 
     // ---------- GET /checkpoints ----------
 
     /// <summary>Lista os checkpoints do workdir (mais novo primeiro).</summary>
     private static async Task<IResult> ListAsync(
-        HttpContext http, AppDbContext db, WorkspaceRepoService repos,
+        string? chatId, HttpContext http, AppDbContext db, WorkspaceRepoService repos,
         CheckpointService checkpoints, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -74,10 +81,10 @@ public static class CheckpointEndpoints
 
     /// <summary>Detalhe do checkpoint: arquivos cobertos + diff de preview.</summary>
     private static async Task<IResult> DetailAsync(
-        HttpContext http, string hash, AppDbContext db, WorkspaceRepoService repos,
+        HttpContext http, string hash, string? chatId, AppDbContext db, WorkspaceRepoService repos,
         CheckpointService checkpoints, CancellationToken ct)
     {
-        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (_, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
@@ -102,11 +109,11 @@ public static class CheckpointEndpoints
     /// não é sobrescrito; <c>force=true</c> explícito ignora a guarda.
     /// </summary>
     private static async Task<IResult> RevertAsync(
-        HttpContext http, string hash, WorkspaceCheckpointRevertRequest? body,
+        HttpContext http, string hash, WorkspaceCheckpointRevertRequest? body, [FromQuery] string? chatId,
         AppDbContext db, WorkspaceRepoService repos,
         CheckpointService checkpoints, CancellationToken ct)
     {
-        var (userId, workdir, reject) = await BoundWorkdirAsync(http, db, repos, ct);
+        var (userId, workdir, reject) = await BoundWorkdirAsync(http, db, repos, chatId, ct);
         if (reject is not null)
         {
             return reject;
