@@ -86,7 +86,15 @@
         try
         {
             var tree = await Api.GetWorkspaceTreeAsync(path: "", depth: 3, chatId: ChatId);
-            _roots = tree?.Entries.Select(ToEntry).ToList() ?? [];
+            if (tree is null)
+            {
+                // 404/erro (chatId inválido, checkout removido, repo desvinculado):
+                // estado de falha com retry, nunca "Diretório vazio" falso.
+                _roots = [];
+                _loadFailed = true;
+                return;
+            }
+            _roots = tree.Entries.Select(ToEntry).ToList();
             _loadFailed = false;
         }
         catch (HttpRequestException ex)
